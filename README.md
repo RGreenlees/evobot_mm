@@ -64,7 +64,7 @@ Once the bot has a look target defined (either movement or regular), the followi
 2. BotUpdateViewRotation() is called every GAME frame, and handles the interpolation of the bot's view towards the current DesiredLookDirection. Once the interpolation is complete, the DesiredLookDirection is zeroed out so that BotUpdateDesiredViewRotation() can then set a new DesiredLookDirection. This means the bot cannot correct its aim mid-turn: once committed to a view angle, it cannot change it until it's reached.
 3. UpdateView() is called in BotUpdateDesiredViewRotation() and effectively updates the list of which enemies are visible, when they were last seen and so on.
 
-Bot vision is handled using a view frustum which represents the maximum vertical and horizontal field of view the bot has. It pretty accurately simulates a screen, so if a target is off the top, bottom or side of the "screen" then the bot can't see it. 
+Bot vision is handled using a view frustum which represents the maximum vertical and horizontal field of view the bot has. It pretty accurately simulates a screen, so if a target is off the top, bottom or side of the "screen" then the bot can't see it. You can even change the bot's aspect ratio to simulate them playing on a classic 4:3 monitor if you want (default is more modern 16:9).
 
 * The frustum angle and position is updated each game frame in UpdateViewFrustum().
 * Enemy players are then clipped against the view frustum in IsPlayerVisibleToBot(), using a cylinder-frustum intersection calculation to determine if the player is "on the bot's screen". Finally, a simple trace is run to the player's origin to determine if they're hidden behind a wall or other player. Not hugely sophisticated, but seems to work ok.

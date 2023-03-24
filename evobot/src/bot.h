@@ -58,13 +58,6 @@ void RemoveAllBots();
 #define DMG_SLOWBURN		(1 << 21)	// in an oven
 #define DMG_SLOWFREEZE		(1 << 22)	// in a subzero freezer
 
-
-
-
-
-
-
-
 // These define the bot's view frustum sides
 #define FRUSTUM_PLANE_TOP 0
 #define FRUSTUM_PLANE_BOTTOM 1
@@ -80,39 +73,6 @@ void RemoveAllBots();
 
 #define MAX_SECONDARY_BOT_TASKS 8
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 #define MAX_TEAMS 32
 #define MAX_TEAMNAME_LENGTH 16
 
@@ -124,10 +84,6 @@ static const float MIN_FRAME_TIME = (1.0f / 60.0f);
 
 // The last time the BotThink function was run for all bots. Depends on MIN_FRAME_TIME
 static float last_think_time = 0.0f;
-
-
-
-
 
 // Every time the commander takes an action (moves view, selects building, places structure etc.), how long to wait before doing next action
 static const float commander_action_cooldown = 1.0f;
@@ -208,24 +164,17 @@ void UTIL_DrawLine(const edict_t* pEntity, Vector start, Vector end, float drawT
 // Makes the bot kill itself (issue "kill" console command)
 void UTIL_BotSuicide(bot_t* pBot);
 
-
-
-
 // Event fired when the match starts after the count down (if cheats are enabled, this will still only fire after the countdown even though players can move before then)
 void UTIL_OnGameStart();
 
 // Helper function to cycle through a bot's tracked enemy list (see enemy_status struct) and pick the most appropriate target, or -1 if no target exists
 int UTIL_GetNextEnemyTarget(bot_t* pBot);
 
-
-
 // Converts a weapon type to the droppable item it corresponds to (e.g. WEAPON_MARINE_HMG to ITEM_MARINE_HMG)
 NSDeployableItem UTIL_WeaponTypeToDeployableItem(const NSWeapon WeaponType);
 
 // Finds the next empty message slot (see bot_msg struct) for the bot to queue a new message
 bot_msg* UTIL_GetAvailableBotMsgSlot(bot_t* pBot);
-
-
 
 // Total number of humans and bots on given team
 int UTIL_GetNumPlayersOnTeam(const int Team);
@@ -409,12 +358,8 @@ bool UTIL_StructureIsRecycling(const edict_t* Structure);
 // Returns true if the input edict is a valid structure, and is in the process of being upgraded (not yet completed)
 bool UTIL_StructureIsUpgrading(const edict_t* Structure);
 
-
-
 // Event called when an alien bot receives an alert (e.g. "Hive is under attack", "Life forms under attack" etc.)
 void AlienReceiveAlert(bot_t* pBot, const Vector Location, const PlayerAlertType AlertType);
-
-
 
 // Returns true if the input edict is a valid structure, and is in the process of any kind of research (not yet completed)
 bool UTIL_StructureIsResearching(const edict_t* Structure);
@@ -427,8 +372,6 @@ int UTIL_CommanderFirstFreeActionIndex(bot_t* CommanderBot, int Priority);
 // Finds the nearest allied player to the given location for the specified team
 float UTIL_DistToNearestFriendlyPlayer(const Vector& Location, int DesiredTeam);
 
-
-
 // Is the input edict a valid structure, and is it electrified?
 bool UTIL_IsStructureElectrified(const edict_t* Structure);
 
@@ -439,11 +382,6 @@ char* UTIL_WeaponTypeToClassname(const NSWeapon WeaponType);
 char* UTIL_TaskTypeToChar(const BotTaskType TaskType);
 char* UTIL_BotRoleToChar(const BotRole Role);
 char* UTIL_CommanderActionToChar(const CommanderActionType ActionType);
-
-
-
-
-
 
 // Returns the cost in resources of the supplied type of structure
 int UTIL_GetCostOfStructureType(NSStructureType StructureType);
@@ -571,8 +509,6 @@ Vector UTIL_GetGrenadeThrowTarget(bot_t* pBot, const Vector TargetLocation, cons
 
 void AlienGuardLocation(bot_t* pBot, const Vector Location);
 
-
-
 void AlienCheckWantsAndNeeds(bot_t* pBot);
 
 void OnBotFinishGuardingLocation(bot_t* pBot);
@@ -596,8 +532,6 @@ void BotAttackTarget(bot_t* pBot, edict_t* Target);
 
 // Returns true if the weapon uses clips, NOT if the weapon actually needs to be reloaded right now
 bool UTIL_WeaponNeedsReloading(const NSWeapon CheckWeapon);
-
-
 
 void DEBUG_TestBackwardsPathFind(edict_t* pEdict, const Vector Destination);
 
