@@ -84,7 +84,7 @@ Bots will move to the last seen/pinged location, and throw a grenade if they hav
 * Botman (http://hpb-bot.bots-united.com/) - For providing the plugin base for bots that EvoBot is based on
 * TheFatal, Pierre-Marie Baty  (https://www.bots-united.com/) - For some useful code snippets
 * The Bots United community - For all the work they did over the last 20-odd years improving bot integration with GoldSrc
-* [APG]RoboCop[CL] (https://www.bots-united.com/) - For helping get the Linux build compiled correctly
+* [APG]RoboCop[CL] (https://apg-clan.org/) - For helping get the Linux build compiled correctly
 * Jeefo (https://yapb.jeefo.net/) - For being VERY patient and helping me get the Linux build working
 * Pierow (NS1 Community Discord) - For helping me understand the NS code base better
 * NS1 Community Discord - For feedback and support :)

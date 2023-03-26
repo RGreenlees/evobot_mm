@@ -350,19 +350,56 @@ void ClientCommand(edict_t *pEntity)
 		RETURN_META(MRES_SUPERCEDE);
 	}
 
-	if (FStrEq(pcmd, "amicloaked"))
+	if (FStrEq(pcmd, "testattack"))
 	{
-		for (int i = 0; i < gpGlobals->maxClients; i++)
+		if (!NavmeshLoaded())
 		{
-			if (bots[i].is_used && !FNullEnt(bots[i].pEdict))
-			{
-				char buf[32];
-				sprintf(buf, "rmode: %d, ramt = %f\n", bots[i].pEdict->v.rendermode, bots[i].pEdict->v.renderamt);
-				UTIL_SayText(buf, pEntity);
-			}
-
+			UTIL_SayText("Navmesh is not loaded", pEntity);
+			RETURN_META(MRES_SUPERCEDE);
 		}
 
+		for (int i = 0; i < gpGlobals->maxClients; i++)
+		{
+			if (bots[i].is_used && bots[i].pEdict->v.team == MARINE_TEAM)  // not respawning
+			{
+				const resource_node* ResNode = UTIL_GetNearestCappedResNodeToLocation(bots[i].pEdict->v.origin, ALIEN_TEAM, true);
+
+				if (ResNode)
+				{
+					bots[i].PrimaryBotTask.TaskType = TASK_ATTACK;
+					bots[i].PrimaryBotTask.TaskTarget = ResNode->TowerEdict;
+					bots[i].PrimaryBotTask.TaskLocation = ResNode->origin;
+					bots[i].PrimaryBotTask.bOrderIsUrgent = true;
+				}
+			}
+		}
+
+		RETURN_META(MRES_SUPERCEDE);
+	}
+
+	if (FStrEq(pcmd, "testattackhive"))
+	{
+		if (!NavmeshLoaded())
+		{
+			UTIL_SayText("Navmesh is not loaded", pEntity);
+			RETURN_META(MRES_SUPERCEDE);
+		}
+
+		for (int i = 0; i < gpGlobals->maxClients; i++)
+		{
+			if (bots[i].is_used && bots[i].pEdict->v.team == MARINE_TEAM)  // not respawning
+			{
+				const hive_definition* Hive = UTIL_GetNearestHiveOfStatus(bots[i].pEdict->v.origin, HIVE_STATUS_BUILT);
+
+				if (Hive)
+				{
+					bots[i].PrimaryBotTask.TaskType = TASK_ATTACK;
+					bots[i].PrimaryBotTask.TaskTarget = Hive->edict;
+					bots[i].PrimaryBotTask.TaskLocation = Hive->FloorLocation;
+					bots[i].PrimaryBotTask.bOrderIsUrgent = true;
+				}
+			}
+		}
 
 		RETURN_META(MRES_SUPERCEDE);
 	}
@@ -379,14 +416,16 @@ void ClientCommand(edict_t *pEntity)
 	if (FStrEq(pcmd, "traceentity"))
 	{
 
-		Vector TraceStart = UTIL_GetPlayerEyePosition(pEntity);
-		Vector LookDir = UTIL_GetForwardVector(pEntity->v.v_angle);
+		Vector TraceStart = UTIL_GetPlayerEyePosition(pEntity); // origin + pev->view_ofs
+		Vector LookDir = UTIL_GetForwardVector(pEntity->v.v_angle); // Converts view angles to normalized unit vector
 
 		Vector TraceEnd = TraceStart + (LookDir * 1000.0f);
 
 		TraceResult Hit;
 
-		UTIL_TraceLine(TraceStart, TraceEnd, dont_ignore_monsters, dont_ignore_glass, pEntity, &Hit);
+		UTIL_TraceHull(TraceStart, TraceEnd, dont_ignore_monsters, head_hull, pEntity, &Hit);
+
+		//UTIL_TraceLine(TraceStart, TraceEnd, dont_ignore_monsters, dont_ignore_glass, pEntity, &Hit);
 
 		if (Hit.flFraction < 1.0f)
 		{
@@ -397,6 +436,9 @@ void ClientCommand(edict_t *pEntity)
 			NSStructureType StructType = UTIL_IUSER3ToStructureType(Hit.pHit->v.iuser3);
 
 			sprintf(buf, "StructureType: %s\n", UTIL_StructTypeToChar(StructType));
+			UTIL_SayText(buf, pEntity);
+
+			sprintf(buf, "Distance: %f\n", (1000.0f * Hit.flFraction));
 			UTIL_SayText(buf, pEntity);
 		}
 		else

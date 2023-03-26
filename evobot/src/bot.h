@@ -108,7 +108,7 @@ static const int min_desired_arms_labs = 1;
 static const int min_desired_resource_towers = 3;
 
 // How far a bot can be from a useable object when trying to interact with it. Used also for melee attacks
-static const float max_player_use_reach = 64.0f;
+static const float max_player_use_reach = 50.0f;
 
 // Minimum time a bot can wait between attempts to use something in seconds (when not holding the use key down)
 static const float min_use_gap = 0.5f;
@@ -145,9 +145,9 @@ bool UTIL_QuickHullTrace(const edict_t* pEdict, const Vector& start, const Vecto
 bool UTIL_QuickHullTrace(const edict_t* pEdict, const Vector& start, const Vector& end, int hullNum);
 
 // Does a trace to see if the player has direct LOS to the target (will be blocked by monsters)
-bool UTIL_PlayerHasLOSToEntity(const edict_t* Player, const edict_t* Target);
+bool UTIL_PlayerHasLOSToEntity(const edict_t* Player, const edict_t* Target, const float MaxRange, const bool bUseHullSweep);
 // Does a trace to see if the player has direct LOS to the location (will be blocked by monsters)
-bool UTIL_PlayerHasLOSToLocation(const edict_t* Player, const Vector Target);
+bool UTIL_PlayerHasLOSToLocation(const edict_t* Player, const Vector Target, const float MaxRange);
 
 // Returns the player's eye position (origin + view_ofs)
 Vector UTIL_GetPlayerEyePosition(const edict_t* Player);

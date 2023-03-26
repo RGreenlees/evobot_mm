@@ -606,7 +606,7 @@ void StartNewBotFrame(bot_t* pBot)
 
 void BotUseObject(bot_t* pBot, edict_t* Target, bool bContinuous)
 {
-	LookAt(pBot, Target);
+	LookAt(pBot, UTIL_GetCentreOfEntity(Target));
 
 	if (!bContinuous && ((gpGlobals->time - pBot->LastUseTime) < min_use_gap)) { return; }
 
@@ -1047,7 +1047,7 @@ void UpdateView(bot_t* pBot) {
 
 Vector UTIL_GetGrenadeThrowTarget(bot_t* pBot, const Vector TargetLocation, const float ExplosionRadius)
 {
-	if (UTIL_PlayerHasLOSToLocation(pBot->pEdict, TargetLocation))
+	if (UTIL_PlayerHasLOSToLocation(pBot->pEdict, TargetLocation, UTIL_MetresToGoldSrcUnits(10.0f)))
 	{
 		return TargetLocation;
 	}
@@ -1091,7 +1091,7 @@ Vector UTIL_GetGrenadeThrowTarget(bot_t* pBot, const Vector TargetLocation, cons
 		ClosestPointInTrajectory = UTIL_ProjectPointToNavmesh(ClosestPointInTrajectory);
 		ClosestPointInTrajectory.z += 10.0f;
 
-		if (vDist2DSq(ClosestPointInTrajectory, TargetLocation) < sqrf(ExplosionRadius) && UTIL_PlayerHasLOSToLocation(pBot->pEdict, ClosestPointInTrajectory) && UTIL_PointIsDirectlyReachable(ClosestPointInTrajectory, TargetLocation))
+		if (vDist2DSq(ClosestPointInTrajectory, TargetLocation) < sqrf(ExplosionRadius) && UTIL_PlayerHasLOSToLocation(pBot->pEdict, ClosestPointInTrajectory, UTIL_MetresToGoldSrcUnits(10.0f)) && UTIL_PointIsDirectlyReachable(ClosestPointInTrajectory, TargetLocation))
 		{
 			return ClosestPointInTrajectory;
 		}
@@ -4117,15 +4117,25 @@ void AlienProgressHealTask(bot_t* pBot, bot_task* Task)
 	}
 }
 
-bool UTIL_PlayerHasLOSToEntity(const edict_t* Player, const edict_t* Target)
+bool UTIL_PlayerHasLOSToEntity(const edict_t* Player, const edict_t* Target, const float MaxRange, const bool bUseHullSweep)
 {
 	if (FNullEnt(Player) || FNullEnt(Target)) { return false; }
 	Vector StartTrace = UTIL_GetPlayerEyePosition(Player);	
-	Vector EndTrace = UTIL_GetCentreOfEntity(Target);
+
+	Vector LookDirection = UTIL_GetVectorNormal(UTIL_GetCentreOfEntity(Target) - StartTrace);
+	StartTrace = StartTrace - (LookDirection * 5.0f);
+	Vector EndTrace = StartTrace + (LookDirection * (MaxRange + 5.0f));
 
 	TraceResult hit;
 
-	UTIL_TraceLine(StartTrace, EndTrace, dont_ignore_monsters, Player->v.pContainingEntity, &hit);
+	if (bUseHullSweep)
+	{
+		UTIL_TraceHull(StartTrace, EndTrace, dont_ignore_monsters, head_hull, Player->v.pContainingEntity, &hit);
+	}
+	else
+	{
+		UTIL_TraceLine(StartTrace, EndTrace, dont_ignore_monsters, dont_ignore_glass, Player->v.pContainingEntity, &hit);
+	}
 
 	if (hit.flFraction < 1.0f)
 	{
@@ -4133,19 +4143,23 @@ bool UTIL_PlayerHasLOSToEntity(const edict_t* Player, const edict_t* Target)
 	}
 	else
 	{
-		return true;
+		return false;
 	}
 }
 
-bool UTIL_PlayerHasLOSToLocation(const edict_t* Player, const Vector Target)
+bool UTIL_PlayerHasLOSToLocation(const edict_t* Player, const Vector Target, const float MaxRange)
 {
-	if (!Target) { return false; }
-
+	if (FNullEnt(Player)) { return false; }
 	Vector StartTrace = UTIL_GetPlayerEyePosition(Player);
+
+	Vector LookDirection = UTIL_GetVectorNormal(Target - StartTrace);
+	float dist = vDist3DSq(StartTrace, Target);
+	dist = fminf(dist, sqrf(MaxRange));
+	Vector EndTrace = StartTrace + (LookDirection * sqrtf(dist));
 
 	TraceResult hit;
 
-	UTIL_TraceLine(StartTrace, Target, dont_ignore_monsters, Player->v.pContainingEntity, &hit);
+	UTIL_TraceLine(StartTrace, EndTrace, dont_ignore_monsters, dont_ignore_glass, Player->v.pContainingEntity, &hit);
 
 	return (hit.flFraction >= 1.0f);
 
@@ -4501,30 +4515,19 @@ void AlienProgressCapResNodeTask(bot_t* pBot, bot_task* Task)
 		{
 			if (!UTIL_StructureIsFullyBuilt(ResNodeIndex->TowerEdict))
 			{
-				if (UTIL_PlayerInUseRange(pBot->pEdict, ResNodeIndex->TowerEdict))
-				{
-					LookAt(pBot, UTIL_GetCentreOfEntity(ResNodeIndex->TowerEdict));
 
-					pBot->pEdict->v.button |= IN_USE;
+				if (UTIL_PlayerHasLOSToEntity(pBot->pEdict, ResNodeIndex->TowerEdict, max_player_use_reach, true))
+				{
+					BotUseObject(pBot, ResNodeIndex->TowerEdict, true);
 
 					return;
 				}
 
-				if (!UTIL_PlayerHasLOSToEntity(pBot->pEdict, ResNodeIndex->TowerEdict))
+				MoveTo(pBot, ResNodeIndex->TowerEdict->v.origin, MOVESTYLE_NORMAL);
+
+				if (vDist2DSq(pBot->pEdict->v.origin, ResNodeIndex->TowerEdict->v.origin) < UTIL_MetresToGoldSrcUnits(5.0f))
 				{
 					LookAt(pBot, UTIL_GetCentreOfEntity(ResNodeIndex->TowerEdict));
-					if (!pBot->BotNavInfo.TargetDestination)
-					{
-						int MoveProfile = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
-						Vector MoveLocation = UTIL_GetRandomPointOnNavmeshInDonut(MoveProfile, ResNodeIndex->TowerEdict->v.origin, UTIL_MetresToGoldSrcUnits(1.0f), UTIL_MetresToGoldSrcUnits(1.5f));
-						MoveTo(pBot, MoveLocation, MOVESTYLE_NORMAL);
-					}
-
-					return;
-				}
-				else
-				{
-					MoveTo(pBot, ResNodeIndex->TowerEdict->v.origin, MOVESTYLE_NORMAL);
 				}
 
 				return;
@@ -4617,44 +4620,34 @@ void BotProgressResupplyTask(bot_t* pBot, bot_task* Task)
 		pBot->DesiredCombatWeapon = UTIL_GetBotMarineSecondaryWeapon(pBot);
 	}
 
-	if (UTIL_PlayerInUseRange(pBot->pEdict, Task->TaskTarget))
+
+	if (UTIL_PlayerHasLOSToEntity(pBot->pEdict, Task->TaskTarget, max_player_use_reach, true))
 	{
 		BotUseObject(pBot, Task->TaskTarget, true);
 
 		return;
 	}
 
-	if (vDist2DSq(pBot->pEdict->v.origin, Task->TaskTarget->v.origin) > sqrf(UTIL_MetresToGoldSrcUnits(2.0f)))
+	Vector UseLocation = pBot->BotNavInfo.TargetDestination;
+
+	if (!UseLocation || vDist2DSq(pBot->pEdict->v.origin, Task->TaskTarget->v.origin) > sqrf(UTIL_MetresToGoldSrcUnits(1.5f)))
 	{
-		MoveTo(pBot, Task->TaskTarget->v.origin, MOVESTYLE_NORMAL);
-		return;
+		int MoveProfile = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
+		UseLocation = UTIL_GetRandomPointOnNavmeshInDonut(MoveProfile, Task->TaskTarget->v.origin, UTIL_MetresToGoldSrcUnits(1.0f), UTIL_MetresToGoldSrcUnits(1.5f));
+
+		if (!UseLocation)
+		{
+			UseLocation = Task->TaskTarget->v.origin;
+		}
 	}
 
-	if (!UTIL_PlayerHasLOSToEntity(pBot->pEdict, Task->TaskTarget))
+	MoveTo(pBot, UseLocation, MOVESTYLE_NORMAL);
+
+	if (vDist2DSq(pBot->pEdict->v.origin, Task->TaskTarget->v.origin) < UTIL_MetresToGoldSrcUnits(5.0f))
 	{
 		LookAt(pBot, UTIL_GetCentreOfEntity(Task->TaskTarget));
-
-		Vector UseLocation = pBot->BotNavInfo.TargetDestination;
-
-		if (!UseLocation || vDist2DSq(pBot->pEdict->v.origin, Task->TaskTarget->v.origin) > sqrf(UTIL_MetresToGoldSrcUnits(1.5f)))
-		{
-			int MoveProfile = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
-			UseLocation = UTIL_GetRandomPointOnNavmeshInDonut(MoveProfile, Task->TaskTarget->v.origin, UTIL_MetresToGoldSrcUnits(1.0f), UTIL_MetresToGoldSrcUnits(1.5f));
-
-			if (!UseLocation)
-			{
-				UseLocation = Task->TaskTarget->v.origin;
-			}
-		}
-
-		MoveTo(pBot, UseLocation, MOVESTYLE_NORMAL);
-
-		return;
 	}
-	else
-	{
-		MoveTo(pBot, Task->TaskTarget->v.origin, MOVESTYLE_NORMAL);
-	}
+
 }
 
 void BotProgressBuildTask(bot_t* pBot, bot_task* Task)
@@ -4676,50 +4669,33 @@ void BotProgressBuildTask(bot_t* pBot, bot_task* Task)
 			pBot->DesiredCombatWeapon = UTIL_GetBotMarinePrimaryWeapon(pBot);
 		}
 	}
-	
 
-	if (UTIL_PlayerInUseRange(pBot->pEdict, Task->TaskTarget))
+	if (UTIL_PlayerHasLOSToEntity(pBot->pEdict, Task->TaskTarget, max_player_use_reach, true))
 	{
 		BotUseObject(pBot, Task->TaskTarget, true);
 
 		return;
 	}
-	else
+
+	Vector UseLocation = pBot->BotNavInfo.TargetDestination;
+
+	if (!UseLocation || vDist2DSq(pBot->pEdict->v.origin, Task->TaskTarget->v.origin) > sqrf(UTIL_MetresToGoldSrcUnits(1.5f)))
 	{
-		if (vDist2DSq(pBot->pEdict->v.origin, Task->TaskTarget->v.origin) > sqrf(UTIL_MetresToGoldSrcUnits(2.0f)))
+		int MoveProfile = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
+		UseLocation = UTIL_GetRandomPointOnNavmeshInDonut(MoveProfile, Task->TaskTarget->v.origin, UTIL_MetresToGoldSrcUnits(1.0f), UTIL_MetresToGoldSrcUnits(1.5f));
+
+		if (!UseLocation)
 		{
-			MoveTo(pBot, Task->TaskTarget->v.origin, MOVESTYLE_NORMAL);
-			return;
-		}
-
-		if (!UTIL_PlayerHasLOSToEntity(pBot->pEdict, Task->TaskTarget))
-		{
-			LookAt(pBot, UTIL_GetCentreOfEntity(Task->TaskTarget));
-
-			Vector UseLocation = pBot->BotNavInfo.TargetDestination;
-
-			if (!UseLocation || vDist2DSq(pBot->pEdict->v.origin, Task->TaskTarget->v.origin) > sqrf(UTIL_MetresToGoldSrcUnits(1.5f)))
-			{
-				int MoveProfile = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
-				UseLocation = UTIL_GetRandomPointOnNavmeshInDonut(MoveProfile, Task->TaskTarget->v.origin, UTIL_MetresToGoldSrcUnits(1.0f), UTIL_MetresToGoldSrcUnits(1.5f));
-
-				if (!UseLocation)
-				{
-					UseLocation = Task->TaskTarget->v.origin;
-				}
-			}
-
-			MoveTo(pBot, UseLocation, MOVESTYLE_NORMAL);
-
-			return;
-		}
-		else
-		{
-			MoveTo(pBot, Task->TaskTarget->v.origin, MOVESTYLE_NORMAL);
+			UseLocation = Task->TaskTarget->v.origin;
 		}
 	}
 
-	
+	MoveTo(pBot, UseLocation, MOVESTYLE_NORMAL);
+
+	if (vDist2DSq(pBot->pEdict->v.origin, Task->TaskTarget->v.origin) < UTIL_MetresToGoldSrcUnits(5.0f))
+	{
+		LookAt(pBot, UTIL_GetCentreOfEntity(Task->TaskTarget));
+	}
 
 }
 
@@ -4830,7 +4806,7 @@ float UTIL_GetMaxIdealWeaponRange(const NSWeapon Weapon)
 		case WEAPON_ONOS_DEVOUR:
 			return UTIL_MetresToGoldSrcUnits(1.5f);
 		default:
-			return max_player_use_reach;
+			return 48.0f;
 	}
 }
 
@@ -4912,15 +4888,9 @@ void BotProgressAttackTask(bot_t* pBot, bot_task* Task)
 
 
 	float MaxRange = UTIL_GetMaxIdealWeaponRange(AttackWeapon);
+	bool bHullSweep = UTIL_IsMeleeWeapon(AttackWeapon);
 
-	Vector TraceDir = UTIL_GetVectorNormal(UTIL_GetCentreOfEntity(Task->TaskTarget) - pBot->CurrentEyePosition);
-	Vector TraceEnd = pBot->CurrentEyePosition + (TraceDir * MaxRange);
-
-	TraceResult hit;
-
-	UTIL_TraceLine(pBot->CurrentEyePosition, TraceEnd, dont_ignore_monsters, dont_ignore_glass, pBot->pEdict->v.pContainingEntity, &hit);
-
-	if ((hit.flFraction < 1.0f && hit.pHit == Task->TaskTarget) || vDist2DSq(pBot->pEdict->v.origin, Task->TaskTarget->v.origin) <= sqrf(50.0f))
+	if (UTIL_PlayerHasLOSToEntity(pBot->pEdict, Task->TaskTarget, MaxRange, bHullSweep))
 	{
 		pBot->DesiredCombatWeapon = AttackWeapon;
 
@@ -5545,6 +5515,19 @@ void BotAttackTarget(bot_t* pBot, edict_t* Target)
 
 	LookAt(pBot, AimLocation);
 
+	// Don't need aiming or LOS checks for Xenocide as it's an AOE attack, just make sure we're close enough
+	if (CurrentWeapon == WEAPON_SKULK_XENOCIDE)
+	{
+		float MaxXenoDist = UTIL_GetMaxIdealWeaponRange(CurrentWeapon);
+
+		if (vDist3DSq(pBot->pEdict->v.origin, Target->v.origin) <= sqrf(MaxXenoDist))
+		{
+			pBot->pEdict->v.button |= IN_ATTACK;
+			pBot->current_weapon.LastFireTime = gpGlobals->time;
+			return;
+		}
+	}
+
 	if (UTIL_IsMeleeWeapon(CurrentWeapon))
 	{
 		if (UTIL_PlayerInUseRange(pBot->pEdict, Target))
@@ -5602,29 +5585,19 @@ void BotAttackTarget(bot_t* pBot, edict_t* Target)
 	}
 
 	float MaxWeaponRange = UTIL_GetMaxIdealWeaponRange(CurrentWeapon);
+	bool bHullSweep = UTIL_IsMeleeWeapon(CurrentWeapon);
 
-	if (vDist3DSq(pBot->CurrentEyePosition, Target->v.origin) <= sqrf(MaxWeaponRange))
+	if (UTIL_PlayerHasLOSToEntity(pBot->pEdict, Target, MaxWeaponRange, bHullSweep))
 	{
-		// Don't need aiming or LOS checks for Xenocide as it's AOE attack
-		if (CurrentWeapon == WEAPON_SKULK_XENOCIDE)
+		Vector AimDir = UTIL_GetForwardVector(pBot->pEdict->v.v_angle);
+		Vector TargetAimDir = UTIL_GetVectorNormal(UTIL_GetCentreOfEntity(Target) - pBot->CurrentEyePosition);
+
+		float AimDot = UTIL_GetDotProduct(AimDir, TargetAimDir);
+
+		if (AimDot >= 0.95f)
 		{
 			pBot->pEdict->v.button |= IN_ATTACK;
 			pBot->current_weapon.LastFireTime = gpGlobals->time;
-			return;
-		}
-
-		if (UTIL_PlayerHasLOSToEntity(pBot->pEdict, Target))
-		{
-			Vector AimDir = UTIL_GetForwardVector(pBot->pEdict->v.v_angle);
-			Vector TargetAimDir = UTIL_GetVectorNormal(UTIL_GetCentreOfEntity(Target) - pBot->CurrentEyePosition);
-
-			float AimDot = UTIL_GetDotProduct(AimDir, TargetAimDir);
-
-			if (AimDot >= 0.95f)
-			{
-				pBot->pEdict->v.button |= IN_ATTACK;
-				pBot->current_weapon.LastFireTime = gpGlobals->time;
-			}
 		}
 	}
 }

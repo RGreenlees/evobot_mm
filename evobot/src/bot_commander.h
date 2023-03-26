@@ -53,6 +53,8 @@ void CommanderQueueUpgrade(bot_t* pBot, edict_t* BuildingToUpgrade, int Priority
 void CommanderQueueItemDrop(bot_t* pBot, NSDeployableItem ItemToDeploy, const Vector& DropLocation, edict_t* Recipient, int Priority);
 void CommanderQueueActionOrder(bot_t* pBot, int Priority, int AssignedPlayer);
 
+commander_action* UTIL_FindCommanderBuildActionOfType(bot_t* pBot, const NSStructureType StructureType, const Vector SearchLocation, const float SearchRadius);
+
 void CommanderThink(bot_t* CommanderBot);
 
 void CommanderGetPrimaryTask(bot_t* pBot, bot_task* Task);

@@ -454,7 +454,13 @@ void MarineHuntEnemy(bot_t* pBot, enemy_status* TrackedEnemy)
 
 	}
 
-	MoveTo(pBot, LastSeenLocation, MOVESTYLE_NORMAL);
+	int NavProfileIndex = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
+
+	if (UTIL_PointIsReachable(NavProfileIndex, pBot->pEdict->v.origin, LastSeenLocation, max_player_use_reach))
+	{
+		MoveTo(pBot, LastSeenLocation, MOVESTYLE_NORMAL);
+	}
+	
 	LookAt(pBot, LastSeenLocation);
 
 	return;
@@ -886,7 +892,7 @@ void MarineProgressWeldTask(bot_t* pBot, bot_task* Task)
 		return;
 	}
 
-	if (!UTIL_PlayerHasLOSToEntity(pBot->pEdict, Task->TaskTarget))
+	if (!UTIL_PlayerHasLOSToEntity(pBot->pEdict, Task->TaskTarget, 9999.0f, false))
 	{
 		LookAt(pBot, UTIL_GetCentreOfEntity(Task->TaskTarget));
 

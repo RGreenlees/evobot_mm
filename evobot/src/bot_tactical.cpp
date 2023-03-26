@@ -976,7 +976,7 @@ edict_t* UTIL_GetNearestPlayerOfTeamInArea(const Vector Location, const float Se
 		{
 			float ThisDist = vDist2DSq(clients[i]->v.origin, Location);
 
-			if (!Result || ThisDist < MinDist)
+			if (ThisDist < CheckDist && (!Result || ThisDist < MinDist))
 			{
 				Result = clients[i];
 				MinDist = ThisDist;
@@ -1772,13 +1772,11 @@ const resource_node* UTIL_GetNearestCappedResNodeToLocation(const Vector Locatio
 	int Result = -1;
 	float MinDist = 0.0f;
 
-	bool bFindMarine = (Team == MARINE_TEAM);
-
 	for (int i = 0; i < NumTotalResNodes; i++)
 	{
-		if (ResourceNodes[i].bIsOccupied && ResourceNodes[i].bIsOwnedByMarines == bFindMarine && (bIgnoreElectrified || !UTIL_IsStructureElectrified(ResourceNodes[i].edict)))
+		if (ResourceNodes[i].bIsOccupied && ResourceNodes[i].TowerEdict->v.team == Team && (bIgnoreElectrified || !UTIL_IsStructureElectrified(ResourceNodes[i].edict)))
 		{
-			if (Team == ALIEN_TEAM && ResourceNodes[i].bIsOccupied && ResourceNodes[i].bIsMarineBaseNode) { continue; }
+			if (ResourceNodes[i].bIsMarineBaseNode) { continue; }
 
 			float ThisDist = vDist2DSq(Location, ResourceNodes[i].origin);
 

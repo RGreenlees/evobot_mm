@@ -3532,7 +3532,7 @@ bool AbortCurrentMove(bot_t* pBot, const Vector NewDestination)
 
 bool MoveTo(bot_t* pBot, const Vector Destination, const BotMoveStyle MoveStyle)
 {
-
+	// Invalid destination, or we're already there
 	if (!Destination || BotIsAtLocation(pBot, Destination))
 	{
 		ClearBotMovement(pBot);
@@ -3596,7 +3596,7 @@ bool MoveTo(bot_t* pBot, const Vector Destination, const BotMoveStyle MoveStyle)
 
 	if (bShouldCalculatePath)
 	{
-
+		// First abort our current move so we don't try to recalculate half-way up a wall or ladder
 		if (!AbortCurrentMove(pBot, Destination))
 		{
 			return true;
@@ -3616,7 +3616,7 @@ bool MoveTo(bot_t* pBot, const Vector Destination, const BotMoveStyle MoveStyle)
 
 		Vector ValidNavmeshPoint = UTIL_ProjectPointToNavmesh(Destination, Vector(max_player_use_reach, max_player_use_reach, max_player_use_reach), MoveProfile);
 
-		// We can't actually get close enough to this point to consider it "reachable"
+		// Destination is not on the nav mesh, so we can't get close enough
 		if (!ValidNavmeshPoint)
 		{
 			sprintf(pBot->PathStatus, "Could not project destination to navmesh");
@@ -3772,6 +3772,7 @@ Vector FindClosestPointBackOnPath(bot_t* pBot)
 
 	Vector ValidNavmeshPoint = ZERO_VECTOR;
 
+	// If we have a location where we know we were last on the nav mesh and following a path, use that. Otherwise, use the comm chair location
 	if (pBot->BotNavInfo.LastPathFollowPosition != ZERO_VECTOR)
 	{
 		ValidNavmeshPoint = pBot->BotNavInfo.LastPathFollowPosition;
@@ -3792,6 +3793,8 @@ Vector FindClosestPointBackOnPath(bot_t* pBot)
 	memset(BackwardsPath, 0, sizeof(BackwardsPath));
 	int BackwardsPathSize = 0;
 
+	// Now we find a path backwards from the valid nav mesh point to our location, trying to get as close as we can to it
+
 	dtStatus BackwardFindingStatus = FindPathClosestToPoint(NavProfileIndex, ValidNavmeshPoint, pBot->pEdict->v.origin, BackwardsPath, &BackwardsPathSize, 500.0f);
 
 	if (dtStatusSucceed(BackwardFindingStatus))
@@ -3800,6 +3803,7 @@ Vector FindClosestPointBackOnPath(bot_t* pBot)
 
 		Vector NewMoveLocation = BackwardsPath[PathIndex].Location;
 
+		// The end point of this backwards path might not actually be reachable (e.g. behind a wall). Try and find any point along this path we can see ourselves
 		while (!UTIL_QuickTrace(pBot->pEdict, pBot->pEdict->v.origin, NewMoveLocation) && PathIndex > 0)
 		{
 			PathIndex--;
@@ -3813,6 +3817,7 @@ Vector FindClosestPointBackOnPath(bot_t* pBot)
 			MoveDir = UTIL_GetVectorNormal2D(BackwardsPath[BackwardsPathSize - 1].Location - BackwardsPath[PathIndex].Location);
 		}
 
+		// Just move 100 units in the direction of our escape point, not all the way to the escape point itself
 		NewMoveLocation = (pBot->pEdict->v.origin - (MoveDir * 100.0f));
 
 		return NewMoveLocation;

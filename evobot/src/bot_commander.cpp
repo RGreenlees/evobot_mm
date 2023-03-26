@@ -2584,6 +2584,26 @@ bool UTIL_ResearchIsComplete(const NSResearch Research)
 	return false;
 }
 
+commander_action* UTIL_FindCommanderBuildActionOfType(bot_t* pBot, const NSStructureType StructureType, const Vector SearchLocation, const float SearchRadius)
+{
+	for (int Priority = 0; Priority < MAX_ACTION_PRIORITIES; Priority++)
+	{
+		for (int ActionIndex = 0; ActionIndex < MAX_PRIORITY_ACTIONS; ActionIndex++)
+		{
+			commander_action* Action = &pBot->CurrentCommanderActions[Priority][ActionIndex];
+			if (Action->ActionType == ACTION_BUILD && UTIL_StructureTypesMatch(Action->StructureToBuild, StructureType))
+			{
+				if (vDist2DSq(Action->BuildLocation, SearchLocation) <= sqrf(SearchRadius))
+				{
+					return Action;
+				}
+			}
+		}
+	}
+
+	return nullptr;
+}
+
 void QueueSiegeHiveAction(bot_t* CommanderBot, const Vector& Area, int Priority)
 {
 	edict_t* PhaseGate = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_PHASEGATE, Area, UTIL_MetresToGoldSrcUnits(30.0f), true);
@@ -2592,15 +2612,48 @@ void QueueSiegeHiveAction(bot_t* CommanderBot, const Vector& Area, int Priority)
 
 	if (FNullEnt(PhaseGate))
 	{
-		if (UTIL_GetQueuedBuildRequestsOfType(CommanderBot, STRUCTURE_MARINE_PHASEGATE) == 0)
+		edict_t* NearbyMarine = UTIL_GetNearestPlayerOfTeamInArea(Area, UTIL_MetresToGoldSrcUnits(20.0f), MARINE_TEAM, nullptr, CLASS_NONE);
+		commander_action* ExistingAction = UTIL_FindCommanderBuildActionOfType(CommanderBot, STRUCTURE_MARINE_PHASEGATE, Area, UTIL_MetresToGoldSrcUnits(20.0f));
+
+		if (!FNullEnt(NearbyMarine) && vDist2DSq(NearbyMarine->v.origin, Area) > sqrf(UTIL_MetresToGoldSrcUnits(10.0f)) && !UTIL_PlayerHasLOSToEntity(NearbyMarine, HiveIndex->edict, UTIL_MetresToGoldSrcUnits(20.0f), false))
+		{
+			Vector BuildLocation = UTIL_ProjectPointToNavmesh(NearbyMarine->v.origin, Vector(100.0f, 50.0f, 100.0f), BUILDING_REGULAR_NAV_PROFILE);
+			
+
+			if (ExistingAction)
+			{
+				if (BuildLocation != ZERO_VECTOR)
+				{
+					ExistingAction->BuildLocation = BuildLocation;
+				}
+
+				return;
+			}
+			
+			if (BuildLocation == ZERO_VECTOR)
+			{
+				BuildLocation = UTIL_GetRandomPointOnNavmeshInDonut(BUILDING_REGULAR_NAV_PROFILE, Area, UTIL_MetresToGoldSrcUnits(15.0f), UTIL_MetresToGoldSrcUnits(20.0f));
+			}
+			
+			if (BuildLocation != ZERO_VECTOR)
+			{
+				UTIL_CommanderQueueStructureBuildAtLocation(CommanderBot, BuildLocation, STRUCTURE_MARINE_PHASEGATE, Priority);
+				return;
+			}
+
+		}
+
+		if (!ExistingAction)
 		{
 			Vector BuildLocation = UTIL_GetRandomPointOnNavmeshInDonut(BUILDING_REGULAR_NAV_PROFILE, Area, UTIL_MetresToGoldSrcUnits(15.0f), UTIL_MetresToGoldSrcUnits(20.0f));
 
-			if (BuildLocation != ZERO_VECTOR && (!HiveIndex || !UTIL_QuickTrace(CommanderBot->pEdict, UTIL_GetCentreOfEntity(HiveIndex->edict), BuildLocation + Vector(0.0f, 0.0f, 5.0f)) ) )
+			if (BuildLocation != ZERO_VECTOR && (!HiveIndex || !UTIL_QuickTrace(CommanderBot->pEdict, UTIL_GetCentreOfEntity(HiveIndex->edict), BuildLocation + Vector(0.0f, 0.0f, 5.0f))))
 			{
 				UTIL_CommanderQueueStructureBuildAtLocation(CommanderBot, BuildLocation, STRUCTURE_MARINE_PHASEGATE, Priority);
 			}
+
 		}
+
 		return;
 	}
 
@@ -2751,7 +2804,7 @@ void QueueSecureHiveAction(bot_t* CommanderBot, const Vector& Area, int Priority
 				if (BuildLocation != ZERO_VECTOR && UTIL_PointIsReachable(MARINE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), BuildLocation, max_player_use_reach))
 				{
 					// If we already have secured this hive, then make adding a phase gate a top priority to fully secure it
-					int PhasePriority = FNullEnt(ExistingTurretFactory) ? Priority : 0;
+					int PhasePriority = FNullEnt(ExistingTurretFactory) ? Priority : 1;
 					CommanderQueuePhaseGateBuild(CommanderBot, BuildLocation, PhasePriority);
 				}
 			}
