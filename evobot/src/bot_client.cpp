@@ -49,7 +49,6 @@ void BotClient_Valve_WeaponList(void *p, int bot_index)
 
 	  bot_weapon.MinRefireTime = 0.0f;
 
-	  // TODO: Surely there's a more dignified way of doing this?
 	  if (!strcmp(bot_weapon.szClassname, "weapon_pistol"))
 	  {
 		  bot_weapon.iClipSize = 10;
