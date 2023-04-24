@@ -4,7 +4,7 @@
 // linkent.h - export entities from mod "games" back to the HL engine
 
 /*
- * Copyright (c) 2001-2003 Will Day <willday@hpgx.net>
+ * Copyright (c) 2001-2006 Will Day <willday@hpgx.net>
  *
  *    This file is part of Metamod.
  *
@@ -45,28 +45,20 @@
 #include "mplugin.h"	// MPlugin::info, etc
 #include "log_meta.h"	// META_DEBUG, etc
 
- // Comments from SDK dlls/util.h:
- //! This is the glue that hooks .MAP entity class names to our CPP classes.
- //! The _declspec forces them to be exported by name so we can do a lookup with GetProcAddress().
- //! The function is used to intialize / allocate the object for the entity.
 
- // Adapted from LINK_ENTITY_TO_FUNC in adminmod linkfunc.cpp.
+//Initializes replacement code
+int DLLINTERNAL init_linkent_replacement(DLHANDLE moduleMetamod, DLHANDLE moduleGame);
 
-typedef void (*ENTITY_FN) (entvars_t*);
 
-// Function to perform common code of LINK_ENTITY_TO_GAME.
-void do_link_ent(ENTITY_FN* pfnEntity, int* missing, char* entStr,
-	entvars_t* pev);
+// Comments from SDK dlls/util.h:
+//! This is the glue that hooks .MAP entity class names to our CPP classes.
+//! The _declspec forces them to be exported by name so we can do a lookup with GetProcAddress().
+//! The function is used to intialize / allocate the object for the entity.
 
-#define LINK_ENTITY_TO_GAME(entityName) \
-	C_DLLEXPORT void entityName(entvars_t *pev); \
-	void entityName(entvars_t *pev) { \
-		static ENTITY_FN pfnEntity = NULL; \
-		static int missing=0; \
-		char *entStr; \
-		entStr = STRINGIZE(entityName, 0); \
-		do_link_ent(&pfnEntity, &missing, entStr, pev); \
-	}
+// Adapted from LINK_ENTITY_TO_FUNC in adminmod linkfunc.cpp.
+
+typedef void (*ENTITY_FN) (entvars_t *);
+
 
 // For now, we have to explicitly export functions for plugin entities,
 // just as for gamedll entities.  Ideally, this could be generalized in
@@ -93,12 +85,12 @@ void do_link_ent(ENTITY_FN* pfnEntity, int* missing, char* entStr,
 			return; \
 		if(!pfnEntity) { \
 			if(!(findp=Plugins->find_match(pluginName))) { \
-				META_ERROR("Couldn't find loaded plugin '%s' for plugin entity '%s'", pluginName, entStr); \
+				META_WARNING("Couldn't find loaded plugin '%s' for plugin entity '%s'", pluginName, entStr); \
 				missing=1; \
 				return; \
 			} \
 			if(findp->info && findp->info->loadable != PT_STARTUP) { \
-				META_ERROR("Can't link entity '%s' for plugin '%s'; loadable != startup: %s", entStr, pluginName, findp->str_loadable()); \
+				META_WARNING("Can't link entity '%s' for plugin '%s'; loadable != startup: %s", entStr, pluginName, findp->str_loadable()); \
 				missing=1; \
 				return; \
 			} \
@@ -106,7 +98,7 @@ void do_link_ent(ENTITY_FN* pfnEntity, int* missing, char* entStr,
 			pfnEntity = (ENTITY_FN) DLSYM(findp->handle, entStr); \
 		} \
 		if(!pfnEntity) { \
-			META_ERROR("Couldn't find plugin entity '%s' in plugin DLL '%s'", entStr, findp->file); \
+			META_WARNING("Couldn't find plugin entity '%s' in plugin DLL '%s'", entStr, findp->file); \
 			missing=1; \
 			return; \
 		} \

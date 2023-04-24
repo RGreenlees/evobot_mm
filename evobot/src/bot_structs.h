@@ -20,23 +20,27 @@ constexpr auto MAX_PATH_SIZE = 512; // Maximum number of points allowed in a pat
 constexpr auto MAX_ACTION_PRIORITIES = 12; // How many levels of priority the commander can assign actions to
 constexpr auto MAX_PRIORITY_ACTIONS = 20; // How many actions at each priority level the commander can have at one time
 
+constexpr auto FL_THIRDPARTYBOT = (1 << 27);
 
-
-// Bot's role on the team.
+// Bot's role on the team. For marines, this only governs what they do when left to their own devices.
+// Marine bots will always listen to orders from the commander regardless of role.
 enum BotRole
 {
-	BOT_ROLE_NONE,
+	BOT_ROLE_NONE,			 // No defined role
+
+	// Marine Roles
 
 	BOT_ROLE_COMMAND,		 // Will attempt to take command
 	BOT_ROLE_FIND_RESOURCES, // Will hunt for uncapped resource nodes and cap them. Will attack enemy resource towers
+	BOT_ROLE_SWEEPER,		 // Defensive role to protect infrastructure and build at base. Will patrol to keep outposts secure
+	BOT_ROLE_ASSAULT,		 // Will go to attack the hive and other alien structures
+
+	// Alien roles
+
 	BOT_ROLE_RES_CAPPER,	 // Will hunt for uncapped nodes or ones held by the enemy and cap them
-	BOT_ROLE_GUARD_BASE,	 // Will stay behind in the base and guard/build stuff
-	BOT_ROLE_ATTACK_HIVE,	 // Not used
 	BOT_ROLE_BUILDER,		 // Will focus on building chambers and hives. Stays gorge most of the time
-	BOT_ROLE_HARASS,		 // Focuses on taking down enemy resource nodes and structures
-	BOT_ROLE_LERK,			 // Not in use yet, will go lerk
-	BOT_ROLE_FADE,			 // Acts like a harasser, but will go Fade once it has enough resources
-	BOT_ROLE_ONOS			 // Acts like a harasser, but will go Onos once it has enough resources
+	BOT_ROLE_HARASS,		 // Focuses on taking down enemy resource nodes and hunting the enemy
+	BOT_ROLE_DESTROYER		 // Will go fade/onos when it can, focuses on attacking critical infrastructure
 };
 
 // Affects the bot's pathfinding choices
@@ -52,7 +56,9 @@ typedef enum _EVODEBUGMODE
 {
 	EVO_DEBUG_NONE = 0, // Bot plays game normally
 	EVO_DEBUG_TESTNAV, // Bot randomly navigates between resource nodes and comm chair, will not enagage enemies
-	EVO_DEBUG_DRONE // Bot does nothing unless given task by player, will not engage enemies unless given attack order
+	EVO_DEBUG_DRONE, // Bot does nothing unless given task by player, will not engage enemies unless given attack order
+	EVO_DEBUG_AIM, // Bot just aims at an enemy and indicates where it's aiming and whether it would fire or hit
+	EVO_DEBUG_GUARD // Bot just guards random areas to test guard behaviour
 } EvobotDebugMode;
 
 // Type of goal the commander wants to achieve
@@ -95,7 +101,7 @@ typedef enum
 	TASK_WELD,
 	TASK_RESUPPLY,
 	TASK_EVOLVE,
-	TASK_GRENADE,
+	TASK_COMMAND
 }
 BotTaskType;
 
@@ -125,6 +131,7 @@ typedef struct _BOT_CURRENT_WEAPON_T
 	int  iAmmo2Max = 0; // Max ammo in secondary reserve (not used in NS)
 	float MinRefireTime = 0.0f; // For non-automatic weapons, how frequently (in seconds) should the bot fire. 0 for automatic weapons.
 	float LastFireTime = 0.0f; // When bot last pressed the fire button. Only used if MinRefireTime > 0.
+	bool bIsReloading = false; // Is the bot in the process of reloading? Used for shotguns and GL to prevent reload-fire-reload-fire
 } bot_current_weapon_t;
 
 // Bot path node. A path will be several of these strung together to lead the bot to its destination
@@ -132,7 +139,7 @@ typedef struct _BOT_PATH_NODE
 {
 	Vector Location = ZERO_VECTOR; // Location to move to
 	float requiredZ = 0.0f; // If climbing a up ladder or wall, how high should they aim to get before dismounting.
-	unsigned char flag = 0; // Is this a ladder movement, wall climb, walk etc
+	unsigned short flag = 0; // Is this a ladder movement, wall climb, walk etc
 	unsigned char area = 0; // Is this a crouch area, normal walking area etc
 	unsigned int poly = 0; // The nav mesh poly this point resides on
 } bot_path_node;
@@ -168,10 +175,13 @@ typedef struct _NAV_STATUS
 	float LeapAttemptedTime = 0.0f; // When the bot last attempted to leap/blink. Avoid spam that sends it flying around too fast
 	bool bIsJumping = false; // Is the bot in the air from a jump? Will duck so it can duck-jump
 	bool IsOnGround = true; // Is the bot currently on the ground, or on a ladder?
+	bool bHasAttemptedJump = false; // Last frame, the bot tried a jump. If the bot is still on the ground, it probably tried to jump in a vent or something
 
 	BotMoveStyle MoveStyle = MOVESTYLE_NORMAL; // Current desired move style (e.g. normal, ambush, hide). Will trigger new path calculations if this changes
 	float LastPathCalcTime = 0.0f; // When the bot last calculated a path, to limit how frequently it can recalculate
 	int LastMoveProfile = -1; // The last navigation profile used by the bot. Will trigger new path calculations if this changes (e.g. changed class, changed move style)
+
+	bool bPendingRecalculation = false; // This bot should recalculate its path as soon as it can
 
 } nav_status;
 
@@ -181,12 +191,17 @@ typedef struct _ENEMY_STATUS
 	edict_t* EnemyEdict = nullptr; // Reference to the enemy player edict
 	Vector LastSeenLocation = ZERO_VECTOR; // The last visibly-confirmed location of the player
 	Vector LastSeenVelocity = ZERO_VECTOR; // Last visibly-confirmed movement direction of the player
+	Vector PendingSeenLocation = ZERO_VECTOR; // The last visibly-confirmed location of the player
+	Vector PendingSeenVelocity = ZERO_VECTOR; // Last visibly-confirmed movement direction of the player
 	Vector TrackedLocation = ZERO_VECTOR; // If tracked by parasite or motion-tracking, last pinged location of player
 	float LastSeenTime = 0.0f; // Last time the bot saw the player (not tracked)
 	float LastTrackedTime = 0.0f; // Last time the player was pinged to the bot if parasited/motion-tracked
 	bool bCurrentlyVisible = false; // Is the player directly visible to the bot
 	bool bIsValidTarget = false; // Should the bot care about this enemy player? Will be false if too far away or not seen for long enough
 	bool bIsTracked = false; // Is this enemy currently parasited or motion-tracked?
+	float NextUpdateTime = 0.0f; // When the bot can next react to a change in target's state
+	float NextVelocityUpdateTime = 0.0f; // When the bot can next react to a change in target's state
+
 } enemy_status;
 
 // Pending message a bot wants to say. Allows for a delay in sending a message to simulate typing, or prevent too many messages on the same frame
@@ -235,7 +250,7 @@ typedef struct _BOT_TASK
 	float LastBuildAttemptTime = 0.0f; // When did the Gorge last try to place a structure?
 	int BuildAttempts = 0; // How many attempts the Gorge has tried to place it, so it doesn't keep trying forever
 	int Evolution = 0; // Used by TASK_EVOLVE to determine what to evolve into
-
+	float TaskLength = 0.0f; // If a task has gone on longer than this time, it will be considered completed
 } bot_task;
 
 
@@ -251,14 +266,34 @@ typedef struct _COMMANDER_ORDER
 
 } commander_order;
 
+// Tracks what orders have been given to which players
+typedef struct _BOT_SKILL
+{
+	float bot_reaction_time = 0.2f; // How quickly the bot will react to seeing an enemy
+	float bot_aim_skill = 0.5f; // How quickly the bot can lock on to an enemy
+	float bot_motion_tracking_skill = 0.5f; // How well the bot can follow an enemy target's motion
+	float bot_view_speed = 0.5f; // How fast a bot can spin its view to aim in a given direction
 
+} bot_skill;
+
+typedef struct _BOT_GUARD_INFO
+{
+	Vector GuardLocation = ZERO_VECTOR; // What position are we guarding?
+	Vector GuardStandPosition = ZERO_VECTOR; // Where the bot should stand to guard position (moves around a bit)
+	Vector GuardPoints[8]; // All potential areas to watch that an enemy could approach from
+	int NumGuardPoints = 0; // How many watch areas there are for the current location
+	Vector GuardLookLocation = ZERO_VECTOR; // Which area are we currently watching?
+	float GuardStartLookTime = 0.0f; // When did we start watching the current area?
+	float ThisGuardLookTime = 0.0f; // How long should we watch this area for?
+
+} bot_guard_info;
 
 // Bot data structure. Holds all things a growing bot needs
 typedef struct _BOT_T
 {
 	bool is_used = false;
 
-	float map_max_extent = 0.0f; // The commander's Z height when in top-down view. Set by the SetupMap network message
+	bot_skill BotSkillSettings;
 
 	int respawn_state = 0;
 	edict_t* pEdict = NULL;
@@ -283,8 +318,6 @@ typedef struct _BOT_T
 	nav_status BotNavInfo; // Bot's movement information, their current path, where in the path they are etc.
 
 	frustum_plane_t viewFrustum[6]; // Bot's view frustum. Essentially, their "screen" for determining visibility of stuff
-
-	edict_t* visiblePlayers[32]; // List of all potentially visible players that bot might track. Right now, is only interested in enemies
 
 	float f_previous_command_time = 0.0f;
 
@@ -334,20 +367,12 @@ typedef struct _BOT_T
 
 	Vector CurrentEyePosition = ZERO_VECTOR; // Represents the world view location for the bot
 
-	
+
 	float Adrenaline = 0.0f; // For alien abilities
 
 	// All of the below is for guarding an area. This needs reworking to be honest.
 
-	Vector CurrentGuardLocation = ZERO_VECTOR;
-	Vector GuardPoints[8];
-	Vector GuardLookLocation = ZERO_VECTOR;
-	int NumGuardPoints = 0;
-	float GuardStartLookTime = 0.0f;
-	float ThisGuardLookTime = 0.0f;
-	// How long to spend guarding the current area
-	float GuardLengthTime = 0.0f;
-	float GuardStartedTime = 0.0f;
+	bot_guard_info GuardInfo;
 
 	float AimingDelay = 0.1f; // How frequently should the bot adjust its view and react to moving targets?
 
@@ -375,6 +400,8 @@ typedef struct _BOT_T
 	float LastViewUpdateTime = 0.0f; // Used to throttle view updates based on ViewUpdateRate
 
 	bool bIsPendingKill = false; // Has the bot issued a "kill" command and it waiting for oblivion?
+
+	float CommanderLastBeaconTime = 0.0f; // When the last time commander used beacon was
 
 } bot_t;
 

@@ -124,6 +124,20 @@ const int kOnosBaseArmor = 600;
 const int kOnosArmorUpgrade = 350;
 const int kGestateBaseArmor = 150;
 
+const int kSpitVelocity = 1500;
+const int kShootCloudVelocity = 1100;
+const int kAcidRocketVelocity = 2000;
+
+const float kBiteRange = 60.0f;
+const float kBite2Range = 60.0f; // Lerk bite range
+
+const float kHealingSprayRange = 300.0f;
+
+const float kSwipeRange = 60.0f; // Fade swipe range
+
+const float kClawsRange = 90.0f; // Onos gore range
+const float kDevourRange = 100.0f; // Onos gore range
+
 // TODO: Try and retrieve these from balance variables rather than hard-coded
 #define kInfantryPortalCost 20
 #define kResourceTowerCost 15
@@ -375,11 +389,12 @@ typedef enum
 	RESEARCH_OBSERVATORY_DISTRESSBEACON = 30,
 	RESEARCH_OBSERVATORY_MOTIONTRACKING = 33,
 	RESEARCH_OBSERVATORY_PHASETECH = 34,
+	RESEARCH_ELECTRICAL = 36,
 
 	RESEARCH_OBSERVATORY_SCAN = 53,
 
 	RESEARCH_ARMOURY_GRENADES = 37
-	
+
 
 } NSResearch;
 
@@ -410,7 +425,10 @@ typedef enum
 	STRUCTURE_ALIEN_DEFENCECHAMBER,
 	STRUCTURE_ALIEN_SENSORYCHAMBER,
 	STRUCTURE_ALIEN_MOVEMENTCHAMBER,
-	STRUCTURE_ALIEN_OFFENCECHAMBER
+	STRUCTURE_ALIEN_OFFENCECHAMBER,
+
+	STRUCTURE_ANY_MARINE_STRUCTURE,
+	STRUCTURE_ANY_ALIEN_STRUCTURE
 
 } NSStructureType;
 
@@ -431,8 +449,8 @@ typedef enum
 	ITEM_MARINE_SHOTGUN = 64,
 	ITEM_MARINE_HMG = 65,
 	ITEM_MARINE_GRENADELAUNCHER = 66
-	
-	
+
+
 } NSDeployableItem;
 
 // All player classes
@@ -579,21 +597,7 @@ typedef enum
 	HIVE_STATUS_BUILT = 2
 } HiveStatusType;
 
-// Data structure to hold information about each hive in the map
-typedef struct _HIVE_DEFINITION_T
-{
-	bool bIsValid = false; // Doesn't exist. Array holds up to 10 hives even though usually only 3 exist
-	edict_t* edict = NULL; // Refers to the hive edict. Always exists even if not built yet
-	Vector Location = ZERO_VECTOR; // Origin of the hive
-	Vector FloorLocation = ZERO_VECTOR; // Some hives are suspended in the air, this is the floor location directly beneath it
-	HiveStatusType Status = HIVE_STATUS_UNBUILT; // Can be unbuilt, in progress, or fully built
-	HiveTechStatus TechStatus = HIVE_TECH_NONE; // What tech (if any) is assigned to this hive right now
-	float HealthPercent = 0.0f; // How much health it has
-	bool bIsUnderAttack = false; // Is the hive currently under attack? Becomes false if not taken damage for more than 10 seconds
-	int HiveResNodeIndex = -1; // Which resource node (indexes into ResourceNodes array) belongs to this hive?
-	unsigned int ObstacleRef = 0; // When in progress or built, will place an obstacle so bots don't try to walk through it
 
-} hive_definition;
 
 #define PLAYMODE_UNDEFINED 0
 #define PLAYMODE_READYROOM 1

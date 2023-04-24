@@ -1,62 +1,47 @@
-//
-// HPB bot - botman's High Ping Bastard bot
-//
-// (http://planethalflife.com/botman/)
-//
-// h_export.cpp
-//
+// vi: set ts=4 sw=4 :
+// vim: set tw=75 :
 
-#ifndef _WIN32
-#include <string.h>
-#endif
+// From SDK dlls/h_export.cpp:
+
+/***
+*
+*	Copyright (c) 1999, 2000 Valve LLC. All rights reserved.
+*	
+*	This product contains software technology licensed from Id 
+*	Software, Inc. ("Id Technology").  Id Technology (c) 1996 Id Software, Inc. 
+*	All Rights Reserved.
+*
+*   Use, distribution, and modification of this source code and/or resulting
+*   object code is restricted to non-commercial enhancements to products from
+*   Valve LLC.  All other use, distribution, or modification is prohibited
+*   without written permission from Valve LLC.
+*
+****/
+/*
+
+===== h_export.cpp ========================================================
+
+  Entity classes exported by Halflife.
+
+*/
 
 #include <extdll.h>
-#include <dllapi.h>
+
 #include <h_export.h>
-#include <meta_api.h>
 
-#include "bot.h"
+// From SDK dlls/h_export.cpp:
 
-char g_argv[1024];
-
-DLL_FUNCTIONS gFunctionTable;
+//! Holds engine functionality callbacks
 enginefuncs_t g_engfuncs;
 globalvars_t  *gpGlobals;
 
-static FILE *fp;
+char g_argv[1024];
 
-#ifndef __linux__
-
-// Required DLL entry point
-BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
-{
-   return TRUE;
-}
-
-#endif
-
+// Receive engine function table from engine.
+// This appears to be the _first_ DLL routine called by the engine, so we
+// do some setup operations here.
 void WINAPI GiveFnptrsToDll( enginefuncs_t* pengfuncsFromEngine, globalvars_t *pGlobals )
 {
-   char game_dir[256];
-   char mod_name[32];
-   char game_dll_filename[256];
-
-   // get the engine functions from the engine...
-
-   memcpy(&g_engfuncs, pengfuncsFromEngine, sizeof(enginefuncs_t));
-   gpGlobals = pGlobals;
-
-   // find the directory name of the currently running MOD...
-   GetGameDir (game_dir);
-
-   strcpy(mod_name, game_dir);
-
-   game_dll_filename[0] = 0;
-
-#ifndef __linux__
-      strcpy(game_dll_filename, "cstrike\\dlls\\mp.dll");
-#else
-      strcpy(game_dll_filename, "cstrike/dlls/cs_i386.so");
-#endif
+	memcpy(&g_engfuncs, pengfuncsFromEngine, sizeof(enginefuncs_t));
+	gpGlobals = pGlobals;
 }
-

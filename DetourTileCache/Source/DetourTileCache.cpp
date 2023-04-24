@@ -421,7 +421,7 @@ dtStatus dtTileCache::addBoxObstacle(const float* bmin, const float* bmax, dtObs
 	return DT_SUCCESS;
 }
 
-dtStatus dtTileCache::addBoxObstacle(const float* center, const float* halfExtents, const float yRadians, dtObstacleRef* result)
+dtStatus dtTileCache::addBoxObstacle(const float* center, const float* halfExtents, const float yRadians, const int area, dtObstacleRef* result)
 {
 	if (m_nreqs >= MAX_REQUESTS)
 		return DT_FAILURE | DT_BUFFER_TOO_SMALL;
@@ -448,6 +448,7 @@ dtStatus dtTileCache::addBoxObstacle(const float* center, const float* halfExten
 	float sinhalf = sinf(-0.5f*yRadians);
 	ob->orientedBox.rotAux[0] = coshalf*sinhalf;
 	ob->orientedBox.rotAux[1] = coshalf*coshalf - 0.5f;
+	ob->orientedBox.area = area;
 
 	ObstacleRequest* req = &m_reqs[m_nreqs++];
 	memset(req, 0, sizeof(ObstacleRequest));

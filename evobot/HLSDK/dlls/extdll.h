@@ -1,9 +1,9 @@
 /***
 *
-*	Copyright (c) 1999, 2000 Valve LLC. All rights reserved.
-*
-*	This product contains software technology licensed from Id
-*	Software, Inc. ("Id Technology").  Id Technology (c) 1996 Id Software, Inc.
+*	Copyright (c) 1999, Valve LLC. All rights reserved.
+*	
+*	This product contains software technology licensed from Id 
+*	Software, Inc. ("Id Technology").  Id Technology (c) 1996 Id Software, Inc. 
 *	All Rights Reserved.
 *
 *   Use, distribution, and modification of this source code and/or resulting
@@ -15,6 +15,7 @@
 #ifndef EXTDLL_H
 #define EXTDLL_H
 
+
 //
 // Global header file for extension DLLs
 //
@@ -24,63 +25,38 @@
 #define DEBUG 1
 #endif
 
-#ifndef __linux__
-// Silence certain warnings
-#pragma warning(disable : 4244)		// int or float down-conversion
-#pragma warning(disable : 4305)		// int or float data truncation
-#pragma warning(disable : 4201)		// nameless struct/union
-#pragma warning(disable : 4514)		// unreferenced inline function removed
-#pragma warning(disable : 4100)		// unreferenced formal parameter
+
 
 // Prevent tons of unused windows definitions
+#ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #define NOWINRES
 #define NOSERVICE
 #define NOMCX
 #define NOIME
-#include <Windows.h>
+#include "windows.h"
+#else // _WIN32
+#define FALSE 0
+#define TRUE (!FALSE)
+typedef unsigned int ULONG;
+typedef unsigned char BYTE;
+typedef int BOOL;
+#define MAX_PATH PATH_MAX
+#include <limits.h>
+#include <stdarg.h>
+#ifndef min
+#define min(a,b)  (((a) < (b)) ? (a) : (b))
+#endif
+#ifndef max
+#define max(a,b)  (((a) > (b)) ? (a) : (b))
+#define _vsnprintf(a,b,c,d) vsnprintf(a,b,c,d)
+#endif
+#endif //_WIN32
 
 // Misc C-runtime library headers
-#include <cstdio>
-#include <cstdlib>
-#include <cmath>
-
-#else
-#include <stdarg.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <math.h>
-#include <string.h>
-#include <ctype.h>
-#include <limits.h>
-
-#define MAX_PATH PATH_MAX
-#ifdef __CYGWIN__
-#define ULONG unsigned long
-#else
-#define ULONG ulong
-#endif
-#define false 0
-#define true  1
-
-//Fix for GCC 7 - [APG]RoboCop[CL]
-#include <algorithm>
-
-#ifndef max
-#define max(a,b) (((a) > (b)) ? (a) : (b))
-#endif
-
-#ifndef min
-#define min(a,b) (((a) < (b)) ? (a) : (b))
-#endif
-
-#undef max
-#undef min
-
-#define itoa(a,b,c) sprintf(b, "%d", a)
-
-typedef unsigned char BYTE;
-#endif
+#include "stdio.h"
+#include "stdlib.h"
+#include "math.h"
 
 // Header file containing definition of globalvars_t and entvars_t
 typedef int	func_t;					//

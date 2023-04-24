@@ -5,6 +5,6 @@ target_sources(Detour
     PRIVATE ${SourceFiles}
     PUBLIC FILE_SET HEADERS 
     BASE_DIRS ${PROJECT_SOURCE_DIR}
-    FILES ${HeaderFiles})
+    FILES ${HeaderFiles} )
 
 target_include_directories(Detour PRIVATE Include)

@@ -13,6 +13,9 @@
 #include <meta_api.h>
 #include <time.h>
 
+#include <string>
+#include <sstream>
+
 extern enginefuncs_t g_engfuncs;
 
 bool isNumber(const char* line)
@@ -22,8 +25,25 @@ bool isNumber(const char* line)
 	return *p == 0;
 }
 
+Vector UTIL_VecToAngles(const Vector& vec)
+{
+	float rgflVecOut[3];
+	VEC_TO_ANGLES(vec, rgflVecOut);
+	return Vector(rgflVecOut);
+}
+
+bool isFloat(const char* line)
+{
+	std::string myString = line;
+	std::istringstream iss(myString);
+	float f;
+	iss >> std::noskipws >> f; // noskipws considers leading whitespace invalid
+	// Check the entire string was consumed and if either failbit or badbit is set
+	return iss.eof() && !iss.fail();
+}
+
 // Returns the normalized surface normal of a triangle defined by v1,v2,v3. Assumes clockwise indices.
-Vector UTIL_GetSurfaceNormal(const Vector& v1, const Vector& v2, const Vector& v3)
+Vector UTIL_GetSurfaceNormal(const Vector v1, const Vector v2, const Vector v3)
 {
 
 	Vector normal(((v2.y - v1.y) * (v3.z - v1.z)) - ((v2.z - v1.z) * (v3.y - v1.y)),
@@ -36,27 +56,27 @@ Vector UTIL_GetSurfaceNormal(const Vector& v1, const Vector& v2, const Vector& v
 }
 
 // Returns the 3D distance of point from a line defined between lineFrom and lineTo
-float vDistanceFromLine3D(const Vector& lineFrom, const Vector& lineTo, const Vector& CheckPoint)
+float vDistanceFromLine3D(const Vector lineFrom, const Vector lineTo, const Vector CheckPoint)
 {
 	Vector nearestToLine = vClosestPointOnLine(lineFrom, lineTo, CheckPoint);
 	return vDist3D(CheckPoint, nearestToLine);
 }
 
 // Returns the 2D distance (Z axis ignored) of point from a line defined between lineFrom and lineTo
-float vDistanceFromLine2D(const Vector& lineFrom, const Vector& lineTo, const Vector& CheckPoint)
+float vDistanceFromLine2D(const Vector lineFrom, const Vector lineTo, const Vector CheckPoint)
 {
 	Vector nearestToLine = vClosestPointOnLine2D(lineFrom, lineTo, CheckPoint);
 	return vDist2D(CheckPoint, nearestToLine);
 }
 
 // Returns the 2D distance (Z axis ignored) of point from a line defined between lineFrom and lineTo
-float vDistanceFromLine2DSq(const Vector& lineFrom, const Vector& lineTo, const Vector& CheckPoint)
+float vDistanceFromLine2DSq(const Vector lineFrom, const Vector lineTo, const Vector CheckPoint)
 {
 	Vector nearestToLine = vClosestPointOnLine2D(lineFrom, lineTo, CheckPoint);
 	return vDist2DSq(CheckPoint, nearestToLine);
 }
 
-Vector vClosestPointOnInfiniteLine3D(const Vector& PointOnLine, const Vector& NormalisedLineDir, const Vector& TestPoint)
+Vector vClosestPointOnInfiniteLine3D(const Vector PointOnLine, const Vector NormalisedLineDir, const Vector TestPoint)
 {
 	Vector DirectionToPoint = UTIL_GetVectorNormal(PointOnLine - TestPoint);
 
@@ -65,7 +85,7 @@ Vector vClosestPointOnInfiniteLine3D(const Vector& PointOnLine, const Vector& No
 	return TestPoint + (NormalisedLineDir * DirectionDot);
 }
 
-Vector vClosestPointOnInfiniteLine2D(const Vector& PointOnLine, const Vector& NormalisedLineDir, const Vector& TestPoint)
+Vector vClosestPointOnInfiniteLine2D(const Vector PointOnLine, const Vector NormalisedLineDir, const Vector TestPoint)
 {
 	Vector NormalisedLineDir2D = UTIL_GetVectorNormal2D(NormalisedLineDir);
 	Vector DirectionToPoint = UTIL_GetVectorNormal2D(PointOnLine - TestPoint);
@@ -76,7 +96,7 @@ Vector vClosestPointOnInfiniteLine2D(const Vector& PointOnLine, const Vector& No
 }
 
 // Returns 0 if point sits right on the line defined by lineFrom and lineTo, -1 if it sits to the left, 1 if it sits to the right. Ignores Z axis
-int vPointOnLine(const Vector& lineFrom, const Vector& lineTo, const Vector& point)
+int vPointOnLine(const Vector lineFrom, const Vector lineTo, const Vector point)
 {
 	float value = ((lineTo.x - lineFrom.x) * (point.y - lineFrom.y)) - ((point.x - lineFrom.x) * (lineTo.y - lineFrom.y));
 
@@ -90,7 +110,7 @@ int vPointOnLine(const Vector& lineFrom, const Vector& lineTo, const Vector& poi
 }
 
 // For given line lineFrom -> lineTo, returns the point along that line closest to point
-Vector vClosestPointOnLine(const Vector& lineFrom, const Vector& lineTo, const Vector& point)
+Vector vClosestPointOnLine(const Vector lineFrom, const Vector lineTo, const Vector point)
 {
 	Vector vVector1 = point - lineFrom;
 	Vector vVector2 = UTIL_GetVectorNormal(lineTo - lineFrom);
@@ -112,7 +132,7 @@ Vector vClosestPointOnLine(const Vector& lineFrom, const Vector& lineTo, const V
 }
 
 // For given line lineFrom -> lineTo, returns the 2D point (Z axis ignored) along that line closest to point
-Vector vClosestPointOnLine2D(const Vector& lineFrom, const Vector& lineTo, const Vector& point)
+Vector vClosestPointOnLine2D(const Vector lineFrom, const Vector lineTo, const Vector point)
 {
 	Vector lineFrom2D = Vector(lineFrom.x, lineFrom.y, 0.0f);
 	Vector lineTo2D = Vector(lineTo.x, lineTo.y, 0.0f);
@@ -161,7 +181,7 @@ void UTIL_NormalizeVector2D(Vector* vec)
 }
 
 // Returns a normalized copy of the supplied Vector. Original value is unmodified
-Vector UTIL_GetVectorNormal(const Vector& vec)
+Vector UTIL_GetVectorNormal(const Vector vec)
 {
 	Vector result;
 	float len = sqrt((vec.x * vec.x) + (vec.y * vec.y) + (vec.z * vec.z));
@@ -176,7 +196,7 @@ Vector UTIL_GetVectorNormal(const Vector& vec)
 }
 
 // Returns a 2D (Z axis is 0) normalized copy of the supplied Vector. Original value is unmodified
-Vector UTIL_GetVectorNormal2D(const Vector& vec)
+Vector UTIL_GetVectorNormal2D(const Vector vec)
 {
 	if (vec == ZERO_VECTOR) { return ZERO_VECTOR; }
 
@@ -193,7 +213,7 @@ Vector UTIL_GetVectorNormal2D(const Vector& vec)
 }
 
 // Returns the cross product of v1 and v2.
-Vector UTIL_GetCrossProduct(const Vector& v1, const Vector& v2)
+Vector UTIL_GetCrossProduct(const Vector v1, const Vector v2)
 {
 	Vector result;
 
@@ -205,14 +225,14 @@ Vector UTIL_GetCrossProduct(const Vector& v1, const Vector& v2)
 }
 
 // Returns the 2D (ignoring Z axis) distance between the two vectors
-float vDist2D(const Vector& v1, const Vector& v2)
+float vDist2D(const Vector v1, const Vector v2)
 {
 	return (float)sqrt((v2.x - v1.x) * (v2.x - v1.x)
 		+ (v2.y - v1.y) * (v2.y - v1.y));
 }
 
 // Returns the 3D distance between the two vectors
-float vDist3D(const Vector& v1, const Vector& v2)
+float vDist3D(const Vector v1, const Vector v2)
 {
 	return (float)sqrt((v2.x - v1.x) * (v2.x - v1.x)
 		+ (v2.y - v1.y) * (v2.y - v1.y)
@@ -220,60 +240,66 @@ float vDist3D(const Vector& v1, const Vector& v2)
 }
 
 // Returns the 2D (ignoring Z axis) squared distance between the two vectors
-float vDist2DSq(const Vector& v1, const Vector& v2)
+float vDist2DSq(const Vector v1, const Vector v2)
 {
 	return ((v2.x - v1.x) * (v2.x - v1.x)
 		+ (v2.y - v1.y) * (v2.y - v1.y));
 }
 
 // Returns the 3D squared distance between the two vectors
-float vDist3DSq(const Vector& v1, const Vector& v2)
+float vDist3DSq(const Vector v1, const Vector v2)
 {
 	return ((v2.x - v1.x) * (v2.x - v1.x)
 		+ (v2.y - v1.y) * (v2.y - v1.y)
 		+ (v2.z - v1.z) * (v2.z - v1.z));
 }
 
-float vSize3DSq(const Vector& V)
+float vSize3DSq(const Vector V)
 {
-	return (V.x*V.x) + (V.y*V.y) + (V.z*V.z);
+	return (V.x * V.x) + (V.y * V.y) + (V.z * V.z);
 }
 
-float vSize2DSq(const Vector& V)
+float vSize2DSq(const Vector V)
 {
-	return (V.x*V.x) + (V.y*V.y);
+	return (V.x * V.x) + (V.y * V.y);
 }
 
-float vSize3D(const Vector& V)
+float vSize3D(const Vector V)
 {
 	return sqrtf((V.x * V.x) + (V.y * V.y) + (V.z * V.z));
 }
 
-float vSize2D(const Vector& V)
+float vSize2D(const Vector V)
 {
 	return sqrtf((V.x * V.x) + (V.y * V.y));
 }
 
-// Returns true if the two vectors are the same (all components are within 0.1f of each other)
-bool vEquals(const Vector& v1, const Vector& v2)
+// Returns true if the two vectors are the same (all components are within 0.01f of each other)
+bool vEquals(const Vector v1, const Vector v2)
 {
-	return fabs(v1.x - v2.x) <= 0.1f && fabs(v1.y - v2.y) <= 0.1f && fabs(v1.z - v2.z) <= 0.1f;
+	return fabs(v1.x - v2.x) <= 0.01f && fabs(v1.y - v2.y) <= 0.01f && fabs(v1.z - v2.z) <= 0.01f;
 }
 
 // Returns true if the two vectors are the same (all components are within epsilon of each other)
-bool vEquals(const Vector& v1, const Vector& v2, const float epsilon)
+bool vEquals(const Vector v1, const Vector v2, const float epsilon)
 {
 	return fabs(v1.x - v2.x) <= epsilon && fabs(v1.y - v2.y) <= epsilon && fabs(v1.z - v2.z) <= epsilon;
 }
 
+bool fNearlyEqual(const float f1, const float f2)
+{
+	return fabsf(f1 - f2) < 0.001f;
+}
+
+
 // Returns the dot product of two vectors (1.0f if both vectors pointing exactly the same direction, -1.0f if opposites, 0.0f if perpendicular)
-float UTIL_GetDotProduct(const Vector& v1, const Vector& v2)
+float UTIL_GetDotProduct(const Vector v1, const Vector v2)
 {
 	return ((v1.x * v2.x) + (v1.y * v2.y) + (v1.z * v2.z));
 }
 
 // Returns the 2D dot product (Z axis ignored) of two vectors (1.0f if both vectors pointing exactly the same direction, -1.0f if opposites, 0.0f if perpendicular)
-float UTIL_GetDotProduct2D(const Vector& v1, const Vector& v2)
+float UTIL_GetDotProduct2D(const Vector v1, const Vector v2)
 {
 	return ((v1.x * v2.x) + (v1.y * v2.y));
 }
@@ -294,13 +320,13 @@ Vector UTIL_RandomPointOnCircle(const Vector origin, const float radius)
 }
 
 // For given plane, determine if the given point sits within the plane or not
-bool UTIL_PointInsidePlane(const frustum_plane_t* plane, const Vector& point)
+bool UTIL_PointInsidePlane(const frustum_plane_t* plane, const Vector point)
 {
 	float distance = plane->d + (plane->normal.x * point.x + plane->normal.y * point.y + plane->normal.z * point.z);
 	return distance >= 0.0f;
 }
 
-bool UTIL_CylinderInsidePlane(const frustum_plane_t* plane, const Vector& centre, float height, float radius)
+bool UTIL_CylinderInsidePlane(const frustum_plane_t* plane, const Vector centre, float height, float radius)
 {
 	Vector testNormal = plane->normal;
 	testNormal.z = 0;
@@ -398,12 +424,12 @@ Vector GetPitchForProjectile(Vector LaunchPoint, Vector TargetPoint, const float
 	Vector OutTossVelocity = (DirXY * MagXY) + (UP_VECTOR * MagZ * ZSign);
 
 	return OutTossVelocity;
-	
+
 }
 
-void UTIL_AnglesToVector(const Vector& angles, Vector* fwd, Vector* right, Vector* up)
+void UTIL_AnglesToVector(const Vector angles, Vector* fwd, Vector* right, Vector* up)
 {
-	
+
 	g_engfuncs.pfnAngleVectors(angles, (float*)fwd, (float*)right, (float*)up);
 	UTIL_NormalizeVector(fwd);
 	UTIL_NormalizeVector(right);
@@ -420,7 +446,7 @@ float signf(float input)
 	return (input == 0.0f) ? 0.0f : ((input > 0.0f) ? 1.0f : -1.0f);
 }
 
-Vector ViewInterpTo(const Vector& CurrentViewAngles, const Vector& TargetDirection, const float DeltaTime, const float InterpSpeed)
+Vector ViewInterpTo(const Vector CurrentViewAngles, const Vector& TargetDirection, const float DeltaTime, const float InterpSpeed)
 {
 	if (DeltaTime == 0.f)
 	{
@@ -547,7 +573,7 @@ Vector random_unit_vector_within_cone(const Vector Direction, double cone_half_a
 	return UTIL_GetVectorNormal(Result);
 }
 
-Vector UTIL_GetRandomUnitVectorInCone(const Vector& ConeDirection, const float HalfAngleRadians)
+Vector UTIL_GetRandomUnitVectorInCone(const Vector ConeDirection, const float HalfAngleRadians)
 {
 	Vector P = UTIL_GetVectorNormal(UTIL_GetCrossProduct(ConeDirection, UP_VECTOR));
 	Vector Q = UTIL_GetVectorNormal(UTIL_GetCrossProduct(ConeDirection, P));
@@ -564,7 +590,7 @@ float fDegreesToRadians(const float Degrees)
 	return Degrees * DEGREES_RADIANS_CONV;
 }
 
-Vector UTIL_GetForwardVector(const Vector& angles)
+Vector UTIL_GetForwardVector(const Vector angles)
 {
 	Vector fwd, right, up;
 
@@ -572,7 +598,7 @@ Vector UTIL_GetForwardVector(const Vector& angles)
 	return UTIL_GetVectorNormal(fwd);
 }
 
-Vector UTIL_GetForwardVector2D(const Vector& angles)
+Vector UTIL_GetForwardVector2D(const Vector angles)
 {
 	Vector fwd, right, up;
 
@@ -601,4 +627,47 @@ float UTIL_GetDistanceToPolygon2DSq(const Vector TestPoint, const Vector* Points
 	}
 
 	return minDist;
+}
+
+Vector UTIL_GetAimLocationToLeadTarget(const Vector ShooterLocation, const Vector TargetLocation, const Vector TargetVelocity, const float ProjectileVelocity)
+{
+	// We interpret a speed of 0.0f to mean hitscan, i.e. infinitely fast
+	if (ProjectileVelocity == 0.0f) { return TargetLocation; }
+
+
+	Vector totarget = TargetLocation - ShooterLocation;
+
+
+	float a = UTIL_GetDotProduct(TargetVelocity, TargetVelocity) - (ProjectileVelocity * ProjectileVelocity);
+	float b = 2.0f * UTIL_GetDotProduct(TargetVelocity, totarget);
+	float c = UTIL_GetDotProduct(totarget, totarget);
+
+	float p = -b / (2.0f * a);
+	float q = (float)sqrt((b * b) - 4.0f * a * c) / (2.0f * a);
+
+	float t1 = p - q;
+	float t2 = p + q;
+	float t;
+
+	if (t1 > t2 && t2 > 0)
+	{
+		t = t2;
+	}
+	else
+	{
+		t = t1;
+	}
+
+	return (TargetLocation + TargetVelocity * t);
+}
+
+float UTIL_GetVelocityRequiredToReachTarget(const Vector StartLocation, const Vector TargetLocation, float Gravity)
+{
+	// Calculate the distance between the start and target positions
+	double distance = vDist3D(StartLocation, TargetLocation);
+
+	// Calculate the initial velocity required to reach the target with no air resistance
+	double velocity = sqrt(2.0f * Gravity * distance);
+
+	return velocity;
 }
