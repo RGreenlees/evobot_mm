@@ -87,30 +87,39 @@ bool CommanderProgressBuildAction(bot_t* CommanderBot, int ActionIndex, int Prio
 		// If we've already assigned someone to build it
 		if (UTIL_ActionHasValidPlayerAssigned(CommanderBot, ActionIndex, Priority))
 		{
+			commander_order* OrderInfo = &CommanderBot->LastPlayerOrders[action->AssignedPlayer];
+
 			// Add this in to prevent order spam
-			if ((gpGlobals->time - CommanderBot->LastPlayerOrders[action->AssignedPlayer].LastReminderTime) < 5.0f) { return false; }
+			if ((gpGlobals->time - OrderInfo->LastReminderTime) < 5.0f) { return false; }
 
 			// If a player is assigned, but we've not actually issued the order yet
-			if (!CommanderBot->LastPlayerOrders[action->AssignedPlayer].bIsActive)
+			if (!OrderInfo->bIsActive)
 			{
 				return UTIL_IssueOrderForAction(CommanderBot, action->AssignedPlayer, ActionIndex, Priority);
 			}
 
+			// We've placed the structure since the last order, so now we have to ensure the order target is set correctly
+			if (!FNullEnt(action->StructureOrItem) && FNullEnt(OrderInfo->Target))
+			{
+				OrderInfo->Target = action->StructureOrItem;
+			}
+
+
 			// Player is eligible for a reminder if it has been a while since we gave them an order and they're still miles away
-			bool bEligibleForReminder = (gpGlobals->time - CommanderBot->LastPlayerOrders[action->AssignedPlayer].LastReminderTime) > min_order_reminder_time;
+			bool bEligibleForReminder = (gpGlobals->time - OrderInfo->LastReminderTime) > min_order_reminder_time;
 
 			if (bEligibleForReminder)
 			{
-				float newDist = UTIL_GetPathCostBetweenLocations(MARINE_REGULAR_NAV_PROFILE, clients[action->AssignedPlayer]->v.origin, CommanderBot->LastPlayerOrders[action->AssignedPlayer].Target->v.origin);
+				float newDist = UTIL_GetPathCostBetweenLocations(MARINE_REGULAR_NAV_PROFILE, clients[action->AssignedPlayer]->v.origin, OrderInfo->Target->v.origin);
 
-				if (newDist > CommanderBot->LastPlayerOrders[action->AssignedPlayer].LastPlayerDistance)
+				if (newDist > OrderInfo->LastPlayerDistance)
 				{
 					return UTIL_IssueOrderForAction(CommanderBot, action->AssignedPlayer, ActionIndex, Priority);
 				}
 				else
 				{
-					CommanderBot->LastPlayerOrders[action->AssignedPlayer].LastReminderTime = gpGlobals->time - 15.0f;
-					CommanderBot->LastPlayerOrders[action->AssignedPlayer].LastPlayerDistance = newDist;
+					OrderInfo->LastReminderTime = gpGlobals->time - 15.0f;
+					OrderInfo->LastPlayerDistance = newDist;
 				}
 			}
 
@@ -571,7 +580,7 @@ void UTIL_IssueMarineBuildOrder(bot_t* CommanderBot, edict_t* Recipient, edict_t
 
 		if (BotRef)
 		{
-			//BotReceiveCommanderOrder(BotRef, ORDERTYPET_BUILD, (AvHUser3)StructureToBuild->v.iuser3, StructureToBuild->v.origin);
+			BotReceiveCommanderOrder(BotRef, ORDERTYPET_BUILD, (AvHUser3)StructureToBuild->v.iuser3, StructureToBuild->v.origin);
 		}
 	}
 
@@ -590,7 +599,7 @@ void UTIL_IssueMarineBuildOrder(bot_t* CommanderBot, edict_t* Recipient, edict_t
 			CommanderBot->LastPlayerOrders[i].Target = StructureToBuild;
 			CommanderBot->LastPlayerOrders[i].LastReminderTime = gpGlobals->time;
 			CommanderBot->LastPlayerOrders[i].LastPlayerDistance = dist;
-			break;
+			return;
 		}
 	}
 }
@@ -1327,7 +1336,7 @@ bool UTIL_ActionHasValidPlayerAssigned(bot_t* CommanderBot, int CommanderActionI
 
 	if (AssignedPlayerIndex < 0 || AssignedPlayerIndex > 31) { return false; }
 
-	return (!FNullEnt(clients[AssignedPlayerIndex]) && IsPlayerOnMarineTeam(clients[AssignedPlayerIndex]) && !IsPlayerDead(clients[AssignedPlayerIndex]) && !IsPlayerBeingDigested(clients[AssignedPlayerIndex]));
+	return (!FNullEnt(clients[AssignedPlayerIndex]) && IsPlayerOnMarineTeam(clients[AssignedPlayerIndex]) && IsPlayerActiveInGame(clients[AssignedPlayerIndex]));
 }
 
 int UTIL_GetNumPlacedOrQueuedStructuresOfType(bot_t* CommanderBot, NSStructureType StructureType)
