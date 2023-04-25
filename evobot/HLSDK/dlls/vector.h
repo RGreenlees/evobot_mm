@@ -72,12 +72,13 @@ public:
 
         // Operators
         inline Vector operator-(void) const                     { return Vector(-x,-y,-z);                              }
-        inline int operator==(const Vector& v) const            { return fabsf(x - v.x) < 0.0001f && fabsf(y - v.y) < 0.0001f && fabs(z - v.z) < 0.0001f;    }
+        inline int operator==(const Vector& v) const            { return fabsf(x - v.x) < 0.0001f && fabsf(y - v.y) < 0.0001f && fabsf(z - v.z) < 0.0001f;    }
         inline int operator!=(const Vector& v) const            { return !(*this==v);                                   }
         inline Vector operator+(const Vector& v) const          { return Vector(x+v.x, y+v.y, z+v.z);   }
         inline Vector operator-(const Vector& v) const          { return Vector(x-v.x, y-v.y, z-v.z);   }
         inline Vector operator*(float fl) const                 { return Vector(x*fl, y*fl, z*fl);              }
         inline Vector operator/(float fl) const                 { fl=1/fl; return Vector(x*fl, y*fl, z*fl);              }
+        inline int operator!() const                            { return fabsf(x) < 0.0001f && fabsf(y) < 0.0001f && fabsf(z) < 0.0001f; }
         
         // Methods
         inline void CopyToArray(float* rgfl) const              { rgfl[0] = x, rgfl[1] = y, rgfl[2] = z; }

@@ -2395,11 +2395,11 @@ void CommanderQueueNextAction(bot_t* pBot)
 
 	CurrentPriority = 2;
 
-	const hive_definition* UnbuiltHive = UTIL_GetNearestHiveOfStatus(UTIL_GetCommChairLocation(), HIVE_STATUS_UNBUILT);
+	const hive_definition* NearestUnbuiltHive = UTIL_GetNearestHiveOfStatus(UTIL_GetCommChairLocation(), HIVE_STATUS_UNBUILT);
 
-	if (UnbuiltHive)
+	if (NearestUnbuiltHive)
 	{
-		QueueSecureHiveAction(pBot, UnbuiltHive->FloorLocation, CurrentPriority);
+		QueueSecureHiveAction(pBot, NearestUnbuiltHive->FloorLocation, CurrentPriority);
 	}
 
 	/* Next-highest priority tasks. Place arms lab and do basic research including grenades, armour 1 and weapons 1*/
@@ -2429,6 +2429,13 @@ void CommanderQueueNextAction(bot_t* pBot)
 	/* Next up: Drop some shotguns and welders for the plebs */
 
 	CurrentPriority = 4;
+
+	const hive_definition* FurthestUnbuiltHive = UTIL_GetFurthestHiveOfStatus(UTIL_GetCommChairLocation(), HIVE_STATUS_UNBUILT);
+
+	if (FurthestUnbuiltHive && FurthestUnbuiltHive != NearestUnbuiltHive)
+	{
+		QueueSecureHiveAction(pBot, FurthestUnbuiltHive->FloorLocation, CurrentPriority);
+	}
 
 	int DesiredNumShotguns = 2;
 
@@ -2815,7 +2822,7 @@ void QueueSecureHiveAction(bot_t* CommanderBot, const Vector Area, int Priority)
 
 	if (HiveResourceNode)
 	{
-		if (!HiveResourceNode->bIsOccupied || !HiveResourceNode->bIsOwnedByMarines)
+		if (!HiveResourceNode->bIsOccupied)
 		{
 			if (!UTIL_ActionExistsInLocation(CommanderBot, HiveResourceNode->origin))
 			{
@@ -2824,7 +2831,27 @@ void QueueSecureHiveAction(bot_t* CommanderBot, const Vector Area, int Priority)
 		}
 	}
 
+	edict_t* ExistingPhaseGate = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_PHASEGATE, Area, UTIL_MetresToGoldSrcUnits(15.0f), true, false);
+	edict_t* BasePhaseGate = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_PHASEGATE, UTIL_GetCommChairLocation(), UTIL_MetresToGoldSrcUnits(20.0f), true, false);
 	edict_t* ExistingTurretFactory = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ANYTURRETFACTORY, Area, UTIL_MetresToGoldSrcUnits(15.0f), true, false);
+
+	if (!FNullEnt(BasePhaseGate) && FNullEnt(ExistingPhaseGate))
+	{
+		if (UTIL_GetQueuedBuildRequestsOfType(CommanderBot, STRUCTURE_MARINE_PHASEGATE) == 0)
+		{
+			if (UTIL_ResearchIsComplete(RESEARCH_OBSERVATORY_PHASETECH))
+			{
+				Vector BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(BUILDING_REGULAR_NAV_PROFILE, Area, UTIL_MetresToGoldSrcUnits(5.0f));
+
+				if (BuildLocation != ZERO_VECTOR && UTIL_PointIsReachable(MARINE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), BuildLocation, max_player_use_reach))
+				{
+					// If we already have secured this hive, then make adding a phase gate a top priority to fully secure it
+					int PhasePriority = FNullEnt(ExistingTurretFactory) ? Priority : 0;
+					CommanderQueuePhaseGateBuild(CommanderBot, BuildLocation, PhasePriority);
+				}
+			}
+		}
+	}
 
 	if (FNullEnt(ExistingTurretFactory))
 	{
@@ -2849,28 +2876,6 @@ void QueueSecureHiveAction(bot_t* CommanderBot, const Vector Area, int Priority)
 			if (BuildLocation != ZERO_VECTOR && UTIL_PointIsDirectlyReachable(BuildLocation, ExistingTurretFactory->v.origin))
 			{
 				UTIL_CommanderQueueStructureBuildAtLocation(CommanderBot, BuildLocation, STRUCTURE_MARINE_TURRET, 0);
-			}
-		}
-	}
-
-	edict_t* ExistingPhaseGate = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_PHASEGATE, Area, UTIL_MetresToGoldSrcUnits(15.0f), true, false);
-
-	edict_t* BasePhaseGate = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_PHASEGATE, UTIL_GetCommChairLocation(), UTIL_MetresToGoldSrcUnits(20.0f), true, false);
-
-	if (!FNullEnt(BasePhaseGate) && FNullEnt(ExistingPhaseGate))
-	{
-		if (UTIL_GetQueuedBuildRequestsOfType(CommanderBot, STRUCTURE_MARINE_PHASEGATE) == 0)
-		{
-			if (UTIL_ResearchIsComplete(RESEARCH_OBSERVATORY_PHASETECH))
-			{
-				Vector BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(BUILDING_REGULAR_NAV_PROFILE, Area, UTIL_MetresToGoldSrcUnits(5.0f));
-
-				if (BuildLocation != ZERO_VECTOR && UTIL_PointIsReachable(MARINE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), BuildLocation, max_player_use_reach))
-				{
-					// If we already have secured this hive, then make adding a phase gate a top priority to fully secure it
-					int PhasePriority = FNullEnt(ExistingTurretFactory) ? Priority : 1;
-					CommanderQueuePhaseGateBuild(CommanderBot, BuildLocation, PhasePriority);
-				}
 			}
 		}
 	}

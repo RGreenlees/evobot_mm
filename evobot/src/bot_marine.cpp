@@ -263,7 +263,7 @@ void MarineAssaultSetPrimaryTask(bot_t* pBot, bot_task* Task)
 		Task->TaskType = TASK_ATTACK;
 		Task->TaskTarget = SiegedHive->edict;
 		Task->TaskLocation = SiegedHive->FloorLocation;
-		Task->bOrderIsUrgent = true;
+		Task->bOrderIsUrgent = false;
 		return;
 	}
 
@@ -336,7 +336,7 @@ void MarineSetSecondaryTask(bot_t* pBot, bot_task* Task)
 		Task->TaskType = TASK_BUILD;
 		Task->TaskTarget = UnbuiltStructure;
 		Task->TaskLocation = UnbuiltStructure->v.origin;
-		Task->bOrderIsUrgent = false;
+		Task->bOrderIsUrgent = true;
 		return;
 	}
 
@@ -432,7 +432,7 @@ void MarineSweeperSetSecondaryTask(bot_t* pBot, bot_task* Task)
 		Task->TaskType = TASK_BUILD;
 		Task->TaskTarget = UnbuiltStructure;
 		Task->TaskLocation = UnbuiltStructure->v.origin;
-		Task->bOrderIsUrgent = false;
+		Task->bOrderIsUrgent = true;
 		return;
 	}
 

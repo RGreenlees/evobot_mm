@@ -91,6 +91,31 @@ void ClientCommand(edict_t* pEntity)
 		RETURN_META(MRES_SUPERCEDE);
 	}
 
+	if (FStrEq(pcmd, "teleportbot"))
+	{
+		Vector TraceStart = GetPlayerEyePosition(pEntity); // origin + pev->view_ofs
+		Vector LookDir = UTIL_GetForwardVector(pEntity->v.v_angle); // Converts view angles to normalized unit vector
+
+		Vector TraceEnd = TraceStart + (LookDir * 1000.0f);
+
+		TraceResult Hit;
+
+		UTIL_TraceHull(TraceStart, TraceEnd, ignore_monsters, head_hull, pEntity->v.pContainingEntity, &Hit);
+
+		if (Hit.flFraction < 1.0f)
+		{
+			for (int i = 0; i < MAX_CLIENTS; i++)
+			{
+				if (bots[i].is_used && !FNullEnt(bots[i].pEdict))
+				{
+					bots[i].pEdict->v.origin = Hit.vecEndPos + GetPlayerOriginOffsetFromFloor(bots[i].pEdict, false) + Vector(0.0f, 0.0f, 5.0f);
+				}
+			}
+		}
+
+		RETURN_META(MRES_SUPERCEDE);
+	}
+
 	if (FStrEq(pcmd, "traceentity"))
 	{
 

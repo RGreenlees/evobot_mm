@@ -2176,7 +2176,7 @@ void GroundMove(bot_t* pBot, const Vector StartPoint, const Vector EndPoint)
 			pBot->desiredMovementDir = pBot->desiredMovementDir + (vRight * modifier);
 		}
 
-		float LeapDist = (IsPlayerSkulk(pEdict)) ? UTIL_MetresToGoldSrcUnits(10.0f) : UTIL_MetresToGoldSrcUnits(3.0f);
+		float LeapDist = (IsPlayerSkulk(pEdict)) ? UTIL_MetresToGoldSrcUnits(5.0f) : UTIL_MetresToGoldSrcUnits(2.0f);
 
 		if (IsPlayerFade(pBot->pEdict) && pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].area == SAMPLE_POLYAREA_CROUCH)
 		{
@@ -3664,7 +3664,11 @@ bool MoveTo(bot_t* pBot, const Vector Destination, const BotMoveStyle MoveStyle)
 	// If we are currently in the process of getting back on the navmesh, don't interrupt
 	if (BotNavInfo->UnstuckMoveLocation != ZERO_VECTOR)
 	{
-		if (vDist2DSq(pBot->pEdict->v.origin, BotNavInfo->UnstuckMoveLocation) < sqrf(9.0f))
+		Vector ClosestPoint = vClosestPointOnLine2D(BotNavInfo->UnstuckMoveStartLocation, BotNavInfo->UnstuckMoveLocation, pBot->pEdict->v.origin);
+
+		bool bAtOrPastMoveLocation = vEquals(ClosestPoint, BotNavInfo->UnstuckMoveLocation, 0.1f);
+
+		if (bAtOrPastMoveLocation)
 		{
 			ClearBotStuckMovement(pBot);
 			return true;
@@ -3810,7 +3814,7 @@ bool AreKeyPointsReachableForBot(bot_t* pBot)
 
 	if (CommChairLocation != ZERO_VECTOR)
 	{
-		if (UTIL_PointIsReachable(NavProfileIndex, pBot->pEdict->v.origin, CommChairLocation, max_player_use_reach))
+		if (UTIL_PointIsReachable(NavProfileIndex, pBot->CurrentFloorPosition, CommChairLocation, max_player_use_reach))
 		{
 			return true;
 		}
@@ -3818,7 +3822,7 @@ bool AreKeyPointsReachableForBot(bot_t* pBot)
 
 	for (int i = 0; i < NumTotalHives; i++)
 	{
-		if (UTIL_PointIsReachable(NavProfileIndex, pBot->pEdict->v.origin, Hives[i].FloorLocation, max_player_use_reach))
+		if (UTIL_PointIsReachable(NavProfileIndex, pBot->CurrentFloorPosition, Hives[i].FloorLocation, max_player_use_reach))
 		{
 			return true;
 		}
@@ -3891,19 +3895,20 @@ Vector FindClosestPointBackOnPath(bot_t* pBot)
 {
 	int NavProfileIndex = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
 
-	Vector ValidNavmeshPoint = ZERO_VECTOR;
+	Vector ValidNavmeshPoint = UTIL_GetNearestPointOfInterestToLocation(pBot->pEdict->v.origin, false);
 
 	// If we have a location where we know we were last on the nav mesh and following a path, use that. Otherwise, use the comm chair location
-	if (pBot->BotNavInfo.LastPathFollowPosition != ZERO_VECTOR && vDist2DSq(pBot->BotNavInfo.LastPathFollowPosition, pBot->pEdict->v.origin) > GetPlayerRadius(pBot->pEdict))
+	/*if (pBot->BotNavInfo.LastPathFollowPosition != ZERO_VECTOR && vDist2DSq(pBot->BotNavInfo.LastPathFollowPosition, pBot->pEdict->v.origin) > GetPlayerRadius(pBot->pEdict))
 	{
 		ValidNavmeshPoint = pBot->BotNavInfo.LastPathFollowPosition;
 	}
 	else
 	{
 		ValidNavmeshPoint = UTIL_GetNearestPointOfInterestToLocation(pBot->pEdict->v.origin, false);
-	}
+	}*/
 
-	ValidNavmeshPoint = UTIL_ProjectPointToNavmesh(ValidNavmeshPoint, Vector(max_player_use_reach, max_player_use_reach, max_player_use_reach), NavProfileIndex);
+
+	ValidNavmeshPoint = UTIL_ProjectPointToNavmesh(ValidNavmeshPoint, NavProfileIndex);
 
 	if (!ValidNavmeshPoint)
 	{

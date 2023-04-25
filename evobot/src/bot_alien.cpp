@@ -230,30 +230,30 @@ void AlienCapperSetPrimaryTask(bot_t* pBot, bot_task* Task)
 		}
 
 		// Don't set a new attack or move task if we have one already
-		if (Task->TaskType == TASK_ATTACK || Task->TaskType == TASK_MOVE) { return; }
+		if (Task->TaskType == TASK_ATTACK) { return; }
+
+		edict_t* RandomResTower = UTIL_GetRandomStructureOfType(STRUCTURE_MARINE_RESTOWER, nullptr, true);
+
+		if (!FNullEnt(RandomResTower))
+		{
+			Task->TaskType = TASK_ATTACK;
+			Task->TaskLocation = RandomResTower->v.origin;
+			Task->TaskTarget = RandomResTower;
+			Task->bOrderIsUrgent = false;
+			return;
+		}
+
+		if (Task->TaskType == TASK_MOVE) { return; }
 
 		// Attack a random resource node or move to one TODO: Prefer attacking where possible...
-		Vector RandomPoint = UTIL_GetRandomPointOnNavmesh(pBot);
+		Vector RandomPoint = UTIL_GetRandomPointOfInterest();
 
-		const resource_node* RandomResNode = UTIL_FindEligibleResNodeClosestToLocation(RandomPoint, ALIEN_TEAM, !IsPlayerSkulk(pBot->pEdict));
-
-		if (RandomResNode)
+		if (RandomPoint != ZERO_VECTOR)
 		{
-			if (RandomResNode->bIsOccupied && RandomResNode->bIsOwnedByMarines)
-			{
-				Task->TaskType = TASK_ATTACK;
-				Task->TaskLocation = RandomResNode->origin;
-				Task->TaskTarget = RandomResNode->TowerEdict;
-				Task->bOrderIsUrgent = false;
-				return;
-			}
-			else
-			{
-				Task->TaskType = TASK_MOVE;
-				Task->TaskLocation = RandomResNode->origin;
-				Task->bOrderIsUrgent = false;
-				return;
-			}
+			Task->TaskType = TASK_MOVE;
+			Task->TaskLocation = RandomPoint;
+			Task->bOrderIsUrgent = false;
+			return;
 		}
 
 		return;
@@ -552,15 +552,15 @@ void AlienDestroyerSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 	bool bAllowElectrified = !IsPlayerSkulk(pBot->pEdict);
 
-	edict_t* DangerStructure = UTIL_GetAnyStructureOfTypeNearActiveHive(STRUCTURE_MARINE_PHASEGATE, bAllowElectrified);
+	edict_t* DangerStructure = UTIL_GetAnyStructureOfTypeNearActiveHive(STRUCTURE_MARINE_PHASEGATE, bAllowElectrified, false);
 
 	if (FNullEnt(DangerStructure))
 	{
-		DangerStructure = UTIL_GetAnyStructureOfTypeNearActiveHive(STRUCTURE_MARINE_ANYTURRETFACTORY, bAllowElectrified);
+		DangerStructure = UTIL_GetAnyStructureOfTypeNearActiveHive(STRUCTURE_MARINE_ANYTURRETFACTORY, bAllowElectrified, false);
 
 		if (FNullEnt(DangerStructure))
 		{
-			DangerStructure = UTIL_GetAnyStructureOfTypeNearActiveHive(STRUCTURE_MARINE_SIEGETURRET, bAllowElectrified);
+			DangerStructure = UTIL_GetAnyStructureOfTypeNearActiveHive(STRUCTURE_ANY_MARINE_STRUCTURE, bAllowElectrified, false);
 		}
 	}
 
@@ -574,15 +574,15 @@ void AlienDestroyerSetPrimaryTask(bot_t* pBot, bot_task* Task)
 		return;
 	}
 
-	edict_t* BlockingStructure = UTIL_GetAnyStructureOfTypeNearUnbuiltHive(STRUCTURE_MARINE_PHASEGATE, bAllowElectrified);
+	edict_t* BlockingStructure = UTIL_GetAnyStructureOfTypeNearUnbuiltHive(STRUCTURE_MARINE_PHASEGATE, bAllowElectrified, false);
 
 	if (FNullEnt(BlockingStructure))
 	{
-		BlockingStructure = UTIL_GetAnyStructureOfTypeNearUnbuiltHive(STRUCTURE_MARINE_ANYTURRETFACTORY, bAllowElectrified);
+		BlockingStructure = UTIL_GetAnyStructureOfTypeNearUnbuiltHive(STRUCTURE_MARINE_ANYTURRETFACTORY, bAllowElectrified, false);
 
 		if (FNullEnt(BlockingStructure))
 		{
-			BlockingStructure = UTIL_GetAnyStructureOfTypeNearUnbuiltHive(STRUCTURE_MARINE_ANYTURRET, bAllowElectrified);
+			BlockingStructure = UTIL_GetAnyStructureOfTypeNearUnbuiltHive(STRUCTURE_ANY_MARINE_STRUCTURE, bAllowElectrified, false);
 		}
 	}
 
@@ -933,6 +933,25 @@ void FadeCombatThink(bot_t* pBot)
 			{
 				MoveTo(pBot, NearestHealingSource->v.origin, MOVESTYLE_HIDE);
 
+				if (vDist2DSq(CurrentEnemy->v.origin, pBot->pEdict->v.origin) < sqrf(UTIL_MetresToGoldSrcUnits(2.0f)))
+				{
+					Vector EnemyDir = UTIL_GetVectorNormal2D(CurrentEnemy->v.origin - pBot->pEdict->v.origin);
+					Vector DesiredMoveDir = UTIL_GetVectorNormal2D(pBot->desiredMovementDir);
+
+					if (UTIL_GetDotProduct2D(EnemyDir, DesiredMoveDir) > 0.75f)
+					{
+						if (GetBotCurrentWeapon(pBot) != WEAPON_FADE_SWIPE)
+						{
+							pBot->DesiredMoveWeapon = WEAPON_FADE_SWIPE;
+						}
+						else
+						{
+							BotAttackTarget(pBot, CurrentEnemy);
+						}
+
+						return;
+					}
+				}
 
 				if (PlayerHasWeapon(pBot->pEdict, WEAPON_FADE_METABOLIZE))
 				{
@@ -1226,6 +1245,30 @@ void OnosCombatThink(bot_t* pBot)
 				MoveTo(pBot, NearestHive->FloorLocation, MOVESTYLE_NORMAL);
 			}
 		}
+
+		if (vDist2DSq(CurrentEnemy->v.origin, pBot->pEdict->v.origin) < sqrf(UTIL_MetresToGoldSrcUnits(2.0f)))
+		{
+			Vector EnemyDir = UTIL_GetVectorNormal2D(CurrentEnemy->v.origin - pBot->pEdict->v.origin);
+			Vector DesiredMoveDir = UTIL_GetVectorNormal2D(pBot->desiredMovementDir);
+
+			bool bCanDevour = !IsPlayerDigesting(pBot->pEdict);
+
+			NSWeapon MeleeWeapon = (bCanDevour) ? WEAPON_ONOS_DEVOUR : WEAPON_ONOS_GORE;
+
+			if (UTIL_GetDotProduct2D(EnemyDir, DesiredMoveDir) > 0.75f)
+			{
+				if (GetBotCurrentWeapon(pBot) != MeleeWeapon)
+				{
+					pBot->DesiredMoveWeapon = MeleeWeapon;
+				}
+				else
+				{
+					BotAttackTarget(pBot, CurrentEnemy);
+				}
+
+				return;
+			}
+		}		
 
 		if (PlayerHasWeapon(pBot->pEdict, WEAPON_ONOS_CHARGE))
 		{

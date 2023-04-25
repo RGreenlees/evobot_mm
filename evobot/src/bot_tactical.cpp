@@ -907,7 +907,7 @@ const resource_node* UTIL_GetNearestUnprotectedResNode(const Vector Location)
 
 	for (int i = 0; i < NumTotalResNodes; i++)
 	{
-		if (!ResourceNodes[i].edict || !ResourceNodes[i].bIsOccupied || ResourceNodes[i].bIsOwnedByMarines) { continue; }
+		if (FNullEnt(ResourceNodes[i].edict) || !ResourceNodes[i].bIsOccupied || ResourceNodes[i].bIsOwnedByMarines) { continue; }
 
 		if (!UTIL_AlienResNodeNeedsReinforcing(i)) { continue; }
 
@@ -1073,6 +1073,32 @@ const hive_definition* UTIL_GetNearestHiveOfStatus(const Vector SearchLocation, 
 	return nullptr;
 }
 
+const hive_definition* UTIL_GetFurthestHiveOfStatus(const Vector SearchLocation, const HiveStatusType Status)
+{
+	int Result = -1;
+	float MaxDist = 0.0f;
+
+	for (int i = 0; i < NumTotalHives; i++)
+	{
+		if (Hives[i].Status != Status) { continue; }
+
+		float ThisDist = vDist2DSq(SearchLocation, Hives[i].FloorLocation);
+
+		if (Result < 0 || ThisDist > MaxDist)
+		{
+			MaxDist = ThisDist;
+			Result = i;
+		}
+	}
+
+	if (Result > -1)
+	{
+		return &Hives[Result];
+	}
+
+	return nullptr;
+}
+
 const hive_definition* UTIL_GetNearestBuiltHiveToLocation(const Vector SearchLocation)
 {
 	int Result = -1;
@@ -1186,7 +1212,7 @@ bool UTIL_IsAlienPlayerInArea(const Vector Location, float SearchRadius, edict_t
 
 	for (int i = 0; i < 32; i++)
 	{
-		if (clients[i] && !IsPlayerDead(clients[i]) && IsPlayerOnAlienTeam(clients[i]) && clients[i] != IgnorePlayer)
+		if (clients[i] && IsPlayerOnAlienTeam(clients[i]) && IsPlayerActiveInGame(clients[i]) && clients[i] != IgnorePlayer)
 		{
 			if (vDist2DSq(clients[i]->v.origin, Location) <= MaxDist)
 			{
@@ -1210,17 +1236,17 @@ bool UTIL_IsNearActiveHive(const Vector Location, float SearchRadius)
 	return false;
 }
 
-edict_t* UTIL_GetAnyStructureOfTypeNearActiveHive(const NSStructureType StructureType, bool bAllowElectrical)
+edict_t* UTIL_GetAnyStructureOfTypeNearActiveHive(const NSStructureType StructureType, bool bAllowElectrical, bool bFullyConstructedOnly)
 {
 	for (int i = 0; i < NumTotalHives; i++)
 	{
 		if (Hives[i].Status != HIVE_STATUS_UNBUILT)
 		{
-			edict_t* ThreateningPhaseGate = UTIL_GetNearestStructureOfTypeInLocation(StructureType, Hives[i].FloorLocation, UTIL_MetresToGoldSrcUnits(30.0f), bAllowElectrical, false);
+			edict_t* ThreateningStructure = UTIL_GetNearestStructureOfTypeInLocation(StructureType, Hives[i].FloorLocation, UTIL_MetresToGoldSrcUnits(30.0f), bAllowElectrical, false);
 
-			if (!FNullEnt(ThreateningPhaseGate) && UTIL_StructureIsFullyBuilt(ThreateningPhaseGate))
+			if (!FNullEnt(ThreateningStructure) && (!bFullyConstructedOnly || UTIL_StructureIsFullyBuilt(ThreateningStructure)))
 			{
-				return ThreateningPhaseGate;
+				return ThreateningStructure;
 			}
 		}
 	}
@@ -1228,7 +1254,7 @@ edict_t* UTIL_GetAnyStructureOfTypeNearActiveHive(const NSStructureType Structur
 	return nullptr;
 }
 
-edict_t* UTIL_GetAnyStructureOfTypeNearUnbuiltHive(const NSStructureType StructureType, bool bAllowElectrical)
+edict_t* UTIL_GetAnyStructureOfTypeNearUnbuiltHive(const NSStructureType StructureType, bool bAllowElectrical, bool bFullyConstructedOnly)
 {
 	for (int i = 0; i < NumTotalHives; i++)
 	{
@@ -1236,7 +1262,7 @@ edict_t* UTIL_GetAnyStructureOfTypeNearUnbuiltHive(const NSStructureType Structu
 		{
 			edict_t* ThreateningPhaseGate = UTIL_GetNearestStructureOfTypeInLocation(StructureType, Hives[i].FloorLocation, UTIL_MetresToGoldSrcUnits(30.0f), bAllowElectrical, false);
 
-			if (!FNullEnt(ThreateningPhaseGate) && UTIL_StructureIsFullyBuilt(ThreateningPhaseGate))
+			if (!FNullEnt(ThreateningPhaseGate) && (!bFullyConstructedOnly || UTIL_StructureIsFullyBuilt(ThreateningPhaseGate)))
 			{
 				return ThreateningPhaseGate;
 			}
@@ -1883,7 +1909,7 @@ const resource_node* UTIL_AlienFindUnclaimedResNodeFurthestFromLocation(const bo
 
 		for (int ii = 0; ii < 32; ii++)
 		{
-			if (bots[ii].is_used && bots[ii].pEdict != pBot->pEdict && IsPlayerOnAlienTeam(bots[ii].pEdict) && !IsPlayerDead(bots[ii].pEdict))
+			if (bots[ii].is_used && bots[ii].pEdict != pBot->pEdict && IsPlayerOnAlienTeam(bots[ii].pEdict) && IsPlayerActiveInGame(bots[ii].pEdict))
 			{
 				if (vEquals(bots[ii].PrimaryBotTask.TaskLocation, ResourceNodes[i].origin, 10.0f) || vEquals(bots[ii].SecondaryBotTask.TaskLocation, ResourceNodes[i].origin, 10.0f))
 				{

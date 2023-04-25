@@ -640,14 +640,7 @@ bool UTIL_IsAlienCapResNodeTaskStillValid(bot_t* pBot, bot_task* Task)
 			}
 			else
 			{
-				if (PlayerHasWeapon(pBot->pEdict, WEAPON_GORGE_BILEBOMB))
-				{
-					return true;
-				}
-				else
-				{
-					return UTIL_IsAlienPlayerInArea(Task->TaskLocation, UTIL_MetresToGoldSrcUnits(5.0f), pBot->pEdict);
-				}
+				return PlayerHasWeapon(pBot->pEdict, WEAPON_GORGE_BILEBOMB);
 			}
 
 		}
@@ -873,7 +866,7 @@ void BotProgressBuildTask(bot_t* pBot, bot_task* Task)
 	if (UTIL_PlayerHasLOSToEntity(pBot->pEdict, Task->TaskTarget, max_player_use_reach, false))
 	{
 		BotUseObject(pBot, Task->TaskTarget, true);
-		if (vDist2DSq(pBot->pEdict->v.origin, Task->TaskTarget->v.origin) > sqrf(50.0f))
+		if (vDist2DSq(pBot->pEdict->v.origin, Task->TaskTarget->v.origin) > sqrf(60.0f))
 		{
 			MoveDirectlyTo(pBot, Task->TaskTarget->v.origin);
 		}
@@ -931,13 +924,18 @@ void BotProgressAttackTask(bot_t* pBot, bot_task* Task)
 	float MaxRange = GetMaxIdealWeaponRange(AttackWeapon);
 	bool bHullSweep = IsMeleeWeapon(AttackWeapon);
 
-	if (UTIL_PlayerHasLOSToEntity(pBot->pEdict, Task->TaskTarget, MaxRange, bHullSweep))
+	if (UTIL_PlayerHasLOSToEntity(pBot->pEdict, Task->TaskTarget, MaxRange, false))
 	{
 		pBot->DesiredCombatWeapon = AttackWeapon;
 
 		if (GetBotCurrentWeapon(pBot) == AttackWeapon)
 		{
 			BotAttackTarget(pBot, Task->TaskTarget);
+
+			if (vDist2DSq(pBot->pEdict->v.origin, Task->TaskTarget->v.origin) > sqrf(60.0f))
+			{
+				MoveDirectlyTo(pBot, Task->TaskTarget->v.origin);
+			}
 		}
 	}
 	else
@@ -1104,7 +1102,10 @@ void AlienProgressBuildTask(bot_t* pBot, bot_task* Task)
 		if (IsPlayerInUseRange(pBot->pEdict, Task->TaskTarget))
 		{
 			BotUseObject(pBot, Task->TaskTarget, true);
-
+			if (vDist2DSq(pBot->pEdict->v.origin, Task->TaskTarget->v.origin) > sqrf(60.0f))
+			{
+				MoveDirectlyTo(pBot, Task->TaskTarget->v.origin);
+			}
 			return;
 		}
 
@@ -1262,11 +1263,13 @@ void AlienProgressCapResNodeTask(bot_t* pBot, bot_task* Task)
 		{
 			if (!UTIL_StructureIsFullyBuilt(ResNodeIndex->TowerEdict))
 			{
-
 				if (UTIL_PlayerHasLOSToEntity(pBot->pEdict, ResNodeIndex->TowerEdict, max_player_use_reach, true))
 				{
 					BotUseObject(pBot, ResNodeIndex->TowerEdict, true);
-
+					if (vDist2DSq(pBot->pEdict->v.origin, ResNodeIndex->TowerEdict->v.origin) > sqrf(60.0f))
+					{
+						MoveDirectlyTo(pBot, ResNodeIndex->TowerEdict->v.origin);
+					}
 					return;
 				}
 
@@ -1465,7 +1468,8 @@ void MarineProgressCapResNodeTask(bot_t* pBot, bot_task* Task)
 		{
 			if (!UTIL_StructureIsFullyBuilt(ResNodeIndex->TowerEdict))
 			{
-
+				// Now we're committed, don't get distracted
+				Task->bOrderIsUrgent = true;
 				if (UTIL_PlayerHasLOSToEntity(pBot->pEdict, ResNodeIndex->TowerEdict, max_player_use_reach, true))
 				{
 					BotUseObject(pBot, ResNodeIndex->TowerEdict, true);

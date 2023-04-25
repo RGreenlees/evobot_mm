@@ -1207,9 +1207,14 @@ void BotUpdateView(bot_t* pBot)
 		}
 		else
 		{
-			if (vDist2DSq(Enemy->v.origin, TrackingInfo->LastSeenLocation) < sqrf(GetPlayerRadius(pBot->pEdict)))
+			if (vDist2DSq(pBot->pEdict->v.origin, TrackingInfo->LastSeenLocation) < sqrf(GetPlayerRadius(pBot->pEdict)))
 			{
 				if (UTIL_QuickTrace(pBot->pEdict, pBot->CurrentEyePosition, Enemy->v.origin))
+				{
+					TrackingInfo->LastSeenLocation = Enemy->v.origin;
+					TrackingInfo->LastSeenTime = gpGlobals->time;
+				}
+				else
 				{
 					TrackingInfo->LastSeenTime = 0.0f;
 				}
