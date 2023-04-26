@@ -354,7 +354,7 @@ typedef struct _BOT_T
 	bot_task PrimaryBotTask;
 	bot_task SecondaryBotTask;
 	bot_task WantsAndNeedsTask;
-	bot_task PendingTask; // Used to decide if something should override the existing primary/secondary tasks
+	bot_task CommanderTask; // Task assigned by the commander
 
 	Vector DesiredLookDirection = ZERO_VECTOR; // What view angle is the bot currently turning towards
 	Vector InterpolatedLookDirection = ZERO_VECTOR; // Used to smoothly interpolate the bot's view rather than snap instantly like an aimbot

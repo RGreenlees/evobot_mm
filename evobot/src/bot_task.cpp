@@ -23,7 +23,7 @@ void UTIL_ClearAllBotTasks(bot_t* pBot)
 	UTIL_ClearBotTask(pBot, &pBot->PrimaryBotTask);
 	UTIL_ClearBotTask(pBot, &pBot->SecondaryBotTask);
 	UTIL_ClearBotTask(pBot, &pBot->WantsAndNeedsTask);
-	UTIL_ClearBotTask(pBot, &pBot->PendingTask);
+	UTIL_ClearBotTask(pBot, &pBot->CommanderTask);
 }
 
 void UTIL_ClearBotTask(bot_t* pBot, bot_task* Task)
@@ -51,18 +51,26 @@ void UTIL_ClearBotTask(bot_t* pBot, bot_task* Task)
 
 void BotUpdateAndClearTasks(bot_t* pBot)
 {
+	if (pBot->CommanderTask.TaskType != TASK_NONE)
+	{
+		if (!UTIL_IsTaskStillValid(pBot, &pBot->CommanderTask))
+		{
+			if (UTIL_IsTaskCompleted(pBot, &pBot->CommanderTask))
+			{
+				BotOnCompleteCommanderTask(pBot, &pBot->CommanderTask);
+			}
+			else
+			{
+				UTIL_ClearBotTask(pBot, &pBot->CommanderTask);
+			}
+		}
+	}
+
 	if (pBot->PrimaryBotTask.TaskType != TASK_NONE)
 	{
 		if (!UTIL_IsTaskStillValid(pBot, &pBot->PrimaryBotTask))
 		{
-			if (UTIL_IsTaskCompleted(pBot, &pBot->PrimaryBotTask))
-			{
-				BotOnCompletePrimaryTask(pBot, &pBot->PrimaryBotTask);
-			}
-			else
-			{
-				UTIL_ClearBotTask(pBot, &pBot->PrimaryBotTask);
-			}
+			UTIL_ClearBotTask(pBot, &pBot->PrimaryBotTask);
 		}
 	}
 
@@ -150,12 +158,15 @@ bool UTIL_IsMoveTaskUrgent(bot_t* pBot, bot_task* Task)
 bot_task* BotGetNextTask(bot_t* pBot)
 {
 	// Any orders issued by the commander take priority over everything else
-	if (pBot->PrimaryBotTask.bIssuedByCommander)
+	if (pBot->CommanderTask.TaskType != TASK_NONE)
 	{
-		// Allow the bot to do other useful things if the commander request is to just guard something or move somewhere
-		if (pBot->PrimaryBotTask.TaskType != TASK_NONE && pBot->PrimaryBotTask.TaskType != TASK_GUARD && pBot->PrimaryBotTask.TaskType != TASK_MOVE)
+		if (pBot->SecondaryBotTask.bOrderIsUrgent)
 		{
-			return &pBot->PrimaryBotTask;
+			return &pBot->SecondaryBotTask;
+		}
+		else
+		{
+			return &pBot->CommanderTask;
 		}
 	}
 
@@ -193,12 +204,11 @@ bot_task* BotGetNextTask(bot_t* pBot)
 	return &pBot->PrimaryBotTask;
 }
 
-void BotOnCompletePrimaryTask(bot_t* pBot, bot_task* Task)
+void BotOnCompleteCommanderTask(bot_t* pBot, bot_task* Task)
 {
-	if (!Task) { return; }
+	if (!Task || !IsPlayerMarine(pBot->pEdict)) { return; }
 
 	BotTaskType OldTaskType = Task->TaskType;
-	bool bOldTaskWasOrder = Task->bIssuedByCommander;
 	UTIL_ClearBotTask(pBot, Task);
 
 	if (OldTaskType == TASK_GUARD)
@@ -206,28 +216,29 @@ void BotOnCompletePrimaryTask(bot_t* pBot, bot_task* Task)
 		UTIL_ClearGuardInfo(pBot);
 	}
 
-	if (IsPlayerMarine(pBot->pEdict))
+	
+	if (OldTaskType == TASK_MOVE)
 	{
-		if (OldTaskType == TASK_MOVE && bOldTaskWasOrder)
-		{
-			edict_t* NearbyAlienTower = UTIL_GetNearestStructureIndexOfType(pBot->pEdict->v.origin, STRUCTURE_ALIEN_RESTOWER, UTIL_MetresToGoldSrcUnits(5.0f), false, IsPlayerMarine(pBot->pEdict));
+		edict_t* NearbyAlienTower = UTIL_GetNearestStructureIndexOfType(pBot->pEdict->v.origin, STRUCTURE_ALIEN_RESTOWER, UTIL_MetresToGoldSrcUnits(5.0f), false, IsPlayerMarine(pBot->pEdict));
 
-			if (NearbyAlienTower)
-			{
-				Task->TaskType = TASK_CAP_RESNODE;
-				Task->TaskTarget = NearbyAlienTower;
-				Task->TaskLocation = NearbyAlienTower->v.origin;
-				Task->bIssuedByCommander = true;
-			}
-			else
-			{
-				Task->TaskType = TASK_GUARD;
-				Task->TaskLocation = pBot->pEdict->v.origin;
-				Task->TaskLength = 30.0f;
-				Task->bIssuedByCommander = true;
-			}
-		}
-		return;
+		if (!FNullEnt(NearbyAlienTower))
+		{
+			Task->TaskType = TASK_CAP_RESNODE;
+			Task->TaskTarget = NearbyAlienTower;
+			Task->TaskLocation = NearbyAlienTower->v.origin;
+			Task->bIssuedByCommander = true;
+			return;
+		}	
+	}
+
+	// After completing a move or build task, wait a bit in case the commander wants to do something else
+	if (OldTaskType == TASK_MOVE || OldTaskType == TASK_BUILD)
+	{
+		Task->TaskType = TASK_GUARD;
+		Task->TaskLocation = pBot->pEdict->v.origin;
+		Task->TaskLength = (OldTaskType == TASK_MOVE) ? 30.0f : 20.0f;
+		Task->TaskStartedTime = gpGlobals->time;
+		Task->bIssuedByCommander = true;
 	}
 
 }
@@ -239,7 +250,7 @@ bool UTIL_IsTaskCompleted(bot_t* pBot, bot_task* Task)
 	switch (Task->TaskType)
 	{
 	case TASK_MOVE:
-		return vDist2DSq(pBot->pEdict->v.origin, Task->TaskLocation) < sqrf(UTIL_MetresToGoldSrcUnits(1.0f));
+		return vDist2DSq(pBot->pEdict->v.origin, Task->TaskLocation) <= sqrf(max_player_use_reach);
 	case TASK_BUILD:
 		return !FNullEnt(Task->TaskTarget) && UTIL_StructureIsFullyBuilt(Task->TaskTarget);
 	case TASK_ATTACK:
@@ -512,7 +523,7 @@ bool UTIL_IsAlienBuildTaskStillValid(bot_t* pBot, bot_task* Task)
 
 		if (UTIL_StructureOfTypeExistsInLocation(STRUCTURE_MARINE_PHASEGATE, HiveIndex->Location, UTIL_MetresToGoldSrcUnits(15.0f)))
 		{
-			char buf[64];
+			char buf[128];
 			sprintf(buf, "We need to clear %s before I can build the hive", UTIL_GetClosestMapLocationToPoint(HiveIndex->Location));
 			BotTeamSay(pBot, 1.0f, buf);
 			return false;
@@ -520,7 +531,7 @@ bool UTIL_IsAlienBuildTaskStillValid(bot_t* pBot, bot_task* Task)
 
 		if (UTIL_StructureOfTypeExistsInLocation(STRUCTURE_MARINE_TURRETFACTORY, HiveIndex->Location, UTIL_MetresToGoldSrcUnits(15.0f)))
 		{
-			char buf[64];
+			char buf[128];
 			sprintf(buf, "We need to clear %s before I can build the hive", UTIL_GetClosestMapLocationToPoint(HiveIndex->Location));
 			BotTeamSay(pBot, 1.0f, buf);
 			return false;
@@ -531,7 +542,7 @@ bool UTIL_IsAlienBuildTaskStillValid(bot_t* pBot, bot_task* Task)
 
 		if (!FNullEnt(OtherGorge) && GetPlayerResources(OtherGorge) > pBot->resources)
 		{
-			char buf[64];
+			char buf[128];
 			sprintf(buf, "I won't drop hive, %s can do it", STRING(OtherGorge->v.netname));
 			BotTeamSay(pBot, 1.0f, buf);
 			return false;

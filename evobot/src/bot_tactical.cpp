@@ -1019,6 +1019,32 @@ edict_t* UTIL_GetClosestPlayerNeedsHealing(const Vector Location, const int Team
 	return Result;
 }
 
+edict_t* UTIL_GetNearestMarineWithoutFullLoadout(const Vector SearchLocation, const float SearchRadius)
+{
+	edict_t* Result = nullptr;
+	float MaxDist = sqrf(SearchRadius);
+	float MinDist = 0.0f;
+
+
+	for (int i = 0; i < 32; i++)
+	{
+		if (!FNullEnt(clients[i]) && IsPlayerMarine(clients[i]) && IsPlayerActiveInGame(clients[i]))
+		{
+			if (PlayerHasEquipment(clients[i]) && PlayerHasSpecialWeapon(clients[i]) && PlayerHasWeapon(clients[i], WEAPON_MARINE_WELDER)) { continue; }
+
+			float ThisDist = vDist2DSq(SearchLocation, clients[i]->v.origin);
+
+			if (ThisDist < MaxDist && (!Result || ThisDist < MinDist))
+			{
+				Result = clients[i];
+				MinDist = ThisDist;
+			}
+		}
+	}
+
+	return Result;
+}
+
 const hive_definition* UTIL_GetActiveHiveWithoutChambers(HiveTechStatus ChamberType, int NumDesiredChambers)
 {
 	NSStructureType ChamberStructureType = UTIL_GetChamberTypeForHiveTech(ChamberType);

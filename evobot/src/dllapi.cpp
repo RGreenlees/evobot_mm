@@ -91,6 +91,16 @@ void ClientCommand(edict_t* pEntity)
 		RETURN_META(MRES_SUPERCEDE);
 	}
 
+	if (FStrEq(pcmd, "cloakstatus"))
+	{
+		if (pEntity)
+		{
+			UTIL_SayText("BOOP\n", pEntity);
+		}
+
+		RETURN_META(MRES_SUPERCEDE);
+	}
+
 	if (FStrEq(pcmd, "teleportbot"))
 	{
 		Vector TraceStart = GetPlayerEyePosition(pEntity); // origin + pev->view_ofs

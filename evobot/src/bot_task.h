@@ -21,7 +21,7 @@ bool UTIL_IsMoveTaskUrgent(bot_t* pBot, bot_task* Task);
 bool UTIL_IsBuildTaskUrgent(bot_t* pBot, bot_task* Task);
 bool UTIL_IsGuardTaskUrgent(bot_t* pBot, bot_task* Task);
 
-void BotOnCompletePrimaryTask(bot_t* pBot, bot_task* Task);
+void BotOnCompleteCommanderTask(bot_t* pBot, bot_task* Task);
 
 bool UTIL_IsMoveTaskStillValid(bot_t* pBot, bot_task* Task);
 bool UTIL_IsAmmoPickupTaskStillValid(bot_t* pBot, bot_task* Task);

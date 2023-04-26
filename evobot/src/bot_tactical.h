@@ -147,6 +147,8 @@ const hive_definition* UTIL_GetActiveHiveWithoutChambers(HiveTechStatus ChamberT
 const hive_definition* UTIL_GetNearestHiveOfStatus(const Vector SearchLocation, const HiveStatusType Status);
 const hive_definition* UTIL_GetFurthestHiveOfStatus(const Vector SearchLocation, const HiveStatusType Status);
 
+edict_t* UTIL_GetNearestMarineWithoutFullLoadout(const Vector SearchLocation, const float SearchRadius);
+
 
 // Get the nearest hive to the location which is fully built (not in progress)
 const hive_definition* UTIL_GetNearestBuiltHiveToLocation(const Vector SearchLocation);

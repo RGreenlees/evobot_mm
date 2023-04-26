@@ -645,6 +645,11 @@ bool PlayerHasEquipment(edict_t* Player)
 	return PlayerHasHeavyArmour(Player) || PlayerHasJetpack(Player);
 }
 
+bool PlayerHasSpecialWeapon(edict_t* Player)
+{
+	return !PlayerHasWeapon(Player, WEAPON_MARINE_MG);
+}
+
 bool PlayerHasWeapon(edict_t* Player, NSWeapon WeaponType)
 {
 	return (Player->v.weapons & (1 << WeaponType));

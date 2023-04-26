@@ -212,6 +212,9 @@ void AlienCapperSetPrimaryTask(bot_t* pBot, bot_task* Task)
 	{
 		if (IsPlayerGorge(pBot->pEdict))
 		{
+			// Already capping a node, do nothing
+			if (Task->TaskType == TASK_CAP_RESNODE) { return; }
+
 			const resource_node* EmptyResNode = UTIL_AlienFindUnclaimedResNodeFurthestFromLocation(pBot, UTIL_GetCommChairLocation(), true);
 
 			if (EmptyResNode)
@@ -258,6 +261,9 @@ void AlienCapperSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 		return;
 	}
+
+	// Already capping a node, do nothing
+	if (Task->TaskType == TASK_CAP_RESNODE) { return; }
 
 	const resource_node* RandomResNode = nullptr;
 

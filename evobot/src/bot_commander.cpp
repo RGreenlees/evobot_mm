@@ -2904,110 +2904,88 @@ void QueueHeavyArmourLoadout(bot_t* CommanderBot, const Vector Area, int Priorit
 
 	if (!UTIL_ItemCanBeDeployed(ITEM_MARINE_HEAVYARMOUR)) { return; }
 
-	edict_t* NearestProtoLab = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_PROTOTYPELAB, Area, UTIL_MetresToGoldSrcUnits(30.0f), true, false);
+	edict_t* NearestProtoLab = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_PROTOTYPELAB, Area, UTIL_MetresToGoldSrcUnits(15.0f), true, false);
 
 	if (FNullEnt(NearestProtoLab)) { return; }
 
-	edict_t* NearestArmoury = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ANYARMOURY, NearestProtoLab->v.origin, UTIL_MetresToGoldSrcUnits(30.0f), true, false);
+	edict_t* NearestArmoury = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ADVARMOURY, NearestProtoLab->v.origin, UTIL_MetresToGoldSrcUnits(15.0f), true, false);
 
 	if (FNullEnt(NearestArmoury)) { return; }
 
-	int NumHeavyArmours = UTIL_GetItemCountOfTypeInArea(ITEM_MARINE_HEAVYARMOUR, NearestProtoLab->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
+	edict_t* MarineNeedingLoadout = UTIL_GetNearestMarineWithoutFullLoadout(NearestArmoury->v.origin, UTIL_MetresToGoldSrcUnits(10.0f));
 
-	if (NumHeavyArmours == 0)
+	if (FNullEnt(MarineNeedingLoadout)) { return; }
+
+	if (!PlayerHasEquipment(MarineNeedingLoadout))
 	{
-		if (UTIL_GetQueuedItemDropRequestsOfType(CommanderBot, ITEM_MARINE_HEAVYARMOUR) == 0)
+		int NumExistingArmours = UTIL_GetItemCountOfTypeInArea(ITEM_MARINE_HEAVYARMOUR, NearestProtoLab->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
+
+		if (NumExistingArmours == 0)
 		{
-			float DistBetweenLabAndArmoury = vDist2D(NearestProtoLab->v.origin, NearestArmoury->v.origin);
 
-			if (DistBetweenLabAndArmoury < UTIL_MetresToGoldSrcUnits(10.0f))
+			if (UTIL_GetQueuedItemDropRequestsOfType(CommanderBot, ITEM_MARINE_HEAVYARMOUR) == 0)
 			{
-				Vector CentrePoint = NearestProtoLab->v.origin + (UTIL_GetVectorNormal(NearestArmoury->v.origin - NearestProtoLab->v.origin) * (DistBetweenLabAndArmoury * 0.5f));
-
-				float DistFromCentrePoint = UTIL_GoldSrcUnitsToMetres(vDist2D(NearestProtoLab->v.origin, CentrePoint));
-
-				Vector NewDropLocation = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, CentrePoint, UTIL_MetresToGoldSrcUnits(5.0f - DistFromCentrePoint));
-
-				if (NewDropLocation != ZERO_VECTOR)
+				if (vDist2DSq(MarineNeedingLoadout->v.origin, NearestProtoLab->v.origin) < sqrf(UTIL_MetresToGoldSrcUnits(5.0f)))
 				{
-					CommanderQueueItemDrop(CommanderBot, ITEM_MARINE_HEAVYARMOUR, NewDropLocation, NULL, Priority);
+					CommanderQueueItemDrop(CommanderBot, ITEM_MARINE_HEAVYARMOUR, ZERO_VECTOR, MarineNeedingLoadout, Priority);
 				}
 				else
 				{
-					Vector ArmourDropLocation = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, NearestProtoLab->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
-					CommanderQueueItemDrop(CommanderBot, ITEM_MARINE_HEAVYARMOUR, ArmourDropLocation, NULL, Priority);
+					CommanderQueueItemDrop(CommanderBot, ITEM_MARINE_HEAVYARMOUR, UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, NearestProtoLab->v.origin, UTIL_MetresToGoldSrcUnits(5.0f)), nullptr, Priority);
 				}
 			}
-			else
-			{
-				Vector ArmourDropLocation = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, NearestProtoLab->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
-				CommanderQueueItemDrop(CommanderBot, ITEM_MARINE_HEAVYARMOUR, ArmourDropLocation, NULL, Priority);
-			}
 		}
-
-		return;
 	}
 
-	NSWeapon SpecialWeapon = (UTIL_GetNumWeaponsOfTypeInPlay(WEAPON_MARINE_GL) == 0) ? WEAPON_MARINE_GL : WEAPON_MARINE_HMG;
-
-	NSDeployableItem SpecialWeaponItemType = UTIL_WeaponTypeToDeployableItem(SpecialWeapon);
-
-	int NumHMG = UTIL_GetItemCountOfTypeInArea(SpecialWeaponItemType, NearestProtoLab->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
-
-	if (NumHMG == 0)
+	if (!PlayerHasSpecialWeapon(MarineNeedingLoadout))
 	{
-		if (UTIL_GetQueuedItemDropRequestsOfType(CommanderBot, SpecialWeaponItemType) == 0)
+		NSWeapon SpecialWeapon = (UTIL_GetNumWeaponsOfTypeInPlay(WEAPON_MARINE_GL) == 0) ? WEAPON_MARINE_GL : WEAPON_MARINE_HMG;
+
+		NSDeployableItem SpecialWeaponItemType = UTIL_WeaponTypeToDeployableItem(SpecialWeapon);
+
+		int ExistingWeapons = UTIL_GetItemCountOfTypeInArea(SpecialWeaponItemType, NearestProtoLab->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
+
+		if (ExistingWeapons == 0)
 		{
-			edict_t* DroppedHeavyArmour = UTIL_GetNearestItemOfType(ITEM_MARINE_HEAVYARMOUR, NearestProtoLab->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
 
-			if (FNullEnt(DroppedHeavyArmour)) { return; }
-
-			Vector HMGDropLocation = ZERO_VECTOR;
-
-			if (vDist2DSq(DroppedHeavyArmour->v.origin, NearestArmoury->v.origin) < sqrf(UTIL_MetresToGoldSrcUnits(5.0f)))
+			if (UTIL_GetQueuedItemDropRequestsOfType(CommanderBot, SpecialWeaponItemType) == 0)
 			{
-				HMGDropLocation = DroppedHeavyArmour->v.origin;
-			}
-			else
-			{
-				HMGDropLocation = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, NearestArmoury->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
+				if (vDist2DSq(MarineNeedingLoadout->v.origin, NearestArmoury->v.origin) < sqrf(UTIL_MetresToGoldSrcUnits(5.0f)))
+				{
+					CommanderQueueItemDrop(CommanderBot, SpecialWeaponItemType, ZERO_VECTOR, MarineNeedingLoadout, Priority);
+				}
+				else
+				{
+					CommanderQueueItemDrop(CommanderBot, SpecialWeaponItemType, UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, NearestArmoury->v.origin, UTIL_MetresToGoldSrcUnits(5.0f)), nullptr, Priority);
+				}
 			}
 
-			if (HMGDropLocation != ZERO_VECTOR)
-			{
-				CommanderQueueItemDrop(CommanderBot, SpecialWeaponItemType, HMGDropLocation, NULL, 0);
-			}
+			return;
 		}
-		return;
 	}
 
-	int NumWelders = UTIL_GetItemCountOfTypeInArea(ITEM_MARINE_WELDER, NearestProtoLab->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
-
-	if (NumWelders == 0)
+	if (!PlayerHasWeapon(MarineNeedingLoadout, WEAPON_MARINE_WELDER))
 	{
-		if (UTIL_GetQueuedItemDropRequestsOfType(CommanderBot, ITEM_MARINE_WELDER) == 0)
+		
+		int ExistingWelders = UTIL_GetItemCountOfTypeInArea(ITEM_MARINE_WELDER, NearestArmoury->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
+
+		if (ExistingWelders == 0)
 		{
-			edict_t* DroppedHeavyArmour = UTIL_GetNearestItemOfType(ITEM_MARINE_HEAVYARMOUR, NearestProtoLab->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
 
-			if (FNullEnt(DroppedHeavyArmour)) { return; }
-
-			Vector WelderDropLocation = ZERO_VECTOR;
-
-			if (vDist2DSq(DroppedHeavyArmour->v.origin, NearestArmoury->v.origin) < sqrf(UTIL_MetresToGoldSrcUnits(5.0f)))
+			if (UTIL_GetQueuedItemDropRequestsOfType(CommanderBot, ITEM_MARINE_WELDER) == 0)
 			{
-				WelderDropLocation = DroppedHeavyArmour->v.origin;
-			}
-			else
-			{
-				WelderDropLocation = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, NearestArmoury->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
+				if (vDist2DSq(MarineNeedingLoadout->v.origin, NearestArmoury->v.origin) < sqrf(UTIL_MetresToGoldSrcUnits(5.0f)))
+				{
+					CommanderQueueItemDrop(CommanderBot, ITEM_MARINE_WELDER, ZERO_VECTOR, MarineNeedingLoadout, Priority);
+				}
+				else
+				{
+					CommanderQueueItemDrop(CommanderBot, ITEM_MARINE_WELDER, UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, NearestArmoury->v.origin, UTIL_MetresToGoldSrcUnits(5.0f)), nullptr, Priority);
+				}
 			}
 
-			if (WelderDropLocation != ZERO_VECTOR)
-			{
-				CommanderQueueItemDrop(CommanderBot, ITEM_MARINE_WELDER, WelderDropLocation, NULL, 0);
-			}
+			return;
 		}
-		return;
 	}
 }
 

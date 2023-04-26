@@ -974,7 +974,7 @@ bool MarineCombatThink(bot_t* pBot)
 
 void BotReceiveCommanderOrder(bot_t* pBot, AvHOrderType orderType, AvHUser3 TargetType, Vector destination)
 {
-	UTIL_ClearBotTask(pBot, &pBot->PrimaryBotTask);
+	UTIL_ClearBotTask(pBot, &pBot->CommanderTask);
 
 	switch (orderType)
 	{
@@ -995,7 +995,7 @@ void BotReceiveCommanderOrder(bot_t* pBot, AvHOrderType orderType, AvHUser3 Targ
 		break;
 	}
 
-	pBot->PrimaryBotTask.bIssuedByCommander = true;
+	pBot->CommanderTask.bIssuedByCommander = true;
 }
 
 void BotReceiveAttackOrder(bot_t* pBot, AvHUser3 TargetType, Vector destination)
@@ -1008,10 +1008,10 @@ void BotReceiveAttackOrder(bot_t* pBot, AvHUser3 TargetType, Vector destination)
 
 		if (NearestStructure)
 		{
-			pBot->PrimaryBotTask.TaskType = TASK_ATTACK;
-			pBot->PrimaryBotTask.TaskLocation = UTIL_GetFloorUnderEntity(NearestStructure);
-			pBot->PrimaryBotTask.TaskTarget = NearestStructure;
-			pBot->PrimaryBotTask.bTargetIsPlayer = false;
+			pBot->CommanderTask.TaskType = TASK_ATTACK;
+			pBot->CommanderTask.TaskLocation = UTIL_GetFloorUnderEntity(NearestStructure);
+			pBot->CommanderTask.TaskTarget = NearestStructure;
+			pBot->CommanderTask.bTargetIsPlayer = false;
 
 		}
 		else
@@ -1040,9 +1040,9 @@ void BotReceiveAttackOrder(bot_t* pBot, AvHUser3 TargetType, Vector destination)
 
 		if (NearestEnemy)
 		{
-			pBot->PrimaryBotTask.TaskType = TASK_ATTACK;
-			pBot->PrimaryBotTask.TaskTarget = NearestEnemy;
-			pBot->PrimaryBotTask.bTargetIsPlayer = true;
+			pBot->CommanderTask.TaskType = TASK_ATTACK;
+			pBot->CommanderTask.TaskTarget = NearestEnemy;
+			pBot->CommanderTask.bTargetIsPlayer = true;
 		}
 		else
 		{
@@ -1061,11 +1061,11 @@ void BotReceiveBuildOrder(bot_t* pBot, AvHUser3 TargetType, Vector destination)
 
 	if (NearestStructure)
 	{
-		pBot->PrimaryBotTask.TaskType = TASK_BUILD;
-		pBot->PrimaryBotTask.TaskLocation = UTIL_GetFloorUnderEntity(NearestStructure);
-		pBot->PrimaryBotTask.TaskTarget = NearestStructure;
-		pBot->PrimaryBotTask.bIssuedByCommander = true;
-		pBot->PrimaryBotTask.bTargetIsPlayer = false;
+		pBot->CommanderTask.TaskType = TASK_BUILD;
+		pBot->CommanderTask.TaskLocation = UTIL_GetFloorUnderEntity(NearestStructure);
+		pBot->CommanderTask.TaskTarget = NearestStructure;
+		pBot->CommanderTask.bIssuedByCommander = true;
+		pBot->CommanderTask.bTargetIsPlayer = false;
 	}
 }
 
@@ -1075,17 +1075,18 @@ void BotReceiveMoveToOrder(bot_t* pBot, Vector destination)
 
 	if (ResNodeRef && vDist2DSq(ResNodeRef->origin, destination) < sqrf(UTIL_MetresToGoldSrcUnits(5.0f)))
 	{
-		pBot->PrimaryBotTask.TaskType = TASK_CAP_RESNODE;
-		pBot->PrimaryBotTask.StructureType = STRUCTURE_MARINE_RESTOWER;
+		pBot->CommanderTask.TaskType = TASK_CAP_RESNODE;
+		pBot->CommanderTask.StructureType = STRUCTURE_MARINE_RESTOWER;
+		pBot->CommanderTask.TaskLocation = ResNodeRef->origin;
+		
 	}
 	else
 	{
-		pBot->PrimaryBotTask.TaskType = TASK_MOVE;
+		pBot->CommanderTask.TaskType = TASK_MOVE;
+		pBot->CommanderTask.TaskLocation = destination;
 	}
 
-
-	pBot->PrimaryBotTask.TaskLocation = destination;
-	pBot->PrimaryBotTask.bIssuedByCommander = true;
+	pBot->CommanderTask.bIssuedByCommander = true;
 }
 
 void BotReceiveGuardOrder(bot_t* pBot, AvHUser3 TargetType, Vector destination)
@@ -1101,12 +1102,12 @@ void BotReceiveGuardOrder(bot_t* pBot, AvHUser3 TargetType, Vector destination)
 		if (NearestStructure)
 		{
 			UTIL_ClearBotTask(pBot, &pBot->PrimaryBotTask);
-			pBot->PrimaryBotTask.TaskType = TASK_GUARD;
-			pBot->PrimaryBotTask.TaskLocation = NearestStructure->v.origin;
-			pBot->PrimaryBotTask.TaskTarget = NearestStructure;
-			pBot->PrimaryBotTask.bTargetIsPlayer = false;
-			pBot->PrimaryBotTask.bIssuedByCommander = true;
-			pBot->PrimaryBotTask.TaskLength = 30.0f;
+			pBot->CommanderTask.TaskType = TASK_GUARD;
+			pBot->CommanderTask.TaskLocation = NearestStructure->v.origin;
+			pBot->CommanderTask.TaskTarget = NearestStructure;
+			pBot->CommanderTask.bTargetIsPlayer = false;
+			pBot->CommanderTask.bIssuedByCommander = true;
+			pBot->CommanderTask.TaskLength = 30.0f;
 
 		}
 		else
@@ -1160,47 +1161,16 @@ void BotReceiveWeldOrder(bot_t* pBot, AvHUser3 TargetType, Vector destination)
 
 		if (NearestStructure)
 		{
-			pBot->PrimaryBotTask.TaskType = TASK_WELD;
-			pBot->PrimaryBotTask.TaskLocation = UTIL_GetFloorUnderEntity(NearestStructure);
-			pBot->PrimaryBotTask.TaskTarget = NearestStructure;
-			pBot->PrimaryBotTask.bTargetIsPlayer = false;
+			pBot->CommanderTask.TaskType = TASK_WELD;
+			pBot->CommanderTask.TaskLocation = UTIL_GetFloorUnderEntity(NearestStructure);
+			pBot->CommanderTask.TaskTarget = NearestStructure;
+			pBot->CommanderTask.bTargetIsPlayer = false;
 
 		}
 		else
 		{
 			return;
 		}
-	}
-	else
-	{
-		edict_t* NearestEnemy = NULL;
-		float MinDist = 0.0f;
-
-		for (int i = 0; i < 32; i++)
-		{
-			if (clients[i] && IsPlayerOnAlienTeam(clients[i]) && !IsPlayerDead(clients[i]) && !IsPlayerBeingDigested(clients[i]))
-			{
-				float Dist = vDist2DSq(clients[i]->v.origin, destination);
-
-				if (!NearestEnemy || Dist < MinDist)
-				{
-					NearestEnemy = clients[i];
-					MinDist = Dist;
-				}
-			}
-		}
-
-		if (!FNullEnt(NearestEnemy))
-		{
-			pBot->PrimaryBotTask.TaskType = TASK_WELD;
-			pBot->PrimaryBotTask.TaskTarget = NearestEnemy;
-			pBot->PrimaryBotTask.bTargetIsPlayer = true;
-		}
-		else
-		{
-			return;
-		}
-
 	}
 }
 
@@ -1289,6 +1259,8 @@ void MarineCheckWantsAndNeeds(bot_t* pBot)
 		BotDropWeapon(pBot);
 	}
 
+	edict_t* NearestArmoury = UTIL_GetNearestStructureIndexOfType(pEdict->v.origin, STRUCTURE_MARINE_ANYARMOURY, UTIL_MetresToGoldSrcUnits(100.0f), true, IsPlayerMarine(pBot->pEdict));
+
 	if (bUrgentlyNeedsHealth)
 	{
 		const dropped_marine_item* HealthPackIndex = UTIL_GetNearestItemIndexOfType(ITEM_MARINE_HEALTHPACK, pEdict->v.origin, UTIL_MetresToGoldSrcUnits(15.0f));
@@ -1302,8 +1274,6 @@ void MarineCheckWantsAndNeeds(bot_t* pBot)
 
 			return;
 		}
-
-		edict_t* NearestArmoury = UTIL_GetNearestStructureIndexOfType(pEdict->v.origin, STRUCTURE_MARINE_ANYARMOURY, UTIL_MetresToGoldSrcUnits(100.0f), true, IsPlayerMarine(pBot->pEdict));
 
 		if (!FNullEnt(NearestArmoury))
 		{
@@ -1341,6 +1311,18 @@ void MarineCheckWantsAndNeeds(bot_t* pBot)
 
 						return;
 					}
+				}
+			}
+			else
+			{
+				if (!FNullEnt(NearestArmoury) && PlayerHasEquipment(pBot->pEdict))
+				{
+					pBot->WantsAndNeedsTask.TaskType = TASK_GUARD;
+					pBot->WantsAndNeedsTask.bOrderIsUrgent = false;
+					pBot->WantsAndNeedsTask.TaskLocation = NearestArmoury->v.origin;
+					pBot->WantsAndNeedsTask.TaskTarget = NearestArmoury;
+
+					return;
 				}
 			}
 		}
@@ -1430,6 +1412,21 @@ void MarineCheckWantsAndNeeds(bot_t* pBot)
 					pBot->WantsAndNeedsTask.TaskTarget = EquipmentIndex->edict;
 
 					return;
+				}
+			}
+			else
+			{
+				if (PlayerHasSpecialWeapon(pBot->pEdict))
+				{
+					if (!FNullEnt(NearestArmoury) && PlayerHasEquipment(pBot->pEdict))
+					{
+						pBot->WantsAndNeedsTask.TaskType = TASK_GUARD;
+						pBot->WantsAndNeedsTask.bOrderIsUrgent = false;
+						pBot->WantsAndNeedsTask.TaskLocation = NearestArmoury->v.origin;
+						pBot->WantsAndNeedsTask.TaskTarget = NearestArmoury;
+
+						return;
+					}
 				}
 			}
 		}

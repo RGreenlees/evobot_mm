@@ -142,6 +142,7 @@ bool PlayerHasHeavyArmour(const edict_t* Player);
 bool PlayerHasJetpack(edict_t* Player);
 
 bool PlayerHasEquipment(edict_t* Player);
+bool PlayerHasSpecialWeapon(edict_t* Player);
 
 bool PlayerHasWeapon(edict_t* Player, NSWeapon WeaponType);
 
