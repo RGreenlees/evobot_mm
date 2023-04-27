@@ -58,6 +58,8 @@ int irandrange(int MinValue, int MaxValue);
 float fDegreesToRadians(const float Degrees);
 // Return random boolean
 bool randbool();
+// Returns the max of two integers
+int imaxi(const int a, const int b);
 
 // VECTOR MATH
 

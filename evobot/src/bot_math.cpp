@@ -368,9 +368,14 @@ float sqrf(float input)
 	return (input * input);
 }
 
+int imaxi(const int a, const int b)
+{
+	return (a > b) ? a : b;
+}
+
 float clampf(float input, float inMin, float inMax)
 {
-	return std::fmaxf(std::fminf(input, inMax), inMin);
+	return fmaxf(fminf(input, inMax), inMin);
 }
 
 Vector GetPitchForProjectile(Vector LaunchPoint, Vector TargetPoint, const float ProjectileSpeed, const float Gravity)

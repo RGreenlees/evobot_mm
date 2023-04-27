@@ -67,6 +67,7 @@ extern float last_think_time;
 
 extern float last_bot_count_check_time;
 
+
 void ClientCommand(edict_t* pEntity)
 {
 	const char* pcmd = CMD_ARGV(0);
@@ -93,9 +94,13 @@ void ClientCommand(edict_t* pEntity)
 
 	if (FStrEq(pcmd, "cloakstatus"))
 	{
-		if (pEntity)
+		if ((pEntity->v.iuser4 & MASK_VIS_SIGHTED))
 		{
-			UTIL_SayText("BOOP\n", pEntity);
+			UTIL_SayText("False\n", pEntity);
+		}
+		else
+		{
+			UTIL_SayText("True\n", pEntity);
 		}
 
 		RETURN_META(MRES_SUPERCEDE);
@@ -458,6 +463,27 @@ void ClientCommand(edict_t* pEntity)
 				bots[i].PrimaryBotTask.TaskType = TASK_MOVE;
 				bots[i].PrimaryBotTask.TaskLocation = UTIL_GetFloorUnderEntity(pEntity);
 				bots[i].PrimaryBotTask.bOrderIsUrgent = true;
+			}
+		}
+		RETURN_META(MRES_SUPERCEDE);
+	}
+
+	if (FStrEq(pcmd, "getcloak"))
+	{
+		if (!NavmeshLoaded())
+		{
+			UTIL_SayText("Navmesh is not loaded", pEntity);
+			RETURN_META(MRES_SUPERCEDE);
+		}
+
+		for (int i = 0; i < gpGlobals->maxClients; i++)
+		{
+			if (bots[i].is_used)  // not respawning
+			{
+				if (IsPlayerOnAlienTeam(bots[i].pEdict) && !IsPlayerDead(bots[i].pEdict))
+				{
+					bots[i].pEdict->v.impulse = IMPULSE_ALIEN_UPGRADE_CLOAK;
+				}
 			}
 		}
 		RETURN_META(MRES_SUPERCEDE);

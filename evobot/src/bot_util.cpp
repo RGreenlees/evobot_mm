@@ -1331,20 +1331,33 @@ void BotThink(bot_t* pBot)
 	{
 	case EVO_DEBUG_TESTNAV:
 		TestNavThink(pBot);
-		return;
+		break;
 	case EVO_DEBUG_DRONE:
 		DroneThink(pBot);
-		return;
+		break;
 	case EVO_DEBUG_AIM:
 		TestAimThink(pBot);
-		return;
+		break;
 	case EVO_DEBUG_GUARD:
 		TestGuardThink(pBot);
-		return;
+		break;
 	default:
+		RegularModeThink(pBot);
 		break;
 	}
-	
+
+	BotUpdateDesiredViewRotation(pBot);
+
+	NSWeapon DesiredWeapon = (pBot->DesiredMoveWeapon != WEAPON_NONE) ? pBot->DesiredMoveWeapon : pBot->DesiredCombatWeapon;
+
+	if (DesiredWeapon != WEAPON_NONE && GetBotCurrentWeapon(pBot) != DesiredWeapon)
+	{
+		BotSwitchToWeapon(pBot, DesiredWeapon);
+	}
+}
+
+void RegularModeThink(bot_t* pBot)
+{
 	if (!bGameIsActive)
 	{
 		WaitGameStartThink(pBot);
@@ -1358,7 +1371,7 @@ void BotThink(bot_t* pBot)
 	}
 
 	pBot->CurrentEnemy = BotGetNextEnemyTarget(pBot);
-
+	
 	if (pBot->CurrentEnemy > -1)
 	{
 		pBot->LastCombatTime = gpGlobals->time;
@@ -1371,15 +1384,6 @@ void BotThink(bot_t* pBot)
 	else
 	{
 		AlienThink(pBot);
-	}
-
-	BotUpdateDesiredViewRotation(pBot);
-
-	NSWeapon DesiredWeapon = (pBot->DesiredMoveWeapon != WEAPON_NONE) ? pBot->DesiredMoveWeapon : pBot->DesiredCombatWeapon;
-
-	if (DesiredWeapon != WEAPON_NONE && GetBotCurrentWeapon(pBot) != DesiredWeapon)
-	{
-		BotSwitchToWeapon(pBot, DesiredWeapon);
 	}
 }
 

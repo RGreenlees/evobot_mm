@@ -3520,7 +3520,7 @@ edict_t* BotGetNearestDangerTurret(bot_t* pBot, float MaxDistance)
 		{
 			if (!it.second.bOnNavmesh) { continue; }
 
-			if (!UTIL_StructureTypesMatch(it.second.StructureType, STRUCTURE_MARINE_ANYTURRET)) { continue; }
+			if (!UTIL_StructureTypesMatch(it.second.StructureType, STRUCTURE_MARINE_TURRET)) { continue; }
 
 			float thisDist = vDist2DSq(Location, it.second.Location);
 
@@ -3681,7 +3681,7 @@ int UTIL_GetNumWeaponsOfTypeInPlay(const NSWeapon WeaponType)
 
 	for (int i = 0; i < 32; i++)
 	{
-		if (!FNullEnt(clients[i]) && IsPlayerOnMarineTeam(clients[i]) && !IsPlayerDead(clients[i]) && !IsPlayerBeingDigested(clients[i]) && !IsPlayerCommander(clients[i]))
+		if (!FNullEnt(clients[i]) && IsPlayerOnMarineTeam(clients[i]) && IsPlayerActiveInGame(clients[i]))
 		{
 			if (PlayerHasWeapon(clients[i], WeaponType))
 			{

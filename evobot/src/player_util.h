@@ -151,4 +151,5 @@ bool UTIL_PlayerHasLOSToLocation(const edict_t* Player, const Vector Target, con
 
 bool PlayerHasAlienUpgradeOfType(const edict_t* Player, const HiveTechStatus TechType);
 
+
 #endif

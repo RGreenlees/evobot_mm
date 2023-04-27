@@ -108,6 +108,7 @@ void ReadyRoomThink(bot_t* pBot);
 
 void BotThink(bot_t* pBot);
 
+void RegularModeThink(bot_t* pBot);
 void TestNavThink(bot_t* pBot);
 void TestGuardThink(bot_t* pBot);
 void TestAimThink(bot_t* pBot);

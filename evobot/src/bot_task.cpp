@@ -657,7 +657,7 @@ bool UTIL_IsAlienCapResNodeTaskStillValid(bot_t* pBot, bot_task* Task)
 		}
 		else
 		{
-			return false;
+			return true;
 		}
 	}
 	else

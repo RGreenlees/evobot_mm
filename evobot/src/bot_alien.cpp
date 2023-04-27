@@ -15,6 +15,7 @@
 
 void AlienThink(bot_t* pBot)
 {
+
 	if (pBot->CurrentEnemy > -1 && pBot->CurrentEnemy < 32)
 	{
 		edict_t* CurrentEnemy = pBot->TrackedEnemies[pBot->CurrentEnemy].EnemyEdict;
