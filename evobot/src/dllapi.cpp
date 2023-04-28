@@ -486,6 +486,7 @@ void ClientCommand(edict_t* pEntity)
 				}
 			}
 		}
+
 		RETURN_META(MRES_SUPERCEDE);
 	}
 

@@ -16,7 +16,7 @@
 void AlienThink(bot_t* pBot)
 {
 
-	if (pBot->CurrentEnemy > -1 && pBot->CurrentEnemy < 32)
+	if (pBot->CurrentEnemy > -1)
 	{
 		edict_t* CurrentEnemy = pBot->TrackedEnemies[pBot->CurrentEnemy].EnemyEdict;
 
@@ -72,6 +72,34 @@ void AlienThink(bot_t* pBot)
 	AlienCheckWantsAndNeeds(pBot);
 
 	pBot->CurrentTask = BotGetNextTask(pBot);
+
+	if (!IsPlayerGorge(pBot->pEdict) || PlayerHasWeapon(pBot->pEdict, WEAPON_GORGE_BILEBOMB))
+	{
+		edict_t* DangerTurret = BotGetNearestDangerTurret(pBot, UTIL_MetresToGoldSrcUnits(10.0f));
+
+		if (!FNullEnt(DangerTurret))
+		{
+			if (pBot->CurrentTask->TaskType == TASK_NONE || pBot->CurrentTask->TaskType == TASK_GUARD || pBot->CurrentTask->TaskType == TASK_DEFEND)
+			{
+				BotAttackStructure(pBot, DangerTurret);
+				return;
+			}
+			else
+			{
+				Vector TaskLocation = (!FNullEnt(pBot->CurrentTask->TaskTarget)) ? pBot->CurrentTask->TaskTarget->v.origin : pBot->CurrentTask->TaskLocation;
+				float DistToTurret = vDist2DSq(TaskLocation, DangerTurret->v.origin);
+
+				if (pBot->CurrentTask->TaskType != TASK_ATTACK && DistToTurret < sqrf(UTIL_MetresToGoldSrcUnits(10.0f)))
+				{
+					BotAttackStructure(pBot, DangerTurret);
+					return;
+				}
+
+			}
+		}
+	}
+
+	
 
 	if (pBot->CurrentTask && pBot->CurrentTask->TaskType != TASK_NONE)
 	{

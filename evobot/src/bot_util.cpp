@@ -448,6 +448,41 @@ void BotTeamSay(bot_t* pBot, float Delay, char* textToSay)
 	}
 }
 
+void BotAttackStructure(bot_t* pBot, edict_t* Target)
+{
+	if (FNullEnt(Target) || (Target->v.deadflag != DEAD_NO) || !IsEdictStructure(Target)) { return; }
+
+	NSWeapon DesiredWeapon = WEAPON_NONE;
+
+	if (IsPlayerMarine(pBot->pEdict))
+	{
+		DesiredWeapon = BotMarineChooseBestWeaponForStructure(pBot, Target);
+	}
+	else
+	{
+		DesiredWeapon = BotAlienChooseBestWeaponForStructure(pBot, Target);
+	}
+
+	if (DesiredWeapon == WEAPON_NONE) { return; }
+
+	float CurrentDist = vDist2DSq(pBot->pEdict->v.origin, Target->v.origin);
+	float MaxDist = sqrf(GetMaxIdealWeaponRange(DesiredWeapon));
+
+	if (CurrentDist > MaxDist)
+	{
+		MoveTo(pBot, Target->v.origin, MOVESTYLE_NORMAL);
+	}
+	else
+	{
+		pBot->DesiredCombatWeapon = DesiredWeapon;
+
+		if (GetBotCurrentWeapon(pBot) == DesiredWeapon)
+		{
+			BotAttackTarget(pBot, Target);
+		}
+	}
+
+}
 
 void BotAttackTarget(bot_t* pBot, edict_t* Target)
 {

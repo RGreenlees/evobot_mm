@@ -57,6 +57,7 @@ bool CanBotLeap(bot_t* pBot);
 void BotJump(bot_t* pBot);
 
 void BotAttackTarget(bot_t* pBot, edict_t* Target);
+void BotAttackStructure(bot_t* pBot, edict_t* Target);
 void DEBUG_BotAttackTarget(bot_t* pBot, edict_t* Target);
 
 float GetLeapCost(bot_t* pBot);
