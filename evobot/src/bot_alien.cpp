@@ -79,22 +79,13 @@ void AlienThink(bot_t* pBot)
 
 		if (!FNullEnt(DangerTurret))
 		{
-			if (pBot->CurrentTask->TaskType == TASK_NONE || pBot->CurrentTask->TaskType == TASK_GUARD || pBot->CurrentTask->TaskType == TASK_DEFEND)
+			Vector TaskLocation = (!FNullEnt(pBot->CurrentTask->TaskTarget)) ? pBot->CurrentTask->TaskTarget->v.origin : pBot->CurrentTask->TaskLocation;
+			float DistToTurret = vDist2DSq(TaskLocation, DangerTurret->v.origin);
+
+			if (pBot->CurrentTask->TaskType != TASK_ATTACK && DistToTurret < sqrf(UTIL_MetresToGoldSrcUnits(10.0f)))
 			{
 				BotAttackStructure(pBot, DangerTurret);
 				return;
-			}
-			else
-			{
-				Vector TaskLocation = (!FNullEnt(pBot->CurrentTask->TaskTarget)) ? pBot->CurrentTask->TaskTarget->v.origin : pBot->CurrentTask->TaskLocation;
-				float DistToTurret = vDist2DSq(TaskLocation, DangerTurret->v.origin);
-
-				if (pBot->CurrentTask->TaskType != TASK_ATTACK && DistToTurret < sqrf(UTIL_MetresToGoldSrcUnits(10.0f)))
-				{
-					BotAttackStructure(pBot, DangerTurret);
-					return;
-				}
-
 			}
 		}
 	}
