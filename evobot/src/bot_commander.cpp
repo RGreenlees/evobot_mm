@@ -1557,6 +1557,12 @@ bool UTIL_ActionExistsInLocation(const bot_t* Commander, const Vector CheckPoint
 	return false;
 }
 
+void UTIL_ClearCommanderAction(bot_t* Commander, commander_action* Action)
+{
+	memset(&Action, 0, sizeof(commander_action));
+	Action->AssignedPlayer = -1;
+}
+
 void UTIL_ClearCommanderAction(bot_t* Commander, int ActionIndex, int Priority)
 {
 	Commander->CurrentCommanderActions[Priority][ActionIndex].bIsActive = false;
@@ -2695,6 +2701,19 @@ void QueueSiegeHiveAction(bot_t* CommanderBot, const Vector Area, int Priority)
 
 	if (FNullEnt(PhaseGate))
 	{
+		commander_action* ExistingTFAction = UTIL_FindCommanderBuildActionOfType(CommanderBot, STRUCTURE_MARINE_TURRETFACTORY, Area, UTIL_MetresToGoldSrcUnits(30.0f));
+		commander_action* ExistingArmouryAction = UTIL_FindCommanderBuildActionOfType(CommanderBot, STRUCTURE_MARINE_ARMOURY, Area, UTIL_MetresToGoldSrcUnits(30.0f));
+
+		if (ExistingTFAction != nullptr)
+		{
+			UTIL_ClearCommanderAction(CommanderBot, ExistingTFAction);
+		}
+
+		if (ExistingArmouryAction != nullptr)
+		{
+			UTIL_ClearCommanderAction(CommanderBot, ExistingArmouryAction);
+		}
+
 		commander_action* ExistingAction = UTIL_FindCommanderBuildActionOfType(CommanderBot, STRUCTURE_MARINE_PHASEGATE, Area, UTIL_MetresToGoldSrcUnits(30.0f));
 
 		// We already have a plan to build a phase gate outside this hive, and we haven't already placed it
@@ -2846,7 +2865,7 @@ void QueueSecureHiveAction(bot_t* CommanderBot, const Vector Area, int Priority)
 
 	if (!FNullEnt(BasePhaseGate) && FNullEnt(ExistingPhaseGate))
 	{
-		if (UTIL_GetQueuedBuildRequestsOfType(CommanderBot, STRUCTURE_MARINE_PHASEGATE) == 0)
+		if (UTIL_GetQueuedBuildRequestsOfTypeInArea(CommanderBot, STRUCTURE_MARINE_PHASEGATE, Area, UTIL_MetresToGoldSrcUnits(10.0f)) == 0)
 		{
 			if (UTIL_ResearchIsComplete(RESEARCH_OBSERVATORY_PHASETECH))
 			{
@@ -2864,7 +2883,7 @@ void QueueSecureHiveAction(bot_t* CommanderBot, const Vector Area, int Priority)
 
 	if (FNullEnt(ExistingTurretFactory))
 	{
-		if (UTIL_GetQueuedBuildRequestsOfType(CommanderBot, STRUCTURE_MARINE_TURRETFACTORY) == 0)
+		if (UTIL_GetQueuedBuildRequestsOfTypeInArea(CommanderBot, STRUCTURE_MARINE_TURRETFACTORY, Area, UTIL_MetresToGoldSrcUnits(10.0f)) == 0)
 		{
 			Vector BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(BUILDING_REGULAR_NAV_PROFILE, Area, UTIL_MetresToGoldSrcUnits(5.0f));
 
@@ -2878,7 +2897,7 @@ void QueueSecureHiveAction(bot_t* CommanderBot, const Vector Area, int Priority)
 	{
 		int NumTurrets = UTIL_GetNumPlacedStructuresOfTypeInRadius(STRUCTURE_MARINE_TURRET, ExistingTurretFactory->v.origin, UTIL_MetresToGoldSrcUnits(15.0f));
 
-		if (NumTurrets < 4 && UTIL_GetQueuedBuildRequestsOfType(CommanderBot, STRUCTURE_MARINE_TURRET) == 0)
+		if (NumTurrets < 4 && UTIL_GetQueuedBuildRequestsOfTypeInArea(CommanderBot, STRUCTURE_MARINE_TURRET, ExistingTurretFactory->v.origin, UTIL_MetresToGoldSrcUnits(5.0f)) == 0)
 		{
 			Vector BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(BUILDING_REGULAR_NAV_PROFILE, ExistingTurretFactory->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
 
@@ -3120,6 +3139,27 @@ int UTIL_GetQueuedItemDropRequestsOfType(bot_t* CommanderBot, NSDeployableItem I
 	}
 
 	return Result;
+}
+
+int UTIL_GetQueuedBuildRequestsOfTypeInArea(bot_t* CommanderBot, NSStructureType StructureType, const Vector SearchLocation, const float SearchRadius)
+{
+	int result = 0;
+
+	for (int Priority = 0; Priority < MAX_ACTION_PRIORITIES; Priority++)
+	{
+		for (int ActionIndex = 0; ActionIndex < MAX_PRIORITY_ACTIONS; ActionIndex++)
+		{
+			if (CommanderBot->CurrentCommanderActions[Priority][ActionIndex].bIsActive && CommanderBot->CurrentCommanderActions[Priority][ActionIndex].ActionType == ACTION_BUILD && UTIL_StructureTypesMatch(CommanderBot->CurrentCommanderActions[Priority][ActionIndex].StructureToBuild, StructureType))
+			{
+				if (vDist2DSq(CommanderBot->CurrentCommanderActions[Priority][ActionIndex].BuildLocation, SearchLocation) < sqrf(SearchRadius))
+				{
+					result++;
+				}
+				
+			}
+		}
+	}
+	return result;
 }
 
 int UTIL_GetQueuedBuildRequestsOfType(bot_t* CommanderBot, NSStructureType StructureType)

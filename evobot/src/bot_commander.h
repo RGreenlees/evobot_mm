@@ -115,6 +115,7 @@ bool UTIL_CancelCommanderPlayerOrder(bot_t* Commander, int PlayerIndex);
 bool UTIL_ActionExistsInLocation(const bot_t* Commander, const Vector CheckPoint);
 
 void UTIL_ClearCommanderAction(bot_t* Commander, int ActionIndex, int Priority);
+void UTIL_ClearCommanderAction(bot_t* Commander, commander_action* Action);
 void UTIL_ClearCommanderOrder(bot_t* Commander, int OrderIndex);
 
 bool UTIL_StructureCanBeUpgraded(const edict_t* Structure);
@@ -155,6 +156,7 @@ int UTIL_GetNumArmouriesUpgrading();
 bool UTIL_ResearchActionAlreadyExists(const bot_t* Commander, const NSResearch Research);
 
 int UTIL_GetQueuedBuildRequestsOfType(bot_t* CommanderBot, NSStructureType StructureType);
+int UTIL_GetQueuedBuildRequestsOfTypeInArea(bot_t* CommanderBot, NSStructureType StructureType, const Vector SearchLocation, const float SearchRadius);
 int UTIL_GetQueuedUpgradeRequestsOfType(bot_t* CommanderBot, NSStructureType StructureToBeUpgraded);
 int UTIL_GetQueuedItemDropRequestsOfType(bot_t* CommanderBot, NSDeployableItem ItemType);
 
