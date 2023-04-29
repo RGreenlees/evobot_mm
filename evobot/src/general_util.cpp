@@ -253,6 +253,14 @@ bool UTIL_QuickHullTrace(const edict_t* pEdict, const Vector& start, const Vecto
 	return (hit.flFraction >= 1.0f);
 }
 
+edict_t* UTIL_TraceEntity(const edict_t* pEdict, const Vector& start, const Vector& end)
+{
+	TraceResult hit;
+	edict_t* IgnoreEdict = (!FNullEnt(pEdict)) ? pEdict->v.pContainingEntity : NULL;
+	UTIL_TraceLine(start, end, dont_ignore_monsters, ignore_glass, IgnoreEdict, &hit);
+	return hit.pHit;
+}
+
 edict_t* UTIL_FindEntityInSphere(edict_t* pentStart, const Vector& vecCenter, float flRadius)
 {
 	edict_t* pentEntity;

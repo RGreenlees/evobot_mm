@@ -43,6 +43,9 @@ void ClientPrint(edict_t* pEntity, int msg_dest, const char* msg_name);
 bool UTIL_QuickTrace(const edict_t* pEdict, const Vector& start, const Vector& end);
 bool UTIL_QuickHullTrace(const edict_t* pEdict, const Vector& start, const Vector& end, int hullNum);
 bool UTIL_QuickHullTrace(const edict_t* pEdict, const Vector& start, const Vector& end);
+
+edict_t* UTIL_TraceEntity(const edict_t* pEdict, const Vector& start, const Vector& end);
+
 Vector UTIL_GetTraceHitLocation(const Vector Start, const Vector End);
 
 Vector UTIL_GetEntityGroundLocation(const edict_t* pEntity);

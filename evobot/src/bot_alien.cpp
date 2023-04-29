@@ -88,9 +88,7 @@ void AlienThink(bot_t* pBot)
 				return;
 			}
 		}
-	}
-
-	
+	}	
 
 	if (pBot->CurrentTask && pBot->CurrentTask->TaskType != TASK_NONE)
 	{

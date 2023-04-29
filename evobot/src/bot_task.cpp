@@ -921,6 +921,15 @@ void BotProgressAttackTask(bot_t* pBot, bot_task* Task)
 		return;
 	}
 
+	int NumPlayersAttacking = UTIL_GetNumPlayersOfTeamInArea(Task->TaskTarget->v.origin, UTIL_MetresToGoldSrcUnits(1.5f), pBot->pEdict->v.team, pBot->pEdict, CLASS_GORGE, false);
+
+	// Don't allow bots to crowd around a structure, otherwise they get in each others way
+	if (NumPlayersAttacking >= 2)
+	{
+		BotGuardLocation(pBot, Task->TaskTarget->v.origin);
+		return;
+	}
+
 	NSWeapon AttackWeapon = WEAPON_NONE;
 
 	if (IsPlayerMarine(pBot->pEdict))
@@ -951,6 +960,21 @@ void BotProgressAttackTask(bot_t* pBot, bot_task* Task)
 	}
 	else
 	{
+		// If LOS is blocked by an enemy structure or other enemy player, attack them anyway
+		edict_t* TracedEntity = UTIL_TraceEntity(pBot->pEdict, pBot->CurrentEyePosition, UTIL_GetCentreOfEntity(Task->TaskTarget));
+
+		if (!FNullEnt(TracedEntity) && TracedEntity != Task->TaskTarget)
+		{
+			if (TracedEntity->v.team != 0 && TracedEntity->v.team != pBot->pEdict->v.team)
+			{
+				if (IsEdictStructure(TracedEntity))
+				{
+					BotAttackTarget(pBot, TracedEntity);
+				}
+			}
+		}
+
+
 		MoveTo(pBot, Task->TaskTarget->v.origin, MOVESTYLE_NORMAL);
 	}
 

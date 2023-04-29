@@ -632,15 +632,15 @@ void BotAttackTarget(bot_t* pBot, edict_t* Target)
 		return;
 	}
 
-	if ((gpGlobals->time - pBot->current_weapon.LastFireTime) < pBot->current_weapon.MinRefireTime)
-	{
-		return;
-	}
-
 	float MaxWeaponRange = GetMaxIdealWeaponRange(CurrentWeapon);
 
 	if (UTIL_PlayerHasLOSToEntity(pBot->pEdict, Target, MaxWeaponRange, false))
 	{
+		if ((gpGlobals->time - pBot->current_weapon.LastFireTime) < pBot->current_weapon.MinRefireTime)
+		{
+			return;
+		}
+
 		Vector AimDir = UTIL_GetForwardVector(pBot->pEdict->v.v_angle);
 
 		float AimDot = UTIL_GetDotProduct(AimDir, TargetAimDir);
@@ -650,6 +650,10 @@ void BotAttackTarget(bot_t* pBot, edict_t* Target)
 			pBot->pEdict->v.button |= IN_ATTACK;
 			pBot->current_weapon.LastFireTime = gpGlobals->time;
 		}
+	}
+	else
+	{
+		MoveTo(pBot, Target->v.origin, MOVESTYLE_NORMAL);
 	}
 }
 

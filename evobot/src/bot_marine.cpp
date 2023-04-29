@@ -26,9 +26,7 @@ void MarineThink(bot_t* pBot)
 {
 	edict_t* pEdict = pBot->pEdict;
 
-	edict_t* DangerTurret = BotGetNearestDangerTurret(pBot, UTIL_MetresToGoldSrcUnits(10.0f));
-
-	if (pBot->CurrentRole != BOT_ROLE_COMMAND && (pBot->CurrentEnemy > -1 || !FNullEnt(DangerTurret)) )
+	if (pBot->CurrentRole != BOT_ROLE_COMMAND && pBot->CurrentEnemy > -1)
 	{
 		if (MarineCombatThink(pBot))
 		{
@@ -68,6 +66,21 @@ void MarineThink(bot_t* pBot)
 	MarineCheckWantsAndNeeds(pBot);
 
 	pBot->CurrentTask = BotGetNextTask(pBot);
+
+	edict_t* DangerTurret = BotGetNearestDangerTurret(pBot, UTIL_MetresToGoldSrcUnits(10.0f));
+
+	if (!FNullEnt(DangerTurret))
+	{
+		Vector TaskLocation = (!FNullEnt(pBot->CurrentTask->TaskTarget)) ? pBot->CurrentTask->TaskTarget->v.origin : pBot->CurrentTask->TaskLocation;
+		float DistToTurret = vDist2DSq(TaskLocation, DangerTurret->v.origin);
+
+		if (pBot->CurrentTask->TaskType != TASK_ATTACK && DistToTurret < sqrf(UTIL_MetresToGoldSrcUnits(10.0f)))
+		{
+			BotAttackStructure(pBot, DangerTurret);
+			return;
+		}
+	}
+
 
 	if (pBot->CurrentTask && pBot->CurrentTask->TaskType != TASK_NONE)
 	{
@@ -651,9 +664,7 @@ bool MarineCombatThink(bot_t* pBot)
 {
 	edict_t* pEdict = pBot->pEdict;
 
-	edict_t* DangerTurret = BotGetNearestDangerTurret(pBot, UTIL_MetresToGoldSrcUnits(10.0f));
-
-	if (FNullEnt(DangerTurret) && pBot->CurrentEnemy < 0) { return false; }
+	if (pBot->CurrentEnemy < 0) { return false; }
 
 	edict_t* CurrentEnemy = nullptr;
 	enemy_status* TrackedEnemyRef = nullptr;
@@ -663,47 +674,6 @@ bool MarineCombatThink(bot_t* pBot)
 		CurrentEnemy = pBot->TrackedEnemies[pBot->CurrentEnemy].EnemyEdict;
 		TrackedEnemyRef = &pBot->TrackedEnemies[pBot->CurrentEnemy];
 	}
-
-	if (!FNullEnt(DangerTurret))
-	{
-		if (FNullEnt(CurrentEnemy))
-		{
-			NSWeapon AttackWeapon = BotMarineChooseBestWeaponForStructure(pBot, DangerTurret);
-
-			pBot->DesiredCombatWeapon = AttackWeapon;
-
-			if (GetBotCurrentWeapon(pBot) == AttackWeapon)
-			{
-				BotAttackTarget(pBot, DangerTurret);
-			}
-
-			return true;
-		}
-
-		Vector TurretOrientation = UTIL_GetVectorNormal2D(DangerTurret->v.origin - pBot->pEdict->v.origin);
-		Vector EnemyOrientation = UTIL_GetVectorNormal2D(CurrentEnemy->v.origin - pBot->pEdict->v.origin);
-
-		float DistFromTurret = vDist2DSq(DangerTurret->v.origin, pBot->pEdict->v.origin);
-		float DistFromEnemy = vDist2DSq(CurrentEnemy->v.origin, pBot->pEdict->v.origin);
-
-		float TargetDots = UTIL_GetDotProduct2D(TurretOrientation, EnemyOrientation);
-
-		if (TargetDots > 0.75f && DistFromTurret < DistFromEnemy)
-		{
-			NSWeapon AttackWeapon = BotMarineChooseBestWeaponForStructure(pBot, DangerTurret);
-
-			pBot->DesiredCombatWeapon = AttackWeapon;
-
-			if (GetBotCurrentWeapon(pBot) == AttackWeapon)
-			{
-				BotAttackTarget(pBot, DangerTurret);
-			}
-
-			return true;
-		}
-	}
-	
-
 
 	int NavProfileIndex = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
 
@@ -743,6 +713,21 @@ bool MarineCombatThink(bot_t* pBot)
 	// ENEMY IS VISIBLE
 
 	pBot->DesiredCombatWeapon = BotMarineChooseBestWeapon(pBot, CurrentEnemy);
+
+	// If LOS is blocked by an enemy structure or other enemy player, attack them anyway
+	edict_t* TracedEntity = UTIL_TraceEntity(pEdict, pBot->CurrentEyePosition, UTIL_GetCentreOfEntity(CurrentEnemy));
+
+	if (!FNullEnt(TracedEntity) && TracedEntity != CurrentEnemy)
+	{
+		if (TracedEntity->v.team != 0 && TracedEntity->v.team != pEdict->v.team)
+		{
+			if (IsEdictStructure(TracedEntity))
+			{
+				BotAttackTarget(pBot, TracedEntity);
+				return true;
+			}
+		}
+	}
 
 	if (GetBotCurrentWeapon(pBot) != pBot->DesiredCombatWeapon) { return true; }
 
