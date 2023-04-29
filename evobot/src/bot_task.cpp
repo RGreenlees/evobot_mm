@@ -1402,7 +1402,7 @@ void BotProgressTask(bot_t* pBot, bot_task* Task)
 
 void MarineProgressWeldTask(bot_t* pBot, bot_task* Task)
 {
-	float DistFromWeldLocation = vDist2DSq(pBot->pEdict->v.origin, Task->TaskTarget->v.origin);
+	//float DistFromWeldLocation = vDist2DSq(pBot->pEdict->v.origin, Task->TaskTarget->v.origin);
 
 
 	if (IsPlayerInUseRange(pBot->pEdict, Task->TaskTarget))
@@ -1419,6 +1419,12 @@ void MarineProgressWeldTask(bot_t* pBot, bot_task* Task)
 
 		return;
 	}
+	else
+	{
+		MoveTo(pBot, Task->TaskTarget->v.origin, MOVESTYLE_NORMAL);
+	}
+
+	return;
 
 	if (vDist2DSq(pBot->pEdict->v.origin, Task->TaskTarget->v.origin) > sqrf(UTIL_MetresToGoldSrcUnits(2.0f)))
 	{
