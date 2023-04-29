@@ -695,7 +695,7 @@ void GAME_RemoveBotFromTeam(const int Team)
 
 		if (BotPointerToKick != nullptr)
 		{
-			memset(&BotPointerToKick, 0, sizeof(bot_t));
+			memset(BotPointerToKick, 0, sizeof(bot_t));
 		}
 	}
 

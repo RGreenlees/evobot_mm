@@ -1559,7 +1559,7 @@ bool UTIL_ActionExistsInLocation(const bot_t* Commander, const Vector CheckPoint
 
 void UTIL_ClearCommanderAction(bot_t* Commander, commander_action* Action)
 {
-	memset(&Action, 0, sizeof(commander_action));
+	memset(Action, 0, sizeof(commander_action));
 	Action->AssignedPlayer = -1;
 }
 
@@ -2350,6 +2350,8 @@ void CommanderQueueRecycleAction(bot_t* pBot, edict_t* Structure, int Priority)
 void CommanderQueueNextAction(bot_t* pBot)
 {
 
+	int NumResTowers = UTIL_GetNumPlacedStructuresOfType(STRUCTURE_MARINE_RESTOWER);
+
 	if ((gpGlobals->time - pBot->CommanderLastBeaconTime > 5.0f) && UTIL_BaseIsInDistress())
 	{
 		if (!UTIL_ResearchActionAlreadyExists(pBot, RESEARCH_OBSERVATORY_DISTRESSBEACON) && UTIL_MarineResearchIsAvailable(RESEARCH_OBSERVATORY_DISTRESSBEACON))
@@ -2445,11 +2447,15 @@ void CommanderQueueNextAction(bot_t* pBot)
 
 	CurrentPriority = 4;
 
-	const hive_definition* FurthestUnbuiltHive = UTIL_GetFurthestHiveOfStatus(UTIL_GetCommChairLocation(), HIVE_STATUS_UNBUILT);
-
-	if (FurthestUnbuiltHive && FurthestUnbuiltHive != NearestUnbuiltHive)
+	// Don't try securing a second hives unless important milestones are met
+	if (UTIL_ResearchIsComplete(RESEARCH_ARMSLAB_ARMOUR1) && NumResTowers >= 3)
 	{
-		QueueSecureHiveAction(pBot, FurthestUnbuiltHive->FloorLocation, CurrentPriority);
+		const hive_definition* FurthestUnbuiltHive = UTIL_GetFurthestHiveOfStatus(UTIL_GetCommChairLocation(), HIVE_STATUS_UNBUILT);
+
+		if (FurthestUnbuiltHive && FurthestUnbuiltHive != NearestUnbuiltHive)
+		{
+			QueueSecureHiveAction(pBot, FurthestUnbuiltHive->FloorLocation, CurrentPriority);
+		}
 	}
 
 	int DesiredNumShotguns = 2;

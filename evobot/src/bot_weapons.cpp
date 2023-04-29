@@ -590,14 +590,6 @@ NSWeapon BotMarineChooseBestWeaponForStructure(bot_t* pBot, edict_t* target)
 
 	if (StructureType == STRUCTURE_ALIEN_HIVE || StructureType == STRUCTURE_ALIEN_OFFENCECHAMBER)
 	{
-		if (GetBotMarinePrimaryWeapon(pBot) == WEAPON_MARINE_MG)
-		{
-			if (PlayerHasWeapon(pBot->pEdict, WEAPON_MARINE_GRENADE))
-			{
-				return WEAPON_MARINE_GRENADE;
-			}
-		}
-
 		if (BotGetPrimaryWeaponClipAmmo(pBot) > 0 || BotGetPrimaryWeaponAmmoReserve(pBot) > 0)
 		{
 			return GetBotMarinePrimaryWeapon(pBot);
