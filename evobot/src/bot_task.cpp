@@ -1407,7 +1407,7 @@ void MarineProgressWeldTask(bot_t* pBot, bot_task* Task)
 
 	if (IsPlayerInUseRange(pBot->pEdict, Task->TaskTarget))
 	{
-		BotLookAt(pBot, Task->TaskTarget);
+		BotLookAt(pBot, UTIL_GetCentreOfEntity(Task->TaskTarget));
 		pBot->DesiredCombatWeapon = WEAPON_MARINE_WELDER;
 
 		if (GetBotCurrentWeapon(pBot) != WEAPON_MARINE_WELDER)
