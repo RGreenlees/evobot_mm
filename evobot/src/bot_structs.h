@@ -58,7 +58,8 @@ typedef enum _EVODEBUGMODE
 	EVO_DEBUG_TESTNAV, // Bot randomly navigates between resource nodes and comm chair, will not enagage enemies
 	EVO_DEBUG_DRONE, // Bot does nothing unless given task by player, will not engage enemies unless given attack order
 	EVO_DEBUG_AIM, // Bot just aims at an enemy and indicates where it's aiming and whether it would fire or hit
-	EVO_DEBUG_GUARD // Bot just guards random areas to test guard behaviour
+	EVO_DEBUG_GUARD, // Bot just guards random areas to test guard behaviour
+	EVO_DEBUG_CUSTOM // Custom behaviour
 } EvobotDebugMode;
 
 // Type of goal the commander wants to achieve

@@ -114,6 +114,7 @@ void TestNavThink(bot_t* pBot);
 void TestGuardThink(bot_t* pBot);
 void TestAimThink(bot_t* pBot);
 void DroneThink(bot_t* pBot);
+void CustomThink(bot_t* pBot);
 
 bool ShouldBotThink(const bot_t* bot);
 void BotRestartPlay(bot_t* pBot);

@@ -922,6 +922,7 @@ void EvoBot_ServerCommand(void)
 				UTIL_ClearBotTask(&bots[i], &bots[i].PrimaryBotTask);
 				UTIL_ClearBotTask(&bots[i], &bots[i].SecondaryBotTask);
 				UTIL_ClearBotTask(&bots[i], &bots[i].WantsAndNeedsTask);
+				UTIL_ClearBotTask(&bots[i], &bots[i].CommanderTask);
 			}
 
 			return;
@@ -936,6 +937,7 @@ void EvoBot_ServerCommand(void)
 				UTIL_ClearBotTask(&bots[i], &bots[i].PrimaryBotTask);
 				UTIL_ClearBotTask(&bots[i], &bots[i].SecondaryBotTask);
 				UTIL_ClearBotTask(&bots[i], &bots[i].WantsAndNeedsTask);
+				UTIL_ClearBotTask(&bots[i], &bots[i].CommanderTask);
 			}
 
 			return;
@@ -950,6 +952,7 @@ void EvoBot_ServerCommand(void)
 				UTIL_ClearBotTask(&bots[i], &bots[i].PrimaryBotTask);
 				UTIL_ClearBotTask(&bots[i], &bots[i].SecondaryBotTask);
 				UTIL_ClearBotTask(&bots[i], &bots[i].WantsAndNeedsTask);
+				UTIL_ClearBotTask(&bots[i], &bots[i].CommanderTask);
 			}
 
 			return;
@@ -964,6 +967,7 @@ void EvoBot_ServerCommand(void)
 				UTIL_ClearBotTask(&bots[i], &bots[i].PrimaryBotTask);
 				UTIL_ClearBotTask(&bots[i], &bots[i].SecondaryBotTask);
 				UTIL_ClearBotTask(&bots[i], &bots[i].WantsAndNeedsTask);
+				UTIL_ClearBotTask(&bots[i], &bots[i].CommanderTask);
 			}
 
 			return;
@@ -978,6 +982,22 @@ void EvoBot_ServerCommand(void)
 				UTIL_ClearBotTask(&bots[i], &bots[i].PrimaryBotTask);
 				UTIL_ClearBotTask(&bots[i], &bots[i].SecondaryBotTask);
 				UTIL_ClearBotTask(&bots[i], &bots[i].WantsAndNeedsTask);
+				UTIL_ClearBotTask(&bots[i], &bots[i].CommanderTask);
+			}
+
+			return;
+		}
+
+		if (FStrEq(DebugMode, "custom"))
+		{
+			CurrentDebugMode = EVO_DEBUG_CUSTOM;
+
+			for (int i = 0; i < 32; i++)
+			{
+				UTIL_ClearBotTask(&bots[i], &bots[i].PrimaryBotTask);
+				UTIL_ClearBotTask(&bots[i], &bots[i].SecondaryBotTask);
+				UTIL_ClearBotTask(&bots[i], &bots[i].WantsAndNeedsTask);
+				UTIL_ClearBotTask(&bots[i], &bots[i].CommanderTask);
 			}
 
 			return;

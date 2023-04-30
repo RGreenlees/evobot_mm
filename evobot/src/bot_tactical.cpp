@@ -3526,7 +3526,7 @@ edict_t* BotGetNearestDangerTurret(bot_t* pBot, float MaxDistance)
 
 			if (thisDist < MaxDist)
 			{
-				if (!UTIL_QuickTrace(pBot->pEdict, Location, it.second.Location)) { continue; }
+				if (!UTIL_QuickTrace(pBot->pEdict, pBot->CurrentEyePosition, UTIL_GetCentreOfEntity(it.second.edict))) { continue; }
 
 				if (!Result || thisDist < MinDist)
 				{
@@ -3548,9 +3548,9 @@ edict_t* BotGetNearestDangerTurret(bot_t* pBot, float MaxDistance)
 
 			if (thisDist < MaxDist)
 			{
-				if (!UTIL_QuickTrace(pBot->pEdict, Location, it.second.Location)) { continue; }
+				if (!UTIL_QuickTrace(pBot->pEdict, pBot->CurrentEyePosition, UTIL_GetCentreOfEntity(it.second.edict))) { continue; }
 
-				if (!Result || thisDist < MinDist)
+				if (FNullEnt(Result) || thisDist < MinDist)
 				{
 					Result = it.second.edict;
 					MinDist = thisDist;

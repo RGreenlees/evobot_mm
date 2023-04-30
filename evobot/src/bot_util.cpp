@@ -1380,6 +1380,9 @@ void BotThink(bot_t* pBot)
 	case EVO_DEBUG_GUARD:
 		TestGuardThink(pBot);
 		break;
+	case EVO_DEBUG_CUSTOM:
+		CustomThink(pBot);
+		break;
 	default:
 		RegularModeThink(pBot);
 		break;
@@ -1610,6 +1613,44 @@ void DroneThink(bot_t* pBot)
 	if (pBot->BotNavInfo.PathSize > 0)
 	{
 		DEBUG_DrawPath(pBot->BotNavInfo.CurrentPath, pBot->BotNavInfo.PathSize, 0.0f);
+	}
+}
+
+void CustomThink(bot_t* pBot)
+{
+	BotUpdateAndClearTasks(pBot);
+
+	edict_t* DangerTurret = BotGetNearestDangerTurret(pBot, UTIL_MetresToGoldSrcUnits(10.0f));
+
+	pBot->CurrentTask = BotGetNextTask(pBot);
+
+	if (!FNullEnt(DangerTurret))
+	{
+		Vector TaskLocation = (!FNullEnt(pBot->CurrentTask->TaskTarget)) ? pBot->CurrentTask->TaskTarget->v.origin : pBot->CurrentTask->TaskLocation;
+		float DistToTurret = vDist2DSq(TaskLocation, DangerTurret->v.origin);
+
+		if (pBot->CurrentTask->TaskType != TASK_ATTACK && DistToTurret <= sqrf(UTIL_MetresToGoldSrcUnits(10.0f)))
+		{
+			BotAttackStructure(pBot, DangerTurret);
+			return;
+		}
+	}
+
+	if (pBot->CurrentTask->TaskType != TASK_NONE)
+	{
+		BotProgressTask(pBot, pBot->CurrentTask);
+	}
+	else
+	{
+		edict_t* AttackedStructure = UTIL_GetNearestUndefendedStructureOfTypeUnderAttack(pBot, STRUCTURE_MARINE_RESTOWER);
+
+		if (!FNullEnt(AttackedStructure))
+		{
+			pBot->PrimaryBotTask.TaskType = TASK_DEFEND;
+			pBot->PrimaryBotTask.TaskTarget = AttackedStructure;
+			pBot->PrimaryBotTask.TaskLocation = AttackedStructure->v.origin;
+			pBot->PrimaryBotTask.bOrderIsUrgent = true;
+		}
 	}
 }
 
