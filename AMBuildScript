@@ -1,0 +1,109 @@
+# AMBuildScript for EvoBot, written by Anonymous Player
+# vim: set sts=4 ts=8 sw=4 tw=99 et ft=python:
+import os, sys
+
+builder.cxx = builder.DetectCxx(target_arch = 'x86')
+if builder.cxx.like('gcc'):
+    builder.cxx.defines += ['_LINUX', 'POSIX', 'LINUX', 'linux']
+    builder.cxx.cflags += [
+        '-pipe',
+        '-fno-strict-aliasing',
+        '-Wall',
+        '-Werror',
+        '-Wno-uninitialized',
+        '-Wno-unused',
+        '-Wno-switch',
+        '-Wno-format',
+        '-Wno-format-security',
+        '-Wno-unknown-attributes',
+        '-Wno-logical-op-parentheses',
+        '-Wno-return-stack-address',
+        '-m32',
+    ]
+    builder.cxx.cxxflags += [
+        '-Wno-invalid-offsetof',
+        '-Wno-write-strings',
+        '-std=c++17',
+    ]
+    builder.cxx.linkflags += ['-m32', '-ldl', '-lm']
+
+include_paths = [
+  # os.path.join(builder.options.hl1sdk_path, 'public'),
+  # os.path.join(builder.options.hl1sdk_path, 'common'),
+  # os.path.join(builder.options.hl1sdk_path, 'engine'),
+  # os.path.join(builder.options.hl1sdk_path, 'dlls'),
+  # os.path.join(builder.options.hl1sdk_path, 'game_shared'),
+  # os.path.join(builder.options.hl1sdk_path, 'pm_shared'),
+  # os.path.join(builder.options.mm_path, 'metamod'),
+  os.path.join(builder.currentSourcePath, 'evobot', 'HLSDK', 'common'),
+  os.path.join(builder.currentSourcePath, 'evobot', 'HLSDK', 'dlls'),
+  os.path.join(builder.currentSourcePath, 'evobot', 'HLSDK', 'engine'),
+  os.path.join(builder.currentSourcePath, 'evobot', 'HLSDK', 'pm_shared'),
+  os.path.join(builder.currentSourcePath, 'evobot', 'metamod'),
+  os.path.join(builder.currentSourcePath, 'Detour', 'Include'),
+  os.path.join(builder.currentSourcePath, 'DetourTileCache', 'Include'),
+  os.path.join(builder.currentSourcePath, 'evobot', 'fastlz'),
+  os.path.join(builder.currentSourcePath, 'evobot', 'src'),
+]
+
+builder.cxx.cxxincludes += include_paths
+
+library = builder.cxx.Library('evobot_mm')
+
+if builder.cxx.family== 'msvc':
+  builder.cxx.cxxflags += [ '/std:c++17', '/openmp:experimental', '/Qvec-report:2', '/fp:precise' ]
+  library.compiler.linkflags += [
+    '/EXPORT:GiveFnptrsToDll=_GiveFnptrsToDll@8,@1',
+    '/SECTION:.data,RW',
+  ]
+  library.compiler.linkflags += ['/MACHINE:X86']
+  library.compiler.defines += [
+    '_CRT_SECURE_NO_DEPRECATE',
+    '_CRT_SECURE_NO_WARNINGS',
+    '_CRT_NONSTDC_NO_DEPRECATE',
+    'NOMINMAX',
+    'WIN32',
+    '_WINDOWS'
+  ]
+
+if builder.options.optimize == '1':
+  if builder.cxx.family== 'msvc':
+    library.compiler.cflags += ['/Ox', '/Zo']
+    library.compiler.linkflags += ['/OPT:ICF', '/OPT:REF']
+
+if builder.options.debug == '1':
+  if builder.cxx.family== 'msvc':
+    library.compiler.cflags += ['/MTd']
+    library.compiler.linkflags += ['/NODEFAULTLIB:libcmt']
+
+library.sources += [
+    'Detour/Source/DetourNavMeshQuery.cpp',
+    'Detour/Source/DetourNode.cpp',
+    'Detour/Source/DetourAlloc.cpp',
+    'Detour/Source/DetourAssert.cpp',
+    'Detour/Source/DetourCommon.cpp',
+    'Detour/Source/DetourNavMesh.cpp',
+    'Detour/Source/DetourNavMeshBuilder.cpp',
+    'DetourTileCache/Source/DetourTileCache.cpp',
+    'DetourTileCache/Source/DetourTileCacheBuilder.cpp',
+    'evobot/src/sdk_util.cpp',
+    'evobot/src/dllapi.cpp',
+    'evobot/src/meta_api.cpp',
+    'evobot/src/engine_api.cpp',
+    'evobot/src/h_export.cpp',
+    'evobot/src/game_state.cpp',
+	'evobot/src/player_util.cpp',
+    'evobot/src/general_util.cpp',
+    'evobot/src/bot_task.cpp',
+    'evobot/src/bot_alien.cpp',
+    'evobot/src/bot_client.cpp',
+    'evobot/src/bot_commander.cpp',
+    'evobot/src/bot_config.cpp',
+    'evobot/src/bot_marine.cpp',
+    'evobot/src/bot_math.cpp',
+    'evobot/src/bot_navigation.cpp',
+    'evobot/src/bot_tactical.cpp',
+    'evobot/src/bot_util.cpp',
+    'evobot/src/bot_weapons.cpp',
+]
+builder.Add(library)

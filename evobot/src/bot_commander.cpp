@@ -2830,13 +2830,13 @@ void QueueSiegeHiveAction(bot_t* CommanderBot, const Vector Area, int Priority)
 
 			int NumSiegeTurrets = UTIL_GetNumPlacedStructuresOfTypeInRadius(STRUCTURE_MARINE_SIEGETURRET, TurretFactory->v.origin, UTIL_MetresToGoldSrcUnits(10.0f));
 
-			if (NumSiegeTurrets < 4 && UTIL_GetQueuedBuildRequestsOfType(CommanderBot, STRUCTURE_MARINE_SIEGETURRET) == 0)
+			if (NumSiegeTurrets < 3 && UTIL_GetQueuedBuildRequestsOfTypeInArea(CommanderBot, STRUCTURE_MARINE_SIEGETURRET, Area, UTIL_MetresToGoldSrcUnits(20.0f)) == 0)
 			{
-				Vector BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(BUILDING_REGULAR_NAV_PROFILE, TurretFactory->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
+				Vector BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(BUILDING_REGULAR_NAV_PROFILE, TurretFactory->v.origin, 1100.0f);
 
 				if (BuildLocation != ZERO_VECTOR && UTIL_PointIsDirectlyReachable(TurretFactory->v.origin, BuildLocation) && vDist2DSq(BuildLocation, HiveIndex->Location) < sqrf(1100.0f))
 				{
-					UTIL_CommanderQueueStructureBuildAtLocation(CommanderBot, BuildLocation, STRUCTURE_MARINE_SIEGETURRET, 0);
+					UTIL_CommanderQueueStructureBuildAtLocation(CommanderBot, BuildLocation, STRUCTURE_MARINE_SIEGETURRET, 1);
 				}
 			}
 

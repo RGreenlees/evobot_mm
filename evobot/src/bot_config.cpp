@@ -20,6 +20,8 @@
 #include <algorithm>
 #include <unordered_map>
 
+#include <vector>
+
 constexpr auto MAX_BOT_NAMES = 100;
 
 
