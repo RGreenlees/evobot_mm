@@ -1672,7 +1672,7 @@ void UTIL_GenerateGuardWatchPoints(bot_t* pBot, const Vector& GuardLocation)
 
 		if (UTIL_QuickTrace(pEdict, GuardLocation + Vector(0.0f, 0.0f, 10.0f), Hive->Location) || vDist2DSq(GuardLocation, Hive->Location) < sqrf(UTIL_MetresToGoldSrcUnits(10.0f))) { continue; }
 
-		dtStatus SearchResult = FindPathToPoint(MoveProfileIndex, UTIL_GetFloorUnderEntity(Hive->edict), GuardLocation, path, &pathSize, true);
+		dtStatus SearchResult = FindPathClosestToPoint(MoveProfileIndex, Hive->FloorLocation, GuardLocation, path, &pathSize, 500.0f);
 
 		if (dtStatusSucceed(SearchResult))
 		{
@@ -1687,7 +1687,7 @@ void UTIL_GenerateGuardWatchPoints(bot_t* pBot, const Vector& GuardLocation)
 
 	if (vDist2DSq(GuardLocation, UTIL_GetCommChairLocation()) > sqrf(UTIL_MetresToGoldSrcUnits(20.0f)))
 	{
-		dtStatus SearchResult = FindPathToPoint(MoveProfileIndex, UTIL_GetCommChairLocation(), GuardLocation, path, &pathSize, true);
+		dtStatus SearchResult = FindPathClosestToPoint(MoveProfileIndex, UTIL_GetCommChairLocation(), GuardLocation, path, &pathSize, 500.0f);
 
 		if (dtStatusSucceed(SearchResult))
 		{
