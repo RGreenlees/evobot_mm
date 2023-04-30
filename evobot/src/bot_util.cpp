@@ -928,6 +928,7 @@ void UTIL_ClearAllBotData(bot_t* pBot)
 		fflush(pBot->logFile);
 		fclose(pBot->logFile);
 	}
+
 }
 
 void BotUpdateViewRotation(bot_t* pBot, float DeltaTime)

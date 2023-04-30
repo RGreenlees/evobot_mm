@@ -126,6 +126,23 @@ void GAME_Reset()
 	last_bot_count_check_time = 0.0f;
 }
 
+void GAME_RemoveAllBotsInReadyRoom()
+{
+	char cmd[80];
+
+	for (int i = 0; i < 32; i++)
+	{
+		if (bots[i].is_used && !FNullEnt(bots[i].pEdict) && IsPlayerInReadyRoom(bots[i].pEdict))
+		{
+			sprintf(cmd, "kick \"%s\"\n", STRING(bots[i].pEdict->v.netname));
+
+			SERVER_COMMAND(cmd);  // kick the bot using (kick "name")
+
+			memset(&bots[i], 0, sizeof(bot_t));
+		}
+	}
+}
+
 void GAME_RemoveAllBots()
 {
 	char cmd[80];
@@ -391,7 +408,11 @@ void GAME_BotCreate(edict_t* pPlayer, int Team)
 void GAME_UpdateBotCounts()
 {
 	// Don't do any population checks while the game is in the ended state, as nobody can join a team so it can't assess the player counts properly
-	if (GameStatus == kGameStatusEnded) { return; }
+	if (GameStatus == kGameStatusEnded)
+	{
+		GAME_RemoveAllBotsInReadyRoom();
+		return; 
+	}
 
 	BotFillMode FillMode = CONFIG_GetBotFillMode();
 
@@ -617,6 +638,22 @@ void GAME_HandleManualFillTeams()
 	}
 }
 
+int GAME_GetNumBotsInGame()
+{
+	int Result = 0;
+
+	for (int i = 0; i < MAX_CLIENTS; i++)
+	{
+		if (bots[i].is_used && !FNullEnt(bots[i].pEdict))
+		{
+			Result++;
+		}
+
+	}
+
+	return Result;
+}
+
 int GAME_GetNumBotsOnTeam(const int Team)
 {
 	int Result = 0;
@@ -658,7 +695,7 @@ void GAME_RemoveBotFromTeam(const int Team)
 
 	for (int i = 0; i < 32; i++)
 	{
-		if (bots[i].is_used && !FNullEnt(bots[i].pEdict) && bots[i].pEdict->v.team == TeamToRemoveFrom)
+		if (bots[i].is_used && bots[i].bot_team == TeamToRemoveFrom)
 		{
 			if (TeamToRemoveFrom == ALIEN_TEAM)
 			{
@@ -715,8 +752,6 @@ void GAME_RemoveBotFromTeam(const int Team)
 			memset(BotPointerToKick, 0, sizeof(bot_t));
 		}
 	}
-
-
 }
 
 void GAME_AddBotToTeam(const int Team)

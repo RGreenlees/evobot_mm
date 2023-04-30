@@ -51,6 +51,7 @@ EvobotDebugMode GAME_GetDebugMode();
 void GAME_OnGameStart();
 
 void GAME_RemoveAllBots();
+void GAME_RemoveAllBotsInReadyRoom();
 
 void EvoBot_ServerCommand(void);
 
