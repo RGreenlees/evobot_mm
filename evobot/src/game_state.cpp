@@ -26,6 +26,8 @@ int IsDedicatedServer = 0;
 
 edict_t* listenserver_edict = nullptr;
 
+int GameStatus = 0;
+
 bool bGameHasStarted = false;
 bool bGameIsActive = false;
 float GameStartTime = 0.0f;
@@ -157,7 +159,7 @@ int GAME_GetNumPlayersOnTeam(const int Team)
 {
 	int Result = 0;
 
-	for (int i = 0; i < 32; i++)
+	for (int i = 0; i < MAX_CLIENTS; i++)
 	{
 		if (!FNullEnt(clients[i]) && clients[i]->v.team == Team) { Result++; }
 	}
@@ -165,9 +167,21 @@ int GAME_GetNumPlayersOnTeam(const int Team)
 	return Result;
 }
 
+int GAME_GetNumHumansOnTeam(const int Team)
+{
+	int Result = 0;
+
+	for (int i = 0; i < MAX_CLIENTS; i++)
+	{
+		if (!FNullEnt(clients[i]) && IsPlayerHuman(clients[i]) && clients[i]->v.team == Team) { Result++; }
+	}
+
+	return Result;
+}
+
 bool GAME_IsAnyHumanOnTeam(const int Team)
 {
-	for (int i = 0; i < 32; i++)
+	for (int i = 0; i < MAX_CLIENTS; i++)
 	{
 		if (!clients[i]) { continue; }
 
@@ -376,6 +390,9 @@ void GAME_BotCreate(edict_t* pPlayer, int Team)
 
 void GAME_UpdateBotCounts()
 {
+	// Don't do any population checks while the game is in the ended state, as nobody can join a team so it can't assess the player counts properly
+	if (GameStatus == kGameStatusEnded) { return; }
+
 	BotFillMode FillMode = CONFIG_GetBotFillMode();
 
 	switch (FillMode)
@@ -604,7 +621,7 @@ int GAME_GetNumBotsOnTeam(const int Team)
 {
 	int Result = 0;
 
-	for (int i = 0; i < 32; i++)
+	for (int i = 0; i < MAX_CLIENTS; i++)
 	{
 		if (bots[i].is_used && bots[i].bot_team == Team)
 		{

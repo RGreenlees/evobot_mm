@@ -63,6 +63,8 @@ extern bool bGameIsActive;
 
 extern bool bGameHasStarted;
 
+extern int GameStatus;
+
 extern float last_think_time;
 
 extern float last_bot_count_check_time;
@@ -468,6 +470,47 @@ void ClientCommand(edict_t* pEntity)
 		RETURN_META(MRES_SUPERCEDE);
 	}
 
+	const int		kGameStatusReset = 0;
+	const int		kGameStatusResetNewMap = 1;
+	const int		kGameStatusEnded = 2;
+	const int		kGameStatusGameTime = 3;
+	const int		kGameStatusUnspentLevels = 4;
+
+	if (FStrEq(pcmd, "gamestatus"))
+	{
+		if (!NavmeshLoaded())
+		{
+			UTIL_SayText("Navmesh is not loaded", pEntity);
+			RETURN_META(MRES_SUPERCEDE);
+		}
+
+		switch (GameStatus)
+		{
+			case kGameStatusReset:
+				UTIL_SayText("Game Status: RESET\n", pEntity);
+				break;
+			case kGameStatusResetNewMap:
+				UTIL_SayText("Game Status: RESET MAP\n", pEntity);
+				break;
+			case kGameStatusEnded:
+				UTIL_SayText("Game Status: ENDED\n", pEntity);
+				break;
+			case kGameStatusGameTime:
+				UTIL_SayText("Game Status: TIME\n", pEntity);
+				break;
+			case kGameStatusUnspentLevels:
+				UTIL_SayText("Game Status: UNSPENT\n", pEntity);
+				break;
+			default:
+				UTIL_SayText("Game Status: OTHER\n", pEntity);
+				break;
+		}
+
+		RETURN_META(MRES_SUPERCEDE);
+	}
+
+
+
 	if (FStrEq(pcmd, "getcloak"))
 	{
 		if (!NavmeshLoaded())
@@ -489,6 +532,8 @@ void ClientCommand(edict_t* pEntity)
 
 		RETURN_META(MRES_SUPERCEDE);
 	}
+
+
 
 	if (FStrEq(pcmd, "evolvegorge"))
 	{

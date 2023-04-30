@@ -46,7 +46,7 @@ extern bot_weapon_t weapon_defs[MAX_WEAPONS]; // array of weapon definitions
 extern bot_t bots[MAX_CLIENTS];
 extern edict_t* clients[MAX_CLIENTS];
 extern bool bGameIsActive;
-
+extern int GameStatus;
 
 
 // This message is sent when a client joins the game.  All of the weapons
@@ -586,6 +586,8 @@ void BotClient_NS_GameStatus(void* p, int bot_index)
 	if (state == 0)
 	{
 		StatusCode = *(int*)p;
+
+		GameStatus = *(int*)p;
 
 		if (StatusCode == kGameStatusGameTime)
 		{

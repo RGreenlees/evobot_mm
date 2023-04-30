@@ -27,6 +27,7 @@ void GAME_SetListenServerEdict(edict_t* ListenEdict);
 void GAME_ClearClientList();
 
 int GAME_GetNumPlayersOnTeam(const int Team);
+int GAME_GetNumHumansOnTeam(const int Team);
 
 bool GAME_IsAnyHumanOnTeam(const int Team);
 
