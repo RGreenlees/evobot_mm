@@ -926,7 +926,25 @@ void BotProgressAttackTask(bot_t* pBot, bot_task* Task)
 	// Don't allow bots to crowd around a structure, otherwise they get in each others way
 	if (NumPlayersAttacking >= 2)
 	{
-		BotGuardLocation(pBot, Task->TaskTarget->v.origin);
+		int EnemyStructureTeam = Task->TaskTarget->v.team;
+
+		edict_t* NewTarget = UTIL_GetNearestUnattackedStructureOfTeamInLocation(Task->TaskTarget->v.origin, Task->TaskTarget, EnemyStructureTeam, UTIL_MetresToGoldSrcUnits(10.0f));
+		
+		if (!FNullEnt(NewTarget))
+		{
+			Task->TaskTarget = NewTarget;
+			Task->TaskLocation = NewTarget->v.origin;
+			return;
+		}
+
+		Vector GuardLocation = pBot->GuardInfo.GuardLocation;
+
+		if (!GuardLocation || vDist2DSq(GuardLocation, Task->TaskTarget->v.origin) > sqrf(UTIL_MetresToGoldSrcUnits(5.0f)))
+		{
+			GuardLocation = UTIL_GetRandomPointOnNavmeshInDonut(BUILDING_REGULAR_NAV_PROFILE, Task->TaskTarget->v.origin, UTIL_MetresToGoldSrcUnits(3.0f), UTIL_MetresToGoldSrcUnits(5.0f));
+		}
+		
+		BotGuardLocation(pBot, GuardLocation);
 		return;
 	}
 

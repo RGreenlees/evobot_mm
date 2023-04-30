@@ -4400,3 +4400,67 @@ const char* UTIL_DroppableItemTypeToChar(const NSDeployableItem ItemType)
 
 	return "Invalid";
 }
+
+edict_t* UTIL_GetNearestUnattackedStructureOfTeamInLocation(const Vector Location, edict_t* IgnoreStructure, const int Team, const float SearchRadius)
+{
+	edict_t* Result = NULL;
+	float MinDist = 0.0f;
+	float MaxDist = sqrf(SearchRadius);
+
+	int IgnoreIndex = (!FNullEnt(IgnoreStructure)) ? ENTINDEX(IgnoreStructure) : -1;
+
+	bool bMarineStructures = (Team == MARINE_TEAM);
+	int AttackerTeam = (Team == MARINE_TEAM) ? ALIEN_TEAM : MARINE_TEAM;
+
+	if (bMarineStructures)
+	{
+		for (auto& it : MarineBuildableStructureMap)
+		{
+			if (!it.second.bOnNavmesh) { continue; }
+			if(it.first == IgnoreIndex) { continue; }
+
+			float thisDist = vDist2DSq(it.second.Location, Location);
+
+			if (thisDist > MaxDist) { continue; }
+
+			int NumPlayersAttacking = UTIL_GetNumPlayersOfTeamInArea(it.second.edict->v.origin, UTIL_MetresToGoldSrcUnits(1.5f), AttackerTeam, nullptr, CLASS_GORGE, false);
+
+			if (NumPlayersAttacking >= 2) { continue; }
+
+			if (!Result || thisDist < MinDist)
+			{
+				Result = it.second.edict;
+				MinDist = thisDist;
+			}
+
+		}
+	}
+	else
+	{
+		for (auto& it : AlienBuildableStructureMap)
+		{
+			if (!it.second.bOnNavmesh) { continue; }
+			if (it.first == IgnoreIndex) { continue; }
+
+			float thisDist = vDist2DSq(it.second.Location, Location);
+
+			if (thisDist > MaxDist) { continue; }
+
+			int NumPlayersAttacking = UTIL_GetNumPlayersOfTeamInArea(it.second.edict->v.origin, UTIL_MetresToGoldSrcUnits(1.5f), AttackerTeam, nullptr, CLASS_GORGE, false);
+
+			if (NumPlayersAttacking >= 2) { continue; }
+
+			
+
+			if (!Result || thisDist < MinDist)
+			{
+				Result = it.second.edict;
+				MinDist = thisDist;
+			}
+
+		}
+
+	}
+
+	return Result;
+}
