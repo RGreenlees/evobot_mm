@@ -1670,6 +1670,8 @@ void UTIL_GenerateGuardWatchPoints(bot_t* pBot, const Vector& GuardLocation)
 
 		if (!Hive || FNullEnt(Hive->edict)) { continue; }
 
+		if (UTIL_QuickTrace(pEdict, GuardLocation + Vector(0.0f, 0.0f, 10.0f), Hive->Location) || vDist2DSq(GuardLocation, Hive->Location) < sqrf(UTIL_MetresToGoldSrcUnits(10.0f))) { continue; }
+
 		dtStatus SearchResult = FindPathToPoint(MoveProfileIndex, UTIL_GetFloorUnderEntity(Hive->edict), GuardLocation, path, &pathSize, true);
 
 		if (dtStatusSucceed(SearchResult))
