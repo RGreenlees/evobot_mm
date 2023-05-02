@@ -676,3 +676,12 @@ float UTIL_GetVelocityRequiredToReachTarget(const Vector StartLocation, const Ve
 
 	return velocity;
 }
+
+Vector UTIL_GetRandomPointInBoundingBox(const Vector BoxMin, const Vector BoxMax)
+{
+	float RandX = frandrange(BoxMin.x, BoxMax.x);
+	float RandY = frandrange(BoxMin.y, BoxMax.y);
+	float RandZ = frandrange(BoxMin.z, BoxMax.z);
+
+	return Vector(RandX, RandY, RandZ);
+}

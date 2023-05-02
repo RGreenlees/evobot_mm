@@ -746,8 +746,6 @@ void UpdateCommanderOrders(bot_t* Commander)
 
 void UpdateCommanderActions(bot_t* Commander)
 {
-	LinkCommanderActionsToDroppedItems(Commander);
-
 	if (gpGlobals->time < Commander->next_commander_action_time) { return; }
 
 	// Loop through all actions, starting with highest priority (0 = highest, 4 = lowest), stop when there's an action we can progress
@@ -1472,49 +1470,6 @@ bool UTIL_ResearchInProgress(NSResearch Research)
 	}
 
 	return false;
-}
-
-
-
-void LinkCommanderActionsToDroppedItems(bot_t* Commander)
-{
-	for (int Priority = 0; Priority < MAX_ACTION_PRIORITIES; Priority++)
-	{
-		for (int ActionIndex = 0; ActionIndex < MAX_PRIORITY_ACTIONS; ActionIndex++)
-		{
-			commander_action* action = &Commander->CurrentCommanderActions[Priority][ActionIndex];
-
-			if (action->bIsActive && action->ActionType == ACTION_DROPITEM && action->StructureOrItem == nullptr)
-			{
-
-				for (int ItemIndex = 0; ItemIndex < NumTotalMarineItems; ItemIndex++)
-				{
-					if (AllMarineItems[ItemIndex].ItemType == action->ItemToDeploy)
-					{
-						if (UTIL_ItemIsAlreadyLinked(Commander, AllMarineItems[ItemIndex].edict))
-						{
-							continue;
-						}
-
-						if (vDist2DSq(AllMarineItems[ItemIndex].Location, action->BuildLocation) > sqrf(UTIL_MetresToGoldSrcUnits(10.0f)))
-						{
-							continue;
-						}
-
-						action->StructureOrItem = AllMarineItems[ItemIndex].edict;
-						UTIL_LinkItem(Commander, AllMarineItems[ItemIndex].edict);
-
-						if (action->ItemToDeploy == ITEM_MARINE_SCAN)
-						{
-							Commander->CommanderLastScanTime = gpGlobals->time;
-						}
-
-						break;
-					}
-				}
-			}
-		}
-	}
 }
 
 bool UTIL_ItemIsAlreadyLinked(bot_t* Commander, edict_t* Item)

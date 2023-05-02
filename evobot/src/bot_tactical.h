@@ -50,6 +50,8 @@ typedef struct _BUILDABLE_STRUCTURE
 	int LastSeen = 0; // Which refresh cycle was this last seen on? Used to determine if the building has been removed from play
 	unsigned int ObstacleRef = 0; // If the building places an obstacle on the nav mesh, hold the reference so it can be removed if building is destroyed
 	bool bOnNavmesh = false; // Is the building on the nav mesh? Used to determine if the building ended up out of play or sinking into the floor somehow
+	bool bIsReachableMarine = false; // Is the building reachable by marines? Checks from the comm chair location
+	bool bIsReachableAlien = false; // Is the building reachable by aliens? Checks from the comm chair location
 	Vector LastSuccessfulCommanderLocation = ZERO_VECTOR; // Tracks the last commander view location where it successfully placed or selected the building
 	Vector LastSuccessfulCommanderAngle = ZERO_VECTOR; // Tracks the last commander input angle ("click" location) used to successfully place or select building
 
@@ -62,7 +64,8 @@ typedef struct _DROPPED_MARINE_ITEM
 	Vector Location = ZERO_VECTOR; // Origin of the entity
 	NSDeployableItem ItemType = ITEM_NONE; // Is it a weapon, health pack, ammo pack etc?
 	bool bOnNavMesh = false; // Is it on the nav mesh? Important to prevent bots trying to grab stuff that's inaccessible
-
+	bool bIsReachableMarine = false; // Is the item reachable by marines? Checks from the comm chair location
+	int LastSeen = 0; // Which refresh cycle was this last seen on? Used to determine if the item has been removed from play
 } dropped_marine_item;
 
 // Data structure to hold information about each hive in the map
@@ -86,6 +89,8 @@ static const float structure_inventory_refresh_rate = 0.2f;
 
 // Increments by 1 every time the structure list is refreshed. Used to detect if structures have been destroyed and no longer show up
 static int StructureRefreshFrame = 0;
+// Increments by 1 every time the item list is refreshed. Used to detect if items have been removed from play and no longer show up
+static int ItemRefreshFrame = 0;
 
 // How frequently to update the global list of dropped marine items (in seconds)
 static const float item_inventory_refresh_rate = 0.1f;
@@ -111,6 +116,7 @@ unsigned char UTIL_GetAreaForObstruction(NSStructureType StructureType);
 float UTIL_GetStructureRadiusForObstruction(NSStructureType StructureType);
 bool UTIL_ShouldStructureCollide(NSStructureType StructureType);
 void UTIL_UpdateBuildableStructure(edict_t* Structure);
+void UTIL_UpdateMarineItem(edict_t* Item, NSDeployableItem ItemType);
 
 // Will cycle through all structures in the map and update the marine and alien buildable structure maps
 void UTIL_RefreshBuildableStructures();
@@ -130,9 +136,10 @@ NSWeapon UTIL_GetWeaponTypeFromEdict(const edict_t* ItemEdict);
 
 void UTIL_OnStructureCreated(buildable_structure* NewStructure);
 void UTIL_OnStructureDestroyed(const NSStructureType Structure, const Vector Location);
-//void UTIL_OnStructureDestroyed(const buildable_structure* DestroyedStructure);
+void UTIL_OnItemDropped(const dropped_marine_item* NewItem);
 
 void UTIL_LinkPlacedStructureToAction(bot_t* CommanderBot, buildable_structure* NewStructure);
+void UTIL_LinkDroppedItemToAction(bot_t* CommanderBot, const dropped_marine_item* NewItem);
 
 // Is there a hive with the alien tech (Defence, Sensory, Movement) assigned to it?
 bool UTIL_ActiveHiveWithTechExists(HiveTechStatus Tech);
@@ -182,9 +189,9 @@ edict_t* UTIL_GetClosestStructureAtLocation(const Vector& Location, bool bMarine
 
 edict_t* UTIL_GetNearestItemOfType(const NSDeployableItem ItemType, const Vector Location, const float SearchDist);
 
-const dropped_marine_item* UTIL_GetNearestItemIndexOfType(const NSDeployableItem ItemType, const Vector Location, const float SearchDist);
-const dropped_marine_item* UTIL_GetNearestSpecialPrimaryWeapon(const Vector Location, const float SearchDist, bool bUsePhaseDist);
-const dropped_marine_item* UTIL_GetNearestEquipment(const Vector Location, const float SearchDist, bool bUsePhaseDist);
+edict_t* UTIL_GetNearestItemIndexOfType(const NSDeployableItem ItemType, const Vector Location, const float SearchDist);
+edict_t* UTIL_GetNearestSpecialPrimaryWeapon(const Vector Location, const NSDeployableItem ExcludeItem, const float SearchDist, bool bUsePhaseDist);
+edict_t* UTIL_GetNearestEquipment(const Vector Location, const float SearchDist, bool bUsePhaseDist);
 
 edict_t* UTIL_GetNearestUnbuiltStructureWithLOS(bot_t* pBot, const Vector Location, const float SearchDist, const int Team);
 

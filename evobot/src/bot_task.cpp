@@ -877,10 +877,25 @@ void BotProgressBuildTask(bot_t* pBot, bot_task* Task)
 	if (UTIL_PlayerHasLOSToEntity(pBot->pEdict, Task->TaskTarget, max_player_use_reach, false))
 	{
 		BotUseObject(pBot, Task->TaskTarget, true);
-		if (vDist2DSq(pBot->pEdict->v.origin, Task->TaskTarget->v.origin) > sqrf(60.0f))
+
+		if (IsPlayerMarine(pBot->pEdict))
 		{
-			MoveDirectlyTo(pBot, Task->TaskTarget->v.origin);
+			if (pBot->pEdict->v.weaponmodel != 0)
+			{
+				if (vDist2DSq(pBot->pEdict->v.origin, Task->TaskTarget->v.origin) > sqrf(60.0f))
+				{
+					MoveDirectlyTo(pBot, Task->TaskTarget->v.origin);
+				}
+				else
+				{
+					Vector NewViewPoint = UTIL_GetRandomPointInBoundingBox(Task->TaskTarget->v.absmin, Task->TaskTarget->v.absmax);
+
+					BotLookAt(pBot, NewViewPoint);
+				}
+			}
 		}
+		
+
 		return;
 	}
 
@@ -992,8 +1007,16 @@ void BotProgressAttackTask(bot_t* pBot, bot_task* Task)
 			}
 		}
 
-
-		MoveTo(pBot, Task->TaskTarget->v.origin, MOVESTYLE_NORMAL);
+		if (vDist2DSq(pBot->pEdict->v.origin, Task->TaskTarget->v.origin) < sqrf(60.0f))
+		{
+			Vector MoveDir = UTIL_GetVectorNormal2D(pBot->pEdict->v.origin - Task->TaskTarget->v.origin);
+			MoveDirectlyTo(pBot, Task->TaskTarget->v.origin + (MoveDir * 75.0f));
+		}
+		else
+		{
+			MoveTo(pBot, Task->TaskTarget->v.origin, MOVESTYLE_NORMAL);
+		}
+		
 	}
 
 }

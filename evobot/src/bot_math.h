@@ -176,4 +176,6 @@ Vector UTIL_GetAimLocationToLeadTarget(const Vector ShooterLocation, const Vecto
 // If flying through the air (e.g. blink), what velocity does the bot need to land on the target spot?
 float UTIL_GetVelocityRequiredToReachTarget(const Vector StartLocation, const Vector TargetLocation, float Gravity);
 
+Vector UTIL_GetRandomPointInBoundingBox(const Vector BoxMin, const Vector BoxMax);
+
 #endif

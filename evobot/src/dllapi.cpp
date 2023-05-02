@@ -509,7 +509,12 @@ void ClientCommand(edict_t* pEntity)
 		RETURN_META(MRES_SUPERCEDE);
 	}
 
+	if (FStrEq(pcmd, "breakpoint"))
+	{
+		UTIL_SayText("BREAK\n", pEntity);
 
+		RETURN_META(MRES_SUPERCEDE);
+	}
 
 	if (FStrEq(pcmd, "getcloak"))
 	{

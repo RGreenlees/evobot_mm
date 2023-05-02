@@ -344,6 +344,8 @@ void MarineSetSecondaryTask(bot_t* pBot, bot_task* Task)
 {
 	if (Task->TaskType == TASK_BUILD) { return; }
 
+	int MarineNavProfile = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
+
 	edict_t* UnbuiltStructure = UTIL_FindClosestMarineStructureUnbuiltWithoutBuilders(pBot, 2, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(30.0f), true);
 
 	if (!FNullEnt(UnbuiltStructure))
@@ -1257,14 +1259,14 @@ void MarineCheckWantsAndNeeds(bot_t* pBot)
 
 	if (bUrgentlyNeedsHealth)
 	{
-		const dropped_marine_item* HealthPackIndex = UTIL_GetNearestItemIndexOfType(ITEM_MARINE_HEALTHPACK, pEdict->v.origin, UTIL_MetresToGoldSrcUnits(15.0f));
+		edict_t* HealthPackIndex = UTIL_GetNearestItemIndexOfType(ITEM_MARINE_HEALTHPACK, pEdict->v.origin, UTIL_MetresToGoldSrcUnits(15.0f));
 
 		if (HealthPackIndex)
 		{
 			pBot->WantsAndNeedsTask.TaskType = TASK_GET_HEALTH;
 			pBot->WantsAndNeedsTask.bOrderIsUrgent = true;
-			pBot->WantsAndNeedsTask.TaskLocation = HealthPackIndex->Location;
-			pBot->WantsAndNeedsTask.TaskTarget = HealthPackIndex->edict;
+			pBot->WantsAndNeedsTask.TaskLocation = HealthPackIndex->v.origin;
+			pBot->WantsAndNeedsTask.TaskTarget = HealthPackIndex;
 
 			return;
 		}
@@ -1289,22 +1291,22 @@ void MarineCheckWantsAndNeeds(bot_t* pBot)
 	{
 		if (pBot->WantsAndNeedsTask.TaskType != TASK_GET_WEAPON)
 		{
-			const dropped_marine_item* NewWeaponIndex = UTIL_GetNearestSpecialPrimaryWeapon(pEdict->v.origin, UTIL_MetresToGoldSrcUnits(15.0f), true);
+			NSDeployableItem ExcludeItem = (pBot->CurrentRole == BOT_ROLE_SWEEPER) ? ITEM_MARINE_GRENADELAUNCHER : ITEM_NONE;
+
+			edict_t* NewWeaponIndex = UTIL_GetNearestSpecialPrimaryWeapon(pEdict->v.origin, ExcludeItem, UTIL_MetresToGoldSrcUnits(15.0f), true);
+
 
 			if (NewWeaponIndex)
 			{
 				// Don't grab the good stuff if there are humans who need it. Sweepers don't need grenade launchers
-				if (!UTIL_IsAnyHumanNearLocationWithoutSpecialWeapon(NewWeaponIndex->Location, UTIL_MetresToGoldSrcUnits(10.0f)))
+				if (!UTIL_IsAnyHumanNearLocationWithoutSpecialWeapon(NewWeaponIndex->v.origin, UTIL_MetresToGoldSrcUnits(10.0f)))
 				{
-					if (pBot->CurrentRole != BOT_ROLE_SWEEPER || NewWeaponIndex->ItemType != ITEM_MARINE_GRENADELAUNCHER)
-					{
-						pBot->WantsAndNeedsTask.TaskType = TASK_GET_WEAPON;
-						pBot->WantsAndNeedsTask.bOrderIsUrgent = false;
-						pBot->WantsAndNeedsTask.TaskLocation = NewWeaponIndex->Location;
-						pBot->WantsAndNeedsTask.TaskTarget = NewWeaponIndex->edict;
+					pBot->WantsAndNeedsTask.TaskType = TASK_GET_WEAPON;
+					pBot->WantsAndNeedsTask.bOrderIsUrgent = false;
+					pBot->WantsAndNeedsTask.TaskLocation = NewWeaponIndex->v.origin;
+					pBot->WantsAndNeedsTask.TaskTarget = NewWeaponIndex;
 
-						return;
-					}
+					return;
 				}
 			}
 			else
@@ -1330,14 +1332,14 @@ void MarineCheckWantsAndNeeds(bot_t* pBot)
 
 	if (bNeedsAmmo)
 	{
-		const dropped_marine_item* AmmoPackIndex = UTIL_GetNearestItemIndexOfType(ITEM_MARINE_AMMO, pEdict->v.origin, UTIL_MetresToGoldSrcUnits(10.0f));
+		edict_t* AmmoPackIndex = UTIL_GetNearestItemIndexOfType(ITEM_MARINE_AMMO, pEdict->v.origin, UTIL_MetresToGoldSrcUnits(10.0f));
 
 		if (AmmoPackIndex)
 		{
 			pBot->WantsAndNeedsTask.TaskType = TASK_GET_AMMO;
 			pBot->WantsAndNeedsTask.bOrderIsUrgent = BotGetPrimaryWeaponAmmoReserve(pBot) == 0;
-			pBot->WantsAndNeedsTask.TaskLocation = AmmoPackIndex->Location;
-			pBot->WantsAndNeedsTask.TaskTarget = AmmoPackIndex->edict;
+			pBot->WantsAndNeedsTask.TaskLocation = AmmoPackIndex->v.origin;
+			pBot->WantsAndNeedsTask.TaskTarget = AmmoPackIndex;
 
 			return;
 		}
@@ -1367,16 +1369,16 @@ void MarineCheckWantsAndNeeds(bot_t* pBot)
 	{
 		if (pBot->WantsAndNeedsTask.TaskType != TASK_GET_WEAPON)
 		{
-			const dropped_marine_item* WelderIndex = UTIL_GetNearestItemIndexOfType(ITEM_MARINE_WELDER, pEdict->v.origin, UTIL_MetresToGoldSrcUnits(15.0f));
+			edict_t* WelderIndex = UTIL_GetNearestItemIndexOfType(ITEM_MARINE_WELDER, pEdict->v.origin, UTIL_MetresToGoldSrcUnits(15.0f));
 
 			if (WelderIndex)
 			{
-				if (!UTIL_IsAnyHumanNearLocationWithoutWeapon(WEAPON_MARINE_WELDER, WelderIndex->Location, UTIL_MetresToGoldSrcUnits(5.0f)))
+				if (!UTIL_IsAnyHumanNearLocationWithoutWeapon(WEAPON_MARINE_WELDER, WelderIndex->v.origin, UTIL_MetresToGoldSrcUnits(5.0f)))
 				{
 					pBot->WantsAndNeedsTask.TaskType = TASK_GET_WEAPON;
 					pBot->WantsAndNeedsTask.bOrderIsUrgent = false;
-					pBot->WantsAndNeedsTask.TaskLocation = WelderIndex->Location;
-					pBot->WantsAndNeedsTask.TaskTarget = WelderIndex->edict;
+					pBot->WantsAndNeedsTask.TaskLocation = WelderIndex->v.origin;
+					pBot->WantsAndNeedsTask.TaskTarget = WelderIndex;
 
 					return;
 				}
@@ -1392,18 +1394,18 @@ void MarineCheckWantsAndNeeds(bot_t* pBot)
 	{
 		if (pBot->WantsAndNeedsTask.TaskType != TASK_GET_EQUIPMENT)
 		{
-			const dropped_marine_item* EquipmentIndex = UTIL_GetNearestEquipment(pEdict->v.origin, UTIL_MetresToGoldSrcUnits(15.0f), true);
+			edict_t* EquipmentIndex = UTIL_GetNearestEquipment(pEdict->v.origin, UTIL_MetresToGoldSrcUnits(15.0f), true);
 
 			if (EquipmentIndex)
 			{
 				// Don't grab the good stuff if there are humans who need it
-				if (!UTIL_IsAnyHumanNearLocationWithoutEquipment(EquipmentIndex->Location, UTIL_MetresToGoldSrcUnits(10.0f)))
+				if (!UTIL_IsAnyHumanNearLocationWithoutEquipment(EquipmentIndex->v.origin, UTIL_MetresToGoldSrcUnits(10.0f)))
 				{
 
 					pBot->WantsAndNeedsTask.TaskType = TASK_GET_EQUIPMENT;
 					pBot->WantsAndNeedsTask.bOrderIsUrgent = false;
-					pBot->WantsAndNeedsTask.TaskLocation = EquipmentIndex->Location;
-					pBot->WantsAndNeedsTask.TaskTarget = EquipmentIndex->edict;
+					pBot->WantsAndNeedsTask.TaskLocation = EquipmentIndex->v.origin;
+					pBot->WantsAndNeedsTask.TaskTarget = EquipmentIndex;
 
 					return;
 				}

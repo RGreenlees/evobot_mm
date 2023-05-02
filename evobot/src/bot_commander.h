@@ -104,8 +104,6 @@ bool UTIL_ResearchIsAlreadyQueued(bot_t* pBot, NSResearch Research);
 bool UTIL_HasIdleArmsLab();
 edict_t* UTIL_GetFirstIdleArmsLab();
 
-void LinkCommanderActionsToDroppedItems(bot_t* Commander);
-
 bool UTIL_ItemIsAlreadyLinked(bot_t* Commander, edict_t* Item);
 
 void UTIL_LinkItem(bot_t* Commander, edict_t* Item);
