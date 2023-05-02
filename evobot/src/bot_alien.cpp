@@ -317,6 +317,7 @@ void AlienBuilderSetPrimaryTask(bot_t* pBot, bot_task* Task)
 	// If we already have a build task then do nothing
 	if (Task->TaskType == TASK_BUILD) { return; }
 
+	int MoveProfile = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
 
 	NSStructureType TechChamberToBuild = STRUCTURE_NONE;
 	const hive_definition* HiveIndex = nullptr;
@@ -343,11 +344,11 @@ void AlienBuilderSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 	if (HiveIndex && TechChamberToBuild != STRUCTURE_NONE)
 	{
-		Vector NearestPointToHive = FindClosestNavigablePointToDestination(BUILDING_REGULAR_NAV_PROFILE, pBot->pEdict->v.origin, HiveIndex->FloorLocation, UTIL_MetresToGoldSrcUnits(3.0f));
+		Vector NearestPointToHive = FindClosestNavigablePointToDestination(MoveProfile, pBot->pEdict->v.origin, HiveIndex->FloorLocation, UTIL_MetresToGoldSrcUnits(10.0f));
 
 		if (NearestPointToHive == ZERO_VECTOR)
 		{
-			NearestPointToHive = HiveIndex->FloorLocation;
+			NearestPointToHive = pBot->pEdict->v.origin;
 		}
 
 		Vector BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(BUILDING_REGULAR_NAV_PROFILE, NearestPointToHive, UTIL_MetresToGoldSrcUnits(5.0f));
@@ -381,11 +382,11 @@ void AlienBuilderSetPrimaryTask(bot_t* pBot, bot_task* Task)
 			TechChamberToBuild = UTIL_GetChamberTypeForHiveTech(HiveTechThree);
 		}
 
-		Vector NearestPoint = FindClosestNavigablePointToDestination(BUILDING_REGULAR_NAV_PROFILE, pBot->pEdict->v.origin, HiveIndex->FloorLocation, UTIL_MetresToGoldSrcUnits(3.0f));
+		Vector NearestPoint = FindClosestNavigablePointToDestination(MoveProfile, pBot->pEdict->v.origin, HiveIndex->FloorLocation, UTIL_MetresToGoldSrcUnits(10.0f));
 
 		if (NearestPoint == ZERO_VECTOR)
 		{
-			NearestPoint = HiveIndex->FloorLocation;
+			NearestPoint = pBot->pEdict->v.origin;
 		}
 
 		Vector BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(BUILDING_REGULAR_NAV_PROFILE, NearestPoint, UTIL_MetresToGoldSrcUnits(5.0f));
@@ -431,12 +432,23 @@ void AlienBuilderSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 		if (HiveNeedsSupporting)
 		{
-			Vector BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(BUILDING_REGULAR_NAV_PROFILE, HiveNeedsSupporting->FloorLocation, UTIL_MetresToGoldSrcUnits(5.0f));
+			Vector NearestPointToHive = FindClosestNavigablePointToDestination(MoveProfile, pBot->pEdict->v.origin, HiveNeedsSupporting->FloorLocation, UTIL_MetresToGoldSrcUnits(10.0f));
 
-			Task->TaskType = TASK_BUILD;
-			Task->TaskLocation = BuildLocation;
-			Task->StructureType = STRUCTURE_ALIEN_DEFENCECHAMBER;
-			Task->bOrderIsUrgent = false;
+			if (NearestPointToHive != ZERO_VECTOR)
+			{
+				Vector BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(BUILDING_REGULAR_NAV_PROFILE, NearestPointToHive, UTIL_MetresToGoldSrcUnits(5.0f));
+
+				if (BuildLocation != ZERO_VECTOR)
+				{
+					Task->TaskType = TASK_BUILD;
+					Task->TaskLocation = BuildLocation;
+					Task->StructureType = STRUCTURE_ALIEN_DEFENCECHAMBER;
+					Task->bOrderIsUrgent = false;
+					return;
+				}
+			}
+
+			
 		}
 	}
 
@@ -447,12 +459,21 @@ void AlienBuilderSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 		if (HiveNeedsSupporting)
 		{
-			Vector BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(BUILDING_REGULAR_NAV_PROFILE, HiveNeedsSupporting->FloorLocation, UTIL_MetresToGoldSrcUnits(5.0f));
+			Vector NearestPointToHive = FindClosestNavigablePointToDestination(MoveProfile, pBot->pEdict->v.origin, HiveNeedsSupporting->FloorLocation, UTIL_MetresToGoldSrcUnits(10.0f));
 
-			Task->TaskType = TASK_BUILD;
-			Task->TaskLocation = BuildLocation;
-			Task->StructureType = STRUCTURE_ALIEN_MOVEMENTCHAMBER;
-			Task->bOrderIsUrgent = false;
+			if (NearestPointToHive != ZERO_VECTOR)
+			{
+				Vector BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(BUILDING_REGULAR_NAV_PROFILE, NearestPointToHive, UTIL_MetresToGoldSrcUnits(5.0f));
+
+				if (BuildLocation != ZERO_VECTOR)
+				{
+					Task->TaskType = TASK_BUILD;
+					Task->TaskLocation = BuildLocation;
+					Task->StructureType = STRUCTURE_ALIEN_MOVEMENTCHAMBER;
+					Task->bOrderIsUrgent = false;
+					return;
+				}
+			}
 		}
 	}
 
@@ -463,12 +484,22 @@ void AlienBuilderSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 		if (HiveNeedsSupporting)
 		{
-			Vector BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(BUILDING_REGULAR_NAV_PROFILE, HiveNeedsSupporting->FloorLocation, UTIL_MetresToGoldSrcUnits(5.0f));
+			Vector NearestPointToHive = FindClosestNavigablePointToDestination(MoveProfile, pBot->pEdict->v.origin, HiveNeedsSupporting->FloorLocation, UTIL_MetresToGoldSrcUnits(10.0f));
 
-			Task->TaskType = TASK_BUILD;
-			Task->TaskLocation = BuildLocation;
-			Task->StructureType = STRUCTURE_ALIEN_SENSORYCHAMBER;
-			Task->bOrderIsUrgent = false;
+			if (NearestPointToHive != ZERO_VECTOR)
+			{
+				Vector BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(BUILDING_REGULAR_NAV_PROFILE, NearestPointToHive, UTIL_MetresToGoldSrcUnits(5.0f));
+
+				if (BuildLocation != ZERO_VECTOR)
+				{
+					Task->TaskType = TASK_BUILD;
+					Task->TaskLocation = BuildLocation;
+					Task->StructureType = STRUCTURE_ALIEN_SENSORYCHAMBER;
+					Task->bOrderIsUrgent = false;
+					return;
+				}
+				
+			}
 		}
 	}
 
@@ -546,11 +577,27 @@ void AlienDestroyerSetPrimaryTask(bot_t* pBot, bot_task* Task)
 	{
 		if (pBot->resources >= kFadeEvolutionCost)
 		{
+			Vector EvolveLocation = ZERO_VECTOR;
+
+			const hive_definition* NearestHive = UTIL_GetNearestHiveOfStatus(pBot->pEdict->v.origin, HIVE_STATUS_BUILT);
+
+			if (NearestHive)
+			{
+				int MoveProfile = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
+				EvolveLocation = FindClosestNavigablePointToDestination(MoveProfile, pBot->CurrentFloorPosition, NearestHive->FloorLocation, UTIL_MetresToGoldSrcUnits(10.0f));
+			}
+
+			if (EvolveLocation == ZERO_VECTOR)
+			{
+				EvolveLocation = pBot->pEdict->v.origin;
+			}
+
 			if (pBot->resources >= kOnosEvolutionCost)
 			{
 				Task->TaskType = TASK_EVOLVE;
 				Task->Evolution = IMPULSE_ALIEN_EVOLVE_ONOS;
 				Task->bOrderIsUrgent = true;
+				Task->TaskLocation = EvolveLocation;
 				return;
 			}
 
@@ -561,6 +608,7 @@ void AlienDestroyerSetPrimaryTask(bot_t* pBot, bot_task* Task)
 				Task->TaskType = TASK_EVOLVE;
 				Task->Evolution = IMPULSE_ALIEN_EVOLVE_FADE;
 				Task->bOrderIsUrgent = true;
+				Task->TaskLocation = EvolveLocation;
 				return;
 			}
 		}
@@ -571,6 +619,7 @@ void AlienDestroyerSetPrimaryTask(bot_t* pBot, bot_task* Task)
 		Task->TaskType = TASK_EVOLVE;
 		Task->Evolution = IMPULSE_ALIEN_EVOLVE_SKULK;
 		Task->bOrderIsUrgent = true;
+		Task->TaskLocation = pBot->pEdict->v.origin;
 		return;
 	}
 
@@ -1375,25 +1424,42 @@ void AlienCheckWantsAndNeeds(bot_t* pBot)
 	if (bLowOnHealth && !IsPlayerGorge(pBot->pEdict))
 	{
 
-		edict_t* HealingSource = nullptr;
-
-		if (pBot->bot_ns_class == CLASS_GORGE)
-		{
-			HealingSource = pEdict;
-		}
-		else
-		{
-			HealingSource = UTIL_AlienFindNearestHealingSpot(pBot, pEdict->v.origin);
-		}
-
+		edict_t* HealingSource = UTIL_AlienFindNearestHealingSpot(pBot, pEdict->v.origin);
 
 		if (!FNullEnt(HealingSource))
 		{
-			pBot->WantsAndNeedsTask.TaskType = TASK_GET_HEALTH;
-			pBot->WantsAndNeedsTask.TaskTarget = HealingSource;
-			pBot->WantsAndNeedsTask.TaskLocation = UTIL_GetFloorUnderEntity(HealingSource);
-			pBot->WantsAndNeedsTask.bOrderIsUrgent = true;
-			return;
+			int MoveProfile = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
+
+			float HealRange = 0.0f;
+
+			if (IsEdictStructure(HealingSource))
+			{
+				NSStructureType StructType = GetStructureTypeFromEdict(HealingSource);
+
+				if (StructType == STRUCTURE_ALIEN_HIVE)
+				{
+					HealRange = kHiveHealRadius * 0.9f;
+				}
+				else
+				{
+					HealRange = kDefensiveChamberHealRange * 0.9f;
+				}
+			}
+			else
+			{
+				HealRange = kHealingSprayRange;
+			}
+
+			Vector NearestPoint = FindClosestNavigablePointToDestination(MoveProfile, pBot->pEdict->v.origin, UTIL_GetFloorUnderEntity(HealingSource), HealRange);
+
+			if (NearestPoint != ZERO_VECTOR)
+			{
+				pBot->WantsAndNeedsTask.TaskType = TASK_GET_HEALTH;
+				pBot->WantsAndNeedsTask.TaskTarget = HealingSource;
+				pBot->WantsAndNeedsTask.TaskLocation = NearestPoint;
+				pBot->WantsAndNeedsTask.bOrderIsUrgent = true;
+				return;
+			}
 		}
 
 	}

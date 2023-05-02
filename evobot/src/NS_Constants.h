@@ -131,12 +131,15 @@ const int kAcidRocketVelocity = 2000;
 const float kBiteRange = 60.0f;
 const float kBite2Range = 60.0f; // Lerk bite range
 
-const float kHealingSprayRange = 300.0f;
+const float kHealingSprayRange = 100.0f;
 
 const float kSwipeRange = 60.0f; // Fade swipe range
 
 const float kClawsRange = 90.0f; // Onos gore range
 const float kDevourRange = 100.0f; // Onos gore range
+
+const float kDefensiveChamberHealRange = 400.0f;
+const float kHiveHealRadius = 500.0f;
 
 // TODO: Try and retrieve these from balance variables rather than hard-coded
 #define kInfantryPortalCost 20
@@ -153,6 +156,8 @@ const float kDevourRange = 100.0f; // Onos gore range
 #define kSiegeCost 15
 #define kSiegeTurretRange 1100
 #define kCommandStationCost 20
+
+
 
 #define kArmorOneResearchCost 20
 #define kArmorTwoResearchCost 30

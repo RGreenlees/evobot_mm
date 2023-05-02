@@ -84,6 +84,7 @@ void BotReceiveCommanderOrder(bot_t* pBot, AvHOrderType orderType, AvHUser3 Targ
 
 void BotDropWeapon(bot_t* pBot);
 void BotThrowGrenadeAtTarget(bot_t* pBot, const Vector TargetPoint);
+void BotReloadWeapons(bot_t* pBot);
 
 bool IsBotReloading(bot_t* pBot);
 

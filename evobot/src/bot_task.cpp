@@ -772,6 +772,11 @@ void BotProgressMoveTask(bot_t* pBot, bot_task* Task)
 {
 	MoveTo(pBot, Task->TaskLocation, MOVESTYLE_HIDE);
 	Task->TaskStartedTime = gpGlobals->time;
+
+	if (IsPlayerMarine(pBot->pEdict))
+	{
+		BotReloadWeapons(pBot);
+	}
 }
 
 void BotProgressPickupTask(bot_t* pBot, bot_task* Task)
@@ -901,6 +906,11 @@ void BotProgressBuildTask(bot_t* pBot, bot_task* Task)
 
 	MoveTo(pBot, Task->TaskTarget->v.origin, MOVESTYLE_NORMAL);
 
+	if (IsPlayerMarine(pBot->pEdict))
+	{
+		BotReloadWeapons(pBot);
+	}
+
 	if (vDist2DSq(pBot->pEdict->v.origin, Task->TaskTarget->v.origin) < sqrf(UTIL_MetresToGoldSrcUnits(5.0f)))
 	{
 		BotLookAt(pBot, UTIL_GetCentreOfEntity(Task->TaskTarget));
@@ -910,6 +920,11 @@ void BotProgressBuildTask(bot_t* pBot, bot_task* Task)
 
 void BotProgressGuardTask(bot_t* pBot, bot_task* Task)
 {
+	if (IsPlayerMarine(pBot->pEdict))
+	{
+		BotReloadWeapons(pBot);
+	}
+
 	if (vDist2DSq(pBot->pEdict->v.origin, Task->TaskLocation) > sqrf(UTIL_MetresToGoldSrcUnits(5.0f)))
 	{
 		MoveTo(pBot, Task->TaskLocation, MOVESTYLE_NORMAL);
@@ -1007,7 +1022,9 @@ void BotProgressAttackTask(bot_t* pBot, bot_task* Task)
 			}
 		}
 
-		if (vDist2DSq(pBot->pEdict->v.origin, Task->TaskTarget->v.origin) < sqrf(60.0f))
+		float DistToTarget = vDist2DSq(pBot->pEdict->v.origin, Task->TaskTarget->v.origin);
+
+		if (DistToTarget < sqrf(60.0f))
 		{
 			Vector MoveDir = UTIL_GetVectorNormal2D(pBot->pEdict->v.origin - Task->TaskTarget->v.origin);
 			MoveDirectlyTo(pBot, Task->TaskTarget->v.origin + (MoveDir * 75.0f));
@@ -1015,6 +1032,14 @@ void BotProgressAttackTask(bot_t* pBot, bot_task* Task)
 		else
 		{
 			MoveTo(pBot, Task->TaskTarget->v.origin, MOVESTYLE_NORMAL);
+
+			if (DistToTarget > sqrf(UTIL_MetresToGoldSrcUnits(5.0f)))
+			{
+				if (IsPlayerMarine(pBot->pEdict))
+				{
+					BotReloadWeapons(pBot);
+				}
+			}
 		}
 		
 	}
@@ -1078,13 +1103,11 @@ void BotProgressEvolveTask(bot_t* pBot, bot_task* Task)
 	case IMPULSE_ALIEN_EVOLVE_FADE:
 	case IMPULSE_ALIEN_EVOLVE_ONOS:
 	{
-		const hive_definition* NearestHive = UTIL_GetNearestHiveOfStatus(pBot->pEdict->v.origin, HIVE_STATUS_BUILT);
-
-		if (NearestHive)
+		if (Task->TaskLocation != ZERO_VECTOR)
 		{
-			if (vDist2DSq(pBot->pEdict->v.origin, NearestHive->Location) > sqrf(UTIL_MetresToGoldSrcUnits(5.0f)))
+			if (vDist2DSq(pBot->pEdict->v.origin, Task->TaskLocation) > sqrf(UTIL_MetresToGoldSrcUnits(1.0f)))
 			{
-				MoveTo(pBot, NearestHive->FloorLocation, MOVESTYLE_NORMAL);
+				MoveTo(pBot, Task->TaskLocation, MOVESTYLE_NORMAL);
 				return;
 			}
 			else
@@ -1131,10 +1154,11 @@ void AlienProgressGetHealthTask(bot_t* pBot, bot_task* Task)
 		}
 	}
 
-
-	if (Task->TaskTarget)
+	if (!FNullEnt(Task->TaskTarget))
 	{
-		BotGuardLocation(pBot, Task->TaskTarget->v.origin);
+		Vector MoveLocation = (IsPlayerGorge(Task->TaskTarget)) ? Task->TaskTarget->v.origin : Task->TaskLocation;
+
+		BotGuardLocation(pBot, MoveLocation);
 
 		if (IsPlayerGorge(Task->TaskTarget) && vDist2DSq(pBot->pEdict->v.origin, Task->TaskTarget->v.origin) < sqrf(UTIL_MetresToGoldSrcUnits(2.0f)))
 		{
@@ -1282,6 +1306,8 @@ void AlienProgressBuildTask(bot_t* pBot, bot_task* Task)
 
 void AlienProgressCapResNodeTask(bot_t* pBot, bot_task* Task)
 {
+	Task->bOrderIsUrgent = (UTIL_GetNumPlacedStructuresOfType(STRUCTURE_ALIEN_RESTOWER) < 3);
+
 
 	float DistFromNode = vDist2DSq(pBot->pEdict->v.origin, Task->TaskLocation);
 
@@ -1533,6 +1559,9 @@ void MarineProgressCapResNodeTask(bot_t* pBot, bot_task* Task)
 	if (DistFromNode > sqrf(UTIL_MetresToGoldSrcUnits(5.0f)) || !UTIL_QuickTrace(pBot->pEdict, pBot->CurrentEyePosition, (Task->TaskLocation + Vector(0.0f, 0.0f, 50.0f))))
 	{
 		MoveTo(pBot, Task->TaskLocation, MOVESTYLE_NORMAL);
+
+		BotReloadWeapons(pBot);
+
 		return;
 	}
 

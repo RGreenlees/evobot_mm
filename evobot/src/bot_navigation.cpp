@@ -1946,7 +1946,7 @@ bool HasBotReachedPathPoint(const bot_t* pBot)
 			return (vDist2D(pEdict->v.origin, CurrentMoveDest) <= playerRadius && (pEdict->v.origin.z - CurrentMoveDest.z) < 50.0f && pBot->BotNavInfo.IsOnGround);
 		}
 	case SAMPLE_POLYAREA_WALLCLIMB:
-		return ((bAtOrPastDestination && (fabs(pBot->CurrentFloorPosition.z - CurrentMoveDest.z) < 50.0f)));
+		return (bAtOrPastDestination && pBot->CollisionHullTopLocation.z > CurrentMoveDest.z);
 	case SAMPLE_POLYAREA_LADDER:
 		if (CurrentMoveDest.z > PrevMoveDest.z)
 		{
@@ -2541,11 +2541,10 @@ bool IsBotOffPath(const bot_t* pBot)
 {
 	// Can't be off the path if we don't have one...
 	if (pBot->BotNavInfo.PathSize == 0) { return false; }
-	// Give us a chance to land before deciding we're off the path
-	if (!pBot->BotNavInfo.IsOnGround) { return false; }
+	
 
 	// Wall climbing and phase gates will cause all sorts of fuckery, don't even try and figure out if we're off-path...
-	if (pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].area == SAMPLE_POLYAREA_WALLCLIMB || pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].area == SAMPLE_POLYAREA_PHASEGATE)
+	if (pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].area == SAMPLE_POLYAREA_PHASEGATE)
 	{
 		return false;
 	}
@@ -2568,6 +2567,18 @@ bool IsBotOffPath(const bot_t* pBot)
 
 	Vector PointOnPath = vClosestPointOnLine2D(MoveFrom, MoveTo, pBot->CurrentFloorPosition);
 
+	if (pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].area == SAMPLE_POLYAREA_WALLCLIMB)
+	{
+		return (vEquals(PointOnPath, MoveTo, 2.0f) && !IsPlayerClimbingWall(pBot->pEdict) && pBot->CollisionHullTopLocation.z < MoveTo.z);
+	}
+
+
+	// Give us a chance to land before deciding we're off the path
+	if (!pBot->BotNavInfo.IsOnGround) { return false; }
+
+
+	
+
 
 
 	// TODO: This sucks
@@ -2578,7 +2589,6 @@ bool IsBotOffPath(const bot_t* pBot)
 		if (vEquals(PointOnPath, MoveFrom, 2.0f) && fabs(pBot->CurrentFloorPosition.z - MoveFrom.z) > PlayerHeight)
 		{
 			return true;
-
 		}
 
 		if (vEquals(PointOnPath, MoveTo, 2.0f) && fabs(pBot->CurrentFloorPosition.z - MoveTo.z) > PlayerHeight)
@@ -3556,7 +3566,6 @@ bool AbortCurrentMove(bot_t* pBot, const Vector NewDestination)
 
 	if (area == SAMPLE_POLYAREA_WALLCLIMB)
 	{
-
 		if (bReverseCourse)
 		{
 			FallMove(pBot, MoveTo, MoveFrom);
@@ -3711,7 +3720,7 @@ bool MoveTo(bot_t* pBot, const Vector Destination, const BotMoveStyle MoveStyle)
 	bool bMoveStyleChanged = (MoveStyle != pBot->BotNavInfo.MoveStyle);
 	bool bNavProfileChanged = (MoveProfile != pBot->BotNavInfo.LastMoveProfile);
 	bool bCanRecalculatePath = (gpGlobals->time - pBot->BotNavInfo.LastPathCalcTime > MIN_PATH_RECALC_TIME);
-	bool bDestinationChanged = (!vEquals(Destination, BotNavInfo->TargetDestination));
+	bool bDestinationChanged = (!vEquals(Destination, BotNavInfo->TargetDestination, 18.0f));
 
 	// Only recalculate the path if there isn't a path, or something has changed and enough time has elapsed since the last path calculation
 	bool bShouldCalculatePath = (BotNavInfo->PathSize == 0 || (bCanRecalculatePath && (bMoveStyleChanged || bNavProfileChanged || bDestinationChanged || BotNavInfo->bPendingRecalculation)));
@@ -3721,6 +3730,7 @@ bool MoveTo(bot_t* pBot, const Vector Destination, const BotMoveStyle MoveStyle)
 		// First abort our current move so we don't try to recalculate half-way up a wall or ladder
 		if (!AbortCurrentMove(pBot, Destination))
 		{
+			
 			return true;
 		}
 
@@ -3752,6 +3762,7 @@ bool MoveTo(bot_t* pBot, const Vector Destination, const BotMoveStyle MoveStyle)
 		{
 			BotNavInfo->ActualMoveDestination = BotNavInfo->CurrentPath[BotNavInfo->PathSize - 1].Location;
 			ClearBotStuckMovement(pBot);
+			pBot->BotNavInfo.TotalStuckTime = 0.0f;
 
 			BotNavInfo->CurrentPathPoint = 0;
 			sprintf(pBot->PathStatus, "Path finding successful");
@@ -3960,7 +3971,7 @@ Vector FindClosestNavigablePointToDestination(const int NavProfileIndex, const V
 
 	// Now we find a path backwards from the valid nav mesh point to our location, trying to get as close as we can to it
 
-	dtStatus PathFindingResult = FindPathClosestToPoint(BUILDING_REGULAR_NAV_PROFILE, FromLocation, ToLocation, Path, &PathSize, MaxAcceptableDistance);
+	dtStatus PathFindingResult = FindPathClosestToPoint(NavProfileIndex, FromLocation, ToLocation, Path, &PathSize, MaxAcceptableDistance);
 
 	if (dtStatusSucceed(PathFindingResult))
 	{
@@ -4740,6 +4751,7 @@ void ClearBotStuckMovement(bot_t* pBot)
 	pBot->BotNavInfo.UnstuckMoveLocation = ZERO_VECTOR;
 	pBot->BotNavInfo.UnstuckMoveLocationStartTime = 0.0f;
 	pBot->BotNavInfo.UnstuckMoveStartLocation = ZERO_VECTOR;
+	//pBot->BotNavInfo.TotalStuckTime = 0.0f;
 }
 
 void DEBUG_DrawBotNextPathPoint(bot_t* pBot)

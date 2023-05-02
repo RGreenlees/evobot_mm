@@ -779,6 +779,39 @@ void BotDropWeapon(bot_t* pBot)
 	pBot->pEdict->v.impulse = IMPULSE_MARINE_DROP_WEAPON;
 }
 
+void BotReloadWeapons(bot_t* pBot)
+{
+	if (gpGlobals->time - pBot->LastCombatTime > 5.0f)
+	{
+		NSWeapon PrimaryWeapon = GetBotMarinePrimaryWeapon(pBot);
+		NSWeapon SecondaryWeapon = GetBotMarineSecondaryWeapon(pBot);
+		NSWeapon CurrentWeapon = GetBotCurrentWeapon(pBot);
+
+		if (WeaponCanBeReloaded(PrimaryWeapon) && BotGetPrimaryWeaponClipAmmo(pBot) < BotGetPrimaryWeaponMaxClipSize(pBot) && BotGetPrimaryWeaponAmmoReserve(pBot) > 0)
+		{
+			pBot->DesiredCombatWeapon = PrimaryWeapon;
+
+			if (CurrentWeapon == PrimaryWeapon)
+			{
+				pBot->pEdict->v.button |= IN_RELOAD;
+				return;
+			}
+		}
+
+
+		if (WeaponCanBeReloaded(SecondaryWeapon) && BotGetSecondaryWeaponClipAmmo(pBot) < BotGetSecondaryWeaponMaxClipSize(pBot) && BotGetSecondaryWeaponAmmoReserve(pBot) > 0)
+		{
+			pBot->DesiredCombatWeapon = SecondaryWeapon;
+
+			if (CurrentWeapon == SecondaryWeapon)
+			{
+				pBot->pEdict->v.button |= IN_RELOAD;
+				return;
+			}
+		}
+	}
+}
+
 void BotThrowGrenadeAtTarget(bot_t* pBot, const Vector TargetPoint)
 {
 	float ProjectileSpeed = 800.0f;

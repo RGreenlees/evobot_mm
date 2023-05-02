@@ -1246,7 +1246,6 @@ void MarineCheckWantsAndNeeds(bot_t* pBot)
 		return;
 	}
 
-
 	bool bUrgentlyNeedsHealth = (pEdict->v.health < 50.0f);
 
 	// GL is a terrible choice to defend the base with...
