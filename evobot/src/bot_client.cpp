@@ -1102,7 +1102,6 @@ void BotClient_NS_AlienInfo_33(void* p, int bot_index)
 	{
 		if (!bHiveInfo)
 		{
-
 			NumUpgrades = *(int*)p;
 			currUpgrade = 0;
 			state++;

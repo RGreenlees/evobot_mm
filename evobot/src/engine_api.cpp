@@ -85,6 +85,10 @@ void pfnMessageBegin(int msg_dest, int msg_type, const float* pOrigin, edict_t* 
 	{
 		int index = -1;
 
+		botMsgFunction = NULL;     // no msg function until known otherwise
+		botMsgEndFunction = NULL;  // no msg end function until known otherwise
+		botMsgIndex = -1;       // index of bot receiving message
+
 		if (ed)
 		{
 			index = GetBotIndex(ed);
@@ -92,8 +96,6 @@ void pfnMessageBegin(int msg_dest, int msg_type, const float* pOrigin, edict_t* 
 			// is this message for a bot?
 			if (index != -1)
 			{
-				botMsgFunction = NULL;     // no msg function until known otherwise
-				botMsgEndFunction = NULL;  // no msg end function until known otherwise
 				botMsgIndex = index;       // index of bot receiving message
 
 				if (msg_type == GET_USER_MSG_ID(PLID, "SetOrder", NULL))
