@@ -1773,12 +1773,12 @@ dtStatus FindPathClosestToPoint(bot_t* pBot, const BotMoveStyle MoveStyle, const
 
 		TraceStart.x = path[(nVert)].Location.x;
 		TraceStart.y = path[(nVert)].Location.y;
-		TraceStart.z = path[(nVert)].Location.z;
+		TraceStart.z = path[(nVert)].Location.z + 5.0f;
 
 		if (pBot != nullptr)
 		{
 
-			UTIL_TraceLine(TraceStart, (TraceStart - Vector(0.0f, 0.0f, 100.0f)), ignore_monsters, ignore_glass, nullptr, &hit);
+			UTIL_TraceHull(TraceStart, (TraceStart - Vector(0.0f, 0.0f, 100.0f)), ignore_monsters, head_hull, nullptr, &hit);
 
 			if (hit.flFraction < 1.0f)
 			{

@@ -270,10 +270,14 @@ typedef struct _COMMANDER_ORDER
 // Tracks what orders have been given to which players
 typedef struct _BOT_SKILL
 {
-	float bot_reaction_time = 0.2f; // How quickly the bot will react to seeing an enemy
-	float bot_aim_skill = 0.5f; // How quickly the bot can lock on to an enemy
-	float bot_motion_tracking_skill = 0.5f; // How well the bot can follow an enemy target's motion
-	float bot_view_speed = 0.5f; // How fast a bot can spin its view to aim in a given direction
+	float marine_bot_reaction_time = 0.2f; // How quickly the bot will react to seeing an enemy
+	float marine_bot_aim_skill = 0.5f; // How quickly the bot can lock on to an enemy
+	float marine_bot_motion_tracking_skill = 0.5f; // How well the bot can follow an enemy target's motion
+	float marine_bot_view_speed = 0.5f; // How fast a bot can spin its view to aim in a given direction
+	float alien_bot_reaction_time = 0.2f; // How quickly the bot will react to seeing an enemy
+	float alien_bot_aim_skill = 0.5f; // How quickly the bot can lock on to an enemy
+	float alien_bot_motion_tracking_skill = 0.5f; // How well the bot can follow an enemy target's motion
+	float alien_bot_view_speed = 0.5f; // How fast a bot can spin its view to aim in a given direction
 
 } bot_skill;
 

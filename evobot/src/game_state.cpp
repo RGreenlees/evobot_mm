@@ -374,6 +374,8 @@ void GAME_BotCreate(edict_t* pPlayer, int Team)
 
 	pBot = &bots[index];
 
+	strcpy(pBot->name, c_name);
+
 	pBot->is_used = true;
 
 	//pBot->respawn_state = RESPAWN_IDLE;

@@ -97,7 +97,9 @@ void BotLookAt(bot_t* pBot, edict_t* target)
 
 	float Offset = frandrange(30.0f, 50.0f);
 
-	Offset -= Offset * pBot->BotSkillSettings.bot_motion_tracking_skill;
+	float motion_tracking_skill = (IsPlayerMarine(pBot->pEdict)) ? pBot->BotSkillSettings.marine_bot_motion_tracking_skill : pBot->BotSkillSettings.alien_bot_motion_tracking_skill;
+
+	Offset -= Offset * motion_tracking_skill;
 
 	if (randbool())
 	{
@@ -943,10 +945,7 @@ void UTIL_ClearAllBotData(bot_t* pBot)
 	pBot->LookTargetLocation = ZERO_VECTOR;
 	pBot->MoveLookLocation = ZERO_VECTOR;
 
-	pBot->BotSkillSettings.bot_aim_skill = 0.0f;
-	pBot->BotSkillSettings.bot_motion_tracking_skill = 0.0f;
-	pBot->BotSkillSettings.bot_reaction_time = 0.0f;
-	pBot->BotSkillSettings.bot_view_speed = 0.0f;
+	memset(&pBot->BotSkillSettings, 0, sizeof(bot_skill));
 
 	pBot->CurrentRole = BOT_ROLE_NONE;
 
@@ -1076,6 +1075,10 @@ void BotUpdateDesiredViewRotation(bot_t* pBot)
 
 	float maxDelta = fmaxf(fabsf(yDelta), fabsf(xDelta));
 
+	float motion_tracking_skill = (IsPlayerMarine(pBot->pEdict)) ? pBot->BotSkillSettings.marine_bot_motion_tracking_skill : pBot->BotSkillSettings.alien_bot_motion_tracking_skill;
+	float bot_view_speed = (IsPlayerMarine(pBot->pEdict)) ? pBot->BotSkillSettings.marine_bot_view_speed : pBot->BotSkillSettings.alien_bot_view_speed;
+	float bot_aim_skill = (IsPlayerMarine(pBot->pEdict)) ? pBot->BotSkillSettings.marine_bot_aim_skill : pBot->BotSkillSettings.alien_bot_aim_skill;
+
 	// We add a random offset to the view angles based on how far the bot has to move its view
 	// This simulates the fact that humans can't spin and lock their cross-hair exactly on the target, the further you have the spin, the more off your view will be first attempt
 	if (fabsf(maxDelta) >= 45.0f)
@@ -1084,12 +1087,12 @@ void BotUpdateDesiredViewRotation(bot_t* pBot)
 
 		if (!bIsMoveLook)
 		{
-			pBot->ViewInterpolationSpeed *= pBot->BotSkillSettings.bot_view_speed;
+			pBot->ViewInterpolationSpeed *= bot_view_speed;
 			float xOffset = frandrange(10.0f, 20.0f);
-			xOffset -= xOffset * pBot->BotSkillSettings.bot_aim_skill;
+			xOffset -= xOffset * bot_aim_skill;
 
 			float yOffset = frandrange(10.0f, 20.0f);
-			yOffset -= yOffset * pBot->BotSkillSettings.bot_aim_skill;
+			yOffset -= yOffset * bot_aim_skill;
 
 			if (randbool())
 			{
@@ -1113,12 +1116,12 @@ void BotUpdateDesiredViewRotation(bot_t* pBot)
 
 		if (!bIsMoveLook)
 		{
-			pBot->ViewInterpolationSpeed *= pBot->BotSkillSettings.bot_view_speed;
+			pBot->ViewInterpolationSpeed *= bot_view_speed;
 			float xOffset = frandrange(5.0f, 10.0f);
-			xOffset -= xOffset * pBot->BotSkillSettings.bot_aim_skill;
+			xOffset -= xOffset * bot_aim_skill;
 
 			float yOffset = frandrange(5.0f, 10.0f);
-			yOffset -= yOffset * pBot->BotSkillSettings.bot_aim_skill;
+			yOffset -= yOffset * bot_aim_skill;
 
 			if (randbool())
 			{
@@ -1140,12 +1143,12 @@ void BotUpdateDesiredViewRotation(bot_t* pBot)
 
 		if (!bIsMoveLook)
 		{
-			pBot->ViewInterpolationSpeed *= pBot->BotSkillSettings.bot_view_speed;
+			pBot->ViewInterpolationSpeed *= bot_view_speed;
 			float xOffset = frandrange(2.0f, 5.0f);
-			xOffset -= xOffset * pBot->BotSkillSettings.bot_aim_skill;
+			xOffset -= xOffset * bot_aim_skill;
 
 			float yOffset = frandrange(2.0f, 5.0f);
-			yOffset -= yOffset * pBot->BotSkillSettings.bot_aim_skill;
+			yOffset -= yOffset * bot_aim_skill;
 
 			if (randbool())
 			{
@@ -1163,7 +1166,7 @@ void BotUpdateDesiredViewRotation(bot_t* pBot)
 	}
 	else
 	{
-		pBot->ViewInterpolationSpeed = 50.0f * pBot->BotSkillSettings.bot_view_speed;
+		pBot->ViewInterpolationSpeed = 50.0f * bot_view_speed;
 	}
 
 	// We once again clamp everything to valid values in case the offsets we applied above took us above that
@@ -1222,10 +1225,12 @@ void BotUpdateView(bot_t* pBot)
 
 		bool bBotCanSeePlayer = IsPlayerVisibleToBot(pBot, Enemy);
 
+		float bot_reaction_time = (IsPlayerMarine(pBot->pEdict)) ? pBot->BotSkillSettings.marine_bot_reaction_time : pBot->BotSkillSettings.alien_bot_reaction_time;
+
 		if (bBotCanSeePlayer != TrackingInfo->bCurrentlyVisible)
 		{
 			TrackingInfo->bCurrentlyVisible = bBotCanSeePlayer;
-			TrackingInfo->NextUpdateTime = gpGlobals->time + pBot->BotSkillSettings.bot_reaction_time;
+			TrackingInfo->NextUpdateTime = gpGlobals->time + bot_reaction_time;
 			continue;
 		}
 
@@ -1242,7 +1247,7 @@ void BotUpdateView(bot_t* pBot)
 			if (BotVelocity != TrackingInfo->LastSeenVelocity)
 			{
 				TrackingInfo->PendingSeenVelocity = BotVelocity;
-				TrackingInfo->NextVelocityUpdateTime = gpGlobals->time + pBot->BotSkillSettings.bot_reaction_time;
+				TrackingInfo->NextVelocityUpdateTime = gpGlobals->time + bot_reaction_time;
 			}
 
 			TrackingInfo->bIsValidTarget = true;
@@ -1301,7 +1306,7 @@ void BotUpdateView(bot_t* pBot)
 // Checks to see if pBot can see player. Returns true if player is visible
 bool IsPlayerVisibleToBot(bot_t* Observer, edict_t* TargetPlayer)
 {
-	if (!TargetPlayer || IsPlayerBeingDigested(TargetPlayer) || IsPlayerCommander(TargetPlayer) || IsPlayerDead(TargetPlayer)) { return false; }
+	if (FNullEnt(TargetPlayer) || !IsPlayerActiveInGame(TargetPlayer) || GetPlayerCloakAmount(TargetPlayer) > 0.7f) { return false; }
 	// To make things a little more accurate, we're going to treat players as cylinders rather than boxes
 	for (int i = 0; i < 6; i++)
 	{

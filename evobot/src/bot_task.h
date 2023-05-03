@@ -52,13 +52,14 @@ void BotProgressTask(bot_t* pBot, bot_task* Task);
 void BotProgressMoveTask(bot_t* pBot, bot_task* Task);
 void BotProgressPickupTask(bot_t* pBot, bot_task* Task);
 void BotProgressGuardTask(bot_t* pBot, bot_task* Task);
-void BotProgressBuildTask(bot_t* pBot, bot_task* Task);
+
 void BotProgressResupplyTask(bot_t* pBot, bot_task* Task);
 void BotProgressAttackTask(bot_t* pBot, bot_task* Task);
 void BotProgressDefendTask(bot_t* pBot, bot_task* Task);
 void BotProgressTakeCommandTask(bot_t* pBot);
 void BotProgressEvolveTask(bot_t* pBot, bot_task* Task);
 
+void MarineProgressBuildTask(bot_t* pBot, bot_task* Task);
 void MarineProgressCapResNodeTask(bot_t* pBot, bot_task* Task);
 void MarineProgressWeldTask(bot_t* pBot, bot_task* Task);
 

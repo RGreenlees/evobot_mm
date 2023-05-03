@@ -329,6 +329,8 @@ int GetPlayerHullIndex(const edict_t* pEdict)
 
 	NSPlayerClass PlayerClass = GetPlayerClass(pEdict);
 
+	if (PlayerClass == CLASS_NONE) { return head_hull; }
+
 	bool bIsCrouching = (pEdict->v.flags & FL_DUCKING);
 
 	switch (PlayerClass)
@@ -777,5 +779,19 @@ bool PlayerHasAlienUpgradeOfType(const edict_t* Player, const HiveTechStatus Tec
 		return ((Player->v.iuser4 & MASK_UPGRADE_7) || (Player->v.iuser4 & MASK_UPGRADE_8) || (Player->v.iuser4 & MASK_UPGRADE_9));
 	default:
 		return false;
+	}
+}
+
+float GetPlayerCloakAmount(const edict_t* Player)
+{
+	if (!(Player->v.iuser4 & MASK_UPGRADE_7) && !(Player->v.iuser4 & MASK_SENSORY_NEARBY)) { return 0.0f; }
+
+	if (Player->v.iuser4 & MASK_VIS_SIGHTED)
+	{
+		return 0.0f; 
+	}
+	else
+	{
+		return 1.0f;
 	}
 }

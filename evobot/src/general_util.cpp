@@ -450,7 +450,7 @@ Vector UTIL_GetFloorUnderEntity(const edict_t* Edict)
 	if (FNullEnt(Edict)) { return ZERO_VECTOR; }
 
 	TraceResult hit;
-	UTIL_TraceLine(Edict->v.origin, (Edict->v.origin - Vector(0.0f, 0.0f, 1000.0f)), ignore_monsters, dont_ignore_glass, Edict->v.pContainingEntity, &hit);
+	UTIL_TraceHull(Edict->v.origin, (Edict->v.origin - Vector(0.0f, 0.0f, 1000.0f)), ignore_monsters, GetPlayerHullIndex(Edict), Edict->v.pContainingEntity, &hit);
 
 	if (hit.flFraction < 1.0f)
 	{

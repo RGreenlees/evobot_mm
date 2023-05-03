@@ -101,10 +101,14 @@ void ParseConfigFile(bool bOverride)
 
     BotSkillLevelsMap.clear();
 
-    BotSkillLevelsMap["default"].bot_aim_skill = 0.3f;
-    BotSkillLevelsMap["default"].bot_motion_tracking_skill = 0.3f;
-    BotSkillLevelsMap["default"].bot_reaction_time = 0.3f;
-    BotSkillLevelsMap["default"].bot_view_speed = 1.0f;
+    BotSkillLevelsMap["default"].marine_bot_aim_skill = 0.3f;
+    BotSkillLevelsMap["default"].marine_bot_motion_tracking_skill = 0.3f;
+    BotSkillLevelsMap["default"].marine_bot_reaction_time = 0.3f;
+    BotSkillLevelsMap["default"].marine_bot_view_speed = 1.0f;
+    BotSkillLevelsMap["default"].alien_bot_aim_skill = 0.5f;
+    BotSkillLevelsMap["default"].alien_bot_motion_tracking_skill = 0.5f;
+    BotSkillLevelsMap["default"].alien_bot_reaction_time = 0.3f;
+    BotSkillLevelsMap["default"].alien_bot_view_speed = 1.5f;
 
     CurrentSkillLevel = "default";
 
@@ -251,16 +255,20 @@ void ParseConfigFile(bool bOverride)
 
             if (key.compare("BotSkillName") == 0)
             {
-                BotSkillLevelsMap[value.c_str()].bot_aim_skill = 1.0f;
-                BotSkillLevelsMap[value.c_str()].bot_motion_tracking_skill = 1.0f;
-                BotSkillLevelsMap[value.c_str()].bot_reaction_time = 0.1f;
-                BotSkillLevelsMap[value.c_str()].bot_view_speed = 1.0f;
+                BotSkillLevelsMap[value.c_str()].marine_bot_aim_skill = 0.5f;
+                BotSkillLevelsMap[value.c_str()].marine_bot_motion_tracking_skill = 0.5f;
+                BotSkillLevelsMap[value.c_str()].marine_bot_reaction_time = 0.2f;
+                BotSkillLevelsMap[value.c_str()].marine_bot_view_speed = 1.0f;
+                BotSkillLevelsMap[value.c_str()].alien_bot_aim_skill = 0.5f;
+                BotSkillLevelsMap[value.c_str()].alien_bot_motion_tracking_skill = 0.5f;
+                BotSkillLevelsMap[value.c_str()].alien_bot_reaction_time = 0.2f;
+                BotSkillLevelsMap[value.c_str()].alien_bot_view_speed = 1.0f;
 
                 CurrentSkillLevel = value;
                 continue;
             }
 
-            if (key.compare("ReactionTime") == 0)
+            if (key.compare("MarineReactionTime") == 0)
             {
                 if (!isFloat(value.c_str()))
                 {
@@ -269,12 +277,26 @@ void ParseConfigFile(bool bOverride)
 
                 float NewValue = std::stof(value.c_str());
 
-                BotSkillLevelsMap[CurrentSkillLevel.c_str()].bot_reaction_time = clampf(NewValue, 0.0f, 1.0f);
+                BotSkillLevelsMap[CurrentSkillLevel.c_str()].marine_bot_reaction_time = clampf(NewValue, 0.0f, 1.0f);
 
                 continue;
             }
 
-            if (key.compare("AimSkill") == 0)
+            if (key.compare("AlienReactionTime") == 0)
+            {
+                if (!isFloat(value.c_str()))
+                {
+                    LOG_CONSOLE(PLID, "Invalid reaction time setting '%s' for skill level '%s', must be floating point value between 0.0 and 1.0\n", value.c_str(), CurrentSkillLevel.c_str());
+                }
+
+                float NewValue = std::stof(value.c_str());
+
+                BotSkillLevelsMap[CurrentSkillLevel.c_str()].alien_bot_reaction_time = clampf(NewValue, 0.0f, 1.0f);
+
+                continue;
+            }
+
+            if (key.compare("MarineAimSkill") == 0)
             {
                 if (!isFloat(value.c_str()))
                 {
@@ -283,12 +305,26 @@ void ParseConfigFile(bool bOverride)
 
                 float NewValue = std::stof(value.c_str());
 
-                BotSkillLevelsMap[CurrentSkillLevel.c_str()].bot_aim_skill = clampf(NewValue, 0.0f, 1.0f);
+                BotSkillLevelsMap[CurrentSkillLevel.c_str()].marine_bot_aim_skill = clampf(NewValue, 0.0f, 1.0f);
 
                 continue;
             }
 
-            if (key.compare("MovementTracking") == 0)
+            if (key.compare("AlienAimSkill") == 0)
+            {
+                if (!isFloat(value.c_str()))
+                {
+                    LOG_CONSOLE(PLID, "Invalid aim skill setting '%s' for skill level '%s', must be floating point value between 0.0 and 1.0\n", value.c_str(), CurrentSkillLevel.c_str());
+                }
+
+                float NewValue = std::stof(value.c_str());
+
+                BotSkillLevelsMap[CurrentSkillLevel.c_str()].alien_bot_aim_skill = clampf(NewValue, 0.0f, 1.0f);
+
+                continue;
+            }
+
+            if (key.compare("MarineMovementTracking") == 0)
             {
                 if (!isFloat(value.c_str()))
                 {
@@ -297,12 +333,26 @@ void ParseConfigFile(bool bOverride)
 
                 float NewValue = std::stof(value.c_str());
 
-                BotSkillLevelsMap[CurrentSkillLevel.c_str()].bot_motion_tracking_skill = clampf(NewValue, 0.0f, 1.0f);
+                BotSkillLevelsMap[CurrentSkillLevel.c_str()].marine_bot_motion_tracking_skill = clampf(NewValue, 0.0f, 1.0f);
 
                 continue;
             }
 
-            if (key.compare("ViewSpeed") == 0)
+            if (key.compare("AlienMovementTracking") == 0)
+            {
+                if (!isFloat(value.c_str()))
+                {
+                    LOG_CONSOLE(PLID, "Invalid movement tracking setting '%s' for skill level '%s', must be floating point value between 0.0 and 1.0\n", value.c_str(), CurrentSkillLevel.c_str());
+                }
+
+                float NewValue = std::stof(value.c_str());
+
+                BotSkillLevelsMap[CurrentSkillLevel.c_str()].alien_bot_motion_tracking_skill = clampf(NewValue, 0.0f, 1.0f);
+
+                continue;
+            }
+
+            if (key.compare("MarineViewSpeed") == 0)
             {
                 if (!isFloat(value.c_str()))
                 {
@@ -311,7 +361,21 @@ void ParseConfigFile(bool bOverride)
 
                 float NewValue = std::stof(value.c_str());
 
-                BotSkillLevelsMap[CurrentSkillLevel.c_str()].bot_view_speed = clampf(NewValue, 0.0f, 5.0f);
+                BotSkillLevelsMap[CurrentSkillLevel.c_str()].marine_bot_view_speed = clampf(NewValue, 0.0f, 5.0f);
+
+                continue;
+            }
+
+            if (key.compare("AlienViewSpeed") == 0)
+            {
+                if (!isFloat(value.c_str()))
+                {
+                    LOG_CONSOLE(PLID, "Invalid view speed setting '%s' for skill level '%s', must be floating point value between 0.0 and 5.0\n", value.c_str(), CurrentSkillLevel.c_str());
+                }
+
+                float NewValue = std::stof(value.c_str());
+
+                BotSkillLevelsMap[CurrentSkillLevel.c_str()].alien_bot_view_speed = clampf(NewValue, 0.0f, 5.0f);
 
                 continue;
             }

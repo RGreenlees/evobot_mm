@@ -103,7 +103,7 @@ bool UTIL_IsTaskUrgent(bot_t* pBot, bot_task* Task)
 	case TASK_GET_AMMO:
 		return (BotGetPrimaryWeaponAmmoReserve(pBot) == 0);
 	case TASK_GET_HEALTH:
-		return (pBot->pEdict->v.health < 50.0f);
+		return (IsPlayerMarine(pBot->pEdict)) ? (pBot->pEdict->v.health < 50.0f) : (GetPlayerOverallHealthPercent(pBot->pEdict) < 50.0f);
 	case TASK_ATTACK:
 	case TASK_GET_WEAPON:
 	case TASK_GET_EQUIPMENT:
@@ -346,17 +346,19 @@ bool UTIL_IsMoveTaskStillValid(bot_t* pBot, bot_task* Task)
 bool UTIL_IsWeldTaskStillValid(bot_t* pBot, bot_task* Task)
 {
 	if (!Task) { return false; }
-	if (FNullEnt(Task->TaskTarget) || Task->TaskTarget->v.deadflag != DEAD_NO) { return false; }
+	if (FNullEnt(Task->TaskTarget)) { return false; }
 	if (Task->TaskTarget == pBot->pEdict) { return false; }
 	if (!PlayerHasWeapon(pBot->pEdict, WEAPON_MARINE_WELDER)) { return false; }
 
 	if (IsEdictPlayer(Task->TaskTarget))
 	{
-		if (!IsPlayerMarine(Task->TaskTarget) || IsPlayerBeingDigested(Task->TaskTarget)) { return false; }
+		if (!IsPlayerMarine(Task->TaskTarget) || !IsPlayerActiveInGame(Task->TaskTarget)) { return false; }
 		return (Task->TaskTarget->v.armorvalue < GetPlayerMaxArmour(Task->TaskTarget));
 	}
 	else
 	{
+		if (!UTIL_IsBuildableStructureStillReachable(pBot, Task->TaskTarget)) { return false; }
+
 		return (Task->TaskTarget->v.health < Task->TaskTarget->v.max_health);
 	}
 }
@@ -365,7 +367,7 @@ bool UTIL_IsAmmoPickupTaskStillValid(bot_t* pBot, bot_task* Task)
 {
 	if (FNullEnt(Task->TaskTarget) || !IsPlayerMarine(pBot->pEdict) || !IsPlayerActiveInGame(pBot->pEdict) || (Task->TaskTarget->v.effects & EF_NODRAW)) { return false; }
 
-	if (!UTIL_PointIsReachable(MARINE_REGULAR_NAV_PROFILE, pBot->pEdict->v.origin, Task->TaskTarget->v.origin, 32.0f)) { return false; }
+	if (!UTIL_IsDroppedItemStillReachable(pBot, Task->TaskTarget)) { return false; }
 
 	return (vDist2DSq(pBot->pEdict->v.origin, Task->TaskTarget->v.origin) < sqrf(UTIL_MetresToGoldSrcUnits(20.0f))) && (BotGetPrimaryWeaponAmmoReserve(pBot) < BotGetPrimaryWeaponMaxAmmoReserve(pBot));
 }
@@ -374,7 +376,7 @@ bool UTIL_IsHealthPickupTaskStillValid(bot_t* pBot, bot_task* Task)
 {
 	if (FNullEnt(Task->TaskTarget) || !IsPlayerMarine(pBot->pEdict) || !IsPlayerActiveInGame(pBot->pEdict) || (Task->TaskTarget->v.effects & EF_NODRAW)) { return false; }
 
-	if (!UTIL_PointIsReachable(MARINE_REGULAR_NAV_PROFILE, pBot->pEdict->v.origin, Task->TaskTarget->v.origin, 32.0f)) { return false; }
+	if (!UTIL_IsDroppedItemStillReachable(pBot, Task->TaskTarget)) { return false; }
 
 	return ((vDist2DSq(pBot->pEdict->v.origin, Task->TaskTarget->v.origin) < sqrf(UTIL_MetresToGoldSrcUnits(20.0f))) && (pBot->pEdict->v.health < pBot->pEdict->v.max_health));
 }
@@ -383,7 +385,7 @@ bool UTIL_IsEquipmentPickupTaskStillValid(bot_t* pBot, bot_task* Task)
 {
 	if (FNullEnt(Task->TaskTarget) || !IsPlayerMarine(pBot->pEdict) || !IsPlayerActiveInGame(pBot->pEdict) || (Task->TaskTarget->v.effects & EF_NODRAW)) { return false; }
 
-	if (!UTIL_PointIsReachable(MARINE_REGULAR_NAV_PROFILE, pBot->pEdict->v.origin, Task->TaskTarget->v.origin, 32.0f)) { return false; }
+	if (!UTIL_IsDroppedItemStillReachable(pBot, Task->TaskTarget)) { return false; }
 
 	return !PlayerHasEquipment(pBot->pEdict);
 }
@@ -392,7 +394,7 @@ bool UTIL_IsWeaponPickupTaskStillValid(bot_t* pBot, bot_task* Task)
 {
 	if (FNullEnt(Task->TaskTarget) || !IsPlayerMarine(pBot->pEdict) || !IsPlayerActiveInGame(pBot->pEdict) || (Task->TaskTarget->v.effects & EF_NODRAW)) { return false; }
 
-	if (!UTIL_PointIsReachable(MARINE_REGULAR_NAV_PROFILE, pBot->pEdict->v.origin, Task->TaskTarget->v.origin, 32.0f)) { return false; }
+	if (!UTIL_IsDroppedItemStillReachable(pBot, Task->TaskTarget)) { return false; }
 
 	NSWeapon WeaponType = UTIL_GetWeaponTypeFromEdict(Task->TaskTarget);
 
@@ -407,9 +409,7 @@ bool UTIL_IsAttackTaskStillValid(bot_t* pBot, bot_task* Task)
 
 	if ((Task->TaskTarget->v.effects & EF_NODRAW) || (Task->TaskTarget->v.deadflag != DEAD_NO)) { return false; }
 
-	int NavProfileIndex = UTIL_GetMoveProfileForBot(pBot, pBot->BotNavInfo.MoveStyle);
-
-	if (!UTIL_PointIsOnNavmesh(NavProfileIndex, UTIL_GetEntityGroundLocation(Task->TaskTarget), Vector(max_player_use_reach, max_player_use_reach, max_player_use_reach))) { return false; }
+	if (!UTIL_IsBuildableStructureStillReachable(pBot, Task->TaskTarget)) { return false; }
 
 	if (IsPlayerSkulk(pBot->pEdict))
 	{
@@ -450,9 +450,7 @@ bool UTIL_IsResupplyTaskStillValid(bot_t* pBot, bot_task* Task)
 {
 	if (FNullEnt(Task->TaskTarget) || !IsPlayerMarine(pBot->pEdict) || !IsPlayerActiveInGame(pBot->pEdict) || (Task->TaskTarget->v.deadflag != DEAD_NO)) { return false; }
 
-	int NavProfileIndex = UTIL_GetMoveProfileForBot(pBot, pBot->BotNavInfo.MoveStyle);
-
-	if (!FNullEnt(Task->TaskTarget) && !UTIL_PointIsOnNavmesh(NavProfileIndex, UTIL_GetEntityGroundLocation(Task->TaskTarget), Vector(max_player_use_reach, max_player_use_reach, max_player_use_reach))) { return false; }
+	if (!UTIL_IsBuildableStructureStillReachable(pBot, Task->TaskTarget)) { return false; }
 
 	if (!UTIL_IsMarineStructure(Task->TaskTarget) || !UTIL_StructureTypesMatch(GetStructureTypeFromEdict(Task->TaskTarget), STRUCTURE_MARINE_ANYARMOURY) || !UTIL_StructureIsFullyBuilt(Task->TaskTarget) || UTIL_StructureIsRecycling(Task->TaskTarget)) { return false; }
 
@@ -478,7 +476,7 @@ bool UTIL_IsMarineBuildTaskStillValid(bot_t* pBot, bot_task* Task)
 {
 	if (FNullEnt(Task->TaskTarget) || (Task->TaskTarget->v.effects & EF_NODRAW) || (Task->TaskTarget->v.deadflag != DEAD_NO)) { return false; }
 
-	if (!FNullEnt(Task->TaskTarget) && !UTIL_PointIsOnNavmesh(BUILDING_REGULAR_NAV_PROFILE, UTIL_GetEntityGroundLocation(Task->TaskTarget), Vector(max_player_use_reach, max_player_use_reach, max_player_use_reach))) { return false; }
+	if (!UTIL_IsBuildableStructureStillReachable(pBot, Task->TaskTarget)) { return false; }
 
 	NSStructureType StructureType = GetStructureTypeFromEdict(Task->TaskTarget);
 
@@ -509,9 +507,7 @@ bool UTIL_IsAlienBuildTaskStillValid(bot_t* pBot, bot_task* Task)
 
 	if (Task->bIsWaitingForBuildLink && (gpGlobals->time - Task->LastBuildAttemptTime < 1.0f)) { return true; }
 
-	int NavProfileIndex = UTIL_GetMoveProfileForBot(pBot, pBot->BotNavInfo.MoveStyle);
-
-	if (!FNullEnt(Task->TaskTarget) && !UTIL_PointIsOnNavmesh(NavProfileIndex, UTIL_GetEntityGroundLocation(Task->TaskTarget), Vector(max_player_use_reach, max_player_use_reach, max_player_use_reach))) { return false; }
+	if (!FNullEnt(Task->TaskTarget) && !UTIL_IsBuildableStructureStillReachable(pBot, Task->TaskTarget)) { return false; }
 
 	if (Task->StructureType == STRUCTURE_ALIEN_HIVE)
 	{
@@ -706,6 +702,8 @@ bool UTIL_IsDefendTaskStillValid(bot_t* pBot, bot_task* Task)
 {
 	if (FNullEnt(Task->TaskTarget) || Task->TaskTarget->v.deadflag != DEAD_NO) { return false; }
 
+	if (!UTIL_IsBuildableStructureStillReachable(pBot, Task->TaskTarget)) { return false; }
+
 	if (Task->TaskTarget->v.team != pBot->pEdict->v.team) { return false; }
 
 	int NumExistingDefenders = UTIL_GetNumPlayersOfTeamInArea(Task->TaskTarget->v.origin, UTIL_MetresToGoldSrcUnits(10.0f), pBot->pEdict->v.team, pBot->pEdict, CLASS_GORGE, false);
@@ -745,6 +743,8 @@ bool UTIL_IsEvolveTaskStillValid(bot_t* pBot, bot_task* Task)
 bool UTIL_IsAlienGetHealthTaskStillValid(bot_t* pBot, bot_task* Task)
 {
 	if (FNullEnt(Task->TaskTarget) || (Task->TaskTarget->v.deadflag != DEAD_NO)) { return false; }
+
+	if (IsEdictStructure(Task->TaskTarget) && !UTIL_IsBuildableStructureStillReachable(pBot, Task->TaskTarget)) { return false; }
 
 	if (IsEdictPlayer(Task->TaskTarget))
 	{
@@ -850,7 +850,7 @@ void BotProgressResupplyTask(bot_t* pBot, bot_task* Task)
 
 }
 
-void BotProgressBuildTask(bot_t* pBot, bot_task* Task)
+void MarineProgressBuildTask(bot_t* pBot, bot_task* Task)
 {
 	edict_t* pEdict = pBot->pEdict;
 
@@ -870,33 +870,35 @@ void BotProgressBuildTask(bot_t* pBot, bot_task* Task)
 		}
 	}
 
-	// If someone else is building, then we will guard
-	edict_t* OtherBuilder = UTIL_GetClosestPlayerOnTeamWithLOS(Task->TaskLocation, MARINE_TEAM, UTIL_MetresToGoldSrcUnits(2.0f));
-
-	if (!FNullEnt(OtherBuilder) && OtherBuilder != pBot->pEdict)
+	// If we're not already building
+	if (pBot->pEdict->v.viewmodel != 0)
 	{
-		BotGuardLocation(pBot, Task->TaskLocation);
-		return;
+		// If someone else is building, then we will guard
+		edict_t* OtherBuilder = UTIL_GetClosestPlayerOnTeamWithLOS(Task->TaskLocation, MARINE_TEAM, UTIL_MetresToGoldSrcUnits(2.0f), pBot->pEdict);
+
+		if (!FNullEnt(OtherBuilder) && OtherBuilder->v.weaponmodel == 0)
+		{
+			BotGuardLocation(pBot, Task->TaskLocation);
+			return;
+		}
 	}
 
 	if (UTIL_PlayerHasLOSToEntity(pBot->pEdict, Task->TaskTarget, max_player_use_reach, false))
 	{
 		BotUseObject(pBot, Task->TaskTarget, true);
 
-		if (IsPlayerMarine(pBot->pEdict))
+		// Haven't started building, maybe not quite looking at the right angle
+		if (pBot->pEdict->v.weaponmodel != 0)
 		{
-			if (pBot->pEdict->v.weaponmodel != 0)
+			if (vDist2DSq(pBot->pEdict->v.origin, Task->TaskTarget->v.origin) > sqrf(60.0f))
 			{
-				if (vDist2DSq(pBot->pEdict->v.origin, Task->TaskTarget->v.origin) > sqrf(60.0f))
-				{
-					MoveDirectlyTo(pBot, Task->TaskTarget->v.origin);
-				}
-				else
-				{
-					Vector NewViewPoint = UTIL_GetRandomPointInBoundingBox(Task->TaskTarget->v.absmin, Task->TaskTarget->v.absmax);
+				MoveDirectlyTo(pBot, Task->TaskTarget->v.origin);
+			}
+			else
+			{
+				Vector NewViewPoint = UTIL_GetRandomPointInBoundingBox(Task->TaskTarget->v.absmin, Task->TaskTarget->v.absmax);
 
-					BotLookAt(pBot, NewViewPoint);
-				}
+				BotLookAt(pBot, NewViewPoint);
 			}
 		}
 		
@@ -951,7 +953,7 @@ void BotProgressAttackTask(bot_t* pBot, bot_task* Task)
 		return;
 	}
 
-	int NumPlayersAttacking = UTIL_GetNumPlayersOfTeamInArea(Task->TaskTarget->v.origin, UTIL_MetresToGoldSrcUnits(1.5f), pBot->pEdict->v.team, pBot->pEdict, CLASS_GORGE, false);
+	int NumPlayersAttacking = UTIL_GetNumPlayersOfTeamInArea(Task->TaskTarget->v.origin, UTIL_MetresToGoldSrcUnits(2.0f), pBot->pEdict->v.team, pBot->pEdict, CLASS_GORGE, false);
 
 	// Don't allow bots to crowd around a structure, otherwise they get in each others way
 	if (NumPlayersAttacking >= 2)
@@ -1000,7 +1002,7 @@ void BotProgressAttackTask(bot_t* pBot, bot_task* Task)
 		{
 			BotAttackTarget(pBot, Task->TaskTarget);
 
-			if (vDist2DSq(pBot->pEdict->v.origin, Task->TaskTarget->v.origin) > sqrf(60.0f))
+			if (vDist2DSq(pBot->pEdict->v.origin, Task->TaskTarget->v.origin) > sqrf(MaxRange))
 			{
 				MoveDirectlyTo(pBot, Task->TaskTarget->v.origin);
 			}
@@ -1024,10 +1026,11 @@ void BotProgressAttackTask(bot_t* pBot, bot_task* Task)
 
 		float DistToTarget = vDist2DSq(pBot->pEdict->v.origin, Task->TaskTarget->v.origin);
 
-		if (DistToTarget < sqrf(60.0f))
+		if (DistToTarget < sqrf(MaxRange))
 		{
+			BotAttackTarget(pBot, Task->TaskTarget);
 			Vector MoveDir = UTIL_GetVectorNormal2D(pBot->pEdict->v.origin - Task->TaskTarget->v.origin);
-			MoveDirectlyTo(pBot, Task->TaskTarget->v.origin + (MoveDir * 75.0f));
+			MoveDirectlyTo(pBot, Task->TaskTarget->v.origin + (MoveDir * MaxRange));
 		}
 		else
 		{
@@ -1041,9 +1044,7 @@ void BotProgressAttackTask(bot_t* pBot, bot_task* Task)
 				}
 			}
 		}
-		
 	}
-
 }
 
 void BotProgressDefendTask(bot_t* pBot, bot_task* Task)
@@ -1308,7 +1309,6 @@ void AlienProgressCapResNodeTask(bot_t* pBot, bot_task* Task)
 {
 	Task->bOrderIsUrgent = (UTIL_GetNumPlacedStructuresOfType(STRUCTURE_ALIEN_RESTOWER) < 3);
 
-
 	float DistFromNode = vDist2DSq(pBot->pEdict->v.origin, Task->TaskLocation);
 
 	if (DistFromNode > sqrf(UTIL_MetresToGoldSrcUnits(2.0f)) || !UTIL_QuickTrace(pBot->pEdict, pBot->CurrentEyePosition, (Task->TaskLocation + Vector(0.0f, 0.0f, 50.0f))))
@@ -1444,7 +1444,7 @@ void BotProgressTask(bot_t* pBot, bot_task* Task)
 	{
 		if (IsPlayerMarine(pBot->pEdict))
 		{
-			BotProgressBuildTask(pBot, Task);
+			MarineProgressBuildTask(pBot, Task);
 		}
 		else
 		{

@@ -516,30 +516,6 @@ void ClientCommand(edict_t* pEntity)
 		RETURN_META(MRES_SUPERCEDE);
 	}
 
-	if (FStrEq(pcmd, "getcloak"))
-	{
-		if (!NavmeshLoaded())
-		{
-			UTIL_SayText("Navmesh is not loaded", pEntity);
-			RETURN_META(MRES_SUPERCEDE);
-		}
-
-		for (int i = 0; i < gpGlobals->maxClients; i++)
-		{
-			if (bots[i].is_used)  // not respawning
-			{
-				if (IsPlayerOnAlienTeam(bots[i].pEdict) && !IsPlayerDead(bots[i].pEdict))
-				{
-					bots[i].pEdict->v.impulse = IMPULSE_ALIEN_UPGRADE_CLOAK;
-				}
-			}
-		}
-
-		RETURN_META(MRES_SUPERCEDE);
-	}
-
-
-
 	if (FStrEq(pcmd, "evolvegorge"))
 	{
 		if (!NavmeshLoaded())

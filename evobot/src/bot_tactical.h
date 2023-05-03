@@ -183,6 +183,9 @@ void AddMapLocation(const char* LocationName, Vector MinLocation, Vector MaxLoca
 
 char* UTIL_GetClosestMapLocationToPoint(const Vector Point);
 
+bool UTIL_IsBuildableStructureStillReachable(bot_t* pBot, const edict_t* Structure);
+bool UTIL_IsDroppedItemStillReachable(bot_t* pBot, const edict_t* Item);
+
 buildable_structure* UTIL_GetBuildableStructureRefFromEdict(const edict_t* Structure);
 
 edict_t* UTIL_GetClosestStructureAtLocation(const Vector& Location, bool bMarineStructures);
@@ -261,7 +264,7 @@ edict_t* UTIL_FindClosestMarineStructureToLocation(const Vector& Location, const
 bool UTIL_AnyMarinePlayerNearLocation(const Vector& Location, float SearchRadius);
 bool UTIL_AnyPlayerOnTeamWithLOS(const Vector& Location, const int Team, float SearchRadius);
 
-edict_t* UTIL_GetClosestPlayerOnTeamWithLOS(const Vector& Location, const int Team, float SearchRadius);
+edict_t* UTIL_GetClosestPlayerOnTeamWithLOS(const Vector& Location, const int Team, float SearchRadius, edict_t* IgnorePlayer);
 
 edict_t* UTIL_FindClosestMarineStructureUnbuilt(const Vector& SearchLocation, float SearchRadius, bool bUsePhaseDistance);
 edict_t* UTIL_FindClosestMarineStructureUnbuiltWithoutBuilders(bot_t* pBot, const int MaxBuilders, const Vector& SearchLocation, float SearchRadius, bool bUsePhaseDistance);

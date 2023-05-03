@@ -2594,7 +2594,7 @@ edict_t* UTIL_GetNearestStructureIndexOfType(const Vector& Location, NSStructure
 	return Result;
 }
 
-edict_t* UTIL_GetClosestPlayerOnTeamWithLOS(const Vector& Location, const int Team, float SearchRadius)
+edict_t* UTIL_GetClosestPlayerOnTeamWithLOS(const Vector& Location, const int Team, float SearchRadius, edict_t* IgnorePlayer)
 {
 	float distSq = sqrf(SearchRadius);
 	float MinDist = 0.0f;
@@ -2602,7 +2602,7 @@ edict_t* UTIL_GetClosestPlayerOnTeamWithLOS(const Vector& Location, const int Te
 
 	for (int i = 0; i < 32; i++)
 	{
-		if (!FNullEnt(clients[i]) && clients[i]->v.team == Team && IsPlayerActiveInGame(clients[i]))
+		if (!FNullEnt(clients[i]) && clients[i] != IgnorePlayer && clients[i]->v.team == Team && IsPlayerActiveInGame(clients[i]))
 		{
 			float ThisDist = vDist2DSq(clients[i]->v.origin, Location);
 
@@ -3118,7 +3118,7 @@ void UTIL_UpdateBuildableStructure(edict_t* Structure)
 
 		if (!vEquals(Structure->v.origin, MarineBuildableStructureMap[EntIndex].Location, 5.0f))
 		{
-			MarineBuildableStructureMap[EntIndex].bOnNavmesh = UTIL_PointIsOnNavmesh(BUILDING_REGULAR_NAV_PROFILE, UTIL_GetEntityGroundLocation(Structure), Vector(max_player_use_reach, max_player_use_reach, max_player_use_reach));
+			MarineBuildableStructureMap[EntIndex].bOnNavmesh = UTIL_PointIsOnNavmesh(MARINE_REGULAR_NAV_PROFILE, UTIL_GetEntityGroundLocation(Structure), Vector(max_player_use_reach, max_player_use_reach, max_player_use_reach));
 			if (MarineBuildableStructureMap[EntIndex].bOnNavmesh)
 			{
 				MarineBuildableStructureMap[EntIndex].bIsReachableMarine = UTIL_PointIsReachable(MARINE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), UTIL_GetEntityGroundLocation(Structure), max_player_use_reach);
@@ -3157,7 +3157,7 @@ void UTIL_UpdateBuildableStructure(edict_t* Structure)
 
 			UTIL_OnStructureCreated(&MarineBuildableStructureMap[EntIndex]);
 
-			MarineBuildableStructureMap[EntIndex].bOnNavmesh = UTIL_PointIsOnNavmesh(BUILDING_REGULAR_NAV_PROFILE, UTIL_GetEntityGroundLocation(Structure), Vector(max_player_use_reach, max_player_use_reach, max_player_use_reach));
+			MarineBuildableStructureMap[EntIndex].bOnNavmesh = UTIL_PointIsOnNavmesh(MARINE_REGULAR_NAV_PROFILE, UTIL_GetEntityGroundLocation(Structure), Vector(max_player_use_reach, max_player_use_reach, max_player_use_reach));
 			if (MarineBuildableStructureMap[EntIndex].bOnNavmesh)
 			{
 				MarineBuildableStructureMap[EntIndex].bIsReachableMarine = UTIL_PointIsReachable(MARINE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), UTIL_GetEntityGroundLocation(Structure), max_player_use_reach);
@@ -3193,7 +3193,7 @@ void UTIL_UpdateBuildableStructure(edict_t* Structure)
 
 		if (Structure->v.origin != AlienBuildableStructureMap[EntIndex].Location)
 		{
-			AlienBuildableStructureMap[EntIndex].bOnNavmesh = UTIL_PointIsOnNavmesh(BUILDING_REGULAR_NAV_PROFILE, UTIL_GetEntityGroundLocation(Structure), Vector(max_player_use_reach, max_player_use_reach, max_player_use_reach));
+			AlienBuildableStructureMap[EntIndex].bOnNavmesh = UTIL_PointIsOnNavmesh(MARINE_REGULAR_NAV_PROFILE, UTIL_GetEntityGroundLocation(Structure), Vector(max_player_use_reach, max_player_use_reach, max_player_use_reach));
 			if (AlienBuildableStructureMap[EntIndex].bOnNavmesh)
 			{
 				AlienBuildableStructureMap[EntIndex].bIsReachableMarine = UTIL_PointIsReachable(MARINE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), UTIL_GetEntityGroundLocation(Structure), max_player_use_reach);
@@ -3227,7 +3227,7 @@ void UTIL_UpdateBuildableStructure(edict_t* Structure)
 
 			UTIL_OnStructureCreated(&AlienBuildableStructureMap[EntIndex]);
 
-			AlienBuildableStructureMap[EntIndex].bOnNavmesh = UTIL_PointIsOnNavmesh(BUILDING_REGULAR_NAV_PROFILE, UTIL_GetEntityGroundLocation(Structure), Vector(max_player_use_reach, max_player_use_reach, max_player_use_reach));
+			AlienBuildableStructureMap[EntIndex].bOnNavmesh = UTIL_PointIsOnNavmesh(MARINE_REGULAR_NAV_PROFILE, UTIL_GetEntityGroundLocation(Structure), Vector(max_player_use_reach, max_player_use_reach, max_player_use_reach));
 			if (AlienBuildableStructureMap[EntIndex].bOnNavmesh)
 			{
 				AlienBuildableStructureMap[EntIndex].bIsReachableMarine = UTIL_PointIsReachable(MARINE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), UTIL_GetEntityGroundLocation(Structure), max_player_use_reach);
@@ -4419,4 +4419,39 @@ edict_t* UTIL_GetNearestUnattackedStructureOfTeamInLocation(const Vector Locatio
 	}
 
 	return Result;
+}
+
+bool UTIL_IsBuildableStructureStillReachable(bot_t* pBot, const edict_t* Structure)
+{
+	int Index = ENTINDEX(Structure);
+
+	bool bIsMarine = IsPlayerMarine(pBot->pEdict);
+
+	NSStructureType StructureType = GetStructureTypeFromEdict(Structure);
+
+	// Hives have static positions so should always be reachable.
+	// Resource towers technically do too, but there could be some built by humans which the bots can't get to
+	if (StructureType == STRUCTURE_ALIEN_HIVE || StructureType == STRUCTURE_NONE) { return true; }
+
+	if (UTIL_IsMarineStructure(Structure))
+	{
+		bool IsReachable = (bIsMarine) ? MarineBuildableStructureMap[Index].bIsReachableMarine : MarineBuildableStructureMap[Index].bIsReachableAlien;
+
+		return IsReachable;
+	}
+	else
+	{
+		bool IsReachable = (bIsMarine) ? AlienBuildableStructureMap[Index].bIsReachableMarine : AlienBuildableStructureMap[Index].bIsReachableAlien;
+
+		return IsReachable;
+	}
+
+	return true;
+}
+
+bool UTIL_IsDroppedItemStillReachable(bot_t* pBot, const edict_t* Item)
+{
+	int Index = ENTINDEX(Item);
+
+	return MarineDroppedItemMap[Index].bIsReachableMarine;
 }
