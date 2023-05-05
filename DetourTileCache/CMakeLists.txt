@@ -5,7 +5,7 @@ target_sources(DetourTileCache
     PRIVATE ${SourceFiles}
     PUBLIC FILE_SET HEADERS 
     BASE_DIRS ${PROJECT_SOURCE_DIR}
-    FILES ${HeaderFiles})
+    FILES ${HeaderFiles} )
 
 target_include_directories(DetourTileCache PRIVATE Include)
 target_include_directories(DetourTileCache PRIVATE ../Detour/Include)

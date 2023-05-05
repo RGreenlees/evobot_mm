@@ -5,7 +5,7 @@
 // with metamod.
 
 /*
- * Copyright (c) 2001-2003 Will Day <willday@hpgx.net>
+ * Copyright (c) 2001-2013 Will Day <willday@hpgx.net>
  *
  *    This file is part of Metamod.
  *
@@ -39,17 +39,23 @@
 #define VERS_META_H
 
 #ifndef OPT_TYPE
-# if defined(_MSC_VER) && defined(_DEBUG)
-#  define OPT_TYPE		"msc debugging"
-# elif defined(_MSC_VER) && defined(NDEBUG)
-#  define OPT_TYPE		"msc optimized"
-# else
-#  define OPT_TYPE		"default"
-# endif /* _MSC_VER */
+	#define OPT_TYPE	"default"
 #endif /* not OPT_TYPE */
 
-#define VDATE			"2003/11/15"
-#define VVERSION		"1.17"
-#define RC_VERS_DWORD	1,17,0,0	// Version Windows DLL Resources in res_meta.rc
+
+#define VDATE 			"2018/02/11"
+#define VPATCH_COPYRIGHT_YEAR   "2018"
+#define VMETA_VERSION		"1.21"
+
+#define VPATCH_NAME		"Metamod-P (mm-p)"
+#define VPATCH_IVERSION		38
+#define VPATCH_VERSION		"38"
+#define VPATCH_AUTHOR		"Jussi Kivilinna"
+#define VPATCH_WEBSITE		"http://metamod-p.sourceforge.net/"
+
+#define VVERSION		VMETA_VERSION "p" VPATCH_VERSION
+#define RC_VERS_DWORD		1,21,0,VPATCH_IVERSION	// Version Windows DLL Resources in res_meta.rc
+
+
 
 #endif /* VERS_META_H */

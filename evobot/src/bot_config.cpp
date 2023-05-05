@@ -7,15 +7,20 @@
 //
 
 #include "bot_config.h"
-#include "bot.h"
 #include "NS_Constants.h"
+#include "general_util.h"
 
+#include <extdll.h>
+#include <dllapi.h>
 #include <meta_api.h>
 
 #include <string>
 #include <fstream>
 
+#include <algorithm>
 #include <unordered_map>
+
+#include <vector>
 
 constexpr auto MAX_BOT_NAMES = 100;
 
@@ -37,8 +42,52 @@ HiveTechStatus ChamberSequence[3];
 
 std::unordered_map<std::string, TeamSizeDefinitions> TeamSizeMap;
 
+std::unordered_map<std::string, bot_skill> BotSkillLevelsMap;
+std::string CurrentSkillLevel;
+
+std::string GlobalSkillLevel = "default";
+
 int ManualMarineTeamSize = 0;
 int ManualAlienTeamSize = 0;
+
+const char* UTIL_HiveTechToChar(const HiveTechStatus HiveTech)
+{
+    switch (HiveTech)
+    {
+    case HIVE_TECH_MOVEMENT:
+        return "Movement";
+    case HIVE_TECH_DEFENCE:
+        return "Defence";
+    case HIVE_TECH_SENSORY:
+        return "Sensory";
+    default:
+        return "None";
+    }
+}
+
+void CONFIG_PrintHelpFile()
+{
+    char HelpFileName[256];
+
+    FILE* HelpFile = NULL;
+    GetGameDir(HelpFileName);
+    strcat(HelpFileName, "/addons/evobot/Help.txt");
+
+    std::ifstream cFile(HelpFileName);
+
+    if (cFile.is_open())
+    {
+        std::string line;
+        while (getline(cFile, line))
+        {
+            LOG_CONSOLE(PLID, line.c_str());
+        }
+    }
+    else
+    {
+        LOG_CONSOLE(PLID, "Help not available, Help.txt not found in evobot directory\n");
+    }
+}
 
 void ParseConfigFile(bool bOverride)
 {
@@ -50,7 +99,20 @@ void ParseConfigFile(bool bOverride)
     TeamSizeMap["default"].MarineSize = 6;
     TeamSizeMap["default"].AlienSize = 6;
 
-	char filename[256];
+    BotSkillLevelsMap.clear();
+
+    BotSkillLevelsMap["default"].marine_bot_aim_skill = 0.3f;
+    BotSkillLevelsMap["default"].marine_bot_motion_tracking_skill = 0.3f;
+    BotSkillLevelsMap["default"].marine_bot_reaction_time = 0.3f;
+    BotSkillLevelsMap["default"].marine_bot_view_speed = 1.0f;
+    BotSkillLevelsMap["default"].alien_bot_aim_skill = 0.5f;
+    BotSkillLevelsMap["default"].alien_bot_motion_tracking_skill = 0.5f;
+    BotSkillLevelsMap["default"].alien_bot_reaction_time = 0.3f;
+    BotSkillLevelsMap["default"].alien_bot_view_speed = 1.5f;
+
+    CurrentSkillLevel = "default";
+
+    char filename[256];
 
     UTIL_BuildFileName(filename, "addons", "evobot", "evobot.cfg", NULL);
 
@@ -168,7 +230,7 @@ void ParseConfigFile(bool bOverride)
                 else if (value.compare("ifnohuman") == 0)
                 {
                     eCommanderMode = COMMANDERMODE_IFNOHUMAN;
-                    
+
                 }
                 else if (value.compare("always") == 0)
                 {
@@ -188,6 +250,141 @@ void ParseConfigFile(bool bOverride)
                 {
                     fCommanderWaitTime = (float)atoi(value.c_str());
                 }
+                continue;
+            }
+
+            if (key.compare("BotSkillName") == 0)
+            {
+                BotSkillLevelsMap[value.c_str()].marine_bot_aim_skill = 0.5f;
+                BotSkillLevelsMap[value.c_str()].marine_bot_motion_tracking_skill = 0.5f;
+                BotSkillLevelsMap[value.c_str()].marine_bot_reaction_time = 0.2f;
+                BotSkillLevelsMap[value.c_str()].marine_bot_view_speed = 1.0f;
+                BotSkillLevelsMap[value.c_str()].alien_bot_aim_skill = 0.5f;
+                BotSkillLevelsMap[value.c_str()].alien_bot_motion_tracking_skill = 0.5f;
+                BotSkillLevelsMap[value.c_str()].alien_bot_reaction_time = 0.2f;
+                BotSkillLevelsMap[value.c_str()].alien_bot_view_speed = 1.0f;
+
+                CurrentSkillLevel = value;
+                continue;
+            }
+
+            if (key.compare("MarineReactionTime") == 0)
+            {
+                if (!isFloat(value.c_str()))
+                {
+                    LOG_CONSOLE(PLID, "Invalid reaction time setting '%s' for skill level '%s', must be floating point value between 0.0 and 1.0\n", value.c_str(), CurrentSkillLevel.c_str());
+                }
+
+                float NewValue = std::stof(value.c_str());
+
+                BotSkillLevelsMap[CurrentSkillLevel.c_str()].marine_bot_reaction_time = clampf(NewValue, 0.0f, 1.0f);
+
+                continue;
+            }
+
+            if (key.compare("AlienReactionTime") == 0)
+            {
+                if (!isFloat(value.c_str()))
+                {
+                    LOG_CONSOLE(PLID, "Invalid reaction time setting '%s' for skill level '%s', must be floating point value between 0.0 and 1.0\n", value.c_str(), CurrentSkillLevel.c_str());
+                }
+
+                float NewValue = std::stof(value.c_str());
+
+                BotSkillLevelsMap[CurrentSkillLevel.c_str()].alien_bot_reaction_time = clampf(NewValue, 0.0f, 1.0f);
+
+                continue;
+            }
+
+            if (key.compare("MarineAimSkill") == 0)
+            {
+                if (!isFloat(value.c_str()))
+                {
+                    LOG_CONSOLE(PLID, "Invalid aim skill setting '%s' for skill level '%s', must be floating point value between 0.0 and 1.0\n", value.c_str(), CurrentSkillLevel.c_str());
+                }
+
+                float NewValue = std::stof(value.c_str());
+
+                BotSkillLevelsMap[CurrentSkillLevel.c_str()].marine_bot_aim_skill = clampf(NewValue, 0.0f, 1.0f);
+
+                continue;
+            }
+
+            if (key.compare("AlienAimSkill") == 0)
+            {
+                if (!isFloat(value.c_str()))
+                {
+                    LOG_CONSOLE(PLID, "Invalid aim skill setting '%s' for skill level '%s', must be floating point value between 0.0 and 1.0\n", value.c_str(), CurrentSkillLevel.c_str());
+                }
+
+                float NewValue = std::stof(value.c_str());
+
+                BotSkillLevelsMap[CurrentSkillLevel.c_str()].alien_bot_aim_skill = clampf(NewValue, 0.0f, 1.0f);
+
+                continue;
+            }
+
+            if (key.compare("MarineMovementTracking") == 0)
+            {
+                if (!isFloat(value.c_str()))
+                {
+                    LOG_CONSOLE(PLID, "Invalid movement tracking setting '%s' for skill level '%s', must be floating point value between 0.0 and 1.0\n", value.c_str(), CurrentSkillLevel.c_str());
+                }
+
+                float NewValue = std::stof(value.c_str());
+
+                BotSkillLevelsMap[CurrentSkillLevel.c_str()].marine_bot_motion_tracking_skill = clampf(NewValue, 0.0f, 1.0f);
+
+                continue;
+            }
+
+            if (key.compare("AlienMovementTracking") == 0)
+            {
+                if (!isFloat(value.c_str()))
+                {
+                    LOG_CONSOLE(PLID, "Invalid movement tracking setting '%s' for skill level '%s', must be floating point value between 0.0 and 1.0\n", value.c_str(), CurrentSkillLevel.c_str());
+                }
+
+                float NewValue = std::stof(value.c_str());
+
+                BotSkillLevelsMap[CurrentSkillLevel.c_str()].alien_bot_motion_tracking_skill = clampf(NewValue, 0.0f, 1.0f);
+
+                continue;
+            }
+
+            if (key.compare("MarineViewSpeed") == 0)
+            {
+                if (!isFloat(value.c_str()))
+                {
+                    LOG_CONSOLE(PLID, "Invalid view speed setting '%s' for skill level '%s', must be floating point value between 0.0 and 5.0\n", value.c_str(), CurrentSkillLevel.c_str());
+                }
+
+                float NewValue = std::stof(value.c_str());
+
+                BotSkillLevelsMap[CurrentSkillLevel.c_str()].marine_bot_view_speed = clampf(NewValue, 0.0f, 5.0f);
+
+                continue;
+            }
+
+            if (key.compare("AlienViewSpeed") == 0)
+            {
+                if (!isFloat(value.c_str()))
+                {
+                    LOG_CONSOLE(PLID, "Invalid view speed setting '%s' for skill level '%s', must be floating point value between 0.0 and 5.0\n", value.c_str(), CurrentSkillLevel.c_str());
+                }
+
+                float NewValue = std::stof(value.c_str());
+
+                BotSkillLevelsMap[CurrentSkillLevel.c_str()].alien_bot_view_speed = clampf(NewValue, 0.0f, 5.0f);
+
+                continue;
+            }
+
+            if (key.compare("DefaultSkillLevel") == 0)
+            {
+                GlobalSkillLevel = value;
+
+                continue;
             }
 
             if (key.compare("ChamberSequence") == 0)
@@ -228,7 +425,7 @@ void ParseConfigFile(bool bOverride)
 
                     AvailableTechs.erase(std::remove(AvailableTechs.begin(), AvailableTechs.end(), HIVE_TECH_MOVEMENT), AvailableTechs.end());
 
-                } 
+                }
                 else if (FirstTech.compare("defense") == 0)
                 {
                     HiveOneTech = HIVE_TECH_DEFENCE;
@@ -315,7 +512,7 @@ void ParseConfigFile(bool bOverride)
 
                     AvailableTechs.erase(std::remove(AvailableTechs.begin(), AvailableTechs.end(), HiveTwoTech), AvailableTechs.end());
                 }
-                
+
 
                 LOG_CONSOLE(PLID, "Chamber Build Sequence will be: %s / %s / %s\n", UTIL_HiveTechToChar(HiveOneTech), UTIL_HiveTechToChar(HiveTwoTech), UTIL_HiveTechToChar(HiveThreeTech));
 
@@ -323,7 +520,10 @@ void ParseConfigFile(bool bOverride)
                 ChamberSequence[1] = HiveTwoTech;
                 ChamberSequence[2] = HiveThreeTech;
 
+                continue;
             }
+
+
         }
         LOG_CONSOLE(PLID, "Config loaded for NS Version %s. If this is incorrect, please update evobot.cfg with the correct version (32 or 33)\n", (CONFIG_GetNSVersion() == 33) ? "3.3" : "3.2");
     }
@@ -332,6 +532,14 @@ void ParseConfigFile(bool bOverride)
         LOG_CONSOLE(PLID, "Could not load evobot.cfg, please ensure it is at addons/evobot/evobot.cfg\n");
         LOG_CONSOLE(PLID, "Use command 'evobot newconfig' to regenerate a new one if yours is missing or corrupted\n");
     }
+
+    if (!CONFIG_BotSkillLevelExists(GlobalSkillLevel.c_str()))
+    {
+        LOG_CONSOLE(PLID, "Default skill level '%s' does not exist, falling back to default.\n", GlobalSkillLevel.c_str());
+        GlobalSkillLevel = "default";
+    }
+
+    LOG_CONSOLE(PLID, "Default bot skill level will be %s.\n", GlobalSkillLevel.c_str());
 
     CONFIG_PopulateBotNames();
 }
@@ -424,7 +632,7 @@ void CONFIG_SetCommanderMode(CommanderMode NewMode)
 }
 
 BotFillMode CONFIG_GetBotFillMode()
-{ 
+{
     return eBotFillMode;
 }
 
@@ -588,4 +796,43 @@ int CONFIG_GetManualMarineTeamSize()
 int CONFIG_GetManualAlienTeamSize()
 {
     return ManualAlienTeamSize;
+}
+
+bool CONFIG_BotSkillLevelExists(const char* SkillName)
+{
+    std::string s = SkillName;
+    std::unordered_map<std::string, bot_skill>::const_iterator got = BotSkillLevelsMap.find(s);
+
+    return (got != BotSkillLevelsMap.end());
+}
+
+bot_skill CONFIG_GetBotSkillLevel(const char* SkillName)
+{
+    std::string s = SkillName;
+    std::unordered_map<std::string, bot_skill>::const_iterator got = BotSkillLevelsMap.find(s);
+
+    if (got == BotSkillLevelsMap.end())
+    {
+        return BotSkillLevelsMap["default"];
+    }
+    else
+    {
+        return got->second;
+    }
+}
+
+bot_skill CONFIG_GetGlobalBotSkillLevel()
+{
+    return BotSkillLevelsMap[GlobalSkillLevel.c_str()];
+}
+
+void CONFIG_SetGlobalBotSkillLevel(const char* NewSkillLevel)
+{
+    if (!CONFIG_BotSkillLevelExists(NewSkillLevel))
+    {
+        LOG_CONSOLE(PLID, "Error when setting new global bot skill level '%s', does not exist! Check evobot.cfg for valid skill levels\n", NewSkillLevel);
+        return;
+    }
+
+    GlobalSkillLevel = NewSkillLevel;
 }

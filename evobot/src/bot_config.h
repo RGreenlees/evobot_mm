@@ -11,6 +11,8 @@
 #ifndef BOT_CONFIG_H
 #define BOT_CONFIG_H
 
+#include "bot_structs.h"
+
 // Bot fill mode determines how bots should be automatically added/removed from teams
 typedef enum _BOTFILLMODE
 {
@@ -87,5 +89,14 @@ void CONFIG_SetManualAlienTeamSize(const int NewValue);
 int CONFIG_GetManualMarineTeamSize();
 // Returns the manually-set alien team size when using "evobot fillteams"
 int CONFIG_GetManualAlienTeamSize();
+
+bot_skill CONFIG_GetBotSkillLevel(const char* SkillName);
+
+bool CONFIG_BotSkillLevelExists(const char* SkillName);
+
+bot_skill CONFIG_GetGlobalBotSkillLevel();
+void CONFIG_SetGlobalBotSkillLevel(const char* NewSkillLevel);
+
+void CONFIG_PrintHelpFile();
 
 #endif

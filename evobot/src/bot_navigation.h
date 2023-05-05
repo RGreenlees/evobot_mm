@@ -10,13 +10,14 @@
 #ifndef BOT_NAVIGATION_H
 #define BOT_NAVIGATION_H
 
-#include <extdll.h>
-#include "bot.h"
+//#include <extdll.h>
+//#include "bot_math.h"
 #include "DetourStatus.h"
 #include "DetourNavMeshQuery.h"
+#include "player_util.h"
+#include "bot_structs.h"
 
-
-/*	Navigation profiles determine which nav mesh (regular, onos, building) is used for queries, and what 
+/*	Navigation profiles determine which nav mesh (regular, onos, building) is used for queries, and what
 	types of movement are allowed and their costs. For example, marine nav profile uses regular nav mesh,
 	cannot wall climb, and has a higher cost for crouch movement since it's slower.
 */
@@ -46,40 +47,42 @@ constexpr auto MIN_PATH_RECALC_TIME = 0.33f; // How frequently can a bot recalcu
 // Possible area types. Water, Road, Door and Grass are not used (left-over from Detour library)
 enum SamplePolyAreas
 {
-	SAMPLE_POLYAREA_GROUND,
-	SAMPLE_POLYAREA_CROUCH,
-	SAMPLE_POLYAREA_WATER,
-	SAMPLE_POLYAREA_ROAD,
-	SAMPLE_POLYAREA_DOOR,
-	SAMPLE_POLYAREA_GRASS,
-	SAMPLE_POLYAREA_JUMP,
-	SAMPLE_POLYAREA_HIGHJUMP,
-	SAMPLE_POLYAREA_FALL,
-	SAMPLE_POLYAREA_HIGHFALL,
-	SAMPLE_POLYAREA_WALLCLIMB,
-	SAMPLE_POLYAREA_LADDER,
-	SAMPLE_POLYAREA_BLOCKED,
-	SAMPLE_POLYAREA_PHASEGATE
+	SAMPLE_POLYAREA_GROUND = 0,
+	SAMPLE_POLYAREA_CROUCH = 1,
+	SAMPLE_POLYAREA_WATER = 2,
+	SAMPLE_POLYAREA_BLOCKED = 3,
+	SAMPLE_POLYAREA_WALLCLIMB = 4,
+	SAMPLE_POLYAREA_LADDER = 5,
+	SAMPLE_POLYAREA_DOOR = 6,
+	SAMPLE_POLYAREA_JUMP = 7,
+	SAMPLE_POLYAREA_HIGHJUMP = 8,
+	SAMPLE_POLYAREA_FALL = 9,
+	SAMPLE_POLYAREA_HIGHFALL = 10,
+	SAMPLE_POLYAREA_PHASEGATE = 11,
+	SAMPLE_POLYAREA_MSTRUCTURE = 12,
+	SAMPLE_POLYAREA_ASTRUCTURE = 13,
 };
 
 // Possible movement types. Swim and door are not used
 enum SamplePolyFlags
 {
-	SAMPLE_POLYFLAGS_WALK		= 1 << 0,		// Simple walk to traverse
-	SAMPLE_POLYFLAGS_SWIM		= 1 << 1,		// Requires swimming to traverse (not used)
-	SAMPLE_POLYFLAGS_CROUCH		= 1 << 2,		// Required crouching to traverse
-	SAMPLE_POLYFLAGS_DOOR		= 1 << 3,		// Requires opening a door to traverse (not used)
-	SAMPLE_POLYFLAGS_WALLCLIMB	= 1 << 4,		// Requires climbing a wall to traverse
-	SAMPLE_POLYFLAGS_LADDER		= 1 << 5,		// Requires climbing a ladder to traverse
-	SAMPLE_POLYFLAGS_FALL		= 1 << 6,		// Requires dropping down from a safe height to traverse
-	SAMPLE_POLYFLAGS_JUMP		= 1 << 7,		// Requires a jump to traverse
-	SAMPLE_POLYFLAGS_HIGHFALL	= 1 << 8,		// Requires dropping from a high height to traverse
-	SAMPLE_POLYFLAGS_HIGHJUMP	= 1 << 9,		// Requires a jump from a high height to traverse
-	SAMPLE_POLYFLAGS_DISABLED	= 1 << 10,		// Disabled, not usable by anyone
-	SAMPLE_POLYFLAGS_BLOCKED	= 1 << 11,		// Blocked by an obstruction, not usable by anyone
-	SAMPLE_POLYFLAGS_NOONOS		= 1 << 12,		// This movement is not allowed by onos
-	SAMPLE_POLYFLAGS_PHASEGATE	= 1 << 13,		// Requires using a phase gate to traverse
-	SAMPLE_POLYFLAGS_ALL		= 0xffff		// All abilities.
+	SAMPLE_POLYFLAGS_WALK = 1 << 0,		// Simple walk to traverse
+	SAMPLE_POLYFLAGS_CROUCH = 1 << 1,		// Required crouching to traverse
+	SAMPLE_POLYFLAGS_SWIM = 1 << 2,		// Requires swimming to traverse (not used)
+	SAMPLE_POLYFLAGS_BLOCKED = 1 << 3,		// Blocked by an obstruction, but can be jumped over
+	SAMPLE_POLYFLAGS_WALLCLIMB = 1 << 4,		// Requires climbing a wall to traverse
+	SAMPLE_POLYFLAGS_LADDER = 1 << 5,		// Requires climbing a ladder to traverse
+	SAMPLE_POLYFLAGS_DOOR = 1 << 6,		// Requires opening a door to traverse (not used)
+	SAMPLE_POLYFLAGS_JUMP = 1 << 7,		// Requires a jump to traverse
+	SAMPLE_POLYFLAGS_HIGHJUMP = 1 << 8,		// Requires a jump from a high height to traverse
+	SAMPLE_POLYFLAGS_FALL = 1 << 9,		// Requires dropping down from a safe height to traverse
+	SAMPLE_POLYFLAGS_HIGHFALL = 1 << 10,		// Requires dropping from a high height to traverse
+	SAMPLE_POLYFLAGS_DISABLED = 1 << 11,		// Disabled, not usable by anyone
+	SAMPLE_POLYFLAGS_NOONOS = 1 << 12,		// This movement is not allowed by onos
+	SAMPLE_POLYFLAGS_PHASEGATE = 1 << 13,		// Requires using a phase gate to traverse
+	SAMPLE_POLYFLAGS_MSTRUCTURE = 1 << 14,		// Marine Structure in the way, must be destroyed if alien, or impassable if marine
+	SAMPLE_POLYFLAGS_ASTRUCTURE = 1 << 15,		// Structure in the way, must be destroyed if marine, or impassable if alien
+	SAMPLE_POLYFLAGS_ALL = 0xffff		// All abilities.
 };
 
 // Door type. Not currently used, future feature so bots know how to open a door
@@ -163,44 +166,44 @@ Vector UTIL_GetRandomPointOnNavmesh(const bot_t* pBot);
 
 /*	Finds any random point on the navmesh that is relevant for the bot within a given radius of the origin point,
 	taking reachability into account(will not return impossible to reach location).
-	
+
 	Returns ZERO_VECTOR if none found
-*/ 
-Vector UTIL_GetRandomPointOnNavmeshInRadius(const int NavProfileIndex, const Vector& origin, const float MaxRadius);
+*/
+Vector UTIL_GetRandomPointOnNavmeshInRadius(const int NavProfileIndex, const Vector origin, const float MaxRadius);
 
 /*	Finds any random point on the navmesh that is relevant for the bot within a given radius of the origin point,
 	ignores reachability (could return a location that isn't actually reachable for the bot).
 
 	Returns ZERO_VECTOR if none found
 */
-Vector UTIL_GetRandomPointOnNavmeshInRadiusIgnoreReachability(const int NavProfileIndex, const Vector& origin, const float MaxRadius);
+Vector UTIL_GetRandomPointOnNavmeshInRadiusIgnoreReachability(const int NavProfileIndex, const Vector origin, const float MaxRadius);
 
 /*	Finds any random point on the navmesh of the area type (e.g. crouch area) that is relevant for the bot within a given radius of the origin point,
 	taking reachability into account(will not return impossible to reach location).
 
 	Returns ZERO_VECTOR if none found
 */
-Vector UTIL_GetRandomPointOnNavmeshInRadiusOfAreaType(SamplePolyFlags Flag, const Vector& origin, const float MaxRadius);
+Vector UTIL_GetRandomPointOnNavmeshInRadiusOfAreaType(SamplePolyFlags Flag, const Vector origin, const float MaxRadius);
 
 /*	Finds any random point on the navmesh of the area type (e.g. crouch area) that is relevant for the bot within the min and max radius of the origin point,
 	taking reachability into account(will not return impossible to reach location).
 
 	Returns ZERO_VECTOR if none found
 */
-Vector UTIL_GetRandomPointOnNavmeshInDonut(const int NavProfile, const Vector& origin, const float MinRadius, const float MaxRadius);
+Vector UTIL_GetRandomPointOnNavmeshInDonut(const int NavProfile, const Vector origin, const float MinRadius, const float MaxRadius);
 
 /*	Finds any random point on the navmesh of the area type (e.g. crouch area) that is relevant for the bot within the min and max radius of the origin point,
 	ignores reachability (could return a location that isn't actually reachable for the bot).
 
 	Returns ZERO_VECTOR if none found
 */
-Vector UTIL_GetRandomPointOnNavmeshInDonutIgnoreReachability(const int NavProfile, const Vector& origin, const float MinRadius, const float MaxRadius);
+Vector UTIL_GetRandomPointOnNavmeshInDonutIgnoreReachability(const int NavProfile, const Vector origin, const float MinRadius, const float MaxRadius);
 
 // Roughly estimates the movement cost to move between FromLocation and ToLocation. Uses simple formula of distance between points x cost modifier for that movement
-float UTIL_GetPathCostBetweenLocations(const int NavProfileIndex, const Vector& FromLocation, const Vector& ToLocation);
+float UTIL_GetPathCostBetweenLocations(const int NavProfileIndex, const Vector FromLocation, const Vector ToLocation);
 
 // Returns true is the bot is grounded, on the nav mesh, and close enough to the Destination to be considered at that point
-bool BotIsAtLocation(const bot_t* pBot, const Vector& Destination);
+bool BotIsAtLocation(const bot_t* pBot, const Vector Destination);
 
 // Sets the bot's desired movement direction and performs jumps/crouch/etc. to traverse the current path point
 void NewMove(bot_t* pBot);
@@ -213,10 +216,12 @@ bool IsBotOffPath(const bot_t* pBot);
 void GroundMove(bot_t* pBot, const Vector StartPoint, const Vector EndPoint);
 // Called by NewMove, determines the movement direction and inputs required to jump between start and end points
 void JumpMove(bot_t* pBot, const Vector StartPoint, const Vector EndPoint);
+// Called by NewMove, determines movement direction and jump inputs to hop over obstructions (structures)
+void BlockedMove(bot_t* pBot, const Vector StartPoint, const Vector EndPoint);
 // Called by NewMove, determines the movement direction and inputs required to drop down from start to end points
 void FallMove(bot_t* pBot, const Vector StartPoint, const Vector EndPoint);
 // Called by NewMove, determines the movement direction and inputs required to climb a ladder to reach endpoint
-void LadderMove(bot_t* pBot, const Vector StartPoint, const Vector EndPoint);
+void LadderMove(bot_t* pBot, const Vector StartPoint, const Vector EndPoint, float RequiredClimbHeight);
 // Called by NewMove, determines the movement direction and inputs required to climb a wall to reach endpoint
 void WallClimbMove(bot_t* pBot, const Vector StartPoint, const Vector EndPoint, float RequiredClimbHeight);
 // Called by NewMove, determines the movement direction and inputs required to use a phase gate to reach end point
@@ -239,11 +244,17 @@ bool IsBotStuck(bot_t* pBot, const Vector MoveDestination);
 // Called every bot frame (default is 60fps). Ensures the tile cache is updated after obstacles are placed
 void UTIL_UpdateTileCache();
 
+void RecalcAllBotPaths();
+
+Vector UTIL_GetNearestPointOnNavWall(bot_t* pBot, const float MaxRadius);
+Vector UTIL_GetNearestPointOnNavWall(const int NavProfileIndex, const Vector Location, const float MaxRadius);
+
 /*	Places a temporary obstacle of the given height and radius on the mesh.Will modify that part of the nav mesh to be the given area.
 	An example use case is to place an obstacle of area type SAMPLE_POLYAREA_OBSTRUCTION to mark where buildings are.
 	Using DT_AREA_NULL will effectively cut a hole in the nav mesh, meaning it's no longer considered a valid mesh position.
 */
 unsigned int UTIL_AddTemporaryObstacle(const Vector Location, float Radius, float Height, int area);
+unsigned int UTIL_AddTemporaryBoxObstacle(const Vector Location, Vector HalfExtents, float OrientationInRadians, int area);
 
 /*	Removes the temporary obstacle from the mesh. The area will return to its default type (either walk or crouch).
 	Removing a DT_AREA_NULL obstacle will "fill in" the hole again, making it traversable and considered a valid mesh position.
@@ -283,24 +294,26 @@ bool MoveTo(bot_t* pBot, const Vector Destination, const BotMoveStyle MoveStyle)
 void BotFollowPath(bot_t* pBot);
 
 // Walks directly towards the destination. No path finding, just raw movement input. Will detect obstacles and try to jump/duck under them.
-void MoveDirectlyTo(bot_t* pBot, const Vector &Destination);
+void MoveDirectlyTo(bot_t* pBot, const Vector Destination);
 
 // Check if there are any players in our way and try to move around them. If we can't, then back up to let them through
 void HandlePlayerAvoidance(bot_t* pBot, const Vector MoveDestination);
 
 // Finds a path between two supplied points, using the supplied nav profile. Will return a failure if it can't reach the exact given location, and bAllowPartial is false.
 // If bAllowPartial is true, it will return success and provide the partial path that got it as close as possible to the destination
-dtStatus FindPathToPoint(const int NavProfileIndex, const Vector& FromLocation, const Vector& ToLocation, bot_path_node* path, int* pathSize, bool bAllowPartial);
+dtStatus FindPathToPoint(const int NavProfileIndex, const Vector FromLocation, const Vector ToLocation, bot_path_node* path, int* pathSize, bool bAllowPartial);
 
 // Special path finding that takes the presence of phase gates into account 
-dtStatus FindPhaseGatePathToPoint(bot_t* pBot, Vector FromLocation, Vector ToLocation, bot_path_node* path, int* pathSize, bool bAllowPartial);
+dtStatus FindPhaseGatePathToPoint(const int NavProfileIndex, Vector FromLocation, Vector ToLocation, bot_path_node* path, int* pathSize, float MaxAcceptableDistance);
 
 // Similar to FindPathToPoint, but you can specify a max acceptable distance for partial results. Will return a failure if it can't reach at least MaxAcceptableDistance away from the ToLocation
-dtStatus FindPathClosestToPoint(bot_t* pBot, const BotMoveStyle MoveStyle, const Vector& FromLocation, const Vector& ToLocation, bot_path_node* path, int* pathSize, float MaxAcceptableDistance);
-dtStatus FindPathClosestToPoint(const int NavProfileIndex, const Vector& FromLocation, const Vector& ToLocation, bot_path_node* path, int* pathSize, float MaxAcceptableDistance);
+dtStatus FindPathClosestToPoint(bot_t* pBot, const BotMoveStyle MoveStyle, const Vector FromLocation, const Vector ToLocation, bot_path_node* path, int* pathSize, float MaxAcceptableDistance);
+dtStatus FindPathClosestToPoint(const int NavProfileIndex, const Vector FromLocation, const Vector ToLocation, bot_path_node* path, int* pathSize, float MaxAcceptableDistance);
 
 // If the bot is stuck and off the path or nav mesh, this will try to find a point it can directly move towards to get it back on track
 Vector FindClosestPointBackOnPath(bot_t* pBot);
+
+Vector FindClosestNavigablePointToDestination(const int NavProfileIndex, const Vector FromLocation, const Vector ToLocation, float MaxAcceptableDistance);
 
 // Will attempt to move directly towards MoveDestination while jumping/ducking as needed, and avoiding obstacles in the way
 void PerformUnstuckMove(bot_t* pBot, const Vector MoveDestination);
@@ -317,18 +330,20 @@ const dtQueryFilter* UTIL_GetNavMeshFilterForProfile(const int NavProfileIndex);
 // Finds the appropriatetile cache for the requested profile
 const dtTileCache* UTIL_GetTileCacheForProfile(const int NavProfileIndex);
 
-float UTIL_PointIsDirectlyReachable_DEBUG(const Vector& start, const Vector& target);
+float UTIL_PointIsDirectlyReachable_DEBUG(const Vector start, const Vector target);
 
 /*
 	Point is directly reachable:
 	Determines if the bot can walk directly between the two points.
 	Ignores map geometry, so will return true even if stairs are in the way, provided the bot can walk up/down them unobstructed
 */
-bool UTIL_PointIsDirectlyReachable(const bot_t* pBot, const Vector& targetPoint);
-bool UTIL_PointIsDirectlyReachable(const bot_t* pBot, const Vector& start, const Vector& target);
-bool UTIL_PointIsDirectlyReachable(const Vector& start, const Vector& target);
-bool UTIL_PointIsDirectlyReachable(const int NavProfileIndex, const Vector& start, const Vector& target);
+bool UTIL_PointIsDirectlyReachable(const bot_t* pBot, const Vector targetPoint);
+bool UTIL_PointIsDirectlyReachable(const bot_t* pBot, const Vector start, const Vector target);
+bool UTIL_PointIsDirectlyReachable(const Vector start, const Vector target);
+bool UTIL_PointIsDirectlyReachable(const int NavProfileIndex, const Vector start, const Vector target);
 
+// Will trace along the nav mesh from start to target and return true if the trace reaches within MaxAcceptableDistance
+bool UTIL_TraceNav(const int NavProfileIndex, const Vector start, const Vector target, const float MaxAcceptableDistance);
 
 /*
 	Project point to navmesh:
@@ -336,17 +351,17 @@ bool UTIL_PointIsDirectlyReachable(const int NavProfileIndex, const Vector& star
 	Uses pExtents by default if not supplying one.
 	Returns ZERO_VECTOR if not projected successfully
 */
-Vector UTIL_ProjectPointToNavmesh(const Vector& Location);
-Vector UTIL_ProjectPointToNavmesh(const Vector& Location, const Vector Extents);
-Vector UTIL_ProjectPointToNavmesh(const Vector& Location, const int NavProfileIndex);
-Vector UTIL_ProjectPointToNavmesh(const Vector& Location, const Vector Extents, const int NavProfileIndex);
+Vector UTIL_ProjectPointToNavmesh(const Vector Location);
+Vector UTIL_ProjectPointToNavmesh(const Vector Location, const Vector Extents);
+Vector UTIL_ProjectPointToNavmesh(const Vector Location, const int NavProfileIndex);
+Vector UTIL_ProjectPointToNavmesh(const Vector Location, const Vector Extents, const int NavProfileIndex);
 
 /*
 	Point is on navmesh:
 	Returns true if it was able to project the point to the navmesh (see UTIL_ProjectPointToNavmesh())
 */
-bool UTIL_PointIsOnNavmesh(const Vector& Location, const int NavProfileIndex);
-bool UTIL_PointIsOnNavmesh(const int NavProfileIndex, const Vector& Location, const Vector& SearchExtents);
+bool UTIL_PointIsOnNavmesh(const Vector Location, const int NavProfileIndex);
+bool UTIL_PointIsOnNavmesh(const int NavProfileIndex, const Vector Location, const Vector SearchExtents);
 
 int UTIL_GetMoveProfileForBot(const bot_t* pBot, BotMoveStyle MoveStyle);
 
@@ -362,18 +377,18 @@ int UTIL_GetMoveProfileForOnos(const BotMoveStyle MoveStyle);
 void UTIL_UpdateBotMovementStatus(bot_t* pBot);
 
 // Returns true if a path could be found between From and To location. Cheaper than full path finding, only a rough check to confirm it can be done.
-bool UTIL_PointIsReachable(const int NavProfileIndex, const Vector& FromLocation, const Vector& ToLocation, const float MaxAcceptableDistance);
+bool UTIL_PointIsReachable(const int NavProfileIndex, const Vector FromLocation, const Vector ToLocation, const float MaxAcceptableDistance);
 
 // If the bot has a path, it will work out how far along the path it can see and return the furthest point. Used so that the bot looks ahead along the path rather than just at its next path point
 Vector UTIL_GetFurthestVisiblePointOnPath(const bot_t* pBot);
 // For the given viewer location and path, will return the furthest point along the path the viewer could see
-Vector UTIL_GetFurthestVisiblePointOnPath(const Vector& ViewerLocation, const bot_path_node* path, const int pathSize);
+Vector UTIL_GetFurthestVisiblePointOnPath(const Vector ViewerLocation, const bot_path_node* path, const int pathSize);
 
-// Returns the floor location under the entity (e.g. if it's in the air)
-Vector UTIL_GetFloorUnderEntity(const edict_t* Edict);
 
 // Returns the nearest nav mesh poly reference for the edict's current world position
 dtPolyRef UTIL_GetNearestPolyRefForEntity(const edict_t* Edict);
+dtPolyRef UTIL_GetNearestPolyRefForLocation(const Vector Location);
+dtPolyRef UTIL_GetNearestPolyRefForLocation(const int NavProfileIndex, const Vector Location);
 
 // Returns the area for the nearest nav mesh poly to the given location. Returns BLOCKED if none found
 unsigned char UTIL_GetNavAreaAtLocation(const Vector Location);
@@ -388,7 +403,7 @@ Vector UTIL_GetNearestLadderTopPoint(edict_t* pEdict);
 Vector UTIL_GetNearestLadderBottomPoint(edict_t* pEdict);
 
 // From the given start point, determine how high up the bot needs to climb to get to climb end. Will allow the bot to climb over railings
-float UTIL_FindZHeightForWallClimb(const Vector& ClimbStart, const Vector& ClimbEnd);
+float UTIL_FindZHeightForWallClimb(const Vector ClimbStart, const Vector ClimbEnd, const int HullNum);
 
 
 // Clears the bot's path and sets the path size to 0
@@ -397,7 +412,7 @@ void ClearBotPath(bot_t* pBot);
 void ClearBotStuckMovement(bot_t* pBot);
 
 // Draws just the bot's next movement on its path. Colour-coded based on the movement type (e.g. walk, crouch, jump, ladder)
-void UTIL_DrawBotNextPathPoint(bot_t* pBot);
+void DEBUG_DrawBotNextPathPoint(bot_t* pBot);
 
 // Based on the direction the bot wants to move and it's current facing angle, sets the forward and side move, and the directional buttons to make the bot actually move
 void BotMovementInputs(bot_t* pBot);
