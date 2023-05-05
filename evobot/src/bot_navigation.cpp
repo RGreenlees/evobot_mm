@@ -1666,6 +1666,8 @@ dtStatus FindPathClosestToPoint(const int NavProfileIndex, const Vector FromLoca
 
 dtStatus FindPathClosestToPoint(bot_t* pBot, const BotMoveStyle MoveStyle, const Vector FromLocation, const Vector ToLocation, bot_path_node* path, int* pathSize, float MaxAcceptableDistance)
 {
+	if (!pBot) { return DT_FAILURE; }
+
 	int NavProfileIndex = UTIL_GetMoveProfileForBot(pBot, MoveStyle);
 
 	if (NavProfileIndex < 0) { return DT_FAILURE; }
@@ -1767,29 +1769,28 @@ dtStatus FindPathClosestToPoint(bot_t* pBot, const BotMoveStyle MoveStyle, const
 
 	for (int nVert = 0; nVert < nVertCount; nVert++)
 	{
+		// The nav mesh doesn't always align perfectly with the floor, so align each nav point with the floor after generation
 		path[(nVert)].Location.x = StraightPath[nIndex++];
 		path[(nVert)].Location.z = StraightPath[nIndex++];
 		path[(nVert)].Location.y = -StraightPath[nIndex++];
 
 		TraceStart.x = path[(nVert)].Location.x;
 		TraceStart.y = path[(nVert)].Location.y;
-		TraceStart.z = path[(nVert)].Location.z + 5.0f;
+		TraceStart.z = path[(nVert)].Location.z + 18.0f;
 
-		if (pBot != nullptr)
+		
+		UTIL_TraceHull(TraceStart, (TraceStart - Vector(0.0f, 0.0f, 100.0f)), ignore_monsters, head_hull, nullptr, &hit);
+
+		if (hit.flFraction < 1.0f && !hit.fStartSolid)
 		{
+			bool isCrouchedArea = (CurrArea == SAMPLE_POLYAREA_CROUCH);
 
-			UTIL_TraceHull(TraceStart, (TraceStart - Vector(0.0f, 0.0f, 100.0f)), ignore_monsters, head_hull, nullptr, &hit);
-
-			if (hit.flFraction < 1.0f)
-			{
-				bool isCrouchedArea = (CurrArea == SAMPLE_POLYAREA_CROUCH);
-
-				path[(nVert)].Location = hit.vecEndPos + Vector(0.0f, 0.0f, 2.0f);
-
-			}
+			path[(nVert)].Location = hit.vecEndPos + Vector(0.0f, 0.0f, 2.0f);
 
 		}
 
+		// For ladders and wall climbing, calculate the climb height needed to complete the move.
+		// This what allows bots to climb over railings without having to explicitly place nav points on the railing itself
 		path[(nVert)].requiredZ = path[(nVert)].Location.z;
 
 		if (CurrArea == SAMPLE_POLYAREA_WALLCLIMB || CurrArea == SAMPLE_POLYAREA_LADDER)

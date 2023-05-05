@@ -846,6 +846,9 @@ void CommanderQueueInfantryPortalBuild(bot_t* pBot, int Priority)
 		{
 			Vector SearchPoint = ZERO_VECTOR;
 
+			// Sometimes the comm chair is built in a little nook and we need to ensure the commander doesn't place the portals wedged behind the comm chair or something
+			// So we check the closest point to the comm chair we can reach from the wider map and use that as a base for building the portals
+			// By default we just use the closest resource node, though I guess if a map has a resource node in a weird place it might not work...
 			const resource_node* ResNode = UTIL_FindNearestResNodeToLocation(CommChairLocation);
 
 			if (ResNode)
@@ -857,11 +860,14 @@ void CommanderQueueInfantryPortalBuild(bot_t* pBot, int Priority)
 				SearchPoint = UTIL_GetRandomPointOfInterest();
 			}
 
-			Vector NearestPointToChair = FindClosestNavigablePointToDestination(BUILDING_REGULAR_NAV_PROFILE, SearchPoint, CommChairLocation, 100.0f);
+			Vector NearestPointToChair = FindClosestNavigablePointToDestination(BUILDING_REGULAR_NAV_PROFILE, SearchPoint, CommChairLocation, UTIL_MetresToGoldSrcUnits(5.0f));
 
 			if (!vEquals(NearestPointToChair, ZERO_VECTOR))
 			{
-				BuildLocation = UTIL_GetRandomPointOnNavmeshInDonut(BUILDING_REGULAR_NAV_PROFILE, NearestPointToChair, UTIL_MetresToGoldSrcUnits(2.0f), UTIL_MetresToGoldSrcUnits(5.0f));
+				float Distance = vDist2D(NearestPointToChair, CommChairLocation);
+				float RandomDist = UTIL_MetresToGoldSrcUnits(5.0f) - Distance;
+
+				BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(BUILDING_REGULAR_NAV_PROFILE, NearestPointToChair, RandomDist);
 
 			}
 			else
@@ -2322,7 +2328,8 @@ void CommanderQueueNextAction(bot_t* pBot)
 
 	int NumPlacedOrQueuedPortals = UTIL_GetNumPlacedOrQueuedStructuresOfType(pBot, STRUCTURE_MARINE_INFANTRYPORTAL);
 
-	if (NumPlacedOrQueuedPortals < 2)
+	// Only queue up one infantry portal at a time so the second one can be built next to the first rather than randomly scattered
+	if (NumPlacedOrQueuedPortals < 2 && UTIL_GetQueuedBuildRequestsOfType(pBot, STRUCTURE_MARINE_INFANTRYPORTAL) == 0)
 	{
 		CommanderQueueInfantryPortalBuild(pBot, CurrentPriority);
 	}
