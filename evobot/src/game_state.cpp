@@ -37,9 +37,16 @@ float last_bot_count_check_time = 0.0f;
 
 EvobotDebugMode CurrentDebugMode = EVO_DEBUG_NONE;
 
+NSGameMode CurrentGameMode = GAME_MODE_NONE;
+
 EvobotDebugMode GAME_GetDebugMode()
 {
 	return CurrentDebugMode;
+}
+
+NSGameMode GAME_GetGameMode()
+{
+	return CurrentGameMode;
 }
 
 void GAME_AddClient(edict_t* NewClient)
@@ -74,6 +81,7 @@ void GAME_AddClient(edict_t* NewClient)
 		}
 	}
 }
+
 void GAME_RemoveClient(edict_t* DisconnectedClient)
 {
 	NumClients = 0;
@@ -165,6 +173,11 @@ void GAME_RemoveAllBots()
 void GAME_SetListenServerEdict(edict_t* ListenEdict)
 {
 	listenserver_edict = ListenEdict;
+}
+
+edict_t* GAME_GetListenServerEdict()
+{
+	return listenserver_edict;
 }
 
 void GAME_ClearClientList()
@@ -778,13 +791,53 @@ void GAME_AddBotToTeam(const int Team)
 	}
 }
 
+const char* UTIL_GameModeToChar(const NSGameMode GameMode)
+{
+	switch (GameMode)
+	{
+		case GAME_MODE_REGULAR:
+			return "Regular";
+		case GAME_MODE_COMBAT:
+			return "Combat";
+		default:
+			return "None";
+	}
+}
+
 void GAME_OnGameStart()
 {
 	GameStartTime = gpGlobals->time;
+
+	CurrentGameMode = GAME_MODE_NONE;
+
+	const char* theCStrLevelName = STRING(gpGlobals->mapname);
+	if (theCStrLevelName && (strlen(theCStrLevelName) > 3))
+	{
+		if (!strnicmp(theCStrLevelName, "ns_", 3))
+		{
+			bool bHiveExists = UTIL_FindEntityByClassname(NULL, "team_hive") != nullptr;
+			bool bCommChairExists = UTIL_FindEntityByClassname(NULL, "team_command") != nullptr;
+
+			if (bHiveExists && bCommChairExists)
+			{
+				CurrentGameMode = GAME_MODE_REGULAR;
+			}
+		}
+		else if (!strnicmp(theCStrLevelName, "co_", 3))
+		{
+			CurrentGameMode = GAME_MODE_COMBAT;
+		}
+	}
+
 	UTIL_ClearMapAIData();
 
 	if (!NavmeshLoaded()) { return; }
-	UTIL_PopulateResourceNodeLocations();
+
+	if (CurrentGameMode == GAME_MODE_REGULAR)
+	{
+		UTIL_PopulateResourceNodeLocations();
+	}
+
 	PopulateEmptyHiveList();
 }
 

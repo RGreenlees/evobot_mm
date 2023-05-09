@@ -93,6 +93,12 @@ NSPlayerClass GetPlayerClass(const edict_t* Player);
 // Returns player resources (for marines will be team resources)
 int GetPlayerResources(const edict_t* Player);
 
+// For combat mode, returns the player's current experience
+int GetPlayerCombatExperience(const edict_t* Player);
+
+// For combat mode, returns the player's current level
+int GetPlayerCombatLevel(const edict_t* Player);
+
 // Returns the player radius based on their current state
 float GetPlayerRadius(const edict_t* pEdict);
 

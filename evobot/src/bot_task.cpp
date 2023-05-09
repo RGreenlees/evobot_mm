@@ -759,10 +759,11 @@ bool UTIL_IsAlienHealTaskStillValid(bot_t* pBot, bot_task* Task)
 
 	if (!IsPlayerGorge(pBot->pEdict)) { return false; }
 
-	if (GetPlayerOverallHealthPercent(Task->TaskTarget) > 0.99f) { return false; }
+	if (GetPlayerOverallHealthPercent(Task->TaskTarget) >= 0.99f) { return false; }
+
+	if (IsEdictStructure(Task->TaskTarget)) { return true; }
 
 	// If our target is a player, give up if they are too far away. I'm not going to waste time chasing you around the map!
-
 	float MaxHealRelevant = sqrf(UTIL_MetresToGoldSrcUnits(5.0f));
 
 	return (vDist2DSq(pBot->CurrentFloorPosition, Task->TaskTarget->v.origin) <= MaxHealRelevant);
@@ -953,32 +954,7 @@ void BotProgressAttackTask(bot_t* pBot, bot_task* Task)
 		return;
 	}
 
-	int NumPlayersAttacking = UTIL_GetNumPlayersOfTeamInArea(Task->TaskTarget->v.origin, UTIL_MetresToGoldSrcUnits(2.0f), pBot->pEdict->v.team, pBot->pEdict, CLASS_GORGE, false);
-
-	// Don't allow bots to crowd around a structure, otherwise they get in each others way
-	if (NumPlayersAttacking >= 2)
-	{
-		int EnemyStructureTeam = Task->TaskTarget->v.team;
-
-		edict_t* NewTarget = UTIL_GetNearestUnattackedStructureOfTeamInLocation(Task->TaskTarget->v.origin, Task->TaskTarget, EnemyStructureTeam, UTIL_MetresToGoldSrcUnits(10.0f));
-		
-		if (!FNullEnt(NewTarget))
-		{
-			Task->TaskTarget = NewTarget;
-			Task->TaskLocation = NewTarget->v.origin;
-			return;
-		}
-
-		Vector GuardLocation = pBot->GuardInfo.GuardLocation;
-
-		if (!GuardLocation || vDist2DSq(GuardLocation, Task->TaskTarget->v.origin) > sqrf(UTIL_MetresToGoldSrcUnits(5.0f)))
-		{
-			GuardLocation = UTIL_GetRandomPointOnNavmeshInDonut(BUILDING_REGULAR_NAV_PROFILE, Task->TaskTarget->v.origin, UTIL_MetresToGoldSrcUnits(3.0f), UTIL_MetresToGoldSrcUnits(5.0f));
-		}
-		
-		BotGuardLocation(pBot, GuardLocation);
-		return;
-	}
+	NSStructureType TargetStructureType = GetStructureTypeFromEdict(Task->TaskTarget);
 
 	NSWeapon AttackWeapon = WEAPON_NONE;
 
@@ -992,7 +968,7 @@ void BotProgressAttackTask(bot_t* pBot, bot_task* Task)
 	}
 
 	float MaxRange = GetMaxIdealWeaponRange(AttackWeapon);
-	bool bHullSweep = IsMeleeWeapon(AttackWeapon);
+	float MinRange = GetMinIdealWeaponRange(AttackWeapon);
 
 	if (UTIL_PlayerHasLOSToEntity(pBot->pEdict, Task->TaskTarget, MaxRange, false))
 	{
@@ -1001,50 +977,33 @@ void BotProgressAttackTask(bot_t* pBot, bot_task* Task)
 		if (GetBotCurrentWeapon(pBot) == AttackWeapon)
 		{
 			BotAttackTarget(pBot, Task->TaskTarget);
-
-			if (vDist2DSq(pBot->pEdict->v.origin, Task->TaskTarget->v.origin) > sqrf(MaxRange))
-			{
-				MoveDirectlyTo(pBot, Task->TaskTarget->v.origin);
-			}
 		}
 	}
-	else
+
+	if (UTIL_TraceEntity(pBot->pEdict, Task->TaskLocation + Vector(0.0f, 0.0f, 32.0f), UTIL_GetCentreOfEntity(Task->TaskTarget)) != Task->TaskTarget)
 	{
-		// If LOS is blocked by an enemy structure or other enemy player, attack them anyway
-		edict_t* TracedEntity = UTIL_TraceEntity(pBot->pEdict, pBot->CurrentEyePosition, UTIL_GetCentreOfEntity(Task->TaskTarget));
+		int BotMoveProfile = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
 
-		if (!FNullEnt(TracedEntity) && TracedEntity != Task->TaskTarget)
+		Vector NewAttackLocation = UTIL_GetRandomPointOnNavmeshInRadius(BotMoveProfile, Task->TaskLocation, UTIL_MetresToGoldSrcUnits(2.0f));
+
+		if (NewAttackLocation != ZERO_VECTOR  && UTIL_TraceEntity(pBot->pEdict, NewAttackLocation + Vector(0.0f, 0.0f, 32.0f), UTIL_GetCentreOfEntity(Task->TaskTarget)) == Task->TaskTarget)// UTIL_QuickTrace(pBot->pEdict, NewAttackLocation + Vector(0.0f, 0.0f, 32.0f), UTIL_GetCentreOfEntity(Task->TaskTarget)))
 		{
-			if (TracedEntity->v.team != 0 && TracedEntity->v.team != pBot->pEdict->v.team)
-			{
-				if (IsEdictStructure(TracedEntity))
-				{
-					BotAttackTarget(pBot, TracedEntity);
-				}
-			}
-		}
-
-		float DistToTarget = vDist2DSq(pBot->pEdict->v.origin, Task->TaskTarget->v.origin);
-
-		if (DistToTarget < sqrf(MaxRange))
-		{
-			BotAttackTarget(pBot, Task->TaskTarget);
-			Vector MoveDir = UTIL_GetVectorNormal2D(pBot->pEdict->v.origin - Task->TaskTarget->v.origin);
-			MoveDirectlyTo(pBot, Task->TaskTarget->v.origin + (MoveDir * MaxRange));
-		}
-		else
-		{
-			MoveTo(pBot, Task->TaskTarget->v.origin, MOVESTYLE_NORMAL);
-
-			if (DistToTarget > sqrf(UTIL_MetresToGoldSrcUnits(5.0f)))
-			{
-				if (IsPlayerMarine(pBot->pEdict))
-				{
-					BotReloadWeapons(pBot);
-				}
-			}
+			Task->TaskLocation = NewAttackLocation;
 		}
 	}
+
+	MoveTo(pBot, Task->TaskLocation, MOVESTYLE_NORMAL);
+
+	float DistToTarget = vDist2DSq(pBot->pEdict->v.origin, Task->TaskLocation);
+
+	if (DistToTarget > sqrf(UTIL_MetresToGoldSrcUnits(5.0f)))
+	{
+		if (IsPlayerMarine(pBot->pEdict))
+		{
+			BotReloadWeapons(pBot);
+		}
+	}
+
 }
 
 void BotProgressDefendTask(bot_t* pBot, bot_task* Task)

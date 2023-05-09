@@ -110,7 +110,13 @@ void ReadyRoomThink(bot_t* pBot);
 
 void BotThink(bot_t* pBot);
 
+// Called during the regular NS game mode
 void RegularModeThink(bot_t* pBot);
+// Called during the combat game mode
+void CombatModeThink(bot_t* pBot);
+// Called if there isn't a valid game mode in play (e.g. user has loaded non-NS map). Bots will randomly roam and attack enemies but nothing else
+void InvalidModeThink(bot_t* pBot);
+
 void TestNavThink(bot_t* pBot);
 void TestGuardThink(bot_t* pBot);
 void TestAimThink(bot_t* pBot);
@@ -123,5 +129,19 @@ void BotRestartPlay(bot_t* pBot);
 void FakeClientCommand(edict_t* pBot, const char* arg1, const char* arg2, const char* arg3);
 void BotSwitchToWeapon(bot_t* pBot, NSWeapon NewWeaponSlot);
 
+// Test the bot melee system
+void DEBUG_BotMeleeTarget(bot_t* pBot, edict_t* Target);
+
+// Called when the bot levels up in Combat mode
+void OnBotCombatLevelUp(bot_t* pBot);
+// How many points has the bot spent on stuff?
+int GetBotSpentCombatPoints(bot_t* pBot);
+// How many points does the bot have right now to spent?
+int GetBotAvailableCombatPoints(bot_t* pBot);
+
+int GetMarineCombatUpgradeCost(const CombatModeMarineUpgrade Upgrade);
+int GetAlienCombatUpgradeCost(const CombatModeAlienUpgrade Upgrade);
+int GetImpulseForMarineCombatUpgrade(const CombatModeMarineUpgrade Upgrade);
+int GetImpulseForAlienCombatUpgrade(const CombatModeAlienUpgrade Upgrade);
 
 #endif

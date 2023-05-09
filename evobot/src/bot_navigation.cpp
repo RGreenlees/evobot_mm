@@ -1934,11 +1934,11 @@ bool HasBotReachedPathPoint(const bot_t* pBot)
 
 			if (DirectionDot >= -0.5f)
 			{
-				return bAtOrPastDestination && UTIL_PointIsDirectlyReachable(pBot, pBot->CurrentFloorPosition, pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint + 1].Location);
+				return bAtOrPastDestination && UTIL_PointIsDirectlyReachable(pBot, pBot->CurrentFloorPosition, pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint + 1].Location) && UTIL_QuickHullTrace(pBot->pEdict, pBot->pEdict->v.origin, pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint + 1].Location + Vector(0.0f, 0.0f, 10.0f));
 			}
 			else
 			{
-				return bAtOrPastDestination && pBot->BotNavInfo.IsOnGround;
+				return bAtOrPastDestination && pBot->BotNavInfo.IsOnGround && fabs(pBot->CurrentFloorPosition.z - CurrentMoveDest.z) < 50.0f;
 				//return (vDist2D(pEdict->v.origin, CurrentMoveDest) <= playerRadius && (fabs(pBot->CurrentFloorPosition.z - CurrentMoveDest.z) < 50.0f) && pBot->BotNavInfo.IsOnGround);
 			}
 		}
@@ -4755,10 +4755,12 @@ void ClearBotStuckMovement(bot_t* pBot)
 	//pBot->BotNavInfo.TotalStuckTime = 0.0f;
 }
 
-void DEBUG_DrawBotNextPathPoint(bot_t* pBot)
+void DEBUG_DrawBotNextPathPoint(bot_t* pBot, float TimeInSeconds)
 {
 	if (pBot->BotNavInfo.PathSize > 0)
 	{
+		float DrawTime = fmaxf(TimeInSeconds, 0.1f);
+
 		edict_t* pEdict = pBot->pEdict;
 		int area = pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].area;
 
@@ -4768,28 +4770,28 @@ void DEBUG_DrawBotNextPathPoint(bot_t* pBot)
 		switch (area)
 		{
 		case SAMPLE_POLYAREA_GROUND:
-			UTIL_DrawLine(clients[0], StartLine, EndLine, 255, 255, 255);
+			UTIL_DrawLine(clients[0], StartLine, EndLine, DrawTime, 255, 255, 255);
 			break;
 		case SAMPLE_POLYAREA_CROUCH:
-			UTIL_DrawLine(clients[0], StartLine, EndLine, 255, 0, 0);
+			UTIL_DrawLine(clients[0], StartLine, EndLine, DrawTime, 255, 0, 0);
 			break;
 		case SAMPLE_POLYAREA_LADDER:
-			UTIL_DrawLine(clients[0], StartLine, EndLine, 0, 0, 255);
+			UTIL_DrawLine(clients[0], StartLine, EndLine, DrawTime, 0, 0, 255);
 			break;
 		case SAMPLE_POLYAREA_WALLCLIMB:
-			UTIL_DrawLine(clients[0], StartLine, EndLine, 0, 128, 0);
+			UTIL_DrawLine(clients[0], StartLine, EndLine, DrawTime, 0, 128, 0);
 			break;
 		case SAMPLE_POLYAREA_JUMP:
 		case SAMPLE_POLYAREA_HIGHJUMP:
 		case SAMPLE_POLYAREA_BLOCKED:
-			UTIL_DrawLine(clients[0], StartLine, EndLine, 255, 255, 0);
+			UTIL_DrawLine(clients[0], StartLine, EndLine, DrawTime, 255, 255, 0);
 			break;
 		case SAMPLE_POLYAREA_FALL:
 		case SAMPLE_POLYAREA_HIGHFALL:
-			UTIL_DrawLine(clients[0], StartLine, EndLine, 0, 255, 255);
+			UTIL_DrawLine(clients[0], StartLine, EndLine, DrawTime, 0, 255, 255);
 			break;
 		default:
-			UTIL_DrawLine(clients[0], StartLine, EndLine, 0, 0, 0);
+			UTIL_DrawLine(clients[0], StartLine, EndLine, DrawTime, 0, 0, 0);
 			break;
 		}
 	}

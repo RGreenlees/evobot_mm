@@ -195,7 +195,7 @@ void SetHiveUnderAttack(int HiveIndex, bool bNewUnderAttack)
 	Hives[HiveIndex].bIsUnderAttack = bNewUnderAttack;
 }
 
-void SetHiveHealthPercent(int HiveIndex, float NewHealthPercent)
+void SetHiveHealthPercent(int HiveIndex, int NewHealthPercent)
 {
 	Hives[HiveIndex].HealthPercent = NewHealthPercent;
 }
@@ -1259,7 +1259,7 @@ edict_t* UTIL_GetFirstPlacedStructureOfType(const NSStructureType StructureType)
 	{
 		for (auto& it : MarineBuildableStructureMap)
 		{
-			if (!it.second.bOnNavmesh) { continue; }
+			if (!it.second.bOnNavmesh || !it.second.bIsReachableAlien) { continue; }
 			if (UTIL_StructureTypesMatch(StructureType, it.second.StructureType)) { return it.second.edict; }
 		}
 	}
@@ -1267,7 +1267,7 @@ edict_t* UTIL_GetFirstPlacedStructureOfType(const NSStructureType StructureType)
 	{
 		for (auto& it : AlienBuildableStructureMap)
 		{
-			if (!it.second.bOnNavmesh) { continue; }
+			if (!it.second.bOnNavmesh || !it.second.bIsReachableAlien) { continue; }
 			if (UTIL_StructureTypesMatch(StructureType, it.second.StructureType)) { return it.second.edict; }
 
 		}
@@ -2560,7 +2560,7 @@ edict_t* UTIL_GetNearestStructureIndexOfType(const Vector& Location, NSStructure
 	{
 		for (auto& it : MarineBuildableStructureMap)
 		{
-			if (!it.second.bOnNavmesh) { continue; }
+			if (!it.second.bOnNavmesh || !it.second.bIsReachableAlien) { continue; }
 			if (!UTIL_StructureTypesMatch(StructureType, it.second.StructureType)) { continue; }
 			if (bFullyConstructedOnly && !it.second.bFullyConstructed) { continue; }
 
@@ -2577,7 +2577,7 @@ edict_t* UTIL_GetNearestStructureIndexOfType(const Vector& Location, NSStructure
 	{
 		for (auto& it : AlienBuildableStructureMap)
 		{
-			if (!it.second.bOnNavmesh) { continue; }
+			if (!it.second.bOnNavmesh || !it.second.bIsReachableAlien) { continue; }
 			if (!UTIL_StructureTypesMatch(StructureType, it.second.StructureType)) { continue; }
 			if (bFullyConstructedOnly && !it.second.bFullyConstructed) { continue; }
 
@@ -2670,7 +2670,8 @@ edict_t* UTIL_FindClosestMarineStructureToLocation(const Vector& Location, const
 
 	for (auto& it : MarineBuildableStructureMap)
 	{
-		if (!it.second.bOnNavmesh) { continue; }
+
+		if (!it.second.bOnNavmesh || !it.second.bIsReachableMarine) { continue; }
 		if (!bAllowElectrified && it.second.bIsElectrified) { continue; }
 
 		float thisDist = vDist2DSq(Location, it.second.Location);
@@ -2712,7 +2713,7 @@ edict_t* UTIL_FindClosestMarineStructureOfTypeUnbuilt(const NSStructureType Stru
 
 	for (auto& it : MarineBuildableStructureMap)
 	{
-		if (!it.second.bOnNavmesh) { continue; }
+		if (!it.second.bOnNavmesh || !it.second.bIsReachableAlien) { continue; }
 		if (it.second.bFullyConstructed) { continue; }
 		if (!UTIL_StructureTypesMatch(StructureType, it.second.StructureType)) { continue; }
 
@@ -2737,7 +2738,7 @@ edict_t* UTIL_FindClosestMarineStructureUnbuilt(const Vector& SearchLocation, fl
 
 	for (auto& it : MarineBuildableStructureMap)
 	{
-		if (!it.second.bOnNavmesh) { continue; }
+		if (!it.second.bOnNavmesh || !it.second.bIsReachableAlien) { continue; }
 		if (it.second.bFullyConstructed) { continue; }
 
 		float thisDist = (bUsePhaseDistance) ? UTIL_GetPhaseDistanceBetweenPointsSq(SearchLocation, it.second.Location) : vDist2DSq(SearchLocation, it.second.Location);
@@ -2802,7 +2803,7 @@ edict_t* UTIL_FindClosestDamagedStructure(const Vector& SearchLocation, const in
 	{
 		for (auto& it : MarineBuildableStructureMap)
 		{
-			if (!it.second.bOnNavmesh) { continue; }
+			if (!it.second.bOnNavmesh || !it.second.bIsReachableAlien) { continue; }
 
 			if (!it.second.bFullyConstructed) { continue; }
 
@@ -2821,7 +2822,7 @@ edict_t* UTIL_FindClosestDamagedStructure(const Vector& SearchLocation, const in
 	{
 		for (auto& it : AlienBuildableStructureMap)
 		{
-			if (!it.second.bOnNavmesh) { continue; }
+			if (!it.second.bOnNavmesh || !it.second.bIsReachableAlien) { continue; }
 
 			if (!it.second.bFullyConstructed) { continue; }
 
@@ -3101,7 +3102,7 @@ void UTIL_UpdateMarineItem(edict_t* Item, NSDeployableItem ItemType)
 
 void UTIL_UpdateBuildableStructure(edict_t* Structure)
 {
-	if (FNullEnt(Structure)) { return; }
+	if (FNullEnt(Structure) || (Structure->v.effects & EF_NODRAW)) { return; }
 
 	NSStructureType StructureType = UTIL_IUSER3ToStructureType(Structure->v.iuser3);
 

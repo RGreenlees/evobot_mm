@@ -30,6 +30,9 @@
 #define IMPULSE_ALIEN_UPGRADE_FOCUS 111
 #define IMPULSE_ALIEN_UPGRADE_SCENTOFFEAR 112
 
+#define IMPULSE_ALIEN_UPGRADE_ABILITY3_UNLOCK 118 // Unlock ability 3 in combat mode
+#define IMPULSE_ALIEN_UPGRADE_ABILITY4_UNLOCK 126 // Unlock ability 4 in combat mode
+
 #define IMPULSE_ALIEN_TAUNT 9
 #define IMPULSE_ALIEN_REQUEST_HEAL 14
 
@@ -215,6 +218,16 @@ const int		kGameStatusUnspentLevels = 4;
 const int		kNumHotkeyGroups = 5;
 const int		kSelectAllHotGroup = kNumHotkeyGroups + 1;
 
+// Game mode (e.g. combat, regular, MvM, AvA etc)
+enum NSGameMode
+{
+	GAME_MODE_NONE = 0,		// Undefined game mode
+	GAME_MODE_REGULAR = 1,	// Regular NS game mode
+	GAME_MODE_COMBAT = 2,	// Combat game mode
+	GAME_MODE_MVM = 3,		// Marine vs Marine mode
+	GAME_MODE_AVA = 4		// Alien vs Alien mode
+};
+
 // All iuser3 values to denote entity classification (e.g. player class, or building type)
 typedef enum
 {
@@ -340,6 +353,51 @@ typedef enum
 	MASK_SENSORY_NEARBY = 0x40000000	// Player is cloaked by a sensory chamber
 } AvHUpgradeMask;
 
+// All iuser4 masks that can be applied to a player to denote what upgrades or status effects they have applied
+typedef enum
+{
+	COMBAT_MARINE_UPGRADE_NONE = 0,
+	COMBAT_MARINE_UPGRADE_CATALYST = 1 << 0,
+	COMBAT_MARINE_UPGRADE_RESUPPLY = 1 << 1,
+	COMBAT_MARINE_UPGRADE_SCAN = 1 << 2,
+	COMBAT_MARINE_UPGRADE_MOTIONTRACKING = 1 << 3,
+	COMBAT_MARINE_UPGRADE_MINES = 1 << 4,
+	COMBAT_MARINE_UPGRADE_WELDER = 1 << 5,
+	COMBAT_MARINE_UPGRADE_GRENADE = 1 << 6,
+	COMBAT_MARINE_UPGRADE_ARMOUR1 = 1 << 7,
+	COMBAT_MARINE_UPGRADE_ARMOUR2 = 1 << 8,
+	COMBAT_MARINE_UPGRADE_ARMOUR3 = 1 << 9,
+	COMBAT_MARINE_UPGRADE_JETPACK = 1 << 10,
+	COMBAT_MARINE_UPGRADE_HEAVYARMOUR = 1 << 11,
+	COMBAT_MARINE_UPGRADE_DAMAGE1 = 1 << 12,
+	COMBAT_MARINE_UPGRADE_DAMAGE2 = 1 << 13,
+	COMBAT_MARINE_UPGRADE_DAMAGE3 = 1 << 14,
+	COMBAT_MARINE_UPGRADE_SHOTGUN = 1 << 15,
+	COMBAT_MARINE_UPGRADE_HMG = 1 << 16,
+	COMBAT_MARINE_UPGRADE_GRENADELAUNCHER = 1 << 17
+} CombatModeMarineUpgrade;
+
+// All iuser4 masks that can be applied to a player to denote what upgrades or status effects they have applied
+typedef enum
+{
+	COMBAT_ALIEN_UPGRADE_NONE = 0,
+	COMBAT_ALIEN_UPGRADE_ABILITY3 = 1 << 0,
+	COMBAT_ALIEN_UPGRADE_ABILITY4 = 1 << 1,
+	COMBAT_ALIEN_UPGRADE_SILENCE = 1 << 2,
+	COMBAT_ALIEN_UPGRADE_CELERITY = 1 << 3,
+	COMBAT_ALIEN_UPGRADE_ADRENALINE = 1 << 4,
+	COMBAT_ALIEN_UPGRADE_SCENTOFFEAR = 1 << 5,
+	COMBAT_ALIEN_UPGRADE_FOCUS = 1 << 6,
+	COMBAT_ALIEN_UPGRADE_CLOAKING = 1 << 7,
+	COMBAT_ALIEN_UPGRADE_CARAPACE = 1 << 8,
+	COMBAT_ALIEN_UPGRADE_REDEMPTION = 1 << 9,
+	COMBAT_ALIEN_UPGRADE_REGENERATION = 1 << 10,
+	COMBAT_ALIEN_UPGRADE_GORGE = 1 << 11,
+	COMBAT_ALIEN_UPGRADE_LERK = 1 << 12,
+	COMBAT_ALIEN_UPGRADE_FADE = 1 << 13,
+	COMBAT_ALIEN_UPGRADE_ONOS = 1 << 14,
+} CombatModeAlienUpgrade;
+
 // Used in network messages to work out what information about a hive is being sent (see BotClient_NS_AlienInfo in bot_client.cpp)
 enum AlienInfo_ChangeFlags
 {
@@ -443,6 +501,7 @@ typedef enum
 {
 	ITEM_NONE = 0,
 
+	ITEM_MARINE_RESUPPLY = 31, // For combat mode
 	ITEM_MARINE_HEAVYARMOUR = 38,
 	ITEM_MARINE_JETPACK = 39,
 	ITEM_MARINE_CATALYSTS = 47,
@@ -454,7 +513,7 @@ typedef enum
 	ITEM_MARINE_SHOTGUN = 64,
 	ITEM_MARINE_HMG = 65,
 	ITEM_MARINE_GRENADELAUNCHER = 66
-
+	
 
 } NSDeployableItem;
 

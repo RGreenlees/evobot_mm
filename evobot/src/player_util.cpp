@@ -163,6 +163,7 @@ float GetPlayerEnergy(const edict_t* Player)
 
 int GetPlayerMaxArmour(const edict_t* Player)
 {
+	if (IsEdictStructure(Player)) { return 0; }
 
 	if (IsPlayerMarine(Player))
 	{
@@ -268,6 +269,37 @@ int GetPlayerResources(const edict_t* Player)
 	if (FNullEnt(Player)) { return 0; }
 
 	return (int)ceil(Player->v.vuser4.z / kNumericNetworkConstant);
+}
+
+int GetPlayerCombatExperience(const edict_t* Player)
+{
+	if (FNullEnt(Player)) { return 0; }
+
+	return (int)ceil(Player->v.vuser4.z / kNumericNetworkConstant);
+}
+
+int GetPlayerCombatLevel(const edict_t* Player)
+{
+		int thePlayerLevel = 1;
+
+		int theCombatBaseExperience = 100;
+		float theCombatLevelExperienceModifier = 0.5f;
+
+		float CurrentExperience = (float)GetPlayerCombatExperience(Player);
+
+		while ((CurrentExperience > 0) && (theCombatLevelExperienceModifier > 0))
+		{
+			CurrentExperience -= (1.0f + (thePlayerLevel - 1) * theCombatLevelExperienceModifier) * theCombatBaseExperience;
+
+			if (CurrentExperience > 0)
+			{
+				thePlayerLevel++;
+			}
+		}
+
+		thePlayerLevel = imaxi(imini(thePlayerLevel, 10), 1);
+
+		return thePlayerLevel;
 }
 
 float GetPlayerRadius(const edict_t* pEdict)
@@ -381,6 +413,8 @@ float GetPlayerEnergyRegenPerSecond(edict_t* Player)
 
 float GetPlayerOverallHealthPercent(const edict_t* Player)
 {
+	if (IsEdictStructure(Player)) { return (Player->v.health / Player->v.max_health); }
+
 	float MaxHealthAndArmour = Player->v.max_health + GetPlayerMaxArmour(Player);
 	float CurrentHealthAndArmour = Player->v.health + Player->v.armorvalue;
 

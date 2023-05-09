@@ -77,7 +77,7 @@ typedef struct _HIVE_DEFINITION_T
 	Vector FloorLocation = ZERO_VECTOR; // Some hives are suspended in the air, this is the floor location directly beneath it
 	HiveStatusType Status = HIVE_STATUS_UNBUILT; // Can be unbuilt, in progress, or fully built
 	HiveTechStatus TechStatus = HIVE_TECH_NONE; // What tech (if any) is assigned to this hive right now
-	float HealthPercent = 0.0f; // How much health it has
+	int HealthPercent = 0; // How much health it has
 	bool bIsUnderAttack = false; // Is the hive currently under attack? Becomes false if not taken damage for more than 10 seconds
 	int HiveResNodeIndex = -1; // Which resource node (indexes into ResourceNodes array) belongs to this hive?
 	unsigned int ObstacleRef = 0; // When in progress or built, will place an obstacle so bots don't try to walk through it
@@ -171,7 +171,7 @@ void SetHiveLocation(int HiveIndex, const Vector NewLocation);
 void SetHiveStatus(int HiveIndex, int NewStatus);
 void SetHiveTechStatus(int HiveIndex, int NewTechStatus);
 void SetHiveUnderAttack(int HiveIndex, bool bNewUnderAttack);
-void SetHiveHealthPercent(int HiveIndex, float NewHealthPercent);
+void SetHiveHealthPercent(int HiveIndex, int NewHealthPercent);
 
 int UTIL_GetNumResNodes();
 

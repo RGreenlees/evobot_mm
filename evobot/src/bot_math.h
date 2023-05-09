@@ -60,6 +60,8 @@ float fDegreesToRadians(const float Degrees);
 bool randbool();
 // Returns the max of two integers
 int imaxi(const int a, const int b);
+// Returns the min of two integers
+int imini(const int a, const int b);
 
 // VECTOR MATH
 
@@ -177,5 +179,10 @@ Vector UTIL_GetAimLocationToLeadTarget(const Vector ShooterLocation, const Vecto
 float UTIL_GetVelocityRequiredToReachTarget(const Vector StartLocation, const Vector TargetLocation, float Gravity);
 
 Vector UTIL_GetRandomPointInBoundingBox(const Vector BoxMin, const Vector BoxMax);
+
+// OTHER STUFF
+
+// Function to get number of set bits in a positive integer n
+unsigned int UTIL_CountSetBitsInInteger(unsigned int n);
 
 #endif

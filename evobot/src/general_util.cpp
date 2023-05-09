@@ -441,7 +441,6 @@ Vector UTIL_GetEntityGroundLocation(const edict_t* pEntity)
 Vector UTIL_GetCentreOfEntity(const edict_t* Entity)
 {
 	if (!Entity) { return ZERO_VECTOR; }
-
 	return (Entity->v.absmin + (Entity->v.size * 0.5f));
 }
 

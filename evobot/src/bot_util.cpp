@@ -495,18 +495,18 @@ void BotAttackTarget(bot_t* pBot, edict_t* Target)
 	if (IsMeleeWeapon(CurrentWeapon))
 	{
 		BotLookAt(pBot, Target);
-		Vector TargetAimDir = UTIL_GetVectorNormal(UTIL_GetCentreOfEntity(Target) - pBot->CurrentEyePosition);
+		Vector TargetAimDir = UTIL_GetVectorNormal2D(UTIL_GetCentreOfEntity(Target) - pBot->CurrentEyePosition);
 
 		float MaxWeaponRange = GetMaxIdealWeaponRange(CurrentWeapon);
 
 		if (UTIL_PlayerHasLOSToEntity(pBot->pEdict, Target, MaxWeaponRange, true))
 		{
-			Vector AimDir = UTIL_GetForwardVector(pBot->pEdict->v.v_angle);
+			Vector AimDir = UTIL_GetForwardVector2D(pBot->pEdict->v.v_angle);
 
 
-			float AimDot = UTIL_GetDotProduct(AimDir, TargetAimDir);
+			float AimDot = UTIL_GetDotProduct2D(AimDir, TargetAimDir);
 
-			if (AimDot >= 0.90f)
+			if (AimDot >= 0.75f)
 			{
 				pBot->pEdict->v.button |= IN_ATTACK;
 				pBot->current_weapon.LastFireTime = gpGlobals->time;
@@ -955,11 +955,17 @@ void UTIL_ClearAllBotData(bot_t* pBot)
 
 	pBot->CommanderLastScanTime = 0.0f;
 
+	pBot->CombatLevel = 1;
+	pBot->CombatUpgradeMask = 0;
+	pBot->NumUpgradePoints = 0;
+
 	if (pBot->logFile)
 	{
 		fflush(pBot->logFile);
 		fclose(pBot->logFile);
 	}
+
+	
 
 }
 
@@ -1423,8 +1429,31 @@ void BotThink(bot_t* pBot)
 		CustomThink(pBot);
 		break;
 	default:
-		RegularModeThink(pBot);
-		break;
+	{
+		if (!bGameIsActive)
+		{
+			WaitGameStartThink(pBot);
+		}
+		else
+		{
+			NSGameMode CurrentGameMode = GAME_GetGameMode();
+
+			if (CurrentGameMode == GAME_MODE_REGULAR)
+			{
+				RegularModeThink(pBot);
+			}
+			else if (CurrentGameMode == GAME_MODE_COMBAT)
+			{
+				CombatModeThink(pBot);
+			}
+			else
+			{
+				InvalidModeThink(pBot);
+			}
+		}
+	}
+		
+	break;
 	}
 
 	BotUpdateDesiredViewRotation(pBot);
@@ -1439,11 +1468,6 @@ void BotThink(bot_t* pBot)
 
 void RegularModeThink(bot_t* pBot)
 {
-	if (!bGameIsActive)
-	{
-		WaitGameStartThink(pBot);
-		return;
-	}
 
 	if (IsPlayerCommander(pBot->pEdict))
 	{
@@ -1466,6 +1490,87 @@ void RegularModeThink(bot_t* pBot)
 	{
 		AlienThink(pBot);
 	}
+}
+
+void CombatModeThink(bot_t* pBot)
+{
+	int NewLevel = GetPlayerCombatLevel(pBot->pEdict);
+
+	if (NewLevel > pBot->CombatLevel)
+	{
+		pBot->CombatLevel = NewLevel;
+		OnBotCombatLevelUp(pBot);
+	}
+
+	pBot->CurrentEnemy = BotGetNextEnemyTarget(pBot);
+
+	if (pBot->CurrentEnemy > -1)
+	{
+		pBot->LastCombatTime = gpGlobals->time;
+	}
+
+	if (IsPlayerMarine(pBot->pEdict))
+	{
+		MarineCombatModeThink(pBot);
+	}
+	else
+	{
+		AlienCombatModeThink(pBot);
+	}
+}
+
+void InvalidModeThink(bot_t* pBot)
+{
+	pBot->CurrentEnemy = BotGetNextEnemyTarget(pBot);
+
+	if (pBot->CurrentEnemy > -1)
+	{
+		pBot->LastCombatTime = gpGlobals->time;
+
+		if (IsPlayerMarine(pBot->pEdict))
+		{
+			MarineCombatThink(pBot);
+			return;
+		}
+		else
+		{
+			switch (pBot->bot_ns_class)
+			{
+				case CLASS_SKULK:
+					SkulkCombatThink(pBot);
+					return;
+				case CLASS_GORGE:
+					GorgeCombatThink(pBot);
+					return;
+				case CLASS_LERK:
+					return;
+				case CLASS_FADE:
+					FadeCombatThink(pBot);
+					return;
+				case CLASS_ONOS:
+					OnosCombatThink(pBot);
+					return;
+				default:
+					return;
+			}
+		}		
+	}
+
+	BotUpdateAndClearTasks(pBot);
+
+	if (pBot->PrimaryBotTask.TaskType != TASK_MOVE)
+	{
+		Vector NewLocation = UTIL_GetRandomPointOnNavmesh(pBot);
+
+		if (NewLocation != ZERO_VECTOR)
+		{
+			pBot->PrimaryBotTask.TaskType = TASK_MOVE;
+			pBot->PrimaryBotTask.TaskLocation = NewLocation;
+		}
+	}
+
+	BotProgressTask(pBot, &pBot->PrimaryBotTask);
+
 }
 
 void ReadyRoomThink(bot_t* pBot)
@@ -1657,39 +1762,23 @@ void DroneThink(bot_t* pBot)
 
 void CustomThink(bot_t* pBot)
 {
-	BotUpdateAndClearTasks(pBot);
+	int Enemy = BotGetNextEnemyTarget(pBot);
 
-	edict_t* DangerTurret = BotGetNearestDangerTurret(pBot, UTIL_MetresToGoldSrcUnits(10.0f));
+	edict_t* Target = nullptr;
 
-	pBot->CurrentTask = BotGetNextTask(pBot);
-
-	if (!FNullEnt(DangerTurret))
+	if (Enemy > -1)
 	{
-		Vector TaskLocation = (!FNullEnt(pBot->CurrentTask->TaskTarget)) ? pBot->CurrentTask->TaskTarget->v.origin : pBot->CurrentTask->TaskLocation;
-		float DistToTurret = vDist2DSq(TaskLocation, DangerTurret->v.origin);
-
-		if (pBot->CurrentTask->TaskType != TASK_ATTACK && DistToTurret <= sqrf(UTIL_MetresToGoldSrcUnits(10.0f)))
-		{
-			BotAttackStructure(pBot, DangerTurret);
-			return;
-		}
-	}
-
-	if (pBot->CurrentTask->TaskType != TASK_NONE)
-	{
-		BotProgressTask(pBot, pBot->CurrentTask);
+		Target = pBot->TrackedEnemies[Enemy].EnemyEdict;
 	}
 	else
 	{
-		edict_t* AttackedStructure = UTIL_GetNearestUndefendedStructureOfTypeUnderAttack(pBot, STRUCTURE_MARINE_RESTOWER);
+		int EnemyTeam = (pBot->pEdict->v.team == MARINE_TEAM) ? ALIEN_TEAM : MARINE_TEAM;
+		Target = UTIL_GetNearestUnattackedStructureOfTeamInLocation(pBot->pEdict->v.origin, nullptr, EnemyTeam, UTIL_MetresToGoldSrcUnits(100.0f));
+	}
 
-		if (!FNullEnt(AttackedStructure))
-		{
-			pBot->PrimaryBotTask.TaskType = TASK_DEFEND;
-			pBot->PrimaryBotTask.TaskTarget = AttackedStructure;
-			pBot->PrimaryBotTask.TaskLocation = AttackedStructure->v.origin;
-			pBot->PrimaryBotTask.bOrderIsUrgent = true;
-		}
+	if (!FNullEnt(Target))
+	{
+		DEBUG_BotMeleeTarget(pBot, Target);
 	}
 }
 
@@ -1906,4 +1995,238 @@ void FakeClientCommand(edict_t* pBot, const char* arg1, const char* arg2, const 
 	MDLL_ClientCommand(pBot);
 
 	isFakeClientCommand = false;
+}
+
+void DEBUG_BotMeleeTarget(bot_t* pBot, edict_t* Target)
+{
+	NSWeapon DesiredWeapon = (IsPlayerMarine(pBot->pEdict)) ? WEAPON_MARINE_KNIFE : GetBotAlienPrimaryWeapon(pBot);
+
+	float range = GetMaxIdealWeaponRange(DesiredWeapon);
+
+	float Dist = vDist2DSq(pBot->pEdict->v.origin, Target->v.origin);
+
+	if (Dist < sqrf(UTIL_MetresToGoldSrcUnits(5.0f)))
+	{
+		BotLookAt(pBot, Target);
+
+		edict_t* HitTarget = UTIL_TraceEntity(pBot->pEdict, pBot->CurrentEyePosition, UTIL_GetCentreOfEntity(Target));
+
+		if (HitTarget == Target || (IsEdictPlayer(HitTarget) && Dist < vDist2DSq(HitTarget->v.origin, Target->v.origin)))
+		{
+			TraceResult hit;
+			UTIL_TraceLine(pBot->CurrentEyePosition, UTIL_GetCentreOfEntity(Target), dont_ignore_monsters, ignore_glass, pBot->pEdict->v.pContainingEntity, &hit);
+
+			Vector hitLoc = hit.vecEndPos;
+
+			float MeleeDist = vDist2DSq(pBot->CurrentEyePosition, hitLoc);
+
+			if (MeleeDist <= sqrf(range * 0.95f))
+			{
+				pBot->DesiredCombatWeapon = DesiredWeapon;
+
+				if (GetBotCurrentWeapon(pBot) != DesiredWeapon) { return; }
+
+				pBot->pEdict->v.button |= IN_ATTACK;
+
+				if (IsEdictPlayer(Target))
+				{
+					Vector TargetLocation = UTIL_GetFloorUnderEntity(Target);
+					Vector BehindPlayer = TargetLocation - (UTIL_GetForwardVector2D(Target->v.v_angle) * 50.0f);
+
+					int NavProfileIndex = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
+
+					if (UTIL_PointIsReachable(NavProfileIndex, pBot->CurrentFloorPosition, BehindPlayer, 18.0f))
+					{
+						MoveTo(pBot, BehindPlayer, MOVESTYLE_NORMAL);
+					}
+				}
+			}
+			else
+			{
+				MoveTo(pBot, Target->v.origin, MOVESTYLE_NORMAL);
+			}
+		}
+		else
+		{
+			Vector TargetLocation = UTIL_GetFloorUnderEntity(Target);
+			Vector BehindTarget = TargetLocation + (UTIL_GetVectorNormal2D(Target->v.origin - pBot->pEdict->v.origin) * 50.0f);
+
+			UTIL_DrawLine(clients[0], pBot->pEdict->v.origin, BehindTarget, 255, 0, 0);
+
+			MoveTo(pBot, BehindTarget, MOVESTYLE_NORMAL);
+		}
+	}
+	else
+	{
+		MoveTo(pBot, Target->v.origin, MOVESTYLE_NORMAL);
+	}
+}
+
+void OnBotCombatLevelUp(bot_t* pBot)
+{
+	pBot->NumUpgradePoints++;
+
+	if (IsPlayerMarine(pBot->pEdict))
+	{
+		OnMarineLevelUp(pBot);
+	}
+	else
+	{
+		OnAlienLevelUp(pBot);
+	}
+}
+
+int GetMarineCombatUpgradeCost(const CombatModeMarineUpgrade Upgrade)
+{
+	switch (Upgrade)
+	{
+		case COMBAT_MARINE_UPGRADE_HEAVYARMOUR:
+		case COMBAT_MARINE_UPGRADE_JETPACK:
+			return 2;
+		default:
+			return 1;
+	}
+
+	return 1;
+}
+
+int GetAlienCombatUpgradeCost(const CombatModeAlienUpgrade Upgrade)
+{
+	switch (Upgrade)
+	{
+	case COMBAT_ALIEN_UPGRADE_ONOS:
+		return 4;
+	case COMBAT_ALIEN_UPGRADE_FADE:
+		return 3;
+	case COMBAT_ALIEN_UPGRADE_LERK:
+	case COMBAT_ALIEN_UPGRADE_FOCUS:
+		return 2;
+	default:
+		return 1;
+	}
+
+	return 1;
+}
+
+int GetBotSpentCombatPoints(bot_t* pBot)
+{
+	int NumUpgrades = UTIL_CountSetBitsInInteger(pBot->CombatUpgradeMask);
+	int NumSpentPoints = 0;
+
+	if (IsPlayerOnos(pBot->pEdict))
+	{
+		NumSpentPoints += 4;
+	}
+
+	if (IsPlayerFade(pBot->pEdict))
+	{
+		NumSpentPoints += 3;
+	}
+
+	if (IsPlayerLerk(pBot->pEdict))
+	{
+		NumSpentPoints += 2;
+	}
+
+	if (IsPlayerGorge(pBot->pEdict))
+	{
+		NumSpentPoints += 1;
+	}
+
+	if (PlayerHasEquipment(pBot->pEdict))
+	{
+		NumSpentPoints += 2;
+		NumUpgrades--;
+	}
+
+	if (pBot->CombatUpgradeMask & COMBAT_ALIEN_UPGRADE_FOCUS)
+	{
+		NumSpentPoints += 2;
+		NumUpgrades--;
+	}
+
+	NumSpentPoints += NumUpgrades;
+
+	return NumSpentPoints;
+}
+
+int GetBotAvailableCombatPoints(bot_t* pBot)
+{
+	return (pBot->CombatLevel - 1) - GetBotSpentCombatPoints(pBot);
+}
+
+int GetImpulseForMarineCombatUpgrade(const CombatModeMarineUpgrade Upgrade)
+{
+	switch (Upgrade)
+	{
+		case COMBAT_MARINE_UPGRADE_ARMOUR1:
+			return RESEARCH_ARMSLAB_ARMOUR1;
+		case COMBAT_MARINE_UPGRADE_ARMOUR2:
+			return RESEARCH_ARMSLAB_ARMOUR2;
+		case COMBAT_MARINE_UPGRADE_ARMOUR3:
+			return RESEARCH_ARMSLAB_ARMOUR3;
+		case COMBAT_MARINE_UPGRADE_DAMAGE1:
+			return RESEARCH_ARMSLAB_WEAPONS1;
+		case COMBAT_MARINE_UPGRADE_DAMAGE2:
+			return RESEARCH_ARMSLAB_WEAPONS2;
+		case COMBAT_MARINE_UPGRADE_DAMAGE3:
+			return RESEARCH_ARMSLAB_WEAPONS3;
+		case COMBAT_MARINE_UPGRADE_CATALYST:
+			return ITEM_MARINE_CATALYSTS;
+		case COMBAT_MARINE_UPGRADE_GRENADE:
+			return RESEARCH_ARMOURY_GRENADES;
+		case COMBAT_MARINE_UPGRADE_GRENADELAUNCHER:
+			return ITEM_MARINE_GRENADELAUNCHER;
+		case COMBAT_MARINE_UPGRADE_HEAVYARMOUR:
+			return ITEM_MARINE_HEAVYARMOUR;
+		case COMBAT_MARINE_UPGRADE_HMG:
+			return ITEM_MARINE_HMG;
+		case COMBAT_MARINE_UPGRADE_JETPACK:
+			return ITEM_MARINE_JETPACK;
+		case COMBAT_MARINE_UPGRADE_MINES:
+			return ITEM_MARINE_MINES;
+		case COMBAT_MARINE_UPGRADE_MOTIONTRACKING:
+			return RESEARCH_OBSERVATORY_MOTIONTRACKING;
+		case COMBAT_MARINE_UPGRADE_RESUPPLY:
+			return ITEM_MARINE_RESUPPLY;
+		case COMBAT_MARINE_UPGRADE_SCAN:
+			return ITEM_MARINE_SCAN;
+		case COMBAT_MARINE_UPGRADE_SHOTGUN:
+			return ITEM_MARINE_SHOTGUN;
+		case COMBAT_MARINE_UPGRADE_WELDER:
+			return ITEM_MARINE_WELDER;
+		default:
+			return 0;
+	}
+}
+
+int GetImpulseForAlienCombatUpgrade(const CombatModeAlienUpgrade Upgrade)
+{
+	switch (Upgrade)
+	{
+	case COMBAT_ALIEN_UPGRADE_CARAPACE:
+		return IMPULSE_ALIEN_UPGRADE_CARAPACE;
+	case COMBAT_ALIEN_UPGRADE_REGENERATION:
+		return IMPULSE_ALIEN_UPGRADE_REGENERATION;
+	case COMBAT_ALIEN_UPGRADE_REDEMPTION:
+		return IMPULSE_ALIEN_UPGRADE_REDEMPTION;
+	case COMBAT_ALIEN_UPGRADE_ADRENALINE:
+		return IMPULSE_ALIEN_UPGRADE_ADRENALINE;
+	case COMBAT_ALIEN_UPGRADE_CELERITY:
+		return IMPULSE_ALIEN_UPGRADE_CELERITY;
+	case COMBAT_ALIEN_UPGRADE_SILENCE:
+		return IMPULSE_ALIEN_UPGRADE_SILENCE;
+	case COMBAT_ALIEN_UPGRADE_FOCUS:
+		return IMPULSE_ALIEN_UPGRADE_FOCUS;
+	case COMBAT_ALIEN_UPGRADE_CLOAKING:
+		return IMPULSE_ALIEN_UPGRADE_CLOAK;
+	case COMBAT_ALIEN_UPGRADE_SCENTOFFEAR:
+		return IMPULSE_ALIEN_UPGRADE_SCENTOFFEAR;
+	case COMBAT_ALIEN_UPGRADE_ABILITY3:
+		return IMPULSE_ALIEN_UPGRADE_ABILITY3_UNLOCK;
+	case COMBAT_ALIEN_UPGRADE_ABILITY4:
+		return IMPULSE_ALIEN_UPGRADE_ABILITY4_UNLOCK;
+	default:
+		return 0;
+	}
 }

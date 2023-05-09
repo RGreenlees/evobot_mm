@@ -18,29 +18,10 @@ void AlienThink(bot_t* pBot)
 
 	if (pBot->CurrentEnemy > -1)
 	{
-		edict_t* CurrentEnemy = pBot->TrackedEnemies[pBot->CurrentEnemy].EnemyEdict;
-
-		if (!FNullEnt(CurrentEnemy) && IsPlayerActiveInGame(CurrentEnemy))
+		if (pBot->CurrentEnemy > -1)
 		{
-			switch (pBot->bot_ns_class)
-			{
-			case CLASS_SKULK:
-				SkulkCombatThink(pBot);
-				return;
-			case CLASS_GORGE:
-				GorgeCombatThink(pBot);
-				return;
-			case CLASS_LERK:
-				return;
-			case CLASS_FADE:
-				FadeCombatThink(pBot);
-				return;
-			case CLASS_ONOS:
-				OnosCombatThink(pBot);
-				return;
-			default:
-				return;
-			}
+			AlienCombatThink(pBot);
+			return;
 		}
 	}
 
@@ -96,6 +77,76 @@ void AlienThink(bot_t* pBot)
 	}
 }
 
+void AlienCombatThink(bot_t* pBot)
+{
+	if (pBot->CurrentEnemy > -1)
+	{
+		edict_t* CurrentEnemy = pBot->TrackedEnemies[pBot->CurrentEnemy].EnemyEdict;
+
+		if (!FNullEnt(CurrentEnemy) && IsPlayerActiveInGame(CurrentEnemy))
+		{
+			switch (pBot->bot_ns_class)
+			{
+			case CLASS_SKULK:
+				SkulkCombatThink(pBot);
+				return;
+			case CLASS_GORGE:
+				GorgeCombatThink(pBot);
+				return;
+			case CLASS_LERK:
+				return;
+			case CLASS_FADE:
+				FadeCombatThink(pBot);
+				return;
+			case CLASS_ONOS:
+				OnosCombatThink(pBot);
+				return;
+			default:
+				return;
+			}
+		}
+	}
+}
+
+void AlienCombatModeThink(bot_t* pBot)
+{
+	if (pBot->CurrentEnemy > -1)
+	{
+		AlienCombatThink(pBot);
+		return;
+	}
+
+	BotUpdateAndClearTasks(pBot);
+	AlienCheckCombatModeWantsAndNeeds(pBot);
+
+	if (pBot->PrimaryBotTask.TaskType == TASK_NONE || (!pBot->PrimaryBotTask.bOrderIsUrgent && !pBot->PrimaryBotTask.bIssuedByCommander))
+	{
+		BotRole RequiredRole = AlienGetBestCombatModeRole(pBot);
+
+		if (pBot->CurrentRole != RequiredRole)
+		{
+			UTIL_ClearBotTask(pBot, &pBot->PrimaryBotTask);
+			UTIL_ClearBotTask(pBot, &pBot->SecondaryBotTask);
+
+			pBot->CurrentRole = RequiredRole;
+			pBot->CurrentTask = &pBot->PrimaryBotTask;
+		}
+
+		BotAlienSetCombatModePrimaryTask(pBot, &pBot->PrimaryBotTask);
+	}
+
+	if (!IsPlayerGorge(pBot->pEdict) && pBot->SecondaryBotTask.TaskType == TASK_NONE)
+	{
+		AlienSetCombatModeSecondaryTask(pBot, &pBot->SecondaryBotTask);
+	}
+
+	pBot->CurrentTask = BotGetNextTask(pBot);
+
+	BotProgressTask(pBot, pBot->CurrentTask);
+
+
+}
+
 void BotAlienSetPrimaryTask(bot_t* pBot, bot_task* Task)
 {
 	switch (pBot->CurrentRole)
@@ -114,6 +165,113 @@ void BotAlienSetPrimaryTask(bot_t* pBot, bot_task* Task)
 		break;
 	default:
 		break;
+	}
+}
+
+void AlienSetCombatModeSecondaryTask(bot_t* pBot, bot_task* Task)
+{
+	const hive_definition* AttackedHive = UTIL_GetNearestBuiltHiveToLocation(pBot->pEdict->v.origin);
+
+	if (pBot->CurrentRole == BOT_ROLE_BUILDER && !IsPlayerGorge(pBot->pEdict) && GetBotAvailableCombatPoints(pBot) >= 1)
+	{
+		if (Task->TaskType == TASK_EVOLVE) { return; }
+
+		int BotProfile = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
+
+		Vector EvolvePosition = FindClosestNavigablePointToDestination(BotProfile, pBot->pEdict->v.origin, AttackedHive->FloorLocation, UTIL_MetresToGoldSrcUnits(5.0f));
+
+		if (EvolvePosition == ZERO_VECTOR)
+		{
+			EvolvePosition = pBot->pEdict->v.origin;
+		}
+		else
+		{
+			// Don't evolve right underneath the hive even if we can reach it...
+			if (vDist2DSq(EvolvePosition, AttackedHive->FloorLocation) < sqrf(UTIL_MetresToGoldSrcUnits(2.0f)))
+			{
+				EvolvePosition = UTIL_GetRandomPointOnNavmeshInDonut(BotProfile, EvolvePosition, UTIL_MetresToGoldSrcUnits(3.0f), UTIL_MetresToGoldSrcUnits(5.0f));
+			}
+		}
+
+		Task->TaskType = TASK_EVOLVE;
+		Task->TaskLocation = EvolvePosition;
+		Task->Evolution = IMPULSE_ALIEN_EVOLVE_GORGE;
+		Task->bOrderIsUrgent = true;
+		return;
+
+	}
+
+	if (pBot->CurrentRole == BOT_ROLE_DESTROYER && !IsPlayerFade(pBot->pEdict) && GetBotAvailableCombatPoints(pBot) >= 3)
+	{
+		if (Task->TaskType == TASK_EVOLVE) { return; }
+
+		int BotProfile = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
+
+		Vector EvolvePosition = FindClosestNavigablePointToDestination(BotProfile, pBot->pEdict->v.origin, AttackedHive->FloorLocation, UTIL_MetresToGoldSrcUnits(5.0f));
+
+		if (EvolvePosition == ZERO_VECTOR)
+		{
+			EvolvePosition = pBot->pEdict->v.origin;
+		}
+		else
+		{
+			// Don't evolve right underneath the hive even if we can reach it...
+			if (vDist2DSq(EvolvePosition, AttackedHive->FloorLocation) < sqrf(UTIL_MetresToGoldSrcUnits(2.0f)))
+			{
+				EvolvePosition = UTIL_GetRandomPointOnNavmeshInDonut(BotProfile, EvolvePosition, UTIL_MetresToGoldSrcUnits(3.0f), UTIL_MetresToGoldSrcUnits(5.0f));
+			}
+		}
+
+		Task->TaskType = TASK_EVOLVE;
+		Task->TaskLocation = EvolvePosition;
+		Task->Evolution = IMPULSE_ALIEN_EVOLVE_FADE;
+		Task->bOrderIsUrgent = true;
+		return;
+
+	}
+
+	if (AttackedHive && AttackedHive->bIsUnderAttack)
+	{
+		// Already defending
+		if (Task->TaskType == TASK_DEFEND) { return; }
+
+		float HiveHealth = (AttackedHive->edict->v.health / AttackedHive->edict->v.max_health);
+
+		if (HiveHealth < 0.7f)
+		{
+			int NumDefenders = UTIL_GetNumPlayersOfTeamInArea(AttackedHive->FloorLocation, UTIL_MetresToGoldSrcUnits(10.0f), ALIEN_TEAM, pBot->pEdict, CLASS_GORGE, false);
+
+			if (NumDefenders < 2)
+			{
+				int BotProfile = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
+
+				Vector DefendPoint = FindClosestNavigablePointToDestination(BotProfile, pBot->pEdict->v.origin, AttackedHive->FloorLocation, UTIL_MetresToGoldSrcUnits(5.0f));
+
+				if (DefendPoint != ZERO_VECTOR)
+				{
+					Task->TaskType = TASK_DEFEND;
+					Task->TaskTarget = AttackedHive->edict;
+					Task->TaskLocation = DefendPoint;
+					return;
+				}
+			}
+		}
+	}
+}
+
+void BotAlienSetCombatModePrimaryTask(bot_t* pBot, bot_task* Task)
+{
+	switch (pBot->CurrentRole)
+	{
+		case BOT_ROLE_BUILDER:
+			AlienBuilderSetCombatModePrimaryTask(pBot, Task);
+			break;
+		case BOT_ROLE_HARASS:
+			AlienHarasserSetCombatModePrimaryTask(pBot, Task);
+			break;
+		default:
+			AlienDestroyerSetCombatModePrimaryTask(pBot, Task);
+			break;
 	}
 }
 
@@ -211,6 +369,11 @@ void AlienHarasserSetPrimaryTask(bot_t* pBot, bot_task* Task)
 		Task->bOrderIsUrgent = false;
 		return;
 	}
+
+}
+
+void AlienHarasserSetCombatModePrimaryTask(bot_t* pBot, bot_task* Task)
+{
 
 }
 
@@ -571,6 +734,97 @@ void AlienBuilderSetPrimaryTask(bot_t* pBot, bot_task* Task)
 	}
 }
 
+void AlienBuilderSetCombatModePrimaryTask(bot_t* pBot, bot_task* Task)
+{
+	// If we can't go gorge and are not already gorge then act like a normal attacker until we can
+	if (!IsPlayerGorge(pBot->pEdict) && GetBotAvailableCombatPoints(pBot) < 1)
+	{
+		AlienDestroyerSetCombatModePrimaryTask(pBot, Task);
+		return;
+	}
+
+	if (Task->TaskType == TASK_HEAL) { return; }
+
+	const hive_definition* Hive = UTIL_GetNearestBuiltHiveToLocation(pBot->pEdict->v.origin);
+
+	if (!Hive) { return; }
+
+	float HiveHealth = (Hive->edict->v.health / Hive->edict->v.max_health);
+
+	edict_t* HurtPlayer = UTIL_GetClosestPlayerNeedsHealing(pBot->pEdict->v.origin, ALIEN_TEAM, UTIL_MetresToGoldSrcUnits(15.0f), pBot->pEdict, false);
+
+	if (Hive && HiveHealth < 0.99f)
+	{
+		if (FNullEnt(HurtPlayer))
+		{
+			int BotProfile = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
+
+			Vector HealPosition = FindClosestNavigablePointToDestination(BotProfile, pBot->pEdict->v.origin, Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(3.0f));
+
+			if (HealPosition != ZERO_VECTOR)
+			{
+				Task->TaskType = TASK_HEAL;
+				Task->TaskTarget = Hive->edict;
+				Task->TaskLocation = HealPosition;
+				Task->bOrderIsUrgent = false;
+				return;
+			}
+		}
+
+		if (HiveHealth < 0.5f)
+		{
+			int BotProfile = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
+
+			Vector HealPosition = FindClosestNavigablePointToDestination(BotProfile, pBot->pEdict->v.origin, Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(3.0f));
+
+			if (HealPosition != ZERO_VECTOR)
+			{
+				Task->TaskType = TASK_HEAL;
+				Task->TaskTarget = Hive->edict;
+				Task->TaskLocation = HealPosition;
+				Task->bOrderIsUrgent = true;
+				return;
+			}
+		}
+		else
+		{
+			Task->TaskType = TASK_HEAL;
+			Task->TaskTarget = HurtPlayer;
+			Task->TaskLocation = HurtPlayer->v.origin;
+			Task->bOrderIsUrgent = false;
+			return;
+		}
+
+
+	}
+
+	if (!FNullEnt(HurtPlayer))
+	{
+		Task->TaskType = TASK_HEAL;
+		Task->TaskTarget = HurtPlayer;
+		Task->TaskLocation = HurtPlayer->v.origin;
+		Task->bOrderIsUrgent = false;
+		return;
+	}
+
+	if (Task->TaskType == TASK_GUARD) { return; }
+
+	int BotProfile = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
+
+	Vector GuardPosition = FindClosestNavigablePointToDestination(BotProfile, pBot->pEdict->v.origin, Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(5.0f));
+
+	if (GuardPosition != ZERO_VECTOR)
+	{
+		GuardPosition = UTIL_GetRandomPointOnNavmeshInRadius(BotProfile, GuardPosition, UTIL_MetresToGoldSrcUnits(5.0f));
+
+		Task->TaskType = TASK_GUARD;
+		Task->TaskTarget = nullptr;
+		Task->TaskLocation = GuardPosition;
+		Task->bOrderIsUrgent = false;
+		return;
+	}
+}
+
 void AlienDestroyerSetPrimaryTask(bot_t* pBot, bot_task* Task)
 {
 	if (!IsPlayerFade(pBot->pEdict) && !IsPlayerOnos(pBot->pEdict))
@@ -727,6 +981,32 @@ void AlienDestroyerSetPrimaryTask(bot_t* pBot, bot_task* Task)
 		Task->bTargetIsPlayer = false;
 		return;
 	}
+}
+
+void AlienDestroyerSetCombatModePrimaryTask(bot_t* pBot, bot_task* Task)
+{
+	if (Task->TaskType != TASK_NONE) { return; }
+
+	bool bShouldAttack = randbool();
+	
+	if (bShouldAttack)
+	{
+		edict_t* StructureToAttack = UTIL_GetFirstPlacedStructureOfType(STRUCTURE_ANY_MARINE_STRUCTURE);
+
+		if (!FNullEnt(StructureToAttack))
+		{
+			Task->TaskType = TASK_ATTACK;
+			Task->TaskTarget = StructureToAttack;
+			Task->TaskLocation = StructureToAttack->v.origin;
+			return;
+		}
+	}
+
+	int BotProfile = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
+
+	Task->TaskType = TASK_MOVE;
+	Task->TaskLocation = UTIL_GetRandomPointOnNavmeshInRadius(BotProfile, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(30.0f));
+	return;
 }
 
 void BotAlienSetSecondaryTask(bot_t* pBot, bot_task* Task)
@@ -1494,6 +1774,53 @@ void AlienCheckWantsAndNeeds(bot_t* pBot)
 	}
 }
 
+void AlienCheckCombatModeWantsAndNeeds(bot_t* pBot)
+{
+	// Don't bother going for healing if skulk. DEATH OR GLORY.
+	if (IsPlayerSkulk(pBot->pEdict)) { return; }
+
+	// Already got a heal task
+	if (pBot->WantsAndNeedsTask.TaskType == TASK_GET_HEALTH) { return; }
+
+	float MaxHealthAndArmour = pBot->pEdict->v.max_health + GetPlayerMaxArmour(pBot->pEdict);
+	float CurrentHealthAndArmour = pBot->pEdict->v.health + pBot->pEdict->v.armorvalue;
+
+	if (CurrentHealthAndArmour < MaxHealthAndArmour)
+	{
+		if (PlayerHasWeapon(pBot->pEdict, WEAPON_FADE_METABOLIZE) || PlayerHasWeapon(pBot->pEdict, WEAPON_GORGE_HEALINGSPRAY))
+		{
+			NSWeapon HealingWeapon = IsPlayerFade(pBot->pEdict) ? WEAPON_FADE_METABOLIZE : WEAPON_GORGE_HEALINGSPRAY;
+
+			pBot->DesiredCombatWeapon = HealingWeapon;
+
+			if (GetBotCurrentWeapon(pBot) == HealingWeapon)
+			{
+				pBot->pEdict->v.button |= IN_ATTACK;
+			}
+		}
+	}
+
+	if (GetPlayerOverallHealthPercent(pBot->pEdict) < 0.5f)
+	{
+		const hive_definition* NearestHive = UTIL_GetNearestBuiltHiveToLocation(pBot->pEdict->v.origin);
+
+		if (NearestHive)
+		{
+			int BotProfile = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
+			Vector HealLocation = FindClosestNavigablePointToDestination(BotProfile, pBot->CurrentFloorPosition, NearestHive->FloorLocation, UTIL_MetresToGoldSrcUnits(5.0f));
+
+			if (HealLocation != ZERO_VECTOR)
+			{
+				pBot->WantsAndNeedsTask.TaskType = TASK_GET_HEALTH;
+				pBot->WantsAndNeedsTask.TaskTarget = NearestHive->edict;
+				pBot->WantsAndNeedsTask.TaskLocation = HealLocation;
+				pBot->WantsAndNeedsTask.bOrderIsUrgent = true;
+				return;
+			}
+		}
+	}
+}
+
 int GetDesiredAlienUpgrade(const bot_t* pBot, const HiveTechStatus TechType)
 {
 	edict_t* pEdict = pBot->pEdict;
@@ -1707,6 +2034,81 @@ int CalcNumAlienBuildersRequired()
 
 	// Roughly want 1/5 players to be builders, rounded up
 	return (int)ceilf((float)GAME_GetNumPlayersOnTeam(ALIEN_TEAM) * 0.2f);
+}
 
+BotRole AlienGetBestCombatModeRole(const bot_t* pBot)
+{
+	int NumDefenders = GAME_GetBotsWithRoleType(BOT_ROLE_BUILDER, ALIEN_TEAM, pBot->pEdict);
 
+	if (NumDefenders < 1)
+	{
+		return BOT_ROLE_BUILDER;
+	}
+
+	return BOT_ROLE_DESTROYER;
+}
+
+void OnAlienLevelUp(bot_t* pBot)
+{
+	if (pBot->BotNextCombatUpgrade == COMBAT_ALIEN_UPGRADE_NONE)
+	{
+		pBot->BotNextCombatUpgrade = (int)AlienGetNextCombatUpgrade(pBot);
+	}
+
+	if (pBot->BotNextCombatUpgrade != COMBAT_ALIEN_UPGRADE_NONE)
+	{
+		int cost = GetAlienCombatUpgradeCost((CombatModeAlienUpgrade)pBot->BotNextCombatUpgrade);
+
+		if (GetBotAvailableCombatPoints(pBot) >= cost)
+		{
+			pBot->pEdict->v.impulse = GetImpulseForAlienCombatUpgrade((CombatModeAlienUpgrade)pBot->BotNextCombatUpgrade);
+			pBot->CombatUpgradeMask |= pBot->BotNextCombatUpgrade;
+			pBot->NumUpgradePoints -= cost;
+			pBot->BotNextCombatUpgrade = 0;
+		}
+	}
+}
+
+CombatModeAlienUpgrade AlienGetNextCombatUpgrade(bot_t* pBot)
+{
+	if (!(pBot->CombatUpgradeMask & COMBAT_ALIEN_UPGRADE_CARAPACE))
+	{
+		return COMBAT_ALIEN_UPGRADE_CARAPACE;
+	}
+
+	int NumAvailablePoints = GetBotAvailableCombatPoints(pBot);
+
+	if (pBot->CurrentRole == BOT_ROLE_BUILDER && !IsPlayerGorge(pBot->pEdict))
+	{
+		// We need one point to evolve into a gorge
+		if (NumAvailablePoints <= 1) { return COMBAT_ALIEN_UPGRADE_NONE; }
+	}
+
+	if (pBot->CurrentRole == BOT_ROLE_DESTROYER && !IsPlayerFade(pBot->pEdict))
+	{
+		// We need one point to evolve into a gorge
+		if (NumAvailablePoints <= 3) { return COMBAT_ALIEN_UPGRADE_NONE; }
+	}
+
+	if (pBot->CurrentRole == BOT_ROLE_BUILDER && !(pBot->CombatUpgradeMask & COMBAT_ALIEN_UPGRADE_ADRENALINE))
+	{
+		return COMBAT_ALIEN_UPGRADE_ADRENALINE;
+	}
+
+	if (!(pBot->CombatUpgradeMask & COMBAT_ALIEN_UPGRADE_REGENERATION))
+	{
+		return COMBAT_ALIEN_UPGRADE_REGENERATION;
+	}
+
+	if (!(pBot->CombatUpgradeMask & COMBAT_ALIEN_UPGRADE_ABILITY3))
+	{
+		return COMBAT_ALIEN_UPGRADE_ABILITY3;
+	}
+
+	if (!(pBot->CombatUpgradeMask & COMBAT_ALIEN_UPGRADE_CELERITY))
+	{
+		return COMBAT_ALIEN_UPGRADE_CELERITY;
+	}
+
+	return COMBAT_ALIEN_UPGRADE_NONE;
 }

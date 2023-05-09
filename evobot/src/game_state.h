@@ -17,12 +17,15 @@
 
 static const int MAX_CLIENTS = 32;
 
+NSGameMode GAME_GetGameMode();
+
 void GAME_AddClient(edict_t* NewClient);
 void GAME_RemoveClient(edict_t* DisconnectedClient);
 
 void GAME_Reset();
 
 void GAME_SetListenServerEdict(edict_t* ListenEdict);
+edict_t* GAME_GetListenServerEdict();
 
 void GAME_ClearClientList();
 
@@ -52,6 +55,8 @@ void GAME_OnGameStart();
 
 void GAME_RemoveAllBots();
 void GAME_RemoveAllBotsInReadyRoom();
+
+const char* UTIL_GameModeToChar(const NSGameMode GameMode);
 
 void EvoBot_ServerCommand(void);
 

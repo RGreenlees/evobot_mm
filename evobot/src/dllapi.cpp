@@ -133,6 +133,17 @@ void ClientCommand(edict_t* pEntity)
 		RETURN_META(MRES_SUPERCEDE);
 	}
 
+	if (FStrEq(pcmd, "getgamemode"))
+	{
+		const char* GameMode = UTIL_GameModeToChar(GAME_GetGameMode());
+
+		char buf[32];
+		sprintf(buf, "%s\n", GameMode);
+		UTIL_SayText(buf, pEntity);
+
+		RETURN_META(MRES_SUPERCEDE);
+	}
+
 	if (FStrEq(pcmd, "traceentity"))
 	{
 
@@ -247,6 +258,8 @@ void ClientCommand(edict_t* pEntity)
 
 		BotDrawPath(pBot, 20.0f, false);
 
+		DEBUG_DrawBotNextPathPoint(pBot, 20.0f);
+
 		sprintf(buf, "Path Status: %s\n", pBot->PathStatus);
 		UTIL_SayText(buf, pEntity);
 
@@ -256,6 +269,40 @@ void ClientCommand(edict_t* pEntity)
 		RETURN_META(MRES_SUPERCEDE);
 	}
 
+	if (FStrEq(pcmd, "botcombatpoints"))
+	{
+		if (!NavmeshLoaded())
+		{
+			UTIL_SayText("Navmesh is not loaded", pEntity);
+			RETURN_META(MRES_SUPERCEDE);
+		}
+
+		edict_t* SpectatorTarget = INDEXENT(pEntity->v.iuser2);
+
+		if (FNullEnt(SpectatorTarget))
+		{
+			UTIL_SayText("No Spectator Target\n", listenserver_edict);
+			RETURN_META(MRES_SUPERCEDE);
+		}
+
+		int BotIndex = GetBotIndex(SpectatorTarget);
+
+		if (BotIndex < 0)
+		{
+			UTIL_SayText("Not spectating a bot\n", listenserver_edict);
+			RETURN_META(MRES_SUPERCEDE);
+		}
+
+		bot_t* pBot = &bots[BotIndex];
+
+		char buf[32];
+
+		sprintf(buf, "%d\n", GetBotAvailableCombatPoints(pBot));
+
+		UTIL_SayText(buf, pEntity);
+
+		RETURN_META(MRES_SUPERCEDE);
+	}
 
 	if (FStrEq(pcmd, "bottaskinfo"))
 	{
@@ -470,11 +517,36 @@ void ClientCommand(edict_t* pEntity)
 		RETURN_META(MRES_SUPERCEDE);
 	}
 
-	const int		kGameStatusReset = 0;
-	const int		kGameStatusResetNewMap = 1;
-	const int		kGameStatusEnded = 2;
-	const int		kGameStatusGameTime = 3;
-	const int		kGameStatusUnspentLevels = 4;
+	if (FStrEq(pcmd, "testattack"))
+	{
+		if (!NavmeshLoaded())
+		{
+			UTIL_SayText("Navmesh is not loaded", pEntity);
+			RETURN_META(MRES_SUPERCEDE);
+		}
+
+		for (int i = 0; i < gpGlobals->maxClients; i++)
+		{
+			if (bots[i].is_used)  // not respawning
+			{
+				if (IsPlayerMarine(bots[i].pEdict))
+				{
+					edict_t* ResTower = UTIL_GetNearestStructureIndexOfType(bots[i].pEdict->v.origin, STRUCTURE_ALIEN_RESTOWER, UTIL_MetresToGoldSrcUnits(200.0f), false, true);
+
+					if (!FNullEnt(ResTower))
+					{
+						bots[i].PrimaryBotTask.TaskType = TASK_ATTACK;
+						bots[i].PrimaryBotTask.TaskTarget = ResTower;
+						bots[i].PrimaryBotTask.TaskLocation = ResTower->v.origin;
+						bots[i].PrimaryBotTask.bOrderIsUrgent = true;
+					}
+				}
+
+				
+			}
+		}
+		RETURN_META(MRES_SUPERCEDE);
+	}
 
 	if (FStrEq(pcmd, "gamestatus"))
 	{
@@ -515,6 +587,7 @@ void ClientCommand(edict_t* pEntity)
 
 		RETURN_META(MRES_SUPERCEDE);
 	}
+
 
 	if (FStrEq(pcmd, "evolvegorge"))
 	{

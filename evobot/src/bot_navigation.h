@@ -412,7 +412,7 @@ void ClearBotPath(bot_t* pBot);
 void ClearBotStuckMovement(bot_t* pBot);
 
 // Draws just the bot's next movement on its path. Colour-coded based on the movement type (e.g. walk, crouch, jump, ladder)
-void DEBUG_DrawBotNextPathPoint(bot_t* pBot);
+void DEBUG_DrawBotNextPathPoint(bot_t* pBot, float TimeInSeconds);
 
 // Based on the direction the bot wants to move and it's current facing angle, sets the forward and side move, and the directional buttons to make the bot actually move
 void BotMovementInputs(bot_t* pBot);

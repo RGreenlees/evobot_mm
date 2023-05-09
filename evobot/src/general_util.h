@@ -40,6 +40,7 @@ void UTIL_HostSay(edict_t* pEntity, int teamonly, char* message);
 void UTIL_SayText(const char* pText, edict_t* pEdict);
 void ClientPrint(edict_t* pEntity, int msg_dest, const char* msg_name);
 
+// Performs a simple line trace between start and end, ignoring monsters and glass. Returns true if the trace does NOT hit anything.
 bool UTIL_QuickTrace(const edict_t* pEdict, const Vector& start, const Vector& end);
 bool UTIL_QuickHullTrace(const edict_t* pEdict, const Vector& start, const Vector& end, int hullNum);
 bool UTIL_QuickHullTrace(const edict_t* pEdict, const Vector& start, const Vector& end);

@@ -408,6 +408,15 @@ typedef struct _BOT_T
 
 	float CommanderLastBeaconTime = 0.0f; // When the last time commander used beacon was
 
+	// Current combat mode level
+	int CombatLevel = 1;
+	// Number of upgrade points the bot has in combat mode
+	int NumUpgradePoints = 0;
+	// Which upgrades the bot has already chosen in combat mode
+	int CombatUpgradeMask = 0;
+	// Which combat mode upgrade does the bot want to get next? Will save if necessary for it
+	int BotNextCombatUpgrade = 0;
+
 } bot_t;
 
 

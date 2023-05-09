@@ -373,6 +373,11 @@ int imaxi(const int a, const int b)
 	return (a > b) ? a : b;
 }
 
+int imini(const int a, const int b)
+{
+	return (a < b) ? a : b;
+}
+
 float clampf(float input, float inMin, float inMax)
 {
 	return fmaxf(fminf(input, inMax), inMin);
@@ -684,4 +689,17 @@ Vector UTIL_GetRandomPointInBoundingBox(const Vector BoxMin, const Vector BoxMax
 	float RandZ = frandrange(BoxMin.z, BoxMax.z);
 
 	return Vector(RandX, RandY, RandZ);
+}
+
+/* Function to get no of set bits in binary
+   representation of positive integer n */
+unsigned int UTIL_CountSetBitsInInteger(unsigned int n)
+{
+	unsigned int count = 0;
+	while (n)
+	{
+		count += n & 1;
+		n >>= 1;
+	}
+	return count;
 }
