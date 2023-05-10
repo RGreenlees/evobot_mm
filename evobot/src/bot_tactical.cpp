@@ -3069,6 +3069,8 @@ void UTIL_UpdateMarineItem(edict_t* Item, NSDeployableItem ItemType)
 	int EntIndex = ENTINDEX(Item);
 	if (EntIndex < 0) { return; }
 
+	if (Item->v.solid != SOLID_TRIGGER) { return; }
+
 	MarineDroppedItemMap[EntIndex].edict = Item;
 
 	if (MarineDroppedItemMap[EntIndex].LastSeen == 0 || !vEquals(Item->v.origin, MarineDroppedItemMap[EntIndex].Location, 5.0f))
