@@ -499,7 +499,7 @@ void BotAttackTarget(bot_t* pBot, edict_t* Target)
 
 		float MaxWeaponRange = GetMaxIdealWeaponRange(CurrentWeapon);
 
-		if (UTIL_PlayerHasLOSToEntity(pBot->pEdict, Target, MaxWeaponRange, true))
+		if (UTIL_PlayerHasLOSToEntity(pBot->pEdict, Target, MaxWeaponRange, false))
 		{
 			Vector AimDir = UTIL_GetForwardVector2D(pBot->pEdict->v.v_angle);
 

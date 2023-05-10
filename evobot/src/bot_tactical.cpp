@@ -2883,67 +2883,67 @@ int UTIL_GetNumUnbuiltHives()
 void UTIL_RefreshMarineItems()
 {
 	edict_t* currItem = NULL;
-	while (((currItem = UTIL_FindEntityByClassname(currItem, "item_health")) != NULL) && (!FNullEnt(currItem)) && !(currItem->v.effects & EF_NODRAW))
+	while (((currItem = UTIL_FindEntityByClassname(currItem, "item_health")) != NULL) && (!FNullEnt(currItem)))
 	{
 		UTIL_UpdateMarineItem(currItem, ITEM_MARINE_HEALTHPACK);
 	}
 
 	currItem = NULL;
-	while (((currItem = UTIL_FindEntityByClassname(currItem, "item_genericammo")) != NULL) && (!FNullEnt(currItem)) && !(currItem->v.effects & EF_NODRAW))
+	while (((currItem = UTIL_FindEntityByClassname(currItem, "item_genericammo")) != NULL) && (!FNullEnt(currItem)))
 	{
 		UTIL_UpdateMarineItem(currItem, ITEM_MARINE_AMMO);
 	}
 
 	currItem = NULL;
-	while (((currItem = UTIL_FindEntityByClassname(currItem, "item_heavyarmor")) != NULL) && (!FNullEnt(currItem)) && !(currItem->v.effects & EF_NODRAW))
+	while (((currItem = UTIL_FindEntityByClassname(currItem, "item_heavyarmor")) != NULL) && (!FNullEnt(currItem)))
 	{
 		UTIL_UpdateMarineItem(currItem, ITEM_MARINE_HEAVYARMOUR);
 	}
 
 	currItem = NULL;
-	while (((currItem = UTIL_FindEntityByClassname(currItem, "item_jetpack")) != NULL) && (!FNullEnt(currItem)) && !(currItem->v.effects & EF_NODRAW))
+	while (((currItem = UTIL_FindEntityByClassname(currItem, "item_jetpack")) != NULL) && (!FNullEnt(currItem)))
 	{
 		UTIL_UpdateMarineItem(currItem, ITEM_MARINE_JETPACK);
 	}
 
 	currItem = NULL;
-	while (((currItem = UTIL_FindEntityByClassname(currItem, "item_catalyst")) != NULL) && (!FNullEnt(currItem)) && !(currItem->v.effects & EF_NODRAW))
+	while (((currItem = UTIL_FindEntityByClassname(currItem, "item_catalyst")) != NULL) && (!FNullEnt(currItem)))
 	{
 		UTIL_UpdateMarineItem(currItem, ITEM_MARINE_CATALYSTS);
 	}
 
 	currItem = NULL;
-	while (((currItem = UTIL_FindEntityByClassname(currItem, "weapon_mine")) != NULL) && (!FNullEnt(currItem)) && !(currItem->v.effects & EF_NODRAW))
+	while (((currItem = UTIL_FindEntityByClassname(currItem, "weapon_mine")) != NULL) && (!FNullEnt(currItem)))
 	{
 		UTIL_UpdateMarineItem(currItem, ITEM_MARINE_MINES);
 	}
 
 	currItem = NULL;
-	while (((currItem = UTIL_FindEntityByClassname(currItem, "weapon_shotgun")) != NULL) && (!FNullEnt(currItem)) && !(currItem->v.effects & EF_NODRAW))
+	while (((currItem = UTIL_FindEntityByClassname(currItem, "weapon_shotgun")) != NULL) && (!FNullEnt(currItem)))
 	{
 		UTIL_UpdateMarineItem(currItem, ITEM_MARINE_SHOTGUN);
 	}
 
 	currItem = NULL;
-	while (((currItem = UTIL_FindEntityByClassname(currItem, "weapon_heavymachinegun")) != NULL) && (!FNullEnt(currItem)) && !(currItem->v.effects & EF_NODRAW))
+	while (((currItem = UTIL_FindEntityByClassname(currItem, "weapon_heavymachinegun")) != NULL) && (!FNullEnt(currItem)))
 	{
 		UTIL_UpdateMarineItem(currItem, ITEM_MARINE_HMG);
 	}
 
 	currItem = NULL;
-	while (((currItem = UTIL_FindEntityByClassname(currItem, "weapon_grenadegun")) != NULL) && (!FNullEnt(currItem)) && !(currItem->v.effects & EF_NODRAW))
+	while (((currItem = UTIL_FindEntityByClassname(currItem, "weapon_grenadegun")) != NULL) && (!FNullEnt(currItem)))
 	{
 		UTIL_UpdateMarineItem(currItem, ITEM_MARINE_GRENADELAUNCHER);
 	}
 
 	currItem = NULL;
-	while (((currItem = UTIL_FindEntityByClassname(currItem, "weapon_welder")) != NULL) && (!FNullEnt(currItem)) && !(currItem->v.effects & EF_NODRAW))
+	while (((currItem = UTIL_FindEntityByClassname(currItem, "weapon_welder")) != NULL) && (!FNullEnt(currItem)))
 	{
 		UTIL_UpdateMarineItem(currItem, ITEM_MARINE_WELDER);
 	}
 
 	currItem = NULL;
-	while (((currItem = UTIL_FindEntityByClassname(currItem, "scan")) != NULL) && (!FNullEnt(currItem)) && !(currItem->v.effects & EF_NODRAW))
+	while (((currItem = UTIL_FindEntityByClassname(currItem, "scan")) != NULL) && (!FNullEnt(currItem)))
 	{
 		UTIL_UpdateMarineItem(currItem, ITEM_MARINE_SCAN);
 	}
@@ -3066,10 +3066,12 @@ void UTIL_UpdateMarineItem(edict_t* Item, NSDeployableItem ItemType)
 {
 	if (FNullEnt(Item)) { return; }
 
+	if (Item->v.solid != SOLID_TRIGGER) { return; }
+
+	if (Item->v.effects & EF_NODRAW) { return; }
+
 	int EntIndex = ENTINDEX(Item);
 	if (EntIndex < 0) { return; }
-
-	if (Item->v.solid != SOLID_TRIGGER) { return; }
 
 	MarineDroppedItemMap[EntIndex].edict = Item;
 
