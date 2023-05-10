@@ -813,7 +813,7 @@ void GAME_OnGameStart()
 	const char* theCStrLevelName = STRING(gpGlobals->mapname);
 	if (theCStrLevelName && (strlen(theCStrLevelName) > 3))
 	{
-		if (!strnicmp(theCStrLevelName, "ns_", 3))
+		if (!strncmp(theCStrLevelName, "ns_", 3))
 		{
 			bool bHiveExists = UTIL_FindEntityByClassname(NULL, "team_hive") != nullptr;
 			bool bCommChairExists = UTIL_FindEntityByClassname(NULL, "team_command") != nullptr;
@@ -823,7 +823,7 @@ void GAME_OnGameStart()
 				CurrentGameMode = GAME_MODE_REGULAR;
 			}
 		}
-		else if (!strnicmp(theCStrLevelName, "co_", 3))
+		else if (!strncmp(theCStrLevelName, "co_", 3))
 		{
 			CurrentGameMode = GAME_MODE_COMBAT;
 		}
