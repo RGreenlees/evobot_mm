@@ -509,9 +509,7 @@ void ClientCommand(edict_t* pEntity)
 		{
 			if (bots[i].is_used)  // not respawning
 			{
-				bots[i].PrimaryBotTask.TaskType = TASK_MOVE;
-				bots[i].PrimaryBotTask.TaskLocation = UTIL_GetFloorUnderEntity(pEntity);
-				bots[i].PrimaryBotTask.bOrderIsUrgent = true;
+				TASK_SetMoveTask(&bots[i], &bots[i].PrimaryBotTask, UTIL_GetFloorUnderEntity(pEntity), true);
 			}
 		}
 		RETURN_META(MRES_SUPERCEDE);
@@ -535,10 +533,7 @@ void ClientCommand(edict_t* pEntity)
 
 					if (!FNullEnt(ResTower))
 					{
-						bots[i].PrimaryBotTask.TaskType = TASK_ATTACK;
-						bots[i].PrimaryBotTask.TaskTarget = ResTower;
-						bots[i].PrimaryBotTask.TaskLocation = ResTower->v.origin;
-						bots[i].PrimaryBotTask.bOrderIsUrgent = true;
+						TASK_SetAttackTask(&bots[i], &bots[i].PrimaryBotTask, ResTower, true);
 					}
 				}
 

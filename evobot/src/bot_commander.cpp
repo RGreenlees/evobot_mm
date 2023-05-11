@@ -12,6 +12,7 @@
 #include "game_state.h"
 #include "bot_util.h"
 #include "general_util.h"
+#include "bot_task.h"
 
 #include <unordered_map>
 
@@ -704,12 +705,9 @@ void CommanderReceiveBaseAttackAlert(bot_t* pBot, const Vector Location)
 		{
 			bot_t* DefenderBot = GetBotPointer(clients[MarineIndex]);
 
-			if (DefenderBot && (DefenderBot->SecondaryBotTask.TaskType == TASK_NONE || !DefenderBot->SecondaryBotTask.bOrderIsUrgent))
+			if (DefenderBot && (DefenderBot->SecondaryBotTask.TaskType == TASK_NONE || !DefenderBot->SecondaryBotTask.bTaskIsUrgent))
 			{
-				DefenderBot->SecondaryBotTask.TaskType = TASK_DEFEND;
-				DefenderBot->SecondaryBotTask.bOrderIsUrgent = true;
-				DefenderBot->SecondaryBotTask.TaskTarget = AttackedStructure;
-				DefenderBot->SecondaryBotTask.TaskLocation = AttackedStructure->v.origin;
+				TASK_SetDefendTask(DefenderBot, &DefenderBot->SecondaryBotTask, AttackedStructure, true);
 			}
 		}
 	}

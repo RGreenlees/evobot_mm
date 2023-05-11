@@ -703,3 +703,11 @@ unsigned int UTIL_CountSetBitsInInteger(unsigned int n)
 	}
 	return count;
 }
+
+float UTIL_CalculateSlopeAngleBetweenPoints(const Vector StartPoint, const Vector EndPoint)
+{
+	float Run = vDist2DSq(StartPoint, EndPoint);
+	float Rise = fabsf(StartPoint.z - EndPoint.z);
+
+	return atanf(Rise / Run);
+}

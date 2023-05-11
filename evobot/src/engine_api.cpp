@@ -83,18 +83,6 @@ void pfnMessageBegin(int msg_dest, int msg_type, const float* pOrigin, edict_t* 
 {
 	if (gpGlobals->deathmatch)
 	{
-		int MsgNameSize = 0;
-		const char* msg = GET_USER_MSG_NAME(PLID, msg_type, &MsgNameSize);
-
-		char buf[128];
-		sprintf(buf, msg);
-
-		FILE* MessageLog = fopen("msglog.txt", "a+");
-
-		fprintf(MessageLog, "%s\n", buf);
-
-		fclose(MessageLog);
-
 
 		int index = -1;
 

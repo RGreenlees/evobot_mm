@@ -41,7 +41,7 @@ void MarineThink(bot_t* pBot)
 
 	BotUpdateAndClearTasks(pBot);
 
-	if (pBot->PrimaryBotTask.TaskType == TASK_NONE || (!pBot->PrimaryBotTask.bOrderIsUrgent && !pBot->PrimaryBotTask.bIssuedByCommander))
+	if (pBot->PrimaryBotTask.TaskType == TASK_NONE || (!pBot->PrimaryBotTask.bTaskIsUrgent && !pBot->PrimaryBotTask.bIssuedByCommander))
 	{
 		BotRole RequiredRole = MarineGetBestBotRole(pBot);
 
@@ -58,7 +58,7 @@ void MarineThink(bot_t* pBot)
 
 	}
 
-	if (pBot->SecondaryBotTask.TaskType == TASK_NONE || !pBot->SecondaryBotTask.bOrderIsUrgent)
+	if (pBot->SecondaryBotTask.TaskType == TASK_NONE || !pBot->SecondaryBotTask.bTaskIsUrgent)
 	{
 		MarineSetSecondaryTask(pBot, &pBot->SecondaryBotTask);
 	}
@@ -113,7 +113,7 @@ void MarineCombatModeThink(bot_t* pBot)
 
 	BotUpdateAndClearTasks(pBot);
 
-	if (pBot->PrimaryBotTask.TaskType == TASK_NONE || (!pBot->PrimaryBotTask.bOrderIsUrgent && !pBot->PrimaryBotTask.bIssuedByCommander))
+	if (pBot->PrimaryBotTask.TaskType == TASK_NONE || (!pBot->PrimaryBotTask.bTaskIsUrgent && !pBot->PrimaryBotTask.bIssuedByCommander))
 	{
 		BotRole RequiredRole = MarineGetBestCombatModeRole(pBot);
 
@@ -130,7 +130,7 @@ void MarineCombatModeThink(bot_t* pBot)
 
 	}
 
-	if (pBot->SecondaryBotTask.TaskType == TASK_NONE || !pBot->SecondaryBotTask.bOrderIsUrgent)
+	if (pBot->SecondaryBotTask.TaskType == TASK_NONE || !pBot->SecondaryBotTask.bTaskIsUrgent)
 	{
 		MarineSetCombatModeSecondaryTask(pBot, &pBot->SecondaryBotTask);
 	}
@@ -152,7 +152,7 @@ void BotMarineSetPrimaryTask(bot_t* pBot, bot_task* Task)
 	if (pBot->CurrentRole == BOT_ROLE_COMMAND)
 	{
 		Task->TaskType = TASK_COMMAND;
-		Task->bOrderIsUrgent = false;
+		Task->bTaskIsUrgent = false;
 		Task->TaskLength = 0.0f;
 		return;
 	}
@@ -203,7 +203,7 @@ void MarineSweeperSetCombatModePrimaryTask(bot_t* pBot, bot_task* Task)
 			Task->TaskType = TASK_WELD;
 			Task->TaskTarget = DamagedStructure;
 			Task->TaskLocation = DamagedStructure->v.origin;
-			Task->bOrderIsUrgent = true;
+			Task->bTaskIsUrgent = true;
 			return;
 		}
 	}
@@ -212,7 +212,7 @@ void MarineSweeperSetCombatModePrimaryTask(bot_t* pBot, bot_task* Task)
 
 	Task->TaskType = TASK_GUARD;
 	Task->TaskLocation = UTIL_GetCommChairLocation();
-	Task->bOrderIsUrgent = false;
+	Task->bTaskIsUrgent = false;
 	Task->TaskLength = frandrange(20.0f, 30.0f);
 	return;
 }
@@ -247,10 +247,8 @@ void MarineAssaultSetCombatModePrimaryTask(bot_t* pBot, bot_task* Task)
 				}
 			}
 
-			pBot->PrimaryBotTask.TaskType = TASK_ATTACK;
-			pBot->PrimaryBotTask.TaskTarget = Hive->edict;
-			pBot->PrimaryBotTask.TaskLocation = AttackLocation;
-			pBot->PrimaryBotTask.bOrderIsUrgent = false;
+			TASK_SetAttackTask(pBot, Task, Hive->edict, true);
+			return;
 		}
 	}
 	else
@@ -260,8 +258,7 @@ void MarineAssaultSetCombatModePrimaryTask(bot_t* pBot, bot_task* Task)
 
 		if (NewLocation != ZERO_VECTOR)
 		{
-			pBot->PrimaryBotTask.TaskType = TASK_MOVE;
-			pBot->PrimaryBotTask.TaskLocation = NewLocation;
+			TASK_SetMoveTask(pBot, Task, NewLocation, false);
 		}
 	}
 }
@@ -274,7 +271,7 @@ void MarineSweeperSetPrimaryTask(bot_t* pBot, bot_task* Task)
 	{
 		Task->TaskType = TASK_GUARD;
 		Task->TaskLocation = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), UTIL_MetresToGoldSrcUnits(10.0f));
-		Task->bOrderIsUrgent = false;
+		Task->bTaskIsUrgent = false;
 		Task->TaskLength = frandrange(20.0f, 30.0f);
 		return;
 	}
@@ -286,7 +283,7 @@ void MarineSweeperSetPrimaryTask(bot_t* pBot, bot_task* Task)
 	{
 		Task->TaskType = TASK_GUARD;
 		Task->TaskLocation = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, RandPhase->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
-		Task->bOrderIsUrgent = false;
+		Task->bTaskIsUrgent = false;
 		Task->TaskLength = frandrange(20.0f, 30.0f);
 		return;
 	}
@@ -301,12 +298,7 @@ void MarineCapperSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 	if (UnclaimedResourceNode)
 	{
-		UTIL_ClearBotTask(pBot, Task);
-		Task->TaskType = TASK_CAP_RESNODE;
-		Task->TaskTarget = nullptr;
-		Task->TaskLocation = UnclaimedResourceNode->origin;
-		Task->bOrderIsUrgent = false;
-		Task->TaskLength = 0.0f;
+		TASK_SetCapResNodeTask(pBot, Task, UnclaimedResourceNode, false);
 		return;
 	}
 
@@ -314,12 +306,9 @@ void MarineCapperSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 	if (!FNullEnt(EnemyResTower))
 	{
-		UTIL_ClearBotTask(pBot, Task);
-		Task->TaskType = TASK_CAP_RESNODE;
-		Task->TaskTarget = EnemyResTower;
-		Task->TaskLocation = EnemyResTower->v.origin;
-		Task->bOrderIsUrgent = false;
-		Task->TaskLength = 0.0f;
+		const resource_node* EnemyResNode = UTIL_FindNearestResNodeToLocation(EnemyResTower->v.origin);
+
+		TASK_SetCapResNodeTask(pBot, Task, EnemyResNode, false);
 		return;
 	}
 }
@@ -340,10 +329,7 @@ void MarineAssaultSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 			if (NumMarinesNearby < 1)
 			{
-				Task->TaskType = TASK_BUILD;
-				Task->TaskTarget = Phasegate;
-				Task->TaskLocation = Phasegate->v.origin;
-				Task->bOrderIsUrgent = true;
+				TASK_SetBuildTask(pBot, Task, Phasegate, true);
 				return;
 			}
 		}
@@ -358,10 +344,7 @@ void MarineAssaultSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 			if (NumMarinesNearby < 1)
 			{
-				Task->TaskType = TASK_BUILD;
-				Task->TaskTarget = TurretFactory;
-				Task->TaskLocation = TurretFactory->v.origin;
-				Task->bOrderIsUrgent = true;
+				TASK_SetBuildTask(pBot, Task, TurretFactory, true);
 				return;
 			}
 		}
@@ -376,10 +359,7 @@ void MarineAssaultSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 			if (NumMarinesNearby < 1)
 			{
-				Task->TaskType = TASK_BUILD;
-				Task->TaskTarget = SiegeTurret;
-				Task->TaskLocation = SiegeTurret->v.origin;
-				Task->bOrderIsUrgent = true;
+				TASK_SetBuildTask(pBot, Task, SiegeTurret, true);
 				return;
 			}
 		}
@@ -394,10 +374,7 @@ void MarineAssaultSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 			if (NumMarinesNearby < 1)
 			{
-				Task->TaskType = TASK_BUILD;
-				Task->TaskTarget = Observatory;
-				Task->TaskLocation = Observatory->v.origin;
-				Task->bOrderIsUrgent = true;
+				TASK_SetBuildTask(pBot, Task, Observatory, true);
 				return;
 			}
 		}
@@ -412,22 +389,15 @@ void MarineAssaultSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 			if (NumMarinesNearby < 1)
 			{
-				Task->TaskType = TASK_BUILD;
-				Task->TaskTarget = Armoury;
-				Task->TaskLocation = Armoury->v.origin;
-				Task->bOrderIsUrgent = true;
+				TASK_SetBuildTask(pBot, Task, Armoury, true);
 				return;
 			}
 		}
 
 		if (Task->TaskType != TASK_ATTACK || Task->TaskTarget != SiegedHive->edict)
 		{
-			int BotProfile = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
-
-			Task->TaskType = TASK_ATTACK;
-			Task->TaskTarget = SiegedHive->edict;
-			Task->TaskLocation = FindClosestNavigablePointToDestination(BotProfile, pBot->pEdict->v.origin, SiegedHive->FloorLocation, UTIL_MetresToGoldSrcUnits(10.0f));
-			Task->bOrderIsUrgent = false;
+			TASK_SetAttackTask(pBot, Task, SiegedHive->edict, false);
+			return;
 		}
 
 		
@@ -449,7 +419,7 @@ void MarineAssaultSetPrimaryTask(bot_t* pBot, bot_task* Task)
 			{
 				Task->TaskType = TASK_GUARD;
 				Task->TaskLocation = WaitPoint;
-				Task->bOrderIsUrgent = false;
+				Task->bTaskIsUrgent = false;
 				Task->TaskLength = 30.0f;
 				return;
 			}
@@ -458,12 +428,7 @@ void MarineAssaultSetPrimaryTask(bot_t* pBot, bot_task* Task)
 		// Bot has a proper weapon equipped
 		if (!PlayerHasWeapon(pBot->pEdict, WEAPON_MARINE_MG))
 		{
-			int BotProfile = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
-
-			Task->TaskType = TASK_ATTACK;
-			Task->TaskTarget = BuiltHive->edict;
-			Task->TaskLocation = FindClosestNavigablePointToDestination(BotProfile, pBot->pEdict->v.origin, BuiltHive->FloorLocation, UTIL_MetresToGoldSrcUnits(10.0f));
-			Task->bOrderIsUrgent = false;
+			TASK_SetAttackTask(pBot, Task, BuiltHive->edict, false);
 			return;
 		}
 	}
@@ -472,10 +437,7 @@ void MarineAssaultSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 	if (!FNullEnt(ResourceTower))
 	{
-		Task->TaskType = TASK_ATTACK;
-		Task->TaskTarget = ResourceTower;
-		Task->TaskLocation = ResourceTower->v.origin;
-		Task->bOrderIsUrgent = false;
+		TASK_SetAttackTask(pBot, Task, ResourceTower, false);
 		return;
 	}
 
@@ -486,9 +448,7 @@ void MarineAssaultSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 		if (NewMoveLocation != ZERO_VECTOR)
 		{
-			Task->TaskType = TASK_MOVE;
-			Task->TaskLocation = NewMoveLocation;
-			Task->bOrderIsUrgent = false;
+			TASK_SetMoveTask(pBot, Task, NewMoveLocation, false);
 			return;
 		}
 	}
@@ -504,10 +464,7 @@ void MarineSetSecondaryTask(bot_t* pBot, bot_task* Task)
 
 	if (!FNullEnt(UnbuiltStructure))
 	{
-		Task->TaskType = TASK_BUILD;
-		Task->TaskTarget = UnbuiltStructure;
-		Task->TaskLocation = UnbuiltStructure->v.origin;
-		Task->bOrderIsUrgent = true;
+		TASK_SetBuildTask(pBot, Task, UnbuiltStructure, true);
 		return;
 	}
 
@@ -525,10 +482,7 @@ void MarineSetSecondaryTask(bot_t* pBot, bot_task* Task)
 		// Always defend if it's critical structure regardless of distance
 		if (bCriticalStructure || UTIL_GetPhaseDistanceBetweenPointsSq(pBot->pEdict->v.origin, AttackedStructure->v.origin) <= sqrf(UTIL_MetresToGoldSrcUnits(30.0f)))
 		{
-			Task->TaskType = TASK_DEFEND;
-			Task->TaskTarget = AttackedStructure;
-			Task->TaskLocation = AttackedStructure->v.origin;
-			Task->bOrderIsUrgent = true;
+			TASK_SetDefendTask(pBot, Task, AttackedStructure, true);
 			return;
 		}
 	}
@@ -545,7 +499,7 @@ void MarineSetSecondaryTask(bot_t* pBot, bot_task* Task)
 			Task->TaskType = TASK_WELD;
 			Task->TaskTarget = HurtPlayer;
 			Task->TaskLocation = HurtPlayer->v.origin;
-			Task->bOrderIsUrgent = false;
+			Task->bTaskIsUrgent = false;
 			return;
 		}
 
@@ -557,7 +511,7 @@ void MarineSetSecondaryTask(bot_t* pBot, bot_task* Task)
 			Task->TaskType = TASK_WELD;
 			Task->TaskTarget = DamagedStructure;
 			Task->TaskLocation = DamagedStructure->v.origin;
-			Task->bOrderIsUrgent = false;
+			Task->bTaskIsUrgent = false;
 			return;
 		}
 	}
@@ -569,10 +523,7 @@ void MarineSetCombatModeSecondaryTask(bot_t* pBot, bot_task* Task)
 
 	if (!FNullEnt(AttackedStructure) && vDist2DSq(pBot->pEdict->v.origin, AttackedStructure->v.origin) <= sqrf(UTIL_MetresToGoldSrcUnits(15.0f)))
 	{
-		Task->TaskType = TASK_DEFEND;
-		Task->TaskTarget = AttackedStructure;
-		Task->TaskLocation = AttackedStructure->v.origin;
-		Task->bOrderIsUrgent = true;
+		TASK_SetDefendTask(pBot, Task, AttackedStructure, true);
 		return;
 	}
 
@@ -585,7 +536,7 @@ void MarineSetCombatModeSecondaryTask(bot_t* pBot, bot_task* Task)
 			Task->TaskType = TASK_WELD;
 			Task->TaskTarget = HurtPlayer;
 			Task->TaskLocation = HurtPlayer->v.origin;
-			Task->bOrderIsUrgent = false;
+			Task->bTaskIsUrgent = false;
 			return;
 		}
 	}
@@ -602,10 +553,7 @@ void MarineSweeperSetSecondaryTask(bot_t* pBot, bot_task* Task)
 	{
 		if (UTIL_GetPhaseDistanceBetweenPointsSq(pBot->pEdict->v.origin, AttackedStructure->v.origin) <= sqrf(UTIL_MetresToGoldSrcUnits(30.0f)))
 		{
-			Task->TaskType = TASK_DEFEND;
-			Task->TaskTarget = AttackedStructure;
-			Task->TaskLocation = AttackedStructure->v.origin;
-			Task->bOrderIsUrgent = true;
+			TASK_SetDefendTask(pBot, Task, AttackedStructure, true);
 			return;
 		}
 	}
@@ -616,11 +564,7 @@ void MarineSweeperSetSecondaryTask(bot_t* pBot, bot_task* Task)
 
 	if (!FNullEnt(UnbuiltStructure))
 	{
-		UTIL_ClearBotTask(pBot, Task);
-		Task->TaskType = TASK_BUILD;
-		Task->TaskTarget = UnbuiltStructure;
-		Task->TaskLocation = UnbuiltStructure->v.origin;
-		Task->bOrderIsUrgent = true;
+		TASK_SetBuildTask(pBot, Task, UnbuiltStructure, true);
 		return;
 	}
 
@@ -636,7 +580,7 @@ void MarineSweeperSetSecondaryTask(bot_t* pBot, bot_task* Task)
 			Task->TaskType = TASK_WELD;
 			Task->TaskTarget = HurtPlayer;
 			Task->TaskLocation = HurtPlayer->v.origin;
-			Task->bOrderIsUrgent = false;
+			Task->bTaskIsUrgent = false;
 			return;
 		}
 
@@ -648,7 +592,7 @@ void MarineSweeperSetSecondaryTask(bot_t* pBot, bot_task* Task)
 			Task->TaskType = TASK_WELD;
 			Task->TaskTarget = DamagedStructure;
 			Task->TaskLocation = DamagedStructure->v.origin;
-			Task->bOrderIsUrgent = false;
+			Task->bTaskIsUrgent = false;
 			return;
 		}
 	}
@@ -668,10 +612,8 @@ void MarineCapperSetSecondaryTask(bot_t* pBot, bot_task* Task)
 
 		if (NumBuilders < 1)
 		{
-			Task->TaskType = TASK_BUILD;
-			Task->TaskTarget = UnbuiltStructure;
-			Task->TaskLocation = UnbuiltStructure->v.origin;
-			Task->bOrderIsUrgent = GetStructureTypeFromEdict(UnbuiltStructure) == STRUCTURE_MARINE_RESTOWER;
+			bool bIsUrgent = GetStructureTypeFromEdict(UnbuiltStructure) == STRUCTURE_MARINE_RESTOWER;
+			TASK_SetBuildTask(pBot, Task, UnbuiltStructure, bIsUrgent);
 			return;
 		}
 
@@ -692,11 +634,7 @@ void MarineCapperSetSecondaryTask(bot_t* pBot, bot_task* Task)
 
 	if (!FNullEnt(ResourceTower))
 	{
-		Task->TaskType = TASK_DEFEND;
-		Task->TaskTarget = ResourceTower;
-		Task->TaskLocation = UTIL_GetEntityGroundLocation(ResourceTower);
-		Task->bOrderIsUrgent = true;
-
+		TASK_SetDefendTask(pBot, Task, ResourceTower, true);
 		return;
 	}
 
@@ -710,7 +648,7 @@ void MarineCapperSetSecondaryTask(bot_t* pBot, bot_task* Task)
 			Task->TaskType = TASK_WELD;
 			Task->TaskTarget = DamagedStructure;
 			Task->TaskLocation = DamagedStructure->v.origin;
-			Task->bOrderIsUrgent = false;
+			Task->bTaskIsUrgent = false;
 			return;
 		}
 	}
@@ -729,9 +667,7 @@ void MarineAssaultSetSecondaryTask(bot_t* pBot, bot_task* Task)
 
 		if (NumBuilders < 1)
 		{
-			Task->TaskType = TASK_BUILD;
-			Task->TaskTarget = UnbuiltStructure;
-			Task->bOrderIsUrgent = true;
+			TASK_SetBuildTask(pBot, Task, UnbuiltStructure, true);
 			return;
 		}
 	}
@@ -744,9 +680,7 @@ void MarineAssaultSetSecondaryTask(bot_t* pBot, bot_task* Task)
 
 		if (Dist < sqrf(UTIL_MetresToGoldSrcUnits(30.0f)))
 		{
-			Task->TaskType = TASK_DEFEND;
-			Task->TaskTarget = AttackedPhaseGate;
-			Task->bOrderIsUrgent = true;
+			TASK_SetDefendTask(pBot, Task, AttackedPhaseGate, true);
 			return;
 		}
 	}
@@ -759,9 +693,7 @@ void MarineAssaultSetSecondaryTask(bot_t* pBot, bot_task* Task)
 
 		if (Dist < UTIL_MetresToGoldSrcUnits(20.0f))
 		{
-			Task->TaskType = TASK_DEFEND;
-			Task->TaskTarget = AttackedTurretFactory;
-			Task->bOrderIsUrgent = true;
+			TASK_SetDefendTask(pBot, Task, AttackedTurretFactory, true);
 			return;
 		}
 	}
@@ -834,8 +766,7 @@ void MarineAssaultSetSecondaryTask(bot_t* pBot, bot_task* Task)
 
 			if (NumPotentialDefenders < 1)
 			{
-				Task->TaskType = TASK_DEFEND;
-				Task->TaskTarget = ResourceTower;
+				TASK_SetDefendTask(pBot, Task, ResourceTower, false);
 				Task->TaskLength = 20.0f;
 				return;
 			}
@@ -1186,14 +1117,7 @@ void BotReceiveAttackOrder(bot_t* pBot, AvHUser3 TargetType, Vector destination)
 
 		if (NearestStructure)
 		{
-			pBot->CommanderTask.TaskType = TASK_ATTACK;
-			pBot->CommanderTask.TaskLocation = UTIL_GetFloorUnderEntity(NearestStructure);
-			pBot->CommanderTask.TaskTarget = NearestStructure;
-			pBot->CommanderTask.bTargetIsPlayer = false;
-
-		}
-		else
-		{
+			TASK_SetAttackTask(pBot, &pBot->CommanderTask, NearestStructure, false);
 			return;
 		}
 	}
@@ -1218,9 +1142,8 @@ void BotReceiveAttackOrder(bot_t* pBot, AvHUser3 TargetType, Vector destination)
 
 		if (NearestEnemy)
 		{
-			pBot->CommanderTask.TaskType = TASK_ATTACK;
-			pBot->CommanderTask.TaskTarget = NearestEnemy;
-			pBot->CommanderTask.bTargetIsPlayer = true;
+			TASK_SetAttackTask(pBot, &pBot->CommanderTask, NearestEnemy, false);
+			return;
 		}
 		else
 		{
@@ -1239,11 +1162,8 @@ void BotReceiveBuildOrder(bot_t* pBot, AvHUser3 TargetType, Vector destination)
 
 	if (NearestStructure)
 	{
-		pBot->CommanderTask.TaskType = TASK_BUILD;
-		pBot->CommanderTask.TaskLocation = UTIL_GetFloorUnderEntity(NearestStructure);
-		pBot->CommanderTask.TaskTarget = NearestStructure;
+		TASK_SetBuildTask(pBot, &pBot->CommanderTask, NearestStructure, false);
 		pBot->CommanderTask.bIssuedByCommander = true;
-		pBot->CommanderTask.bTargetIsPlayer = false;
 	}
 }
 
@@ -1253,15 +1173,12 @@ void BotReceiveMoveToOrder(bot_t* pBot, Vector destination)
 
 	if (ResNodeRef && vDist2DSq(ResNodeRef->origin, destination) < sqrf(UTIL_MetresToGoldSrcUnits(5.0f)))
 	{
-		pBot->CommanderTask.TaskType = TASK_CAP_RESNODE;
-		pBot->CommanderTask.StructureType = STRUCTURE_MARINE_RESTOWER;
-		pBot->CommanderTask.TaskLocation = ResNodeRef->origin;
+		TASK_SetCapResNodeTask(pBot, &pBot->CommanderTask, ResNodeRef, false);
 		
 	}
 	else
 	{
-		pBot->CommanderTask.TaskType = TASK_MOVE;
-		pBot->CommanderTask.TaskLocation = destination;
+		TASK_SetMoveTask(pBot, &pBot->CommanderTask, destination, false);
 	}
 
 	pBot->CommanderTask.bIssuedByCommander = true;
@@ -1426,7 +1343,7 @@ void MarineCombatModeCheckWantsAndNeeds(bot_t* pBot)
 
 	if (vDist2DSq(pBot->pEdict->v.origin, NearestArmoury->v.origin) < sqrf(UTIL_MetresToGoldSrcUnits(10.0f)))
 	{
-		bNeedsAmmoOrHealth = (BotGetPrimaryWeaponAmmoReserve(pBot) < BotGetPrimaryWeaponMaxAmmoReserve(pBot) || BotGetSecondaryWeaponAmmoReserve(pBot) < BotGetSecondaryWeaponMaxAmmoReserve(pBot) || pBot->pEdict->v.health < pBot->pEdict->v.max_health);
+		bNeedsAmmoOrHealth = (BotGetPrimaryWeaponAmmoReserve(pBot) < BotGetPrimaryWeaponMaxClipSize(pBot) || BotGetSecondaryWeaponAmmoReserve(pBot) < BotGetSecondaryWeaponMaxClipSize(pBot) || pBot->pEdict->v.health < pBot->pEdict->v.max_health);
 	}
 	else
 	{
@@ -1440,7 +1357,7 @@ void MarineCombatModeCheckWantsAndNeeds(bot_t* pBot)
 	if (bNeedsAmmoOrHealth)
 	{
 		pBot->WantsAndNeedsTask.TaskType = TASK_RESUPPLY;
-		pBot->WantsAndNeedsTask.bOrderIsUrgent = true;
+		pBot->WantsAndNeedsTask.bTaskIsUrgent = false;
 		pBot->WantsAndNeedsTask.TaskLocation = NearestArmoury->v.origin;
 		pBot->WantsAndNeedsTask.TaskTarget = NearestArmoury;
 	}
@@ -1477,7 +1394,7 @@ void MarineCheckWantsAndNeeds(bot_t* pBot)
 		if (HealthPackIndex)
 		{
 			pBot->WantsAndNeedsTask.TaskType = TASK_GET_HEALTH;
-			pBot->WantsAndNeedsTask.bOrderIsUrgent = true;
+			pBot->WantsAndNeedsTask.bTaskIsUrgent = true;
 			pBot->WantsAndNeedsTask.TaskLocation = HealthPackIndex->v.origin;
 			pBot->WantsAndNeedsTask.TaskTarget = HealthPackIndex;
 
@@ -1491,7 +1408,7 @@ void MarineCheckWantsAndNeeds(bot_t* pBot)
 			if (PhaseDist < UTIL_MetresToGoldSrcUnits(30.0f))
 			{
 				pBot->WantsAndNeedsTask.TaskType = TASK_RESUPPLY;
-				pBot->WantsAndNeedsTask.bOrderIsUrgent = true;
+				pBot->WantsAndNeedsTask.bTaskIsUrgent = true;
 				pBot->WantsAndNeedsTask.TaskLocation = NearestArmoury->v.origin;
 				pBot->WantsAndNeedsTask.TaskTarget = NearestArmoury;
 
@@ -1515,7 +1432,7 @@ void MarineCheckWantsAndNeeds(bot_t* pBot)
 				if (!UTIL_IsAnyHumanNearLocationWithoutSpecialWeapon(NewWeaponIndex->v.origin, UTIL_MetresToGoldSrcUnits(10.0f)))
 				{
 					pBot->WantsAndNeedsTask.TaskType = TASK_GET_WEAPON;
-					pBot->WantsAndNeedsTask.bOrderIsUrgent = false;
+					pBot->WantsAndNeedsTask.bTaskIsUrgent = false;
 					pBot->WantsAndNeedsTask.TaskLocation = NewWeaponIndex->v.origin;
 					pBot->WantsAndNeedsTask.TaskTarget = NewWeaponIndex;
 
@@ -1527,7 +1444,7 @@ void MarineCheckWantsAndNeeds(bot_t* pBot)
 				if (!FNullEnt(NearestArmoury) && PlayerHasEquipment(pBot->pEdict))
 				{
 					pBot->WantsAndNeedsTask.TaskType = TASK_GUARD;
-					pBot->WantsAndNeedsTask.bOrderIsUrgent = false;
+					pBot->WantsAndNeedsTask.bTaskIsUrgent = false;
 					pBot->WantsAndNeedsTask.TaskLocation = NearestArmoury->v.origin;
 					pBot->WantsAndNeedsTask.TaskTarget = NearestArmoury;
 
@@ -1550,7 +1467,7 @@ void MarineCheckWantsAndNeeds(bot_t* pBot)
 		if (AmmoPackIndex)
 		{
 			pBot->WantsAndNeedsTask.TaskType = TASK_GET_AMMO;
-			pBot->WantsAndNeedsTask.bOrderIsUrgent = BotGetPrimaryWeaponAmmoReserve(pBot) == 0;
+			pBot->WantsAndNeedsTask.bTaskIsUrgent = BotGetPrimaryWeaponAmmoReserve(pBot) == 0;
 			pBot->WantsAndNeedsTask.TaskLocation = AmmoPackIndex->v.origin;
 			pBot->WantsAndNeedsTask.TaskTarget = AmmoPackIndex;
 
@@ -1568,7 +1485,7 @@ void MarineCheckWantsAndNeeds(bot_t* pBot)
 			if (PhaseDist <= DistanceWillingToTravel)
 			{
 				pBot->WantsAndNeedsTask.TaskType = TASK_RESUPPLY;
-				pBot->WantsAndNeedsTask.bOrderIsUrgent = BotGetPrimaryWeaponAmmoReserve(pBot) == 0;
+				pBot->WantsAndNeedsTask.bTaskIsUrgent = BotGetPrimaryWeaponAmmoReserve(pBot) == 0;
 				pBot->WantsAndNeedsTask.TaskLocation = NearestArmoury->v.origin;
 				pBot->WantsAndNeedsTask.TaskTarget = NearestArmoury;
 
@@ -1589,7 +1506,7 @@ void MarineCheckWantsAndNeeds(bot_t* pBot)
 				if (!UTIL_IsAnyHumanNearLocationWithoutWeapon(WEAPON_MARINE_WELDER, WelderIndex->v.origin, UTIL_MetresToGoldSrcUnits(5.0f)))
 				{
 					pBot->WantsAndNeedsTask.TaskType = TASK_GET_WEAPON;
-					pBot->WantsAndNeedsTask.bOrderIsUrgent = false;
+					pBot->WantsAndNeedsTask.bTaskIsUrgent = false;
 					pBot->WantsAndNeedsTask.TaskLocation = WelderIndex->v.origin;
 					pBot->WantsAndNeedsTask.TaskTarget = WelderIndex;
 
@@ -1616,7 +1533,7 @@ void MarineCheckWantsAndNeeds(bot_t* pBot)
 				{
 
 					pBot->WantsAndNeedsTask.TaskType = TASK_GET_EQUIPMENT;
-					pBot->WantsAndNeedsTask.bOrderIsUrgent = false;
+					pBot->WantsAndNeedsTask.bTaskIsUrgent = false;
 					pBot->WantsAndNeedsTask.TaskLocation = EquipmentIndex->v.origin;
 					pBot->WantsAndNeedsTask.TaskTarget = EquipmentIndex;
 
@@ -1630,7 +1547,7 @@ void MarineCheckWantsAndNeeds(bot_t* pBot)
 					if (!FNullEnt(NearestArmoury) && PlayerHasEquipment(pBot->pEdict))
 					{
 						pBot->WantsAndNeedsTask.TaskType = TASK_GUARD;
-						pBot->WantsAndNeedsTask.bOrderIsUrgent = false;
+						pBot->WantsAndNeedsTask.bTaskIsUrgent = false;
 						pBot->WantsAndNeedsTask.TaskLocation = NearestArmoury->v.origin;
 						pBot->WantsAndNeedsTask.TaskTarget = NearestArmoury;
 

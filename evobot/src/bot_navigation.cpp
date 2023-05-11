@@ -2578,10 +2578,6 @@ bool IsBotOffPath(const bot_t* pBot)
 	if (!pBot->BotNavInfo.IsOnGround) { return false; }
 
 
-	
-
-
-
 	// TODO: This sucks
 	if (pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].area == SAMPLE_POLYAREA_GROUND || pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].area == SAMPLE_POLYAREA_CROUCH)
 	{

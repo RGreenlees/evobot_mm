@@ -265,7 +265,7 @@ float GetMaxIdealWeaponRange(const NSWeapon Weapon)
 	case WEAPON_LERK_BITE:
 		return kBite2Range;
 	case WEAPON_GORGE_HEALINGSPRAY:
-		return 60.0f;
+		return kHealingSprayRange;
 	default:
 		return 32.0f;
 	}

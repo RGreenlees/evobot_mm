@@ -185,4 +185,6 @@ Vector UTIL_GetRandomPointInBoundingBox(const Vector BoxMin, const Vector BoxMax
 // Function to get number of set bits in a positive integer n
 unsigned int UTIL_CountSetBitsInInteger(unsigned int n);
 
+float UTIL_CalculateSlopeAngleBetweenPoints(const Vector StartPoint, const Vector EndPoint);
+
 #endif

@@ -495,22 +495,13 @@ void BotAttackTarget(bot_t* pBot, edict_t* Target)
 	if (IsMeleeWeapon(CurrentWeapon))
 	{
 		BotLookAt(pBot, Target);
-		Vector TargetAimDir = UTIL_GetVectorNormal2D(UTIL_GetCentreOfEntity(Target) - pBot->CurrentEyePosition);
 
 		float MaxWeaponRange = GetMaxIdealWeaponRange(CurrentWeapon);
 
 		if (UTIL_PlayerHasLOSToEntity(pBot->pEdict, Target, MaxWeaponRange, false))
 		{
-			Vector AimDir = UTIL_GetForwardVector2D(pBot->pEdict->v.v_angle);
-
-
-			float AimDot = UTIL_GetDotProduct2D(AimDir, TargetAimDir);
-
-			if (AimDot >= 0.75f)
-			{
-				pBot->pEdict->v.button |= IN_ATTACK;
-				pBot->current_weapon.LastFireTime = gpGlobals->time;
-			}
+			pBot->pEdict->v.button |= IN_ATTACK;
+			pBot->current_weapon.LastFireTime = gpGlobals->time;
 		}
 
 		return;
@@ -1564,8 +1555,7 @@ void InvalidModeThink(bot_t* pBot)
 
 		if (NewLocation != ZERO_VECTOR)
 		{
-			pBot->PrimaryBotTask.TaskType = TASK_MOVE;
-			pBot->PrimaryBotTask.TaskLocation = NewLocation;
+			TASK_SetMoveTask(pBot, &pBot->PrimaryBotTask, NewLocation, false);
 		}
 	}
 
@@ -1633,7 +1623,7 @@ int BotGetNextEnemyTarget(bot_t* pBot)
 			{
 				bool bHasLOS = UTIL_QuickTrace(pBot->pEdict, pBot->CurrentEyePosition, pBot->TrackedEnemies[i].EnemyEdict->v.origin);
 				// Don't hunt an enemy if we have something important to do
-				if (!bHasLOS && (pBot->PrimaryBotTask.bOrderIsUrgent || pBot->SecondaryBotTask.bOrderIsUrgent || pBot->WantsAndNeedsTask.bOrderIsUrgent)) { continue; }
+				if (!bHasLOS && (pBot->PrimaryBotTask.bTaskIsUrgent || pBot->SecondaryBotTask.bTaskIsUrgent || pBot->WantsAndNeedsTask.bTaskIsUrgent)) { continue; }
 				if (ClosestNonVisibleEnemy < 0 || thisDist < MinNonVisibleDist)
 				{
 					ClosestNonVisibleEnemy = i;
@@ -1847,9 +1837,7 @@ void TestNavThink(bot_t* pBot)
 
 		if (RandomPoint != ZERO_VECTOR && UTIL_PointIsReachable(MoveProfile, pBot->pEdict->v.origin, RandomPoint, max_player_use_reach))
 		{
-			pBot->PrimaryBotTask.TaskType = TASK_MOVE;
-			pBot->PrimaryBotTask.TaskLocation = RandomPoint;
-			pBot->PrimaryBotTask.bOrderIsUrgent = true;
+			TASK_SetMoveTask(pBot, &pBot->PrimaryBotTask, RandomPoint, true);
 		}
 		else
 		{

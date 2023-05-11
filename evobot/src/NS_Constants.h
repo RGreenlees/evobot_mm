@@ -134,7 +134,7 @@ const int kAcidRocketVelocity = 2000;
 const float kBiteRange = 60.0f;
 const float kBite2Range = 60.0f; // Lerk bite range
 
-const float kHealingSprayRange = 100.0f;
+const float kHealingSprayRange = 300.0f;
 
 const float kSwipeRange = 60.0f; // Fade swipe range
 

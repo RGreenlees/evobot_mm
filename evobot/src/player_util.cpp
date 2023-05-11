@@ -650,13 +650,18 @@ bool IsPlayerInUseRange(const edict_t* Player, const edict_t* Target)
 	Vector UseDir = UTIL_GetVectorNormal(UTIL_GetCentreOfEntity(Target) - StartTrace);
 	// Sometimes if the bot is REALLY close to the target, the trace fails. Give it 5 units extra of room to avoid this and compensate during the trace.
 	StartTrace = StartTrace - (UseDir * 5.0f);
-	Vector EndTrace = StartTrace + (UseDir * (max_player_use_reach + 5.0f)); // Add back the 5 units we took away
+	
+	Vector EndTrace = UTIL_GetCentreOfEntity(Target);
 
+	float TraceDist = vDist3D(StartTrace, EndTrace);
+	
+	float MaxDist = max_player_use_reach + 5.0f;
+	
 	TraceResult hit;
 
 	UTIL_TraceLine(StartTrace, EndTrace, dont_ignore_monsters, dont_ignore_glass, Player->v.pContainingEntity, &hit);
 
-	if (hit.flFraction < 1.0f)
+	if (hit.flFraction < 1.0f && (TraceDist * hit.flFraction) <= MaxDist)
 	{
 		return hit.pHit == Target;
 	}
@@ -695,10 +700,9 @@ bool UTIL_PlayerHasLOSToEntity(const edict_t* Player, const edict_t* Target, con
 {
 	if (FNullEnt(Player) || FNullEnt(Target)) { return false; }
 	Vector StartTrace = GetPlayerEyePosition(Player);
+	Vector EndTrace = UTIL_GetCentreOfEntity(Target);
 
-	Vector LookDirection = UTIL_GetVectorNormal(UTIL_GetCentreOfEntity(Target) - StartTrace);
-	StartTrace = StartTrace - (LookDirection * 5.0f);
-	Vector EndTrace = StartTrace + (LookDirection * (MaxRange + 5.0f));
+	float Dist = vDist3D(StartTrace, EndTrace);
 
 	TraceResult hit;
 
@@ -711,7 +715,9 @@ bool UTIL_PlayerHasLOSToEntity(const edict_t* Player, const edict_t* Target, con
 		UTIL_TraceLine(StartTrace, EndTrace, dont_ignore_monsters, dont_ignore_glass, Player->v.pContainingEntity, &hit);
 	}
 
-	if (hit.flFraction < 1.0f)
+	
+
+	if (hit.flFraction < 1.0f && ((Dist * hit.flFraction) <= MaxRange))
 	{
 		return (hit.pHit == Target);
 	}

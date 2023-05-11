@@ -246,7 +246,7 @@ typedef struct _BOT_TASK
 	float TaskStartedTime = 0.0f; // When the bot started this task. Helps time-out if the bot gets stuck trying to complete it
 	bool bIssuedByCommander = false; // Was this task issued by the commander? Top priority if so
 	bool bTargetIsPlayer = false; // Is the TaskTarget a player?
-	bool bOrderIsUrgent = false; // Determines whether this task is prioritised over others if bot has multiple
+	bool bTaskIsUrgent = false; // Determines whether this task is prioritised over others if bot has multiple
 	bool bIsWaitingForBuildLink = false; // If true, Gorge has sent the build impulse and is waiting to see if the building materialised
 	float LastBuildAttemptTime = 0.0f; // When did the Gorge last try to place a structure?
 	int BuildAttempts = 0; // How many attempts the Gorge has tried to place it, so it doesn't keep trying forever

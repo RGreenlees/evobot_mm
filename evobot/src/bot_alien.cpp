@@ -29,7 +29,7 @@ void AlienThink(bot_t* pBot)
 
 	BotUpdateAndClearTasks(pBot);
 
-	if (pBot->PrimaryBotTask.TaskType == TASK_NONE || !pBot->PrimaryBotTask.bOrderIsUrgent)
+	if (pBot->PrimaryBotTask.TaskType == TASK_NONE || !pBot->PrimaryBotTask.bTaskIsUrgent)
 	{
 		BotRole RequiredRole = AlienGetBestBotRole(pBot);
 
@@ -45,7 +45,7 @@ void AlienThink(bot_t* pBot)
 		BotAlienSetPrimaryTask(pBot, &pBot->PrimaryBotTask);
 	}
 
-	if (pBot->SecondaryBotTask.TaskType == TASK_NONE || !pBot->SecondaryBotTask.bOrderIsUrgent)
+	if (pBot->SecondaryBotTask.TaskType == TASK_NONE || !pBot->SecondaryBotTask.bTaskIsUrgent)
 	{
 		BotAlienSetSecondaryTask(pBot, &pBot->SecondaryBotTask);
 	}
@@ -119,7 +119,7 @@ void AlienCombatModeThink(bot_t* pBot)
 	BotUpdateAndClearTasks(pBot);
 	AlienCheckCombatModeWantsAndNeeds(pBot);
 
-	if (pBot->PrimaryBotTask.TaskType == TASK_NONE || (!pBot->PrimaryBotTask.bOrderIsUrgent && !pBot->PrimaryBotTask.bIssuedByCommander))
+	if (pBot->PrimaryBotTask.TaskType == TASK_NONE || (!pBot->PrimaryBotTask.bTaskIsUrgent && !pBot->PrimaryBotTask.bIssuedByCommander))
 	{
 		BotRole RequiredRole = AlienGetBestCombatModeRole(pBot);
 
@@ -196,7 +196,7 @@ void AlienSetCombatModeSecondaryTask(bot_t* pBot, bot_task* Task)
 		Task->TaskType = TASK_EVOLVE;
 		Task->TaskLocation = EvolvePosition;
 		Task->Evolution = IMPULSE_ALIEN_EVOLVE_GORGE;
-		Task->bOrderIsUrgent = true;
+		Task->bTaskIsUrgent = true;
 		return;
 
 	}
@@ -225,7 +225,7 @@ void AlienSetCombatModeSecondaryTask(bot_t* pBot, bot_task* Task)
 		Task->TaskType = TASK_EVOLVE;
 		Task->TaskLocation = EvolvePosition;
 		Task->Evolution = IMPULSE_ALIEN_EVOLVE_FADE;
-		Task->bOrderIsUrgent = true;
+		Task->bTaskIsUrgent = true;
 		return;
 
 	}
@@ -243,17 +243,7 @@ void AlienSetCombatModeSecondaryTask(bot_t* pBot, bot_task* Task)
 
 			if (NumDefenders < 2)
 			{
-				int BotProfile = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
-
-				Vector DefendPoint = FindClosestNavigablePointToDestination(BotProfile, pBot->pEdict->v.origin, AttackedHive->FloorLocation, UTIL_MetresToGoldSrcUnits(5.0f));
-
-				if (DefendPoint != ZERO_VECTOR)
-				{
-					Task->TaskType = TASK_DEFEND;
-					Task->TaskTarget = AttackedHive->edict;
-					Task->TaskLocation = DefendPoint;
-					return;
-				}
+				TASK_SetDefendTask(pBot, Task, AttackedHive->edict, false);
 			}
 		}
 	}
@@ -291,10 +281,7 @@ void AlienHarasserSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 		if (ResNode)
 		{
-			Task->TaskType = TASK_ATTACK;
-			Task->TaskLocation = ResNode->origin;
-			Task->TaskTarget = ResNode->TowerEdict;
-			Task->bOrderIsUrgent = false;
+			TASK_SetAttackTask(pBot, Task, ResNode->TowerEdict, false);
 			return;
 		}
 	}
@@ -309,10 +296,7 @@ void AlienHarasserSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 			if (InfPortal)
 			{
-				Task->TaskType = TASK_ATTACK;
-				Task->TaskTarget = InfPortal;
-				Task->TaskLocation = InfPortal->v.origin;
-				Task->bOrderIsUrgent = false;
+				TASK_SetAttackTask(pBot, Task, InfPortal, false);
 				return;
 			}
 		}
@@ -321,10 +305,7 @@ void AlienHarasserSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 		if (CommChair)
 		{
-			Task->TaskType = TASK_ATTACK;
-			Task->TaskTarget = CommChair;
-			Task->TaskLocation = CommChair->v.origin;
-			Task->bOrderIsUrgent = false;
+			TASK_SetAttackTask(pBot, Task, CommChair, false);
 			return;
 		}
 
@@ -332,10 +313,7 @@ void AlienHarasserSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 		if (!FNullEnt(EnemyPlayer))
 		{
-			Task->TaskType = TASK_ATTACK;
-			Task->TaskTarget = EnemyPlayer;
-			Task->TaskLocation = EnemyPlayer->v.origin;
-			Task->bTargetIsPlayer = true;
+			TASK_SetAttackTask(pBot, Task, EnemyPlayer, true);
 			return;
 		}
 
@@ -347,26 +325,22 @@ void AlienHarasserSetPrimaryTask(bot_t* pBot, bot_task* Task)
 	{
 		if (ResNode->bIsOccupied && !FNullEnt(ResNode->TowerEdict))
 		{
-			Task->TaskType = TASK_ATTACK;
-			Task->TaskLocation = ResNode->origin;
-			Task->TaskTarget = ResNode->TowerEdict;
-			Task->bOrderIsUrgent = false;
+			TASK_SetAttackTask(pBot, Task, ResNode->TowerEdict, false);
 			return;
 		}
 		else
 		{
-			Task->TaskType = TASK_MOVE;
-			Task->TaskLocation = ResNode->origin;
-			Task->bOrderIsUrgent = false;
+			TASK_SetMoveTask(pBot, Task, ResNode->origin, false);
 			return;
 		}
 	}
 	else
 	{
-		Task->TaskType = TASK_MOVE;
+		
 		int NavProfile = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
-		Task->TaskLocation = UTIL_GetRandomPointOnNavmeshInRadius(NavProfile, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(50.0f));
-		Task->bOrderIsUrgent = false;
+		Vector RandomMovePoint = UTIL_GetRandomPointOnNavmeshInRadius(NavProfile, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(50.0f));
+
+		TASK_SetMoveTask(pBot, Task, RandomMovePoint, false);
 		return;
 	}
 
@@ -400,10 +374,7 @@ void AlienCapperSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 			if (EmptyResNode)
 			{
-				Task->TaskType = TASK_CAP_RESNODE;
-				Task->TaskLocation = EmptyResNode->origin;
-				Task->StructureType = STRUCTURE_ALIEN_RESTOWER;
-				Task->bOrderIsUrgent = bCappingIsUrgent;
+				TASK_SetCapResNodeTask(pBot, Task, EmptyResNode, bCappingIsUrgent);
 				return;
 			}
 			else
@@ -420,10 +391,7 @@ void AlienCapperSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 		if (!FNullEnt(RandomResTower))
 		{
-			Task->TaskType = TASK_ATTACK;
-			Task->TaskLocation = RandomResTower->v.origin;
-			Task->TaskTarget = RandomResTower;
-			Task->bOrderIsUrgent = false;
+			TASK_SetAttackTask(pBot, Task, RandomResTower, false);
 			return;
 		}
 
@@ -434,9 +402,7 @@ void AlienCapperSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 		if (RandomPoint != ZERO_VECTOR)
 		{
-			Task->TaskType = TASK_MOVE;
-			Task->TaskLocation = RandomPoint;
-			Task->bOrderIsUrgent = false;
+			TASK_SetMoveTask(pBot, Task, RandomPoint, false);
 			return;
 		}
 
@@ -459,10 +425,7 @@ void AlienCapperSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 	if (RandomResNode)
 	{
-		Task->TaskType = TASK_CAP_RESNODE;
-		Task->TaskLocation = RandomResNode->origin;
-		Task->bOrderIsUrgent = bCappingIsUrgent;
-		Task->StructureType = STRUCTURE_ALIEN_RESTOWER;
+		TASK_SetCapResNodeTask(pBot, Task, RandomResNode, bCappingIsUrgent);
 		return;
 	}
 
@@ -518,10 +481,8 @@ void AlienBuilderSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 		if (!vEquals(BuildLocation, ZERO_VECTOR))
 		{
-			Task->TaskType = TASK_BUILD;
-			Task->TaskLocation = BuildLocation;
-			Task->StructureType = TechChamberToBuild;
-			Task->bOrderIsUrgent = true;
+			TASK_SetBuildTask(pBot, Task, TechChamberToBuild, BuildLocation, true);
+			return;
 		}
 
 		return;
@@ -556,10 +517,7 @@ void AlienBuilderSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 		if (!vEquals(BuildLocation, ZERO_VECTOR))
 		{
-			Task->TaskType = TASK_BUILD;
-			Task->TaskLocation = BuildLocation;
-			Task->StructureType = TechChamberToBuild;
-			Task->bOrderIsUrgent = true;
+			TASK_SetBuildTask(pBot, Task, TechChamberToBuild, BuildLocation, true);
 			return;
 		}
 	}
@@ -574,10 +532,8 @@ void AlienBuilderSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 			if (FNullEnt(OtherGorge) || GetPlayerResources(OtherGorge) < pBot->resources)
 			{
-				Task->TaskType = TASK_BUILD;
-				Task->TaskLocation = UnbuiltHiveIndex->FloorLocation;
-				Task->StructureType = STRUCTURE_ALIEN_HIVE;
-				Task->bOrderIsUrgent = false;
+				TASK_SetBuildTask(pBot, Task, STRUCTURE_ALIEN_HIVE, UnbuiltHiveIndex->FloorLocation, false);
+
 				char buf[64];
 				sprintf(buf, "I'll drop hive at %s", UTIL_GetClosestMapLocationToPoint(Task->TaskLocation));
 
@@ -603,10 +559,7 @@ void AlienBuilderSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 				if (BuildLocation != ZERO_VECTOR)
 				{
-					Task->TaskType = TASK_BUILD;
-					Task->TaskLocation = BuildLocation;
-					Task->StructureType = STRUCTURE_ALIEN_DEFENCECHAMBER;
-					Task->bOrderIsUrgent = false;
+					TASK_SetBuildTask(pBot, Task, STRUCTURE_ALIEN_DEFENCECHAMBER, BuildLocation, false);
 					return;
 				}
 			}
@@ -630,10 +583,7 @@ void AlienBuilderSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 				if (BuildLocation != ZERO_VECTOR)
 				{
-					Task->TaskType = TASK_BUILD;
-					Task->TaskLocation = BuildLocation;
-					Task->StructureType = STRUCTURE_ALIEN_MOVEMENTCHAMBER;
-					Task->bOrderIsUrgent = false;
+					TASK_SetBuildTask(pBot, Task, STRUCTURE_ALIEN_MOVEMENTCHAMBER, BuildLocation, false);
 					return;
 				}
 			}
@@ -655,10 +605,7 @@ void AlienBuilderSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 				if (BuildLocation != ZERO_VECTOR)
 				{
-					Task->TaskType = TASK_BUILD;
-					Task->TaskLocation = BuildLocation;
-					Task->StructureType = STRUCTURE_ALIEN_SENSORYCHAMBER;
-					Task->bOrderIsUrgent = false;
+					TASK_SetBuildTask(pBot, Task, STRUCTURE_ALIEN_SENSORYCHAMBER, BuildLocation, false);
 					return;
 				}
 				
@@ -682,10 +629,7 @@ void AlienBuilderSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 		if (NumOffenceChambers < 2)
 		{
-			Task->TaskType = TASK_BUILD;
-			Task->TaskLocation = BuildLocation;
-			Task->StructureType = STRUCTURE_ALIEN_OFFENCECHAMBER;
-			Task->bOrderIsUrgent = false;
+			TASK_SetBuildTask(pBot, Task, STRUCTURE_ALIEN_OFFENCECHAMBER, BuildLocation, false);
 			return;
 		}
 
@@ -695,10 +639,7 @@ void AlienBuilderSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 			if (NumDefenceChambers < 2)
 			{
-				Task->TaskType = TASK_BUILD;
-				Task->TaskLocation = BuildLocation;
-				Task->StructureType = STRUCTURE_ALIEN_DEFENCECHAMBER;
-				Task->bOrderIsUrgent = false;
+				TASK_SetBuildTask(pBot, Task, STRUCTURE_ALIEN_DEFENCECHAMBER, BuildLocation, false);
 				return;
 			}
 		}
@@ -709,10 +650,7 @@ void AlienBuilderSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 			if (NumMovementChambers < 1)
 			{
-				Task->TaskType = TASK_BUILD;
-				Task->TaskLocation = BuildLocation;
-				Task->StructureType = STRUCTURE_ALIEN_MOVEMENTCHAMBER;
-				Task->bOrderIsUrgent = false;
+				TASK_SetBuildTask(pBot, Task, STRUCTURE_ALIEN_MOVEMENTCHAMBER, BuildLocation, false);
 				return;
 			}
 		}
@@ -723,10 +661,7 @@ void AlienBuilderSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 			if (NumSensoryChambers < 1)
 			{
-				Task->TaskType = TASK_BUILD;
-				Task->TaskLocation = BuildLocation;
-				Task->StructureType = STRUCTURE_ALIEN_SENSORYCHAMBER;
-				Task->bOrderIsUrgent = false;
+				TASK_SetBuildTask(pBot, Task, STRUCTURE_ALIEN_SENSORYCHAMBER, BuildLocation, false);
 				return;
 			}
 		}
@@ -766,7 +701,7 @@ void AlienBuilderSetCombatModePrimaryTask(bot_t* pBot, bot_task* Task)
 				Task->TaskType = TASK_HEAL;
 				Task->TaskTarget = Hive->edict;
 				Task->TaskLocation = HealPosition;
-				Task->bOrderIsUrgent = false;
+				Task->bTaskIsUrgent = false;
 				return;
 			}
 		}
@@ -782,7 +717,7 @@ void AlienBuilderSetCombatModePrimaryTask(bot_t* pBot, bot_task* Task)
 				Task->TaskType = TASK_HEAL;
 				Task->TaskTarget = Hive->edict;
 				Task->TaskLocation = HealPosition;
-				Task->bOrderIsUrgent = true;
+				Task->bTaskIsUrgent = true;
 				return;
 			}
 		}
@@ -791,7 +726,7 @@ void AlienBuilderSetCombatModePrimaryTask(bot_t* pBot, bot_task* Task)
 			Task->TaskType = TASK_HEAL;
 			Task->TaskTarget = HurtPlayer;
 			Task->TaskLocation = HurtPlayer->v.origin;
-			Task->bOrderIsUrgent = false;
+			Task->bTaskIsUrgent = false;
 			return;
 		}
 
@@ -803,7 +738,7 @@ void AlienBuilderSetCombatModePrimaryTask(bot_t* pBot, bot_task* Task)
 		Task->TaskType = TASK_HEAL;
 		Task->TaskTarget = HurtPlayer;
 		Task->TaskLocation = HurtPlayer->v.origin;
-		Task->bOrderIsUrgent = false;
+		Task->bTaskIsUrgent = false;
 		return;
 	}
 
@@ -820,7 +755,7 @@ void AlienBuilderSetCombatModePrimaryTask(bot_t* pBot, bot_task* Task)
 		Task->TaskType = TASK_GUARD;
 		Task->TaskTarget = nullptr;
 		Task->TaskLocation = GuardPosition;
-		Task->bOrderIsUrgent = false;
+		Task->bTaskIsUrgent = false;
 		return;
 	}
 }
@@ -850,7 +785,7 @@ void AlienDestroyerSetPrimaryTask(bot_t* pBot, bot_task* Task)
 			{
 				Task->TaskType = TASK_EVOLVE;
 				Task->Evolution = IMPULSE_ALIEN_EVOLVE_ONOS;
-				Task->bOrderIsUrgent = true;
+				Task->bTaskIsUrgent = true;
 				Task->TaskLocation = EvolveLocation;
 				return;
 			}
@@ -861,7 +796,7 @@ void AlienDestroyerSetPrimaryTask(bot_t* pBot, bot_task* Task)
 			{
 				Task->TaskType = TASK_EVOLVE;
 				Task->Evolution = IMPULSE_ALIEN_EVOLVE_FADE;
-				Task->bOrderIsUrgent = true;
+				Task->bTaskIsUrgent = true;
 				Task->TaskLocation = EvolveLocation;
 				return;
 			}
@@ -872,7 +807,7 @@ void AlienDestroyerSetPrimaryTask(bot_t* pBot, bot_task* Task)
 	{
 		Task->TaskType = TASK_EVOLVE;
 		Task->Evolution = IMPULSE_ALIEN_EVOLVE_SKULK;
-		Task->bOrderIsUrgent = true;
+		Task->bTaskIsUrgent = true;
 		Task->TaskLocation = pBot->pEdict->v.origin;
 		return;
 	}
@@ -893,11 +828,7 @@ void AlienDestroyerSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 	if (!FNullEnt(DangerStructure))
 	{
-		Task->TaskType = TASK_ATTACK;
-		Task->TaskTarget = DangerStructure;
-		Task->TaskLocation = DangerStructure->v.origin;
-		Task->bOrderIsUrgent = true;
-
+		TASK_SetAttackTask(pBot, Task, DangerStructure, true);
 		return;
 	}
 
@@ -915,10 +846,7 @@ void AlienDestroyerSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 	if (!FNullEnt(BlockingStructure))
 	{
-		Task->TaskType = TASK_ATTACK;
-		Task->TaskTarget = BlockingStructure;
-		Task->TaskLocation = BlockingStructure->v.origin;
-		Task->bOrderIsUrgent = false;
+		TASK_SetAttackTask(pBot, Task, BlockingStructure, false);
 		return;
 	}
 
@@ -931,10 +859,7 @@ void AlienDestroyerSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 	if (InfPortal)
 	{
-		Task->TaskType = TASK_ATTACK;
-		Task->TaskTarget = InfPortal;
-		Task->TaskLocation = InfPortal->v.origin;
-		Task->bOrderIsUrgent = false;
+		TASK_SetAttackTask(pBot, Task, InfPortal, false);
 		return;
 	}
 
@@ -942,10 +867,7 @@ void AlienDestroyerSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 	if (Armslab)
 	{
-		Task->TaskType = TASK_ATTACK;
-		Task->TaskTarget = Armslab;
-		Task->TaskLocation = Armslab->v.origin;
-		Task->bOrderIsUrgent = false;
+		TASK_SetAttackTask(pBot, Task, Armslab, false);
 		return;
 	}
 
@@ -953,10 +875,7 @@ void AlienDestroyerSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 	if (Obs)
 	{
-		Task->TaskType = TASK_ATTACK;
-		Task->TaskTarget = Obs;
-		Task->TaskLocation = Obs->v.origin;
-		Task->bOrderIsUrgent = false;
+		TASK_SetAttackTask(pBot, Task, Obs, false);
 		return;
 	}
 
@@ -964,10 +883,7 @@ void AlienDestroyerSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 	if (CommChair)
 	{
-		Task->TaskType = TASK_ATTACK;
-		Task->TaskTarget = CommChair;
-		Task->TaskLocation = CommChair->v.origin;
-		Task->bOrderIsUrgent = false;
+		TASK_SetAttackTask(pBot, Task, CommChair, false);
 		return;
 	}
 
@@ -975,10 +891,7 @@ void AlienDestroyerSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 	if (!FNullEnt(EnemyPlayer))
 	{
-		Task->TaskType = TASK_ATTACK;
-		Task->TaskTarget = EnemyPlayer;
-		Task->TaskLocation = EnemyPlayer->v.origin;
-		Task->bTargetIsPlayer = false;
+		TASK_SetAttackTask(pBot, Task, EnemyPlayer, false);
 		return;
 	}
 }
@@ -987,25 +900,30 @@ void AlienDestroyerSetCombatModePrimaryTask(bot_t* pBot, bot_task* Task)
 {
 	if (Task->TaskType != TASK_NONE) { return; }
 
-	bool bShouldAttack = randbool();
-	
-	if (bShouldAttack)
-	{
-		edict_t* StructureToAttack = UTIL_GetFirstPlacedStructureOfType(STRUCTURE_ANY_MARINE_STRUCTURE);
+	edict_t* StructureToAttack = UTIL_GetFirstPlacedStructureOfType(STRUCTURE_ANY_MARINE_STRUCTURE);
 
-		if (!FNullEnt(StructureToAttack))
+	// Always attack if we're close to the enemy base. Prevents bots deciding to wander off when inside the enemy base
+	if (!FNullEnt(StructureToAttack))
+	{
+		float DistFromTarget = vDist2DSq(pBot->pEdict->v.origin, StructureToAttack->v.origin);
+
+		bool bShouldAttack = (DistFromTarget <= sqrf(UTIL_MetresToGoldSrcUnits(15.0f))) ? true : randbool();
+
+		if (bShouldAttack)
 		{
-			Task->TaskType = TASK_ATTACK;
-			Task->TaskTarget = StructureToAttack;
-			Task->TaskLocation = StructureToAttack->v.origin;
-			return;
+			if (!FNullEnt(StructureToAttack))
+			{
+				TASK_SetAttackTask(pBot, Task, StructureToAttack, false);
+				return;
+			}
 		}
 	}
 
 	int BotProfile = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
+	Vector RandomPoint = UTIL_GetRandomPointOnNavmeshInRadius(BotProfile, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(30.0f));
 
-	Task->TaskType = TASK_MOVE;
-	Task->TaskLocation = UTIL_GetRandomPointOnNavmeshInRadius(BotProfile, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(30.0f));
+	TASK_SetMoveTask(pBot, Task, RandomPoint, false);
+
 	return;
 }
 
@@ -1045,7 +963,7 @@ void AlienBuilderSetSecondaryTask(bot_t* pBot, bot_task* Task)
 				pBot->SecondaryBotTask.TaskType = TASK_HEAL;
 				pBot->SecondaryBotTask.TaskTarget = HurtNearbyPlayer;
 				pBot->SecondaryBotTask.TaskLocation = HurtNearbyPlayer->v.origin;
-				pBot->SecondaryBotTask.bOrderIsUrgent = (HurtNearbyPlayer->v.health < (HurtNearbyPlayer->v.max_health * 0.5f));
+				pBot->SecondaryBotTask.bTaskIsUrgent = (HurtNearbyPlayer->v.health < (HurtNearbyPlayer->v.max_health * 0.5f));
 			}
 			return;
 		}
@@ -1062,10 +980,7 @@ void AlienHarasserSetSecondaryTask(bot_t* pBot, bot_task* Task)
 
 		if (NumExistingPlayers < 2)
 		{
-			Task->TaskType = TASK_ATTACK;
-			Task->TaskTarget = PhaseGate;
-			Task->TaskLocation = PhaseGate->v.origin;
-			Task->bOrderIsUrgent = true;
+			TASK_SetAttackTask(pBot, Task, PhaseGate, true);
 			return;
 		}
 	}
@@ -1078,10 +993,7 @@ void AlienHarasserSetSecondaryTask(bot_t* pBot, bot_task* Task)
 
 		if (NumExistingPlayers < 2)
 		{
-			Task->TaskType = TASK_ATTACK;
-			Task->TaskTarget = TurretFactory;
-			Task->TaskLocation = TurretFactory->v.origin;
-			Task->bOrderIsUrgent = true;
+			TASK_SetAttackTask(pBot, Task, TurretFactory, true);
 			return;
 		}
 	}
@@ -1094,10 +1006,7 @@ void AlienHarasserSetSecondaryTask(bot_t* pBot, bot_task* Task)
 
 		if (NumExistingPlayers < 2)
 		{
-			Task->TaskType = TASK_ATTACK;
-			Task->TaskTarget = AnyMarineStructure;
-			Task->TaskLocation = AnyMarineStructure->v.origin;
-			Task->bOrderIsUrgent = false;
+			TASK_SetAttackTask(pBot, Task, AnyMarineStructure, false);
 			return;
 		}
 	}
@@ -1114,7 +1023,7 @@ void AlienCapperSetSecondaryTask(bot_t* pBot, bot_task* Task)
 			pBot->SecondaryBotTask.TaskType = TASK_HEAL;
 			pBot->SecondaryBotTask.TaskTarget = HurtNearbyPlayer;
 			pBot->SecondaryBotTask.TaskLocation = HurtNearbyPlayer->v.origin;
-			pBot->SecondaryBotTask.bOrderIsUrgent = true;
+			pBot->SecondaryBotTask.bTaskIsUrgent = true;
 		}
 
 		return;
@@ -1124,11 +1033,7 @@ void AlienCapperSetSecondaryTask(bot_t* pBot, bot_task* Task)
 
 	if (!FNullEnt(Hive))
 	{
-		Task->TaskType = TASK_DEFEND;
-		Task->TaskTarget = Hive;
-		Task->TaskLocation = UTIL_GetEntityGroundLocation(Hive);
-		Task->bOrderIsUrgent = true;
-
+		TASK_SetDefendTask(pBot, Task, Hive, true);
 		return;
 	}
 
@@ -1136,11 +1041,7 @@ void AlienCapperSetSecondaryTask(bot_t* pBot, bot_task* Task)
 
 	if (!FNullEnt(ResourceTower))
 	{
-		Task->TaskType = TASK_DEFEND;
-		Task->TaskTarget = ResourceTower;
-		Task->TaskLocation = UTIL_GetEntityGroundLocation(ResourceTower);
-		Task->bOrderIsUrgent = true;
-
+		TASK_SetDefendTask(pBot, Task, ResourceTower, true);
 		return;
 	}
 }
@@ -1151,11 +1052,7 @@ void AlienDestroyerSetSecondaryTask(bot_t* pBot, bot_task* Task)
 
 	if (!FNullEnt(Hive))
 	{
-		Task->TaskType = TASK_DEFEND;
-		Task->TaskTarget = Hive;
-		Task->TaskLocation = UTIL_GetEntityGroundLocation(Hive);
-		Task->bOrderIsUrgent = true;
-
+		TASK_SetDefendTask(pBot, Task, Hive, true);
 		return;
 	}
 
@@ -1163,11 +1060,8 @@ void AlienDestroyerSetSecondaryTask(bot_t* pBot, bot_task* Task)
 
 	if (!FNullEnt(ResourceTower))
 	{
-		Task->TaskType = TASK_DEFEND;
-		Task->TaskTarget = ResourceTower;
-		Task->TaskLocation = UTIL_GetEntityGroundLocation(ResourceTower);
-		Task->bOrderIsUrgent = UTIL_GetNumPlacedStructuresOfType(STRUCTURE_ALIEN_RESTOWER) <= 3;
-
+		bool bIsUrgent = (UTIL_GetNumPlacedStructuresOfType(STRUCTURE_ALIEN_RESTOWER) <= 3);
+		TASK_SetDefendTask(pBot, Task, ResourceTower, bIsUrgent);
 		return;
 	}
 }
@@ -1272,103 +1166,81 @@ void FadeCombatThink(bot_t* pBot)
 	float CurrentHealthAndArmour = pEdict->v.health + pEdict->v.armorvalue;
 
 	bool bLowOnHealth = (GetPlayerOverallHealthPercent(pEdict) < 0.5f);
+	bool bNeedsHealth = (GetPlayerOverallHealthPercent(pEdict) < 0.9f);
+
+	edict_t* NearestHealingSource = UTIL_AlienFindNearestHealingSpot(pBot, pEdict->v.origin);
 
 	// Run away if low on health
-	if (bLowOnHealth)
+	if (!FNullEnt(NearestHealingSource) && (bLowOnHealth || (bNeedsHealth && vDist2DSq(NearestHealingSource->v.origin, pEdict->v.origin) < sqrf(UTIL_MetresToGoldSrcUnits(10.0f)))))
 	{
-		edict_t* NearestHealingSource = UTIL_AlienFindNearestHealingSpot(pBot, pEdict->v.origin);
+		float DesiredDist = (IsEdictPlayer(NearestHealingSource)) ? UTIL_MetresToGoldSrcUnits(2.0f) : UTIL_MetresToGoldSrcUnits(10.0f);
 
-		if (!FNullEnt(NearestHealingSource))
+		if (vDist2DSq(pBot->pEdict->v.origin, NearestHealingSource->v.origin) > sqrf(DesiredDist))
 		{
-			float DesiredDist = (IsEdictPlayer(NearestHealingSource)) ? UTIL_MetresToGoldSrcUnits(2.0f) : UTIL_MetresToGoldSrcUnits(10.0f);
+			MoveTo(pBot, NearestHealingSource->v.origin, MOVESTYLE_HIDE);
 
-			if (vDist2DSq(pBot->pEdict->v.origin, NearestHealingSource->v.origin) > sqrf(DesiredDist))
+			if (vDist2DSq(CurrentEnemy->v.origin, pBot->pEdict->v.origin) < sqrf(UTIL_MetresToGoldSrcUnits(2.0f)))
 			{
-				MoveTo(pBot, NearestHealingSource->v.origin, MOVESTYLE_HIDE);
+				Vector EnemyDir = UTIL_GetVectorNormal2D(CurrentEnemy->v.origin - pBot->pEdict->v.origin);
+				Vector DesiredMoveDir = UTIL_GetVectorNormal2D(pBot->desiredMovementDir);
 
-				if (vDist2DSq(CurrentEnemy->v.origin, pBot->pEdict->v.origin) < sqrf(UTIL_MetresToGoldSrcUnits(2.0f)))
+				if (UTIL_GetDotProduct2D(EnemyDir, DesiredMoveDir) > 0.75f)
 				{
-					Vector EnemyDir = UTIL_GetVectorNormal2D(CurrentEnemy->v.origin - pBot->pEdict->v.origin);
-					Vector DesiredMoveDir = UTIL_GetVectorNormal2D(pBot->desiredMovementDir);
-
-					if (UTIL_GetDotProduct2D(EnemyDir, DesiredMoveDir) > 0.75f)
+					if (GetBotCurrentWeapon(pBot) != WEAPON_FADE_SWIPE)
 					{
-						if (GetBotCurrentWeapon(pBot) != WEAPON_FADE_SWIPE)
-						{
-							pBot->DesiredMoveWeapon = WEAPON_FADE_SWIPE;
-						}
-						else
-						{
-							BotAttackTarget(pBot, CurrentEnemy);
-						}
-
-						return;
-					}
-				}
-
-				if (PlayerHasWeapon(pBot->pEdict, WEAPON_FADE_METABOLIZE))
-				{
-					pBot->DesiredCombatWeapon = WEAPON_FADE_METABOLIZE;
-
-					if (GetBotCurrentWeapon(pBot) == WEAPON_FADE_METABOLIZE)
-					{
-						pEdict->v.button |= IN_ATTACK;
-					}
-				}
-				return;
-			}
-			else
-			{
-				if (TrackedEnemyRef->bCurrentlyVisible)
-				{
-					if (PlayerHasWeapon(pBot->pEdict, WEAPON_FADE_ACIDROCKET))
-					{
-						pBot->DesiredCombatWeapon = WEAPON_FADE_ACIDROCKET;
+						pBot->DesiredMoveWeapon = WEAPON_FADE_SWIPE;
 					}
 					else
 					{
-						pBot->DesiredCombatWeapon = WEAPON_FADE_SWIPE;
+						BotAttackTarget(pBot, CurrentEnemy);
 					}
 
-					if (GetBotCurrentWeapon(pBot) != pBot->DesiredCombatWeapon)
-					{
-						return;
-					}
-
-
-					if (GetBotCurrentWeapon(pBot) == WEAPON_FADE_SWIPE)
-					{
-						if (vDist2DSq(CurrentEnemy->v.origin, NearestHealingSource->v.origin) <= sqrf(UTIL_MetresToGoldSrcUnits(10.0f)))
-						{
-							MoveTo(pBot, CurrentEnemy->v.origin, MOVESTYLE_HIDE);
-						}
-					}
-
-					BotAttackTarget(pBot, CurrentEnemy);
+					return;
 				}
 			}
 
-			return;
-		}
-
-		if (!UTIL_QuickTrace(pEdict, pBot->CurrentEyePosition, CurrentEnemy->v.origin))
-		{
 			if (PlayerHasWeapon(pBot->pEdict, WEAPON_FADE_METABOLIZE))
 			{
-				if (GetBotCurrentWeapon(pBot) != WEAPON_FADE_METABOLIZE)
-				{
-					pBot->DesiredCombatWeapon = WEAPON_FADE_METABOLIZE;
-				}
-				else
+				pBot->DesiredCombatWeapon = WEAPON_FADE_METABOLIZE;
+
+				if (GetBotCurrentWeapon(pBot) == WEAPON_FADE_METABOLIZE)
 				{
 					pEdict->v.button |= IN_ATTACK;
 				}
 			}
-
 			return;
 		}
+		else
+		{
+			if (UTIL_QuickTrace(pEdict, pBot->CurrentEyePosition, CurrentEnemy->v.origin))
+			{
+				if (PlayerHasWeapon(pBot->pEdict, WEAPON_FADE_ACIDROCKET))
+				{
+					pBot->DesiredCombatWeapon = WEAPON_FADE_ACIDROCKET;
+				}
+				else
+				{
+					pBot->DesiredCombatWeapon = WEAPON_FADE_SWIPE;
+				}
+
+				if (GetBotCurrentWeapon(pBot) != pBot->DesiredCombatWeapon)
+				{
+					return;
+				}
 
 
+				if (GetBotCurrentWeapon(pBot) == WEAPON_FADE_SWIPE)
+				{
+					if (vDist2DSq(CurrentEnemy->v.origin, NearestHealingSource->v.origin) <= sqrf(UTIL_MetresToGoldSrcUnits(10.0f)))
+					{
+						MoveTo(pBot, CurrentEnemy->v.origin, MOVESTYLE_HIDE);
+					}
+				}
+
+				BotAttackTarget(pBot, CurrentEnemy);
+			}
+		}
+		return;
 	}
 
 	// If the enemy is not visible
@@ -1737,7 +1609,7 @@ void AlienCheckWantsAndNeeds(bot_t* pBot)
 				pBot->WantsAndNeedsTask.TaskType = TASK_GET_HEALTH;
 				pBot->WantsAndNeedsTask.TaskTarget = HealingSource;
 				pBot->WantsAndNeedsTask.TaskLocation = NearestPoint;
-				pBot->WantsAndNeedsTask.bOrderIsUrgent = true;
+				pBot->WantsAndNeedsTask.bTaskIsUrgent = true;
 				return;
 			}
 		}
@@ -1814,7 +1686,7 @@ void AlienCheckCombatModeWantsAndNeeds(bot_t* pBot)
 				pBot->WantsAndNeedsTask.TaskType = TASK_GET_HEALTH;
 				pBot->WantsAndNeedsTask.TaskTarget = NearestHive->edict;
 				pBot->WantsAndNeedsTask.TaskLocation = HealLocation;
-				pBot->WantsAndNeedsTask.bOrderIsUrgent = true;
+				pBot->WantsAndNeedsTask.bTaskIsUrgent = true;
 				return;
 			}
 		}
@@ -2109,6 +1981,25 @@ CombatModeAlienUpgrade AlienGetNextCombatUpgrade(bot_t* pBot)
 	{
 		return COMBAT_ALIEN_UPGRADE_CELERITY;
 	}
+
+	if (pBot->CurrentRole == BOT_ROLE_DESTROYER && randbool())
+	{
+		if (!(pBot->CombatUpgradeMask & COMBAT_ALIEN_UPGRADE_FOCUS))
+		{
+			return COMBAT_ALIEN_UPGRADE_FOCUS;
+		}
+	}
+
+	if (!(pBot->CombatUpgradeMask & COMBAT_ALIEN_UPGRADE_CLOAKING))
+	{
+		return COMBAT_ALIEN_UPGRADE_CLOAKING;
+	}
+
+	if (!(pBot->CombatUpgradeMask & COMBAT_ALIEN_UPGRADE_SILENCE))
+	{
+		return COMBAT_ALIEN_UPGRADE_SILENCE;
+	}
+
 
 	return COMBAT_ALIEN_UPGRADE_NONE;
 }
