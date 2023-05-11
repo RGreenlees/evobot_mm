@@ -1528,6 +1528,93 @@ dtStatus FindPhaseGatePathToPoint(const int NavProfileIndex, Vector FromLocation
 	return DT_SUCCESS;
 }
 
+// Special path finding that takes the presence of phase gates into account 
+dtStatus FindFlightPathToPoint(const int NavProfileIndex, Vector FromLocation, Vector ToLocation, bot_path_node* path, int* pathSize, float MaxAcceptableDistance)
+{
+	if (NavProfileIndex < 0) 
+	{
+		*pathSize = 0;
+		return DT_FAILURE; 
+	}
+
+	bot_path_node BasePath[MAX_PATH_SIZE];
+	memset(BasePath, 0, sizeof(BasePath));
+	int BasePathSize = 0;
+
+	dtStatus InitialPathFindStatus = FindPathClosestToPoint(SKULK_REGULAR_NAV_PROFILE, FromLocation, ToLocation, BasePath, &BasePathSize, MaxAcceptableDistance);
+
+	if (dtStatusFailed(InitialPathFindStatus) || BasePathSize == 0)
+	{
+		*pathSize = 0;
+		return DT_FAILURE; 
+	}
+
+	Vector CurrentLocation = BasePath[0].Location;
+
+	path[0].Location = CurrentLocation;
+	path[0].area = SAMPLE_POLYAREA_FLY;
+	path[0].flag = SAMPLE_POLYFLAGS_FLY;
+	path[0].requiredZ = CurrentLocation.z;
+
+	int CurrentPathIndex = 1;
+	int BasePathIndex = 1;
+
+	while (BasePathIndex < BasePathSize)
+	{
+		int BasePathIndexCounter = BasePathIndex;
+		Vector SuccessfulTraceLoc = BasePath[BasePathIndex].Location;
+
+		for (int i = BasePathIndexCounter; i < BasePathSize; i++)
+		{
+			Vector HighestPoint = UTIL_FindHighestSuccessfulTracePoint(CurrentLocation, BasePath[i].Location, 5.0f, 100.0f);
+
+			if (HighestPoint != ZERO_VECTOR)
+			{
+				BasePathIndex = i;
+				SuccessfulTraceLoc = HighestPoint;
+			}
+		}
+
+		path[CurrentPathIndex].Location = SuccessfulTraceLoc;
+		path[CurrentPathIndex].area = SAMPLE_POLYAREA_FLY;
+		path[CurrentPathIndex].flag = SAMPLE_POLYFLAGS_FLY;
+		path[CurrentPathIndex].requiredZ = SuccessfulTraceLoc.z;
+
+		CurrentLocation = SuccessfulTraceLoc;
+
+		BasePathIndex++;
+		CurrentPathIndex++;
+
+	}
+
+	*pathSize = CurrentPathIndex;
+
+	return DT_SUCCESS;
+
+}
+
+Vector UTIL_FindHighestSuccessfulTracePoint(const Vector TraceFrom, const Vector TargetPoint, const float IterationStep, const float MaxHeight)
+{
+	if (!UTIL_QuickHullTrace(nullptr, TraceFrom, TargetPoint, head_hull)) { return ZERO_VECTOR; }
+
+	int NumIterations = (int)ceilf(MaxHeight / IterationStep);
+
+	Vector CurrentTarget = TargetPoint;
+	Vector CurrentHighest = TargetPoint;
+
+	for (int i = 0; i <= NumIterations; i++)
+	{
+		CurrentTarget.z += IterationStep;
+
+		if (UTIL_QuickHullTrace(nullptr, TraceFrom, CurrentTarget, head_hull))
+		{
+			CurrentHighest = CurrentTarget;
+		}
+	}
+
+	return CurrentHighest;
+}
+
 dtStatus FindPathClosestToPoint(const int NavProfileIndex, const Vector FromLocation, const Vector ToLocation, bot_path_node* path, int* pathSize, float MaxAcceptableDistance)
 {
 	if (NavProfileIndex < 0) { return DT_FAILURE; }
@@ -2046,6 +2133,13 @@ void NewMove(bot_t* pBot)
 
 	int CurrentNavArea = pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].area;
 
+	unsigned char NextArea = SAMPLE_POLYAREA_GROUND;
+
+	if (pBot->BotNavInfo.CurrentPathPoint < (pBot->BotNavInfo.PathSize - 1))
+	{
+		NextArea = pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint + 1].area;
+	}
+
 	Vector MoveFrom = ZERO_VECTOR;
 
 	if (pBot->BotNavInfo.CurrentPathPoint > 0)
@@ -2058,6 +2152,8 @@ void NewMove(bot_t* pBot)
 	}
 
 	Vector MoveTo = pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].Location;
+
+
 
 	switch (CurrentNavArea)
 	{
@@ -2080,7 +2176,7 @@ void NewMove(bot_t* pBot)
 		WallClimbMove(pBot, MoveFrom, MoveTo, pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].requiredZ);
 		break;
 	case SAMPLE_POLYAREA_LADDER:
-		LadderMove(pBot, MoveFrom, MoveTo, pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].requiredZ);
+		LadderMove(pBot, MoveFrom, MoveTo, pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].requiredZ, NextArea);
 		break;
 	case SAMPLE_POLYAREA_PHASEGATE:
 		PhaseGateMove(pBot, MoveFrom, MoveTo);
@@ -2292,7 +2388,7 @@ void JumpMove(bot_t* pBot, const Vector StartPoint, const Vector EndPoint)
 	}
 }
 
-void LadderMove(bot_t* pBot, const Vector StartPoint, const Vector EndPoint, float RequiredClimbHeight)
+void LadderMove(bot_t* pBot, const Vector StartPoint, const Vector EndPoint, float RequiredClimbHeight, unsigned char NextArea)
 {
 	edict_t* pEdict = pBot->pEdict;
 
@@ -2335,6 +2431,19 @@ void LadderMove(bot_t* pBot, const Vector StartPoint, const Vector EndPoint, flo
 				if (UTIL_GetDotProduct(pBot->CurrentLadderNormal, vForward) > 0.75f)
 				{
 					BotJump(pBot);
+				}
+
+				if (!IsPlayerGorge(pEdict) && !IsPlayerLerk(pEdict) && !IsPlayerSkulk(pEdict))
+				{
+					Vector HeadTraceLocation = GetPlayerTopOfCollisionHull(pEdict, false);
+
+					bool bHittingHead = !UTIL_QuickTrace(pBot->pEdict, HeadTraceLocation, HeadTraceLocation + Vector(0.0f, 0.0f, 10.0f));
+					bool bClimbIntoVent = (NextArea == SAMPLE_POLYAREA_CROUCH);
+
+					if (bHittingHead || bClimbIntoVent)
+					{
+						pEdict->v.button |= IN_DUCK;
+					}
 				}
 
 				return;
@@ -2382,11 +2491,18 @@ void LadderMove(bot_t* pBot, const Vector StartPoint, const Vector EndPoint, flo
 				}
 
 				// Crouch if we're hitting our head on a ceiling
-				Vector HeadTraceLocation = GetPlayerTopOfCollisionHull(pEdict, false);
+				
 
-				if (!IsPlayerGorge(pEdict) && !IsPlayerLerk(pEdict) && !IsPlayerSkulk(pEdict) && !UTIL_QuickTrace(pBot->pEdict, HeadTraceLocation, HeadTraceLocation + Vector(0.0f, 0.0f, 10.0f)))
+				if (!IsPlayerGorge(pEdict) && !IsPlayerLerk(pEdict) && !IsPlayerSkulk(pEdict))
 				{
-					pEdict->v.button |= IN_DUCK;
+					Vector HeadTraceLocation = GetPlayerTopOfCollisionHull(pEdict, false);
+
+					bool bHittingHead = !UTIL_QuickTrace(pBot->pEdict, HeadTraceLocation, HeadTraceLocation + Vector(0.0f, 0.0f, 10.0f));
+
+					if (bHittingHead)
+					{
+						pEdict->v.button |= IN_DUCK;
+					}
 				}
 
 				// We're not blocked by anything
@@ -3577,7 +3693,7 @@ bool AbortCurrentMove(bot_t* pBot, const Vector NewDestination)
 	{
 		if (bReverseCourse)
 		{
-			LadderMove(pBot, MoveTo, MoveFrom, pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].requiredZ);
+			LadderMove(pBot, MoveTo, MoveFrom, pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].requiredZ, (unsigned char)SAMPLE_POLYAREA_CROUCH);
 
 			// We're going DOWN the ladder
 			if (MoveTo.z > MoveFrom.z)
@@ -3590,7 +3706,7 @@ bool AbortCurrentMove(bot_t* pBot, const Vector NewDestination)
 		}
 		else
 		{
-			LadderMove(pBot, MoveFrom, MoveTo, pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].requiredZ);
+			LadderMove(pBot, MoveFrom, MoveTo, pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].requiredZ, (unsigned char)SAMPLE_POLYAREA_CROUCH);
 
 			// We're going DOWN the ladder
 			if (MoveFrom.z > MoveTo.z)
@@ -3976,6 +4092,37 @@ Vector FindClosestNavigablePointToDestination(const int NavProfileIndex, const V
 	}
 
 	return ZERO_VECTOR;
+}
+
+void DEBUG_TestFlightPathFind(edict_t* pEdict, const Vector Destination)
+{
+	if (!NavmeshLoaded())
+	{
+		if (!loadNavigationData(STRING(gpGlobals->mapname)))
+		{
+			return;
+		}
+	}
+
+	Vector ValidNavmeshPoint = UTIL_ProjectPointToNavmesh(Destination, Vector(max_player_use_reach, max_player_use_reach, max_player_use_reach), MARINE_REGULAR_NAV_PROFILE);
+
+	// We can't actually get close enough to this point to consider it "reachable"
+	if (!ValidNavmeshPoint)
+	{
+		UTIL_SayText("Couldn't project point to mesh!\n", pEdict);
+		return;
+	}
+
+	bot_path_node FlightPath[MAX_PATH_SIZE];
+	memset(FlightPath, 0, sizeof(FlightPath));
+	int FlightPathSize = 0;
+
+	dtStatus FlightFindingStatus = FindFlightPathToPoint(SKULK_REGULAR_NAV_PROFILE, ValidNavmeshPoint, UTIL_GetEntityGroundLocation(pEdict), FlightPath, &FlightPathSize, 500.0f);
+
+	if (dtStatusSucceed(FlightFindingStatus))
+	{
+		DEBUG_DrawPath(FlightPath, FlightPathSize, 20.0f);
+	}
 }
 
 void DEBUG_TestBackwardsPathFind(edict_t* pEdict, const Vector Destination)

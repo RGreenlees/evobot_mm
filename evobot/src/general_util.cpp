@@ -239,6 +239,7 @@ bool UTIL_QuickTrace(const edict_t* pEdict, const Vector& start, const Vector& e
 bool UTIL_QuickHullTrace(const edict_t* pEdict, const Vector& start, const Vector& end)
 {
 	int hullNum = 0;// GetPlayerHullIndex(pEdict);
+	edict_t* IgnoreEdict = (!FNullEnt(pEdict)) ? pEdict->v.pContainingEntity : NULL;
 	TraceResult hit;
 	UTIL_TraceHull(start, end, ignore_monsters, hullNum, pEdict->v.pContainingEntity, &hit);
 
@@ -248,7 +249,8 @@ bool UTIL_QuickHullTrace(const edict_t* pEdict, const Vector& start, const Vecto
 bool UTIL_QuickHullTrace(const edict_t* pEdict, const Vector& start, const Vector& end, int hullNum)
 {
 	TraceResult hit;
-	UTIL_TraceHull(start, end, ignore_monsters, hullNum, pEdict->v.pContainingEntity, &hit);
+	edict_t* IgnoreEdict = (!FNullEnt(pEdict)) ? pEdict->v.pContainingEntity : NULL;
+	UTIL_TraceHull(start, end, ignore_monsters, hullNum, IgnoreEdict, &hit);
 
 	return (hit.flFraction >= 1.0f);
 }

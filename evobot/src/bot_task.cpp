@@ -884,6 +884,12 @@ void MarineProgressBuildTask(bot_t* pBot, bot_task* Task)
 
 	if (UTIL_PlayerHasLOSToEntity(pBot->pEdict, Task->TaskTarget, max_player_use_reach, false))
 	{
+		// If we were ducking before then keep ducking
+		if (pBot->pEdict->v.oldbuttons & IN_DUCK)
+		{
+			pBot->pEdict->v.button |= IN_DUCK;
+		}
+
 		BotUseObject(pBot, Task->TaskTarget, true);
 
 		// Haven't started building, maybe not quite looking at the right angle
@@ -900,9 +906,16 @@ void MarineProgressBuildTask(bot_t* pBot, bot_task* Task)
 				BotLookAt(pBot, NewViewPoint);
 			}
 		}
-		
 
 		return;
+	}
+	else
+	{
+		// Might need to duck if it's an infantry portal
+		if (vDist2DSq(pBot->pEdict->v.origin, Task->TaskTarget->v.origin) < sqrf(max_player_use_reach))
+		{
+			pBot->pEdict->v.button |= IN_DUCK;
+		}
 	}
 
 	MoveTo(pBot, Task->TaskTarget->v.origin, MOVESTYLE_NORMAL);

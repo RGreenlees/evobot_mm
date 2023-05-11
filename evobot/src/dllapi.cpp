@@ -144,6 +144,14 @@ void ClientCommand(edict_t* pEntity)
 		RETURN_META(MRES_SUPERCEDE);
 	}
 
+	if (FStrEq(pcmd, "testflight"))
+	{
+		DEBUG_TestFlightPathFind(pEntity, UTIL_GetCommChairLocation());
+
+		RETURN_META(MRES_SUPERCEDE);
+	}
+
+
 	if (FStrEq(pcmd, "traceentity"))
 	{
 

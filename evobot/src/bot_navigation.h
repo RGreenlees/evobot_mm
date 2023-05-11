@@ -61,6 +61,7 @@ enum SamplePolyAreas
 	SAMPLE_POLYAREA_PHASEGATE = 11,
 	SAMPLE_POLYAREA_MSTRUCTURE = 12,
 	SAMPLE_POLYAREA_ASTRUCTURE = 13,
+	SAMPLE_POLYAREA_FLY = 14
 };
 
 // Possible movement types. Swim and door are not used
@@ -82,6 +83,7 @@ enum SamplePolyFlags
 	SAMPLE_POLYFLAGS_PHASEGATE = 1 << 13,		// Requires using a phase gate to traverse
 	SAMPLE_POLYFLAGS_MSTRUCTURE = 1 << 14,		// Marine Structure in the way, must be destroyed if alien, or impassable if marine
 	SAMPLE_POLYFLAGS_ASTRUCTURE = 1 << 15,		// Structure in the way, must be destroyed if marine, or impassable if alien
+	SAMPLE_POLYFLAGS_FLY = 1 << 16,		// Structure in the way, must be destroyed if marine, or impassable if alien
 	SAMPLE_POLYFLAGS_ALL = 0xffff		// All abilities.
 };
 
@@ -221,7 +223,7 @@ void BlockedMove(bot_t* pBot, const Vector StartPoint, const Vector EndPoint);
 // Called by NewMove, determines the movement direction and inputs required to drop down from start to end points
 void FallMove(bot_t* pBot, const Vector StartPoint, const Vector EndPoint);
 // Called by NewMove, determines the movement direction and inputs required to climb a ladder to reach endpoint
-void LadderMove(bot_t* pBot, const Vector StartPoint, const Vector EndPoint, float RequiredClimbHeight);
+void LadderMove(bot_t* pBot, const Vector StartPoint, const Vector EndPoint, float RequiredClimbHeight, unsigned char NextArea);
 // Called by NewMove, determines the movement direction and inputs required to climb a wall to reach endpoint
 void WallClimbMove(bot_t* pBot, const Vector StartPoint, const Vector EndPoint, float RequiredClimbHeight);
 // Called by NewMove, determines the movement direction and inputs required to use a phase gate to reach end point
@@ -305,6 +307,11 @@ dtStatus FindPathToPoint(const int NavProfileIndex, const Vector FromLocation, c
 
 // Special path finding that takes the presence of phase gates into account 
 dtStatus FindPhaseGatePathToPoint(const int NavProfileIndex, Vector FromLocation, Vector ToLocation, bot_path_node* path, int* pathSize, float MaxAcceptableDistance);
+
+// Special path finding that takes the presence of phase gates into account 
+dtStatus FindFlightPathToPoint(const int NavProfileIndex, Vector FromLocation, Vector ToLocation, bot_path_node* path, int* pathSize, float MaxAcceptableDistance);
+
+Vector UTIL_FindHighestSuccessfulTracePoint(const Vector TraceFrom, const Vector TargetPoint, const float IterationStep, const float MaxHeight);
 
 // Similar to FindPathToPoint, but you can specify a max acceptable distance for partial results. Will return a failure if it can't reach at least MaxAcceptableDistance away from the ToLocation
 dtStatus FindPathClosestToPoint(bot_t* pBot, const BotMoveStyle MoveStyle, const Vector FromLocation, const Vector ToLocation, bot_path_node* path, int* pathSize, float MaxAcceptableDistance);
@@ -427,6 +434,8 @@ void UTIL_PopulateDoors();
 
 // If the bot has a path, will draw it out in full if bShort is false, or just the first 5 path nodes if bShort is true
 void BotDrawPath(bot_t* pBot, float DrawTimeInSeconds, bool bShort);
+
+void DEBUG_TestFlightPathFind(edict_t* pEdict, const Vector Destination);
 
 #endif // BOT_NAVIGATION_H
 
