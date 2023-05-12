@@ -1595,21 +1595,19 @@ dtStatus FindFlightPathToPoint(const int NavProfileIndex, Vector FromLocation, V
 
 Vector UTIL_FindHighestSuccessfulTracePoint(const Vector TraceFrom, const Vector TargetPoint, const float IterationStep, const float MaxHeight)
 {
-	if (!UTIL_QuickHullTrace(nullptr, TraceFrom, TargetPoint, head_hull)) { return ZERO_VECTOR; }
-
+	Vector CurrentHighest = ZERO_VECTOR;
+	
 	int NumIterations = (int)ceilf(MaxHeight / IterationStep);
 
 	Vector CurrentTarget = TargetPoint;
-	Vector CurrentHighest = TargetPoint;
 
 	for (int i = 0; i <= NumIterations; i++)
 	{
-		CurrentTarget.z += IterationStep;
-
 		if (UTIL_QuickHullTrace(nullptr, TraceFrom, CurrentTarget, head_hull))
 		{
 			CurrentHighest = CurrentTarget;
 		}
+		CurrentTarget.z += IterationStep;
 	}
 
 	return CurrentHighest;
