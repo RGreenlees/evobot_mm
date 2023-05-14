@@ -437,5 +437,7 @@ void BotDrawPath(bot_t* pBot, float DrawTimeInSeconds, bool bShort);
 
 void DEBUG_TestFlightPathFind(edict_t* pEdict, const Vector Destination);
 
+Vector UTIL_AdjustPointAwayFromNavWall(const Vector Location, const float MaxDistanceFromWall);
+
 #endif // BOT_NAVIGATION_H
 

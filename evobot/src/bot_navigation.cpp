@@ -457,6 +457,48 @@ void UTIL_DrawTemporaryObstacles()
 	}
 }
 
+
+Vector UTIL_AdjustPointAwayFromNavWall(const Vector Location, const float MaxDistanceFromWall)
+{
+
+	const dtNavMeshQuery* m_navQuery = UTIL_GetNavMeshQueryForProfile(SKULK_REGULAR_NAV_PROFILE);
+	const dtQueryFilter* m_navFilter = UTIL_GetNavMeshFilterForProfile(SKULK_REGULAR_NAV_PROFILE);
+
+	float Pos[3] = { Location.x, Location.z, -Location.y };
+
+	float HitDist = 0.0f;
+	float HitPos[3] = { 0.0f, 0.0f, 0.0f };
+	float HitNorm[3] = { 0.0f, 0.0f, 0.0f };
+
+	dtPolyRef StartPoly = UTIL_GetNearestPolyRefForLocation(Location);
+
+	dtStatus Result = m_navQuery->findDistanceToWall(StartPoly, Pos, MaxDistanceFromWall, m_navFilter, &HitDist, HitPos, HitNorm);
+
+	if (dtStatusSucceed(Result))
+	{
+		float AdjustDistance = MaxDistanceFromWall - HitDist;
+
+		Vector HitPosVector = Vector(HitPos[0], -HitPos[2], HitPos[1]);
+
+		Vector AdjustDir = (HitDist > 0.1f) ? UTIL_GetVectorNormal2D(Location - HitPosVector) : Vector(HitNorm[0], -HitNorm[2], HitNorm[1]);
+
+		Vector AdjustLocation = Location + (AdjustDir * AdjustDistance);
+
+		float AdjustLoc[3] = { AdjustLocation.x, AdjustLocation.z, -AdjustLocation.y };
+
+		if (UTIL_TraceNav(SKULK_REGULAR_NAV_PROFILE, Location, AdjustLocation, 0.1f))
+		{
+			return AdjustLocation;
+		}
+		else
+		{
+			return Location;
+		}
+	}
+
+	return Location;
+}
+
 Vector UTIL_GetNearestPointOnNavWall(bot_t* pBot, const float MaxRadius)
 {
 	int NavProfileIndex = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
@@ -1552,8 +1594,8 @@ dtStatus FindFlightPathToPoint(const int NavProfileIndex, Vector FromLocation, V
 	Vector CurrentLocation = BasePath[0].Location;
 
 	path[0].Location = CurrentLocation;
-	path[0].area = SAMPLE_POLYAREA_FLY;
-	path[0].flag = SAMPLE_POLYFLAGS_FLY;
+	path[0].area = SAMPLE_POLYAREA_GROUND;
+	path[0].flag = SAMPLE_POLYFLAGS_WALK;
 	path[0].requiredZ = CurrentLocation.z;
 
 	int CurrentPathIndex = 1;
@@ -1595,6 +1637,17 @@ dtStatus FindFlightPathToPoint(const int NavProfileIndex, Vector FromLocation, V
 
 Vector UTIL_FindHighestSuccessfulTracePoint(const Vector TraceFrom, const Vector TargetPoint, const float IterationStep, const float MaxHeight)
 {
+	Vector OriginTrace = TraceFrom;
+
+	TraceResult hit;
+	UTIL_TraceHull(OriginTrace, OriginTrace - Vector(0.0f, 0.0f, 18.0f), ignore_monsters, head_hull, nullptr, &hit);
+
+	if (hit.fStartSolid)
+	{
+		OriginTrace.z += 18.0f;
+	}
+
+	bool bFoundInitialPoint = false;
 	Vector CurrentHighest = ZERO_VECTOR;
 	
 	int NumIterations = (int)ceilf(MaxHeight / IterationStep);
@@ -1603,10 +1656,16 @@ Vector UTIL_FindHighestSuccessfulTracePoint(const Vector TraceFrom, const Vector
 
 	for (int i = 0; i <= NumIterations; i++)
 	{
-		if (UTIL_QuickHullTrace(nullptr, TraceFrom, CurrentTarget, head_hull))
+		if (!UTIL_QuickHullTrace(nullptr, OriginTrace, CurrentTarget, head_hull))
 		{
-			CurrentHighest = CurrentTarget;
+			if (bFoundInitialPoint) { break; }
 		}
+		else
+		{
+			bFoundInitialPoint = true;
+			CurrentHighest = CurrentTarget;
+		}	
+
 		CurrentTarget.z += IterationStep;
 	}
 
@@ -1692,6 +1751,7 @@ dtStatus FindPathClosestToPoint(const int NavProfileIndex, const Vector FromLoca
 	memset(path, 0, pathLengthInBytes);
 
 	unsigned char CurrArea;
+	unsigned char ThisArea;
 
 	m_navMesh->getPolyArea(StraightPolyPath[0], &CurrArea);
 
@@ -1705,6 +1765,13 @@ dtStatus FindPathClosestToPoint(const int NavProfileIndex, const Vector FromLoca
 		path[(nVert)].Location.x = StraightPath[nIndex++];
 		path[(nVert)].Location.z = StraightPath[nIndex++];
 		path[(nVert)].Location.y = -StraightPath[nIndex++];
+
+		 m_navMesh->getPolyArea(StraightPolyPath[nVert], &ThisArea);
+
+		if (ThisArea == SAMPLE_POLYAREA_GROUND || ThisArea == SAMPLE_POLYAREA_CROUCH)
+		{
+			path[(nVert)].Location = UTIL_AdjustPointAwayFromNavWall(path[(nVert)].Location, 16.0f);
+		}
 
 		TraceStart.x = path[(nVert)].Location.x;
 		TraceStart.y = path[(nVert)].Location.y;
@@ -1741,7 +1808,7 @@ dtStatus FindPathClosestToPoint(const int NavProfileIndex, const Vector FromLoca
 		path[(nVert)].area = CurrArea;
 		path[(nVert)].poly = StraightPolyPath[nVert];
 
-		m_navMesh->getPolyArea(StraightPolyPath[nVert], &CurrArea);
+		CurrArea = ThisArea;
 	}
 
 	*pathSize = nVertCount;
@@ -1858,6 +1925,8 @@ dtStatus FindPathClosestToPoint(bot_t* pBot, const BotMoveStyle MoveStyle, const
 		path[(nVert)].Location.x = StraightPath[nIndex++];
 		path[(nVert)].Location.z = StraightPath[nIndex++];
 		path[(nVert)].Location.y = -StraightPath[nIndex++];
+
+		path[(nVert)].Location = UTIL_AdjustPointAwayFromNavWall(path[(nVert)].Location, 16.0f);
 
 		TraceStart.x = path[(nVert)].Location.x;
 		TraceStart.y = path[(nVert)].Location.y;
@@ -4102,7 +4171,7 @@ void DEBUG_TestFlightPathFind(edict_t* pEdict, const Vector Destination)
 		}
 	}
 
-	Vector ValidNavmeshPoint = UTIL_ProjectPointToNavmesh(Destination, Vector(max_player_use_reach, max_player_use_reach, max_player_use_reach), MARINE_REGULAR_NAV_PROFILE);
+	Vector ValidNavmeshPoint = UTIL_ProjectPointToNavmesh(Destination, Vector(max_player_use_reach, max_player_use_reach, max_player_use_reach), SKULK_REGULAR_NAV_PROFILE);
 
 	// We can't actually get close enough to this point to consider it "reachable"
 	if (!ValidNavmeshPoint)
@@ -4115,11 +4184,11 @@ void DEBUG_TestFlightPathFind(edict_t* pEdict, const Vector Destination)
 	memset(FlightPath, 0, sizeof(FlightPath));
 	int FlightPathSize = 0;
 
-	dtStatus FlightFindingStatus = FindFlightPathToPoint(SKULK_REGULAR_NAV_PROFILE, ValidNavmeshPoint, UTIL_GetEntityGroundLocation(pEdict), FlightPath, &FlightPathSize, 500.0f);
+	dtStatus FlightFindingStatus = FindFlightPathToPoint(SKULK_REGULAR_NAV_PROFILE, UTIL_GetEntityGroundLocation(pEdict), ValidNavmeshPoint, FlightPath, &FlightPathSize, 500.0f);
 
 	if (dtStatusSucceed(FlightFindingStatus))
 	{
-		DEBUG_DrawPath(FlightPath, FlightPathSize, 20.0f);
+		DEBUG_DrawPath(FlightPath, FlightPathSize, 10.0f);
 	}
 }
 

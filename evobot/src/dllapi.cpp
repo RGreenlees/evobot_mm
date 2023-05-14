@@ -151,6 +151,16 @@ void ClientCommand(edict_t* pEntity)
 		RETURN_META(MRES_SUPERCEDE);
 	}
 
+	if (FStrEq(pcmd, "testadjust"))
+	{
+		Vector AdjustLoc = UTIL_AdjustPointAwayFromNavWall(UTIL_GetEntityGroundLocation(pEntity), 32.0f);
+
+		UTIL_DrawLine(pEntity, pEntity->v.origin, AdjustLoc, 10.0f);
+
+		RETURN_META(MRES_SUPERCEDE);
+
+	}
+
 
 	if (FStrEq(pcmd, "traceentity"))
 	{
