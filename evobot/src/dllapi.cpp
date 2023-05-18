@@ -65,7 +65,7 @@ extern bool bGameHasStarted;
 
 extern int GameStatus;
 
-extern float last_think_time;
+float last_think_time;
 
 extern float last_bot_count_check_time;
 
@@ -618,7 +618,30 @@ void ClientCommand(edict_t* pEntity)
 				{
 					bots[i].PrimaryBotTask.TaskType = TASK_EVOLVE;
 					bots[i].PrimaryBotTask.Evolution = IMPULSE_ALIEN_EVOLVE_GORGE;
-					bots[i].PrimaryBotTask.TaskLocation = UTIL_GetFloorUnderEntity(pEntity);
+					bots[i].PrimaryBotTask.TaskLocation = bots[i].pEdict->v.origin;
+				}
+			}
+		}
+		RETURN_META(MRES_SUPERCEDE);
+	}
+
+	if (FStrEq(pcmd, "evolvelerk"))
+	{
+		if (!NavmeshLoaded())
+		{
+			UTIL_SayText("Navmesh is not loaded", pEntity);
+			RETURN_META(MRES_SUPERCEDE);
+		}
+
+		for (int i = 0; i < gpGlobals->maxClients; i++)
+		{
+			if (bots[i].is_used)  // not respawning
+			{
+				if (IsPlayerOnAlienTeam(bots[i].pEdict) && !IsPlayerDead(bots[i].pEdict))
+				{
+					bots[i].PrimaryBotTask.TaskType = TASK_EVOLVE;
+					bots[i].PrimaryBotTask.Evolution = IMPULSE_ALIEN_EVOLVE_LERK;
+					bots[i].PrimaryBotTask.TaskLocation = bots[i].pEdict->v.origin;
 				}
 			}
 		}
@@ -641,7 +664,7 @@ void ClientCommand(edict_t* pEntity)
 				{
 					bots[i].PrimaryBotTask.TaskType = TASK_EVOLVE;
 					bots[i].PrimaryBotTask.Evolution = IMPULSE_ALIEN_EVOLVE_FADE;
-					bots[i].PrimaryBotTask.TaskLocation = UTIL_GetFloorUnderEntity(pEntity);
+					bots[i].PrimaryBotTask.TaskLocation = bots[i].pEdict->v.origin;
 				}
 			}
 		}
@@ -664,7 +687,7 @@ void ClientCommand(edict_t* pEntity)
 				{
 					bots[i].PrimaryBotTask.TaskType = TASK_EVOLVE;
 					bots[i].PrimaryBotTask.Evolution = IMPULSE_ALIEN_EVOLVE_ONOS;
-					bots[i].PrimaryBotTask.TaskLocation = UTIL_GetFloorUnderEntity(pEntity);
+					bots[i].PrimaryBotTask.TaskLocation = bots[i].pEdict->v.origin;
 				}
 			}
 		}
@@ -729,10 +752,8 @@ int Spawn(edict_t* pent)
 
 		if (strcmp(pClassname, "worldspawn") == 0)
 		{
-			
-
+			UnloadNavigationData();
 			GAME_Reset();
-
 			ParseConfigFile(false);
 		}
 

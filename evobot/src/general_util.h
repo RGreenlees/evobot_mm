@@ -29,6 +29,9 @@ void UTIL_DrawLine(edict_t* pEntity, Vector start, Vector end, int r, int g, int
 // Draws a coloured line using RGB input, between start and end for the given player (pEntity) for given number of seconds
 void UTIL_DrawLine(edict_t* pEntity, Vector start, Vector end, float drawTimeSeconds, int r, int g, int b);
 
+// Draw a text message on the HUD. X and Y range from 0.0/0.0 (top left of screen) to 1.0/1.0 (bottom right)
+void UTIL_DrawHUDText(edict_t* pEntity, char channel, float x, float y, unsigned char r, unsigned char g, unsigned char b, const char* string);
+
 // new UTIL.CPP functions...
 edict_t* UTIL_FindEntityInSphere(edict_t* pentStart, const Vector& vecCenter, float flRadius);
 edict_t* UTIL_FindEntityByString(edict_t* pentStart, const char* szKeyword, const char* szValue);

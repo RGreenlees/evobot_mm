@@ -32,8 +32,15 @@ bool bGameHasStarted = false;
 bool bGameIsActive = false;
 float GameStartTime = 0.0f;
 
-float last_think_time = 0.0f;
 float last_bot_count_check_time = 0.0f;
+
+int ServerMSecVal = 0;
+
+extern float last_structure_refresh_time;
+extern float last_item_refresh_time;
+
+extern int StructureRefreshFrame;
+extern int ItemRefreshFrame;
 
 EvobotDebugMode CurrentDebugMode = EVO_DEBUG_NONE;
 
@@ -47,6 +54,16 @@ EvobotDebugMode GAME_GetDebugMode()
 NSGameMode GAME_GetGameMode()
 {
 	return CurrentGameMode;
+}
+
+void GAME_UpdateServerMSecVal(const double DeltaTime)
+{
+	ServerMSecVal = (int)(1000.0 * DeltaTime);
+}
+
+int GAME_GetServerMSecVal()
+{
+	return ServerMSecVal;
 }
 
 void GAME_AddClient(edict_t* NewClient)
@@ -130,7 +147,6 @@ void GAME_Reset()
 	bGameHasStarted = false;
 	bGameIsActive = false;
 	GameStartTime = 0.0f;
-	last_think_time = 0.0f;
 	last_bot_count_check_time = 0.0f;
 }
 

@@ -1855,43 +1855,49 @@ BotRole AlienGetBestBotRole(const bot_t* pBot)
 		return BOT_ROLE_DESTROYER;
 	}
 
-	int NumAlienResTowers = UTIL_GetNumPlacedStructuresOfType(STRUCTURE_ALIEN_RESTOWER);
-
-	int NumRemainingResNodes = NumTotalResNodes - NumAlienResTowers;
-
-	int NumCappers = GAME_GetBotsWithRoleType(BOT_ROLE_RES_CAPPER, ALIEN_TEAM, pBot->pEdict);
-
-	if (NumRemainingResNodes > 1 && NumCappers == 0)
+	if (pBot->resources >= 15 || (IsPlayerGorge(pBot->pEdict) && pBot->resources >= 10))
 	{
-		return BOT_ROLE_RES_CAPPER;
-	}
+		int NumAlienResTowers = UTIL_GetNumPlacedStructuresOfType(STRUCTURE_ALIEN_RESTOWER);
 
-	// How much of the map do we currently dominate?
-	float ResTowerRatio = ((float)NumAlienResTowers / (float)NumTotalResNodes);
+		int NumRemainingResNodes = NumTotalResNodes - NumAlienResTowers;
 
-	// If we own less than a third of the map, prioritise capping resource nodes
-	if (ResTowerRatio < 0.30f)
-	{
-		return BOT_ROLE_RES_CAPPER;
-	}
+		int NumCappers = GAME_GetBotsWithRoleType(BOT_ROLE_RES_CAPPER, ALIEN_TEAM, pBot->pEdict);
 
-	if (ResTowerRatio <= 0.5f)
-	{
-		float CapperRatio = ((float)NumCappers / (float)NumPlayersOnTeam);
-
-		if (CapperRatio < 0.2f)
+		if (NumRemainingResNodes > 1 && NumCappers == 0)
 		{
 			return BOT_ROLE_RES_CAPPER;
 		}
+
+		// How much of the map do we currently dominate?
+		float ResTowerRatio = ((float)NumAlienResTowers / (float)NumTotalResNodes);
+
+		// If we own less than a third of the map, prioritise capping resource nodes
+		if (ResTowerRatio < 0.30f)
+		{
+			return BOT_ROLE_RES_CAPPER;
+		}
+
+		if (ResTowerRatio <= 0.5f)
+		{
+			float CapperRatio = ((float)NumCappers / (float)NumPlayersOnTeam);
+
+			if (CapperRatio < 0.2f)
+			{
+				return BOT_ROLE_RES_CAPPER;
+			}
+		}
+
+
+		int NumRequiredBuilders = CalcNumAlienBuildersRequired();
+		int NumBuilders = GAME_GetBotsWithRoleType(BOT_ROLE_BUILDER, ALIEN_TEAM, pBot->pEdict);
+
+		if (NumBuilders < NumRequiredBuilders && pBot->resources >= 15)
+		{
+			return BOT_ROLE_BUILDER;
+		}
 	}
 
-	int NumRequiredBuilders = CalcNumAlienBuildersRequired();
-	int NumBuilders = GAME_GetBotsWithRoleType(BOT_ROLE_BUILDER, ALIEN_TEAM, pBot->pEdict);
 
-	if (NumBuilders < NumRequiredBuilders)
-	{
-		return BOT_ROLE_BUILDER;
-	}
 
 	return BOT_ROLE_DESTROYER;
 }

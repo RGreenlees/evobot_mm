@@ -60,4 +60,7 @@ const char* UTIL_GameModeToChar(const NSGameMode GameMode);
 
 void EvoBot_ServerCommand(void);
 
+void GAME_UpdateServerMSecVal(const double DeltaTime);
+int GAME_GetServerMSecVal();
+
 #endif

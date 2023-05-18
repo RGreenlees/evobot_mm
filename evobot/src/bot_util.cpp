@@ -973,6 +973,7 @@ void BotUpdateViewRotation(bot_t* pBot, float DeltaTime)
 		if (Delta < -180.0f)
 			Delta += 360.0f;
 
+
 		pBot->InterpolatedLookDirection.x = fInterpConstantTo(pBot->InterpolatedLookDirection.x, pBot->DesiredLookDirection.x, DeltaTime, (IsPlayerClimbingWall(pEdict) ? 400.0f : pBot->ViewInterpolationSpeed));
 
 		float DeltaInterp = fInterpConstantTo(0.0f, Delta, DeltaTime, pBot->ViewInterpolationSpeed);
@@ -1165,6 +1166,7 @@ void BotUpdateDesiredViewRotation(bot_t* pBot)
 	{
 		pBot->ViewInterpolationSpeed = 50.0f * bot_view_speed;
 	}
+
 
 	// We once again clamp everything to valid values in case the offsets we applied above took us above that
 
@@ -1827,6 +1829,7 @@ void TestNavThink(bot_t* pBot)
 		}
 
 		BotProgressTask(pBot, &pBot->PrimaryBotTask);
+		//BotDrawPath(pBot, 0.0f, true);
 	}
 	else
 	{
@@ -2217,4 +2220,77 @@ int GetImpulseForAlienCombatUpgrade(const CombatModeAlienUpgrade Upgrade)
 	default:
 		return 0;
 	}
+}
+
+void BotDirectLookAt(bot_t* pBot, Vector target)
+{
+	pBot->DesiredLookDirection = ZERO_VECTOR;
+	pBot->InterpolatedLookDirection = ZERO_VECTOR;
+
+	edict_t* pEdict = pBot->pEdict;
+
+	Vector viewPos = pBot->CurrentEyePosition;
+
+	Vector dir = target - viewPos;
+	UTIL_NormalizeVector(&dir);
+
+	pEdict->v.v_angle = UTIL_VecToAngles(dir);
+
+	if (pEdict->v.v_angle.y > 180)
+		pEdict->v.v_angle.y -= 360;
+
+	// Paulo-La-Frite - START bot aiming bug fix
+	if (pEdict->v.v_angle.x > 180)
+		pEdict->v.v_angle.x -= 360;
+
+	// set the body angles to point the gun correctly
+	pEdict->v.angles.x = pEdict->v.v_angle.x / 3;
+	pEdict->v.angles.y = pEdict->v.v_angle.y;
+	pEdict->v.angles.z = 0;
+
+	// adjust the view angle pitch to aim correctly (MUST be after body v.angles stuff)
+	pEdict->v.v_angle.x = -pEdict->v.v_angle.x;
+	// Paulo-La-Frite - END
+
+	pEdict->v.ideal_yaw = pEdict->v.v_angle.y;
+
+	if (pEdict->v.ideal_yaw > 180)
+		pEdict->v.ideal_yaw -= 360;
+
+	if (pEdict->v.ideal_yaw < -180)
+		pEdict->v.ideal_yaw += 360;
+}
+
+void UTIL_DisplayBotInfo(bot_t* pBot)
+{
+	char buf[64];
+	sprintf(buf, "Hello\n");
+
+	UTIL_DrawHUDText(GAME_GetListenServerEdict(), 2, 0.1f, 0.1f, 255, 255, 255, "Hello");
+}
+
+bot_t* UTIL_GetSpectatedBot(const edict_t* Observer)
+{
+	if (FNullEnt(Observer)) { return nullptr; }
+
+	if (!NavmeshLoaded())
+	{
+		return nullptr;
+	}
+
+	edict_t* SpectatorTarget = INDEXENT(Observer->v.iuser2);
+
+	if (FNullEnt(SpectatorTarget))
+	{
+		return nullptr;
+	}
+
+	int BotIndex = GetBotIndex(SpectatorTarget);
+
+	if (BotIndex < 0)
+	{
+		return nullptr;
+	}
+
+	return &bots[BotIndex];
 }

@@ -177,6 +177,7 @@ typedef struct _NAV_STATUS
 	bool bIsJumping = false; // Is the bot in the air from a jump? Will duck so it can duck-jump
 	bool IsOnGround = true; // Is the bot currently on the ground, or on a ladder?
 	bool bHasAttemptedJump = false; // Last frame, the bot tried a jump. If the bot is still on the ground, it probably tried to jump in a vent or something
+	float LastFlapTime = 0.0f; // When the bot last flapped its wings (if Lerk). Prevents per-frame spam draining adrenaline
 
 	BotMoveStyle MoveStyle = MOVESTYLE_NORMAL; // Current desired move style (e.g. normal, ambush, hide). Will trigger new path calculations if this changes
 	float LastPathCalcTime = 0.0f; // When the bot last calculated a path, to limit how frequently it can recalculate

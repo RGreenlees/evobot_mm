@@ -429,17 +429,6 @@ bool UTIL_IsAttackTaskStillValid(bot_t* pBot, bot_task* Task)
 		}
 	}
 
-	float SearchRadius = (StructureType == STRUCTURE_ALIEN_HIVE) ? UTIL_MetresToGoldSrcUnits(15.0f) : UTIL_MetresToGoldSrcUnits(2.0f);
-	int MaxAttackers = (StructureType == STRUCTURE_ALIEN_HIVE) ? 3 : 1;
-
-	int NumAttackingPlayers = UTIL_GetNumPlayersOfTeamInArea(Task->TaskTarget->v.origin, SearchRadius, pBot->bot_team, pBot->pEdict, CLASS_GORGE, false);
-
-	if (NumAttackingPlayers >= MaxAttackers && vDist2DSq(pBot->pEdict->v.origin, Task->TaskTarget->v.origin) > sqrf(SearchRadius))
-	{
-		return false;
-	}
-
-
 	return Task->TaskTarget->v.team != pBot->pEdict->v.team;
 
 }

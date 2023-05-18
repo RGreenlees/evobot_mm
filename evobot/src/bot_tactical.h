@@ -87,10 +87,7 @@ typedef struct _HIVE_DEFINITION_T
 // How frequently to update the global list of built structures (in seconds)
 static const float structure_inventory_refresh_rate = 0.2f;
 
-// Increments by 1 every time the structure list is refreshed. Used to detect if structures have been destroyed and no longer show up
-static int StructureRefreshFrame = 0;
-// Increments by 1 every time the item list is refreshed. Used to detect if items have been removed from play and no longer show up
-static int ItemRefreshFrame = 0;
+
 
 // How frequently to update the global list of dropped marine items (in seconds)
 static const float item_inventory_refresh_rate = 0.1f;

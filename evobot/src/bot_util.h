@@ -40,14 +40,16 @@ static const float build_attempt_retry_time = 0.5f;
 static const float min_request_spam_time = 10.0f;
 
 // Max rate bot can run its logic, default is 1/60th second. WARNING: Increasing the rate past 100hz causes bots to move and turn slowly due to GoldSrc limits!
-static const float BOT_MIN_FRAME_TIME = (1.0f / 60.0f);
+static const double BOT_MIN_FRAME_TIME = (1.0 / 60.0);
 
 
 void BotLookAt(bot_t* pBot, edict_t* target);
 void BotLookAt(bot_t* pBot, const Vector target);
 void BotMoveLookAt(bot_t* pBot, const Vector target);
+// No view interpolation, but view instantly snaps to target
+void BotDirectLookAt(bot_t* pBot, Vector target);
 
-
+void UTIL_DisplayBotInfo(bot_t* pBot);
 
 enemy_status* UTIL_GetTrackedEnemyRefForTarget(bot_t* pBot, edict_t* Target);
 
@@ -143,5 +145,7 @@ int GetMarineCombatUpgradeCost(const CombatModeMarineUpgrade Upgrade);
 int GetAlienCombatUpgradeCost(const CombatModeAlienUpgrade Upgrade);
 int GetImpulseForMarineCombatUpgrade(const CombatModeMarineUpgrade Upgrade);
 int GetImpulseForAlienCombatUpgrade(const CombatModeAlienUpgrade Upgrade);
+
+bot_t* UTIL_GetSpectatedBot(const edict_t* Observer);
 
 #endif

@@ -42,7 +42,7 @@ constexpr auto ALL_NAV_PROFILE = 8;
 constexpr auto MIN_PATH_RECALC_TIME = 0.33f; // How frequently can a bot recalculate its path? Default to max 3 times per second
 
 
-#define MAX_PATH_POLY 1024 // Max nav mesh polys that can be traversed in a path. This should be sufficient for any sized map.
+#define MAX_PATH_POLY 512 // Max nav mesh polys that can be traversed in a path. This should be sufficient for any sized map.
 
 // Possible area types. Water, Road, Door and Grass are not used (left-over from Detour library)
 enum SamplePolyAreas
@@ -226,6 +226,7 @@ void FallMove(bot_t* pBot, const Vector StartPoint, const Vector EndPoint);
 void LadderMove(bot_t* pBot, const Vector StartPoint, const Vector EndPoint, float RequiredClimbHeight, unsigned char NextArea);
 // Called by NewMove, determines the movement direction and inputs required to climb a wall to reach endpoint
 void WallClimbMove(bot_t* pBot, const Vector StartPoint, const Vector EndPoint, float RequiredClimbHeight);
+void BlinkClimbMove(bot_t* pBot, const Vector StartPoint, const Vector EndPoint, float RequiredClimbHeight);
 // Called by NewMove, determines the movement direction and inputs required to use a phase gate to reach end point
 void PhaseGateMove(bot_t* pBot, const Vector StartPoint, const Vector EndPoint);
 
@@ -294,6 +295,9 @@ bool MoveTo(bot_t* pBot, const Vector Destination, const BotMoveStyle MoveStyle)
 
 // Used by the MoveTo command, handles the bot's movement and inputs to follow a path it has calculated for itself
 void BotFollowPath(bot_t* pBot);
+void BotFollowFlightPath(bot_t* pBot);
+
+int GetNextDirectFlightPath(bot_t* pBot);
 
 // Walks directly towards the destination. No path finding, just raw movement input. Will detect obstacles and try to jump/duck under them.
 void MoveDirectlyTo(bot_t* pBot, const Vector Destination);
@@ -311,11 +315,12 @@ dtStatus FindPhaseGatePathToPoint(const int NavProfileIndex, Vector FromLocation
 // Special path finding that takes the presence of phase gates into account 
 dtStatus FindFlightPathToPoint(const int NavProfileIndex, Vector FromLocation, Vector ToLocation, bot_path_node* path, int* pathSize, float MaxAcceptableDistance);
 
-Vector UTIL_FindHighestSuccessfulTracePoint(const Vector TraceFrom, const Vector TargetPoint, const float IterationStep, const float MaxHeight);
+Vector UTIL_FindHighestSuccessfulTracePoint(const Vector TraceFrom, const Vector TargetPoint, const Vector NextPoint, const float IterationStep, const float MinIdealHeight, const float MaxHeight);
 
 // Similar to FindPathToPoint, but you can specify a max acceptable distance for partial results. Will return a failure if it can't reach at least MaxAcceptableDistance away from the ToLocation
 dtStatus FindPathClosestToPoint(bot_t* pBot, const BotMoveStyle MoveStyle, const Vector FromLocation, const Vector ToLocation, bot_path_node* path, int* pathSize, float MaxAcceptableDistance);
 dtStatus FindPathClosestToPoint(const int NavProfileIndex, const Vector FromLocation, const Vector ToLocation, bot_path_node* path, int* pathSize, float MaxAcceptableDistance);
+dtStatus FindDetailedPathClosestToPoint(const int NavProfileIndex, const Vector FromLocation, const Vector ToLocation, bot_path_node* path, int* pathSize, float MaxAcceptableDistance);
 
 // If the bot is stuck and off the path or nav mesh, this will try to find a point it can directly move towards to get it back on track
 Vector FindClosestPointBackOnPath(bot_t* pBot);

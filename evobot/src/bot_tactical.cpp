@@ -45,6 +45,14 @@ std::unordered_map<int, buildable_structure> AlienBuildableStructureMap;
 
 std::unordered_map<int, dropped_marine_item> MarineDroppedItemMap;
 
+float last_structure_refresh_time = 0.0f;
+float last_item_refresh_time = 0.0f;
+
+// Increments by 1 every time the structure list is refreshed. Used to detect if structures have been destroyed and no longer show up
+int StructureRefreshFrame = 0;
+// Increments by 1 every time the item list is refreshed. Used to detect if items have been removed from play and no longer show up
+int ItemRefreshFrame = 0;
+
 
 
 void PopulateEmptyHiveList()
@@ -512,6 +520,8 @@ void PrintHiveInfo()
 
 void UTIL_RefreshBuildableStructures()
 {
+	if (!NavmeshLoaded()) { return; }
+
 	edict_t* currStructure = NULL;
 
 	// Marine Structures
@@ -1705,6 +1715,9 @@ void UTIL_ClearMapAIData()
 
 	StructureRefreshFrame = 0;
 	ItemRefreshFrame = 0;
+
+	last_structure_refresh_time = 0.0f;
+	last_item_refresh_time = 0.0f;
 }
 
 const resource_node* UTIL_FindEligibleResNodeClosestToLocation(const Vector& Location, const int Team, bool bIgnoreElectrified)
@@ -2882,6 +2895,8 @@ int UTIL_GetNumUnbuiltHives()
 
 void UTIL_RefreshMarineItems()
 {
+	if (!NavmeshLoaded()) { return; }
+
 	edict_t* currItem = NULL;
 	while (((currItem = UTIL_FindEntityByClassname(currItem, "item_health")) != NULL) && (!FNullEnt(currItem)))
 	{
