@@ -277,13 +277,13 @@ float vSize2D(const Vector V)
 // Returns true if the two vectors are the same (all components are within 0.01f of each other)
 bool vEquals(const Vector v1, const Vector v2)
 {
-	return fabs(v1.x - v2.x) <= 0.01f && fabs(v1.y - v2.y) <= 0.01f && fabs(v1.z - v2.z) <= 0.01f;
+	return fabsf(v1.x - v2.x) <= 0.01f && fabsf(v1.y - v2.y) <= 0.01f && fabsf(v1.z - v2.z) <= 0.01f;
 }
 
 // Returns true if the two vectors are the same (all components are within epsilon of each other)
 bool vEquals(const Vector v1, const Vector v2, const float epsilon)
 {
-	return fabs(v1.x - v2.x) <= epsilon && fabs(v1.y - v2.y) <= epsilon && fabs(v1.z - v2.z) <= epsilon;
+	return fabsf(v1.x - v2.x) <= epsilon && fabsf(v1.y - v2.y) <= epsilon && fabsf(v1.z - v2.z) <= epsilon;
 }
 
 bool fNearlyEqual(const float f1, const float f2)
@@ -613,8 +613,7 @@ Vector UTIL_GetForwardVector2D(const Vector angles)
 	Vector fwd, right, up;
 
 	UTIL_AnglesToVector(angles, &fwd, &right, &up);
-	fwd.z = 0.0f;
-	return UTIL_GetVectorNormal(fwd);
+	return UTIL_GetVectorNormal2D(fwd);
 }
 
 float UTIL_GetDistanceToPolygon2DSq(const Vector TestPoint, const Vector* Points, const int NumPoints)

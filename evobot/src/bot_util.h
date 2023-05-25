@@ -58,9 +58,13 @@ void BotLeap(bot_t* pBot, const Vector TargetLocation);
 bool CanBotLeap(bot_t* pBot);
 void BotJump(bot_t* pBot);
 
+// Bot will perform LOS checks and return true if it successfully attacked the target
+void BotShootTarget(bot_t* pBot, NSWeapon AttackWeapon, edict_t* Target);
+
 void BotAttackTarget(bot_t* pBot, edict_t* Target);
-void BotAttackStructure(bot_t* pBot, edict_t* Target);
-void DEBUG_BotAttackTarget(bot_t* pBot, edict_t* Target);
+
+BotAttackResult PerformAttackLOSCheck(bot_t* pBot, const NSWeapon Weapon, const edict_t* Target);
+BotAttackResult PerformAttackLOSCheck(const Vector Location, const NSWeapon Weapon, const edict_t* Target);
 
 float GetLeapCost(bot_t* pBot);
 
@@ -72,7 +76,7 @@ void BotTakeDamage(bot_t* pBot, int damageTaken, edict_t* aggressor);
 void BotDied(bot_t* pBot, edict_t* killer);
 void BotKilledPlayer(bot_t* pBot, edict_t* victim);
 
-bot_t* GetBotPointer(edict_t* pEdict);
+bot_t* GetBotPointer(const edict_t* pEdict);
 int GetBotIndex(edict_t* pEdict);
 
 bot_msg* UTIL_GetAvailableBotMsgSlot(bot_t* pBot);

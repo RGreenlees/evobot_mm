@@ -231,7 +231,7 @@ void UTIL_DrawLine(edict_t* pEntity, Vector start, Vector end, int r, int g, int
 
 void UTIL_DrawHUDText(edict_t* pEntity, char channel, float x, float y, unsigned char r, unsigned char g, unsigned char b, const char* string)
 {
-	if (FNullEnt(pEntity)) { return; }
+	
 
 	// higher level wrapper for hudtextparms TE_TEXTMESSAGEs. This function is meant to be called
 	// every frame, since the duration of the display is roughly worth the duration of a video
@@ -241,7 +241,13 @@ void UTIL_DrawHUDText(edict_t* pEntity, char channel, float x, float y, unsigned
 	// -1(only one negative value possible): center of the screen (X and Y), centered text
 	// Any value ranging from 0 to 1 will represent a valid position on the screen.
 
-	int msecval = GAME_GetServerMSecVal();
+	static short duration;
+
+	if (FNullEnt(pEntity)) { return; }
+
+	duration = (int)GAME_GetServerMSecVal() * 256 / 750; // compute text message duration
+	if (duration < 5)
+		duration = 5;
 
 	MESSAGE_BEGIN(MSG_ONE_UNRELIABLE, SVC_TEMPENTITY, NULL, pEntity);
 	WRITE_BYTE(TE_TEXTMESSAGE);
@@ -259,7 +265,7 @@ void UTIL_DrawHUDText(edict_t* pEntity, char channel, float x, float y, unsigned
 	WRITE_BYTE(1); // effect ALPHA
 	WRITE_SHORT(0); // fade-in time in seconds * 256
 	WRITE_SHORT(0); // fade-out time in seconds * 256
-	WRITE_SHORT(4); // hold time in seconds * 256
+	WRITE_SHORT(duration); // hold time in seconds * 256
 	WRITE_STRING(string);//string); // send the string
 	MESSAGE_END(); // end
 
@@ -271,7 +277,7 @@ bool UTIL_QuickTrace(const edict_t* pEdict, const Vector& start, const Vector& e
 	TraceResult hit;
 	edict_t* IgnoreEdict = (!FNullEnt(pEdict)) ? pEdict->v.pContainingEntity : NULL;
 	UTIL_TraceLine(start, end, ignore_monsters, ignore_glass, IgnoreEdict, &hit);
-	return (hit.flFraction >= 1.0f || !hit.fAllSolid);
+	return (hit.flFraction >= 1.0f && !hit.fAllSolid);
 }
 
 bool UTIL_QuickHullTrace(const edict_t* pEdict, const Vector& start, const Vector& end)
@@ -358,6 +364,8 @@ void ClientPrint(edict_t* pEntity, int msg_dest, const char* msg_name)
 
 void UTIL_SayText(const char* pText, edict_t* pEdict)
 {
+	if (FNullEnt(pEdict)) { return; }
+
 	if (GET_USER_MSG_ID(PLID, "SayText", NULL) <= 0)
 		REG_USER_MSG("SayText", -1);
 

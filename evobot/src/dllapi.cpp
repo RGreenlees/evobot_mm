@@ -33,7 +33,6 @@
  */
 
 #include <time.h>
-
 #include <extdll.h>
 
 #include <dllapi.h>
@@ -176,7 +175,7 @@ void ClientCommand(edict_t* pEntity)
 
 		//UTIL_TraceLine(TraceStart, TraceEnd, dont_ignore_monsters, dont_ignore_glass, pEntity, &Hit);
 
-		if (Hit.flFraction < 1.0f)
+		if (!FNullEnt(Hit.pHit))
 		{
 			char buf[64];
 			sprintf(buf, "Hit Entity: %s\n", STRING(Hit.pHit->v.classname));
@@ -553,6 +552,15 @@ void ClientCommand(edict_t* pEntity)
 					{
 						TASK_SetAttackTask(&bots[i], &bots[i].PrimaryBotTask, ResTower, true);
 					}
+					else
+					{
+						const hive_definition* Hive = UTIL_GetNearestBuiltHiveToLocation(bots[i].pEdict->v.origin);
+
+						if (Hive)
+						{
+							TASK_SetAttackTask(&bots[i], &bots[i].PrimaryBotTask, Hive->edict, true);
+						}
+					}
 				}
 
 				
@@ -785,8 +793,7 @@ void StartFrame(void)
 
 	if (gpGlobals->deathmatch)
 	{
-
-		static int i, index, player_index, bot_index;
+		static int bot_index;
 
 		if (gpGlobals->time >= 5.0f)
 		{
@@ -820,6 +827,21 @@ void StartFrame(void)
 					UTIL_RefreshMarineItems();
 					last_item_refresh_time = gpGlobals->time;
 				}
+
+				edict_t* SpectatorTarget = INDEXENT(GAME_GetListenServerEdict()->v.iuser2);
+
+				if (!FNullEnt(SpectatorTarget))
+				{
+					int BotIndex = GetBotIndex(SpectatorTarget);
+
+					if (BotIndex >= 0)
+					{
+						bot_t* pBot = &bots[BotIndex];
+
+						UTIL_DisplayBotInfo(pBot);
+					}
+				}
+
 			}
 
 			float timeSinceLastThink = ((currTime - last_think_time) / CLOCKS_PER_SEC);
@@ -878,8 +900,8 @@ void StartFrame(void)
 		}
 
 	}
+
 	prevtime = currTime;
-	previous_time = gpGlobals->time;
 
 	RETURN_META(MRES_IGNORED);
 }

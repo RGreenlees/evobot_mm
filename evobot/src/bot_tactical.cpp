@@ -2111,7 +2111,7 @@ edict_t* UTIL_GetNearestStructureOfTypeInLocation(const NSStructureType Structur
 
 		for (auto& it : MarineBuildableStructureMap)
 		{
-			if (!it.second.bOnNavmesh) { continue; }
+			if (!it.second.bOnNavmesh || !it.second.bIsReachableAlien) { continue; }
 			if (!UTIL_StructureTypesMatch(StructureType, it.second.StructureType) || (!bAllowElectrified && it.second.bIsElectrified)) { continue; }
 
 			float ThisDist = (bUsePhaseDistance) ? UTIL_GetPhaseDistanceBetweenPointsSq(it.second.Location, Location) : vDist2DSq(it.second.Location, Location);
@@ -2129,7 +2129,7 @@ edict_t* UTIL_GetNearestStructureOfTypeInLocation(const NSStructureType Structur
 	{
 		for (auto& it : AlienBuildableStructureMap)
 		{
-			if (!it.second.bOnNavmesh) { continue; }
+			if (!it.second.bOnNavmesh || !it.second.bIsReachableAlien) { continue; }
 			if (!UTIL_StructureTypesMatch(StructureType, it.second.StructureType)) { continue; }
 
 			float ThisDist = (bUsePhaseDistance) ? UTIL_GetPhaseDistanceBetweenPointsSq(it.second.Location, Location) : vDist2DSq(it.second.Location, Location);
@@ -3363,35 +3363,41 @@ const hive_definition* UTIL_GetNearestHiveAtLocation(const Vector Location)
 
 edict_t* UTIL_AlienFindNearestHealingSpot(bot_t* pBot, const Vector SearchLocation)
 {
+	bool bVeryLowHealth = GetPlayerOverallHealthPercent(pBot->pEdict) < 0.25f;
+
 	edict_t* HealingSources[3];
 
 	HealingSources[0] = UTIL_GetNearestStructureIndexOfType(SearchLocation, STRUCTURE_ALIEN_HIVE, UTIL_MetresToGoldSrcUnits(100.0f), true, IsPlayerMarine(pBot->pEdict));
+	
+	// Can't heal without a hive. Game over!
+	if (FNullEnt(HealingSources[0])) { return nullptr; }
+	
 	HealingSources[1] = UTIL_GetNearestStructureIndexOfType(SearchLocation, STRUCTURE_ALIEN_DEFENCECHAMBER, UTIL_MetresToGoldSrcUnits(100.0f), true, IsPlayerMarine(pBot->pEdict));
-	HealingSources[2] = UTIL_GetNearestPlayerOfClass(SearchLocation, CLASS_GORGE, UTIL_MetresToGoldSrcUnits(100.0f), pBot->pEdict);
+	// Don't heal at a gorge if we're badly hurt, too exposed and risky
+	HealingSources[2] = (!bVeryLowHealth) ? UTIL_GetNearestPlayerOfClass(SearchLocation, CLASS_GORGE, UTIL_MetresToGoldSrcUnits(100.0f), pBot->pEdict) : nullptr;
 
-	int NearestHealingSource = -1;
-	float MinDist = 0.0f;
+	if (FNullEnt(HealingSources[1]) && FNullEnt(HealingSources[2])) { return HealingSources[0]; }
 
-	for (int i = 0; i < 3; i++)
+	float HiveDist = vDist2DSq(HealingSources[0]->v.origin, SearchLocation);
+	float ChamberDist = (!FNullEnt(HealingSources[1])) ? (vDist2DSq(HealingSources[1]->v.origin, SearchLocation) * 1.3f) : FLT_MAX;
+	float GorgeDist = (!FNullEnt(HealingSources[2])) ? (vDist2DSq(HealingSources[2]->v.origin, SearchLocation) * 2.0f) : FLT_MAX;
+
+	if (HiveDist < ChamberDist && HiveDist < GorgeDist)
 	{
-		if (!FNullEnt(HealingSources[i]))
-		{
-			float ThisDist = vDist2DSq(HealingSources[i]->v.origin, SearchLocation);
-
-			if (NearestHealingSource < 0 || ThisDist < MinDist)
-			{
-				NearestHealingSource = i;
-				MinDist = ThisDist;
-			}
-		}
+		return HealingSources[0];
 	}
 
-	if (NearestHealingSource > -1)
+	if (ChamberDist < HiveDist && ChamberDist < GorgeDist)
 	{
-		return HealingSources[NearestHealingSource];
+		return HealingSources[1];
 	}
 
-	return nullptr;
+	if (GorgeDist < HiveDist && GorgeDist < GorgeDist)
+	{
+		return HealingSources[2];
+	}
+	
+	return HealingSources[0];
 }
 
 edict_t* PlayerGetNearestDangerTurret(const edict_t* Player, float MaxDistance)
@@ -4248,7 +4254,7 @@ const char* UTIL_StructTypeToChar(const NSStructureType StructureType)
 	case STRUCTURE_MARINE_TURRETFACTORY:
 		return "Turret Factory";
 	case STRUCTURE_MARINE_ADVTURRETFACTORY:
-		return "Advanced Turret Factory";
+		return "Adv. Turret Factory";
 	case STRUCTURE_MARINE_TURRET:
 		return "Turret";
 	case STRUCTURE_MARINE_SIEGETURRET:

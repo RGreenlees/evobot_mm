@@ -147,10 +147,9 @@ bool PlayerHasHeavyArmour(const edict_t* Player);
 
 bool PlayerHasJetpack(edict_t* Player);
 
+bool PlayerHasWeapon(const edict_t* Player, const NSWeapon DesiredCombatWeapon);
 bool PlayerHasEquipment(edict_t* Player);
 bool PlayerHasSpecialWeapon(edict_t* Player);
-
-bool PlayerHasWeapon(edict_t* Player, NSWeapon WeaponType);
 
 bool UTIL_PlayerHasLOSToEntity(const edict_t* Player, const edict_t* Target, const float MaxRange, const bool bUseHullSweep);
 bool UTIL_PlayerHasLOSToLocation(const edict_t* Player, const Vector Target, const float MaxRange);

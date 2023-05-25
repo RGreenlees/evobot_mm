@@ -280,7 +280,7 @@ int UTIL_GetNumUnbuiltHives();
 
 const hive_definition* UTIL_GetNearestHiveAtLocation(const Vector Location);
 
-// Will find the nearest gorge, defence chamber or hive, whichever is closest to SearchLocation
+// Will find the nearest gorge, defence chamber or hive, whichever is closest to SearchLocation. Weighted so it favours hives and chambers over gorges
 edict_t* UTIL_AlienFindNearestHealingSpot(bot_t* pBot, const Vector SearchLocation);
 
 /*	A resource node needs reinforcing if:

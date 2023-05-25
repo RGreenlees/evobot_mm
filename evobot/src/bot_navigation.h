@@ -291,7 +291,7 @@ bool AreKeyPointsReachableForBot(bot_t* pBot);
 	Will handle path calculation, following the path, detecting if stuck and trying to unstick itself.
 	Will only recalculate paths if it decides it needs to, so is safe to call every frame.
 */
-bool MoveTo(bot_t* pBot, const Vector Destination, const BotMoveStyle MoveStyle);
+bool MoveTo(bot_t* pBot, const Vector Destination, const BotMoveStyle MoveStyle, const float MaxAcceptableDist = max_player_use_reach);
 
 // Used by the MoveTo command, handles the bot's movement and inputs to follow a path it has calculated for itself
 void BotFollowPath(bot_t* pBot);

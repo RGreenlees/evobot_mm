@@ -76,7 +76,7 @@ void MarineThink(bot_t* pBot)
 
 		if (pBot->CurrentTask->TaskType != TASK_ATTACK && DistToTurret < sqrf(UTIL_MetresToGoldSrcUnits(10.0f)))
 		{
-			BotAttackStructure(pBot, DangerTurret);
+			BotAttackTarget(pBot, DangerTurret);
 			return;
 		}
 	}
@@ -796,13 +796,16 @@ bool MarineCombatThink(bot_t* pBot)
 
 	if (!TrackedEnemyRef->bCurrentlyVisible && !UTIL_QuickTrace(pEdict, pBot->CurrentEyePosition, CurrentEnemy->v.origin))
 	{
+		edict_t* Armoury = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ANYARMOURY, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(50.0f), true, true);
 
-		// If we're out of primary ammo or badly hurt, then use opportunity to disengage and head to the nearest armoury to resupply
-		if ((BotGetCurrentWeaponClipAmmo(pBot) < BotGetCurrentWeaponMaxClipAmmo(pBot) && BotGetPrimaryWeaponAmmoReserve(pBot) == 0) || pBot->pEdict->v.health < 50.0f)
+		if (!FNullEnt(Armoury))
 		{
-			edict_t* Armoury = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ANYARMOURY, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(50.0f), true, true);
+			float Dist = vDist2DSq(Armoury->v.origin, pEdict->v.origin);
 
-			if (!FNullEnt(Armoury))
+			bool bShouldHeal = (pBot->pEdict->v.health < 50.0f || (pBot->pEdict->v.health < 100.0f && Dist <= sqrf(UTIL_MetresToGoldSrcUnits(10.0f))));
+
+			// If we're out of primary ammo or badly hurt, then use opportunity to disengage and head to the nearest armoury to resupply
+			if ((BotGetCurrentWeaponClipAmmo(pBot) < BotGetCurrentWeaponMaxClipAmmo(pBot) && BotGetPrimaryWeaponAmmoReserve(pBot) == 0) || bShouldHeal)
 			{
 				if (IsPlayerInUseRange(pBot->pEdict, Armoury))
 				{
@@ -816,6 +819,7 @@ bool MarineCombatThink(bot_t* pBot)
 				else
 				{
 					MoveTo(pBot, Armoury->v.origin, MOVESTYLE_NORMAL);
+					BotReloadWeapons(pBot);
 				}
 				return true;
 			}
@@ -827,257 +831,128 @@ bool MarineCombatThink(bot_t* pBot)
 
 	// ENEMY IS VISIBLE
 
-	pBot->DesiredCombatWeapon = BotMarineChooseBestWeapon(pBot, CurrentEnemy);
+	NSWeapon DesiredCombatWeapon = BotMarineChooseBestWeapon(pBot, CurrentEnemy);
+	NSWeapon PrimaryWeapon = GetBotMarinePrimaryWeapon(pBot);
 
-	// If LOS is blocked by an enemy structure or other enemy player, attack them anyway
-	edict_t* TracedEntity = UTIL_TraceEntity(pEdict, pBot->CurrentEyePosition, UTIL_GetCentreOfEntity(CurrentEnemy));
+	BotAttackResult LOSCheck = PerformAttackLOSCheck(pBot, DesiredCombatWeapon, CurrentEnemy);
 
-	if (!FNullEnt(TracedEntity) && TracedEntity != CurrentEnemy)
+	if (LOSCheck == ATTACK_SUCCESS)
 	{
-		if (TracedEntity->v.team != 0 && TracedEntity->v.team != pEdict->v.team)
+		BotShootTarget(pBot, DesiredCombatWeapon, CurrentEnemy);
+	}
+
+	float DistFromEnemy = vDist2DSq(pBot->pEdict->v.origin, CurrentEnemy->v.origin);
+
+	if (DesiredCombatWeapon != WEAPON_MARINE_KNIFE)
+	{
+		if (DistFromEnemy < sqrf(100.0f))
 		{
-			if (IsEdictStructure(TracedEntity))
-			{
-				BotAttackTarget(pBot, TracedEntity);
-				return true;
-			}
+			BotJump(pBot);
 		}
 	}
 
-	if (GetBotCurrentWeapon(pBot) != pBot->DesiredCombatWeapon) { return true; }
+	// We're going to have the marine always try and use their primary weapon, which means
+	// that they will try and put enough distance between themselves and the enemy to use it effectively,
+	// and retreat if they need to reload or are out of ammo
 
-	NSPlayerClass EnemyClass = GetPlayerClass(CurrentEnemy);
-	float DistFromEnemySq = vDist2DSq(pEdict->v.origin, CurrentEnemy->v.origin);
-	float MaxWeaponRange = GetMaxIdealWeaponRange(GetBotCurrentWeapon(pBot));
-	float MinWeaponRange = GetMinIdealWeaponRange(GetBotCurrentWeapon(pBot));
 
-	if (GetBotCurrentWeapon(pBot) != WEAPON_MARINE_KNIFE && BotGetCurrentWeaponClipAmmo(pBot) == 0)
+	// We are using our primary weapon right now (has ammo left in the clip)
+	if (DesiredCombatWeapon == PrimaryWeapon)
 	{
 		BotLookAt(pBot, CurrentEnemy);
-		pEdict->v.button |= IN_RELOAD;
-
-		Vector EnemyOrientation = UTIL_GetVectorNormal2D(pBot->pEdict->v.origin - CurrentEnemy->v.origin);
-
-		Vector RetreatLocation = pBot->pEdict->v.origin + (EnemyOrientation * 100.0f);
-
-		MoveTo(pBot, RetreatLocation, MOVESTYLE_NORMAL);
-
-		return true;
-	}
-
-	// If we're really low on ammo then retreat to the nearest armoury while continuing to engage
-	if (BotGetPrimaryWeaponClipAmmo(pBot) < BotGetPrimaryWeaponMaxClipSize(pBot) && BotGetPrimaryWeaponAmmoReserve(pBot) == 0 && BotGetSecondaryWeaponAmmoReserve(pBot) == 0)
-	{
-		edict_t* Armoury = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ANYARMOURY, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(50.0f), true, true);
-
-		if (!FNullEnt(Armoury))
-		{
-			if (IsPlayerInUseRange(pBot->pEdict, Armoury))
-			{
-				pBot->DesiredCombatWeapon = GetBotMarinePrimaryWeapon(pBot);
-
-				if (GetBotCurrentWeapon(pBot) == pBot->DesiredCombatWeapon)
-				{
-					BotUseObject(pBot, Armoury, true);
-				}
-
-				return true;
-			}
-			else
-			{
-				MoveTo(pBot, Armoury->v.origin, MOVESTYLE_NORMAL);
-			}
-		}
-
-		if (GetBotCurrentWeapon(pBot) == WEAPON_MARINE_KNIFE || BotGetPrimaryWeaponClipAmmo(pBot) > 0)
-		{
-			BotAttackTarget(pBot, CurrentEnemy);
-		}
-		return true;
-	}
-
-	if (EnemyClass == CLASS_GORGE || IsPlayerGestating(CurrentEnemy))
-	{
-		BotAttackTarget(pBot, CurrentEnemy);
-		if (DistFromEnemySq > sqrf(MaxWeaponRange))
-		{
+		if (LOSCheck == ATTACK_OUTOFRANGE)
+		{			
 			MoveTo(pBot, CurrentEnemy->v.origin, MOVESTYLE_NORMAL);
-		}
-		else
-		{
-
-			Vector EngagementLocation = pBot->BotNavInfo.TargetDestination;
-
-			float EngagementDist = vDist2DSq(EngagementLocation, CurrentEnemy->v.origin);
-
-			if (!EngagementLocation || EngagementDist > sqrf(MaxWeaponRange) || EngagementDist < sqrf(MinWeaponRange) || !UTIL_QuickTrace(pBot->pEdict, EngagementLocation + Vector(0.0f, 0.0f, 10.0f), CurrentEnemy->v.origin))
-			{
-				float MinMaxDiff = MaxWeaponRange - MinWeaponRange;
-
-				Vector EnemyOrientation = UTIL_GetVectorNormal2D(pBot->pEdict->v.origin - CurrentEnemy->v.origin);
-				float MidDist = MinWeaponRange + (MinMaxDiff * 0.5f);
-
-				Vector MidPoint = CurrentEnemy->v.origin + (EnemyOrientation * MidDist);
-
-				MidPoint = UTIL_ProjectPointToNavmesh(MidPoint, NavProfileIndex);
-
-				if (MidPoint != ZERO_VECTOR)
-				{
-					EngagementLocation = UTIL_GetRandomPointOnNavmeshInRadius(NavProfileIndex, MidPoint, MinMaxDiff);
-				}
-				else
-				{
-					EngagementLocation = UTIL_GetRandomPointOnNavmeshInRadius(NavProfileIndex, CurrentEnemy->v.origin, MinWeaponRange);
-				}
-
-				if (!UTIL_QuickTrace(pBot->pEdict, EngagementLocation + Vector(0.0f, 0.0f, 10.0f), CurrentEnemy->v.origin))
-				{
-					EngagementLocation = ZERO_VECTOR;
-				}
-			}
-
-			if (EngagementLocation != ZERO_VECTOR)
-			{
-				MoveTo(pBot, EngagementLocation, MOVESTYLE_NORMAL);
-			}
-
-		}
-
-		return true;
-	}
-
-	if (DistFromEnemySq > sqrf(MaxWeaponRange))
-	{
-		BotAttackTarget(pBot, CurrentEnemy);
-		MoveTo(pBot, CurrentEnemy->v.origin, MOVESTYLE_NORMAL);
-
-	}
-	else
-	{
-		if (DistFromEnemySq < sqrf(MinWeaponRange))
-		{
-			Vector CurrentBackOffLocation = pBot->BotNavInfo.TargetDestination;
-
-			if (!CurrentBackOffLocation || vDist2DSq(CurrentBackOffLocation, CurrentEnemy->v.origin) < sqrf(MinWeaponRange) || !UTIL_QuickTrace(pBot->pEdict, CurrentBackOffLocation + Vector(0.0f, 0.0f, 10.0f), CurrentEnemy->v.origin))
-			{
-
-				NavProfileIndex = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
-
-				float MinMaxDiff = MaxWeaponRange - MinWeaponRange;
-
-				Vector EnemyOrientation = UTIL_GetVectorNormal2D(pBot->pEdict->v.origin - CurrentEnemy->v.origin);
-				float MidDist = MinWeaponRange + (MinMaxDiff * 0.5f);
-
-				Vector MidPoint = CurrentEnemy->v.origin + (EnemyOrientation * MidDist);
-
-				MidPoint = UTIL_ProjectPointToNavmesh(MidPoint, NavProfileIndex);
-
-				if (MidPoint != ZERO_VECTOR)
-				{
-					CurrentBackOffLocation = UTIL_GetRandomPointOnNavmeshInRadius(NavProfileIndex, MidPoint, MinMaxDiff);
-				}
-				else
-				{
-					CurrentBackOffLocation = UTIL_GetRandomPointOnNavmeshInRadius(NavProfileIndex, CurrentEnemy->v.origin, MinWeaponRange);
-				}
-			}
-
-			BotAttackTarget(pBot, CurrentEnemy);
-			MoveTo(pBot, CurrentBackOffLocation, MOVESTYLE_NORMAL);
-
-			if (DistFromEnemySq < sqrf(UTIL_MetresToGoldSrcUnits(1.0f)))
-			{
-				BotJump(pBot);
-			}
-
+			BotReloadWeapons(pBot);
 			return true;
 		}
 
-		Vector EnemyVelocity = UTIL_GetVectorNormal2D(CurrentEnemy->v.velocity);
-		Vector EnemyOrientation = UTIL_GetVectorNormal2D(pBot->pEdict->v.origin - CurrentEnemy->v.origin);
-
-		float MoveDot = UTIL_GetDotProduct2D(EnemyVelocity, EnemyOrientation);
-
-		// Enemy is coming at us
-		if (MoveDot > 0.0f)
+		// Note that we already do visibility checks above, so blocked here means there is another player or structure in the way
+		if (LOSCheck == ATTACK_BLOCKED)
 		{
-			if (!IsPlayerOnLadder(pBot->pEdict))
+			edict_t* TracedEntity = UTIL_TraceEntity(pEdict, pBot->CurrentEyePosition, UTIL_GetCentreOfEntity(CurrentEnemy));
+
+			// Just blast through an alien structure if it's in the way
+			if (!FNullEnt(TracedEntity) && TracedEntity != CurrentEnemy)
 			{
-
-				Vector RetreatLocation = pBot->pEdict->v.origin + (EnemyOrientation * 100.0f);
-
-				BotAttackTarget(pBot, CurrentEnemy);
-				MoveTo(pBot, RetreatLocation, MOVESTYLE_NORMAL);
+				if (TracedEntity->v.team != 0 && TracedEntity->v.team != pEdict->v.team)
+				{
+					BotShootTarget(pBot, DesiredCombatWeapon, TracedEntity);
+				}
 			}
-			else
+
+			float MinDesiredDist = GetMinIdealWeaponRange(DesiredCombatWeapon);
+
+			Vector EngagementLocation = pBot->BotNavInfo.TargetDestination;
+
+			float EngagementLocationDist = vDist2DSq(EngagementLocation, CurrentEnemy->v.origin);
+
+			if (!EngagementLocation || EngagementLocationDist < sqrf(MinDesiredDist) || PerformAttackLOSCheck(EngagementLocation + Vector(0.0f, 0.0f, 50.0f), DesiredCombatWeapon, CurrentEnemy) != ATTACK_SUCCESS)
 			{
-				Vector LadderTop = UTIL_GetNearestLadderTopPoint(pBot->pEdict);
-				Vector LadderBottom = UTIL_GetNearestLadderBottomPoint(pBot->pEdict);
+				int MoveProfile = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
+				EngagementLocation = UTIL_GetRandomPointOnNavmeshInRadius(MoveProfile, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
 
-				Vector EnemyPointOnLine = vClosestPointOnLine(LadderBottom, LadderTop, CurrentEnemy->v.origin);
-
-				bool bGoDownLadder = (vDist3DSq(EnemyPointOnLine, LadderBottom) > vDist3DSq(EnemyPointOnLine, LadderTop));
-
-				Vector RetreatLocation = ZERO_VECTOR;
-
-				if (bGoDownLadder)
+				if (EngagementLocation != ZERO_VECTOR && PerformAttackLOSCheck(EngagementLocation + Vector(0.0f, 0.0f, 50.0f), DesiredCombatWeapon, CurrentEnemy) == ATTACK_SUCCESS)
 				{
-					RetreatLocation = UTIL_ProjectPointToNavmesh(LadderBottom);
+					MoveTo(pBot, EngagementLocation, MOVESTYLE_NORMAL);
 				}
-				else
-				{
-					RetreatLocation = UTIL_ProjectPointToNavmesh(LadderTop);
-				}
+			}
+			return true;
+		}
 
-				BotAttackTarget(pBot, CurrentEnemy);
-				MoveTo(pBot, RetreatLocation, MOVESTYLE_NORMAL);
+		if (LOSCheck == ATTACK_SUCCESS)
+		{
+			float MinDesiredDist = GetMinIdealWeaponRange(DesiredCombatWeapon);
+			Vector Orientation = UTIL_GetVectorNormal2D(CurrentEnemy->v.origin - pBot->pEdict->v.origin);
+
+			float EnemyMoveDot = UTIL_GetDotProduct2D(UTIL_GetVectorNormal2D(CurrentEnemy->v.velocity), -Orientation);
+
+			// Enemy is too close for comfort, or is moving towards us. Back up
+			if (DistFromEnemy < MinDesiredDist || EnemyMoveDot > 0.7f)
+			{
+				Vector RetreatLocation = pBot->CurrentFloorPosition - (Orientation * 50.0f);
+
+				if (UTIL_PointIsDirectlyReachable(pBot->CurrentFloorPosition, RetreatLocation))
+				{
+					MoveDirectlyTo(pBot, RetreatLocation);
+				}
+			}
+		}
+
+		return true;
+	}
+
+	// Retreat and try to reload so we can use our primary weapon again
+	if (LOSCheck != ATTACK_SUCCESS)
+	{
+		edict_t* Armoury = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ANYARMOURY, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(50.0f), true, true);
+
+		Vector RetreatLocation = ZERO_VECTOR;
+
+		if (!FNullEnt(Armoury))
+		{
+			RetreatLocation = Armoury->v.origin;
+
+			if (BotGetPrimaryWeaponAmmoReserve(pBot) < BotGetPrimaryWeaponMaxClipSize(pBot))
+			{
+				if (IsPlayerInUseRange(pBot->pEdict, Armoury))
+				{
+					BotUseObject(pBot, Armoury, true);
+				}
 			}
 		}
 		else
 		{
-			if (!IsPlayerOnLadder(pBot->pEdict))
-			{
-				NavProfileIndex = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
-
-				Vector EngagementLocation = pBot->BotNavInfo.TargetDestination;
-
-				float EngagementDist = vDist2DSq(EngagementLocation, CurrentEnemy->v.origin);
-
-				if (!EngagementLocation || EngagementDist > sqrf(MaxWeaponRange) || EngagementDist < sqrf(MinWeaponRange) || !UTIL_QuickTrace(pBot->pEdict, EngagementLocation + Vector(0.0f, 0.0f, 10.0f), CurrentEnemy->v.origin))
-				{
-					EngagementLocation = UTIL_GetRandomPointOnNavmeshInRadius(NavProfileIndex, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(2.0f));
-				}
-
-				BotAttackTarget(pBot, CurrentEnemy);
-				MoveTo(pBot, EngagementLocation, MOVESTYLE_NORMAL);
-			}
-			else
-			{
-				Vector LadderTop = UTIL_GetNearestLadderTopPoint(pBot->pEdict);
-				Vector LadderBottom = UTIL_GetNearestLadderBottomPoint(pBot->pEdict);
-
-				Vector EnemyPointOnLine = vClosestPointOnLine(LadderBottom, LadderTop, CurrentEnemy->v.origin);
-
-				bool bGoDownLadder = (vDist3DSq(EnemyPointOnLine, LadderBottom) < vDist3DSq(EnemyPointOnLine, LadderTop));
-
-				Vector EngagementLocation = ZERO_VECTOR;
-
-				if (bGoDownLadder)
-				{
-					EngagementLocation = UTIL_ProjectPointToNavmesh(LadderBottom);
-				}
-				else
-				{
-					EngagementLocation = UTIL_ProjectPointToNavmesh(LadderTop);
-				}
-
-				BotAttackTarget(pBot, CurrentEnemy);
-				MoveTo(pBot, EngagementLocation, MOVESTYLE_NORMAL);
-			}
+			RetreatLocation = UTIL_GetCommChairLocation();
 
 		}
 
+		MoveTo(pBot, UTIL_GetCommChairLocation(), MOVESTYLE_NORMAL);
+
+		BotReloadWeapons(pBot);
 	}
+
+
 	return true;
 }
 
@@ -1280,7 +1155,7 @@ void MarineHuntEnemy(bot_t* pBot, enemy_status* TrackedEnemy)
 	float TimeSinceLastSighting = (gpGlobals->time - LastSeenTime);
 
 	// If the enemy is being motion tracked, or the last seen time was within the last 5 seconds, and the suspected location is close enough, then throw a grenade!
-	if (PlayerHasWeapon(pBot->pEdict, WEAPON_MARINE_GRENADE) || (PlayerHasWeapon(pBot->pEdict, WEAPON_MARINE_GL) && (BotGetPrimaryWeaponClipAmmo(pBot) > 0 || BotGetPrimaryWeaponAmmoReserve(pBot) > 0)))
+	if (PlayerHasWeapon(pBot->pEdict, WEAPON_MARINE_GRENADE) || ((PlayerHasWeapon(pBot->pEdict, WEAPON_MARINE_GL) && (BotGetPrimaryWeaponClipAmmo(pBot) > 0 || BotGetPrimaryWeaponAmmoReserve(pBot) > 0))))
 	{
 		if (TimeSinceLastSighting < 5.0f && vDist3DSq(pBot->pEdict->v.origin, LastSeenLocation) <= sqrf(UTIL_MetresToGoldSrcUnits(10.0f)))
 		{
@@ -1304,7 +1179,7 @@ void MarineHuntEnemy(bot_t* pBot, enemy_status* TrackedEnemy)
 		{
 			if (vDist2DSq(pBot->pEdict->v.origin, LastSeenLocation) >= sqrf(UTIL_MetresToGoldSrcUnits(5.0f)))
 			{
-				pBot->pEdict->v.button |= IN_RELOAD;
+				BotReloadWeapons(pBot);
 			}
 		}
 		else
@@ -1312,7 +1187,7 @@ void MarineHuntEnemy(bot_t* pBot, enemy_status* TrackedEnemy)
 			float ReloadTime = BotGetCurrentWeaponClipAmmo(pBot) < (BotGetCurrentWeaponMaxClipAmmo(pBot) * 0.5f) ? 2.0f : 5.0f;
 			if (gpGlobals->time - LastSeenTime >= ReloadTime)
 			{
-				pBot->pEdict->v.button |= IN_RELOAD;
+				BotReloadWeapons(pBot);
 			}
 		}
 

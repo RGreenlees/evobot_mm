@@ -267,7 +267,7 @@ float GetMaxIdealWeaponRange(const NSWeapon Weapon)
 	case WEAPON_GORGE_HEALINGSPRAY:
 		return kHealingSprayRange;
 	default:
-		return 32.0f;
+		return max_player_use_reach;
 	}
 }
 
@@ -639,11 +639,23 @@ NSWeapon SkulkGetBestWeaponForCombatTarget(bot_t* pBot, edict_t* Target)
 		}
 	}
 
-	float DistFromTarget = vDist2DSq(pBot->pEdict->v.origin, Target->v.origin);
-
-	if (!IsPlayerParasited(Target) && DistFromTarget >= sqrf(UTIL_MetresToGoldSrcUnits(5.0f)))
+	if (!IsPlayerParasited(Target))
 	{
-		return WEAPON_SKULK_PARASITE;
+		float DistFromTarget = vDist2DSq(pBot->pEdict->v.origin, Target->v.origin);
+
+		if (DistFromTarget >= sqrf(UTIL_MetresToGoldSrcUnits(5.0f)))
+		{
+			Vector EnemyFacing = UTIL_GetForwardVector2D(Target->v.angles);
+			Vector BotFacing = UTIL_GetVectorNormal2D(Target->v.origin - pBot->pEdict->v.origin);
+
+			float Dot = UTIL_GetDotProduct2D(EnemyFacing, BotFacing);
+
+			// Only use parasite if the enemy is facing towards us. Means we don't ruin the element of surprise if sneaking up on an enemy
+			if (Dot < 0.0f)
+			{
+				return WEAPON_SKULK_PARASITE;
+			}
+		}
 	}
 
 	return WEAPON_SKULK_BITE;

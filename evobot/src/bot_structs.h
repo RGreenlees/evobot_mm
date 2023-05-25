@@ -106,6 +106,17 @@ typedef enum
 }
 BotTaskType;
 
+// 
+typedef enum
+{
+	ATTACK_SUCCESS,
+	ATTACK_BLOCKED,
+	ATTACK_OUTOFRANGE,
+	ATTACK_INVALIDTARGET,
+	ATTACK_NOWEAPON
+}
+BotAttackResult;
+
 typedef struct
 {
 	char szClassname[64];

@@ -1277,9 +1277,16 @@ bool UTIL_CommanderBuildActionIsValid(bot_t* CommanderBot, commander_action* Act
 
 	if (!FNullEnt(Action->StructureOrItem))
 	{
-		if (Action->StructureOrItem->v.deadflag == DEAD_DEAD || UTIL_StructureIsFullyBuilt(Action->StructureOrItem) || !UTIL_PointIsOnNavmesh(UTIL_GetEntityGroundLocation(Action->StructureOrItem), MARINE_REGULAR_NAV_PROFILE))
+		if (Action->StructureOrItem->v.deadflag == DEAD_DEAD || UTIL_StructureIsFullyBuilt(Action->StructureOrItem))
 		{
 			return false;
+		}
+
+		buildable_structure* StructureRef = UTIL_GetBuildableStructureRefFromEdict(Action->StructureOrItem);
+
+		if (StructureRef)
+		{
+			if (!StructureRef->bIsReachableMarine) { return false; }
 		}
 	}
 
@@ -2311,7 +2318,7 @@ void CommanderQueueNextAction(bot_t* pBot)
 
 	int NumResTowers = UTIL_GetNumPlacedStructuresOfType(STRUCTURE_MARINE_RESTOWER);
 
-	if ((gpGlobals->time - pBot->CommanderLastBeaconTime > 5.0f) && UTIL_BaseIsInDistress())
+	if ((gpGlobals->time - pBot->CommanderLastBeaconTime > 5.0f) && pBot->resources > 15 && UTIL_BaseIsInDistress())
 	{
 		if (!UTIL_ResearchActionAlreadyExists(pBot, RESEARCH_OBSERVATORY_DISTRESSBEACON) && UTIL_MarineResearchIsAvailable(RESEARCH_OBSERVATORY_DISTRESSBEACON))
 		{

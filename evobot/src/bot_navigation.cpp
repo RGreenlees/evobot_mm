@@ -4023,7 +4023,7 @@ bool AbortCurrentMove(bot_t* pBot, const Vector NewDestination)
 	return false;
 }
 
-bool MoveTo(bot_t* pBot, const Vector Destination, const BotMoveStyle MoveStyle)
+bool MoveTo(bot_t* pBot, const Vector Destination, const BotMoveStyle MoveStyle, const float MaxAcceptableDist)
 {
 	// Invalid destination, or we're already there
 	if (!Destination || BotIsAtLocation(pBot, Destination))
@@ -4086,7 +4086,7 @@ bool MoveTo(bot_t* pBot, const Vector Destination, const BotMoveStyle MoveStyle)
 	bool bMoveStyleChanged = (MoveStyle != pBot->BotNavInfo.MoveStyle);
 	bool bNavProfileChanged = (MoveProfile != pBot->BotNavInfo.LastMoveProfile);
 	bool bCanRecalculatePath = (gpGlobals->time - pBot->BotNavInfo.LastPathCalcTime > MIN_PATH_RECALC_TIME);
-	bool bDestinationChanged = (!vEquals(Destination, BotNavInfo->TargetDestination, 18.0f));
+	bool bDestinationChanged = (!vEquals(Destination, BotNavInfo->TargetDestination, GetPlayerRadius(pBot->pEdict)));
 
 	// Only recalculate the path if there isn't a path, or something has changed and enough time has elapsed since the last path calculation
 	bool bShouldCalculatePath = (BotNavInfo->PathSize == 0 || (bCanRecalculatePath && (bMoveStyleChanged || bNavProfileChanged || bDestinationChanged || BotNavInfo->bPendingRecalculation)));
@@ -4096,7 +4096,12 @@ bool MoveTo(bot_t* pBot, const Vector Destination, const BotMoveStyle MoveStyle)
 		// First abort our current move so we don't try to recalculate half-way up a wall or ladder
 		if (!AbortCurrentMove(pBot, Destination))
 		{
-			
+			return true;
+		}
+
+		if (IsPlayerOnLadder(pBot->pEdict))
+		{
+			BotJump(pBot);
 			return true;
 		}
 
@@ -4106,10 +4111,7 @@ bool MoveTo(bot_t* pBot, const Vector Destination, const BotMoveStyle MoveStyle)
 		pBot->BotNavInfo.MoveStyle = MoveStyle;
 		pBot->BotNavInfo.LastMoveProfile = MoveProfile;
 
-		if (IsPlayerOnLadder(pBot->pEdict))
-		{
-			BotJump(pBot);
-		}
+		
 
 		BotNavInfo->TargetDestination = Destination;
 
@@ -4122,7 +4124,7 @@ bool MoveTo(bot_t* pBot, const Vector Destination, const BotMoveStyle MoveStyle)
 			return false;
 		}
 
-		dtStatus PathFindingStatus = FindPathClosestToPoint(pBot, pBot->BotNavInfo.MoveStyle, pBot->CurrentFloorPosition, ValidNavmeshPoint, BotNavInfo->CurrentPath, &BotNavInfo->PathSize, max_player_use_reach);
+		dtStatus PathFindingStatus = FindPathClosestToPoint(pBot, pBot->BotNavInfo.MoveStyle, pBot->CurrentFloorPosition, ValidNavmeshPoint, BotNavInfo->CurrentPath, &BotNavInfo->PathSize, MaxAcceptableDist);
 
 		if (dtStatusSucceed(PathFindingStatus))
 		{
