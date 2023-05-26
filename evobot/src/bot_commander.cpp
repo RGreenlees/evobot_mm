@@ -742,6 +742,25 @@ void UpdateCommanderOrders(bot_t* Commander)
 	}
 }
 
+void DEBUG_ShowCommanderBuildingPlacements(bot_t* Commander)
+{
+	// Loop through all actions, starting with highest priority (0 = highest, 4 = lowest), stop when there's an action we can progress
+	for (int Priority = 0; Priority < MAX_ACTION_PRIORITIES; Priority++)
+	{
+		for (int ActionIndex = 0; ActionIndex < MAX_PRIORITY_ACTIONS; ActionIndex++)
+		{
+			commander_action* action = &Commander->CurrentCommanderActions[Priority][ActionIndex];
+
+			if (!action->bIsActive) { continue; }
+
+			if (action->ActionType == ACTION_BUILD)
+			{
+				UTIL_DrawLine(GAME_GetListenServerEdict(), action->BuildLocation, action->BuildLocation + Vector(0.0f, 0.0f, 100.0f));
+			}
+		}
+	}
+}
+
 void UpdateCommanderActions(bot_t* Commander)
 {
 	if (gpGlobals->time < Commander->next_commander_action_time) { return; }
@@ -832,10 +851,12 @@ void CommanderQueueInfantryPortalBuild(bot_t* pBot, int Priority)
 	// First see if we can place the next infantry portal next to the first one
 	if (!FNullEnt(ExistingInfantryPortal))
 	{
-		BuildLocation = UTIL_GetRandomPointOnNavmeshInDonut(BUILDING_REGULAR_NAV_PROFILE, ExistingInfantryPortal->v.origin, UTIL_MetresToGoldSrcUnits(1.0f), UTIL_MetresToGoldSrcUnits(2.0f));
+		BuildLocation = UTIL_GetRandomPointOnNavmeshInDonut(BUILDING_REGULAR_NAV_PROFILE, ExistingInfantryPortal->v.origin, UTIL_MetresToGoldSrcUnits(2.0f), UTIL_MetresToGoldSrcUnits(3.0f));
 	}
 
-	// If not then find somewhere near the comm chair
+	// Sometimes the comm chair is built in a little nook and we need to ensure the commander doesn't place the portals wedged behind the comm chair or something
+	// So we check the closest point to the comm chair we can reach from the wider map and use that as a base for building the portals
+	// By default we just use the closest resource node to the chair (usually marine starting res node), though I guess if a map has a resource node in a weird place it might not work...
 	if (BuildLocation == ZERO_VECTOR)
 	{
 		Vector CommChairLocation = UTIL_GetCommChairLocation();
@@ -844,9 +865,7 @@ void CommanderQueueInfantryPortalBuild(bot_t* pBot, int Priority)
 		{
 			Vector SearchPoint = ZERO_VECTOR;
 
-			// Sometimes the comm chair is built in a little nook and we need to ensure the commander doesn't place the portals wedged behind the comm chair or something
-			// So we check the closest point to the comm chair we can reach from the wider map and use that as a base for building the portals
-			// By default we just use the closest resource node, though I guess if a map has a resource node in a weird place it might not work...
+			
 			const resource_node* ResNode = UTIL_FindNearestResNodeToLocation(CommChairLocation);
 
 			if (ResNode)
@@ -876,7 +895,12 @@ void CommanderQueueInfantryPortalBuild(bot_t* pBot, int Priority)
 
 	}
 
-	if (!vEquals(BuildLocation, ZERO_VECTOR))
+	if (BuildLocation == ZERO_VECTOR)
+	{
+		BuildLocation = UTIL_GetRandomPointOnNavmeshInDonut(BUILDING_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), UTIL_MetresToGoldSrcUnits(2.0f), UTIL_MetresToGoldSrcUnits(5.0f));
+	}
+
+	if (BuildLocation != ZERO_VECTOR)
 	{
 		int NewActionIndex = UTIL_CommanderFirstFreeActionIndex(pBot, Priority);
 
@@ -1164,6 +1188,8 @@ void CommanderThink(bot_t* pBot)
 	UpdateCommanderOrders(pBot);
 
 	CommanderQueueNextAction(pBot);
+
+	DEBUG_ShowCommanderBuildingPlacements(pBot);
 
 	UpdateCommanderActions(pBot);
 
@@ -2101,7 +2127,7 @@ Vector UTIL_FindClearCommanderOriginForBuild(const bot_t* Commander, const Vecto
 	int NumTries = 100;
 	int TryNum = 0;
 
-	if (UTIL_QuickTrace(Commander->pEdict, DirectlyAboveLocation, DesiredBuildLocation))
+	if (UTIL_CommanderTrace(Commander->pEdict, DirectlyAboveLocation, DesiredBuildLocation))
 	{
 		return DirectlyAboveLocation;
 	}
@@ -2111,7 +2137,7 @@ Vector UTIL_FindClearCommanderOriginForBuild(const bot_t* Commander, const Vecto
 		Vector TestLocation = UTIL_RandomPointOnCircle(DesiredBuildLocation, UTIL_MetresToGoldSrcUnits(3.0f));
 		TestLocation.z = CommanderViewZ - 8.0f;
 
-		if (UTIL_QuickTrace(Commander->pEdict, TestLocation, DesiredBuildLocation))
+		if (UTIL_CommanderTrace(Commander->pEdict, TestLocation, DesiredBuildLocation))
 		{
 			return TestLocation;
 		}

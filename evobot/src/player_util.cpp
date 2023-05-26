@@ -656,7 +656,7 @@ bool IsPlayerInUseRange(const edict_t* Player, const edict_t* Target)
 
 	float TraceDist = vDist3D(StartTrace, EndTrace);
 	
-	float MaxDist = max_player_use_reach + 5.0f;
+	float MaxDist = max_player_use_reach;
 	
 	TraceResult hit;
 

@@ -1368,7 +1368,16 @@ void StartNewBotFrame(bot_t* pBot)
 {
 	edict_t* pEdict = pBot->pEdict;
 
-	pEdict->v.flags |= FL_FAKECLIENT;
+	// NS specifically blocks fake clients from using the command console, so we need to switch off that flag if the bot is commanding
+	if (!IsPlayerCommander(pBot->pEdict) && pBot->CurrentRole != BOT_ROLE_COMMAND)
+	{
+		pEdict->v.flags |= FL_FAKECLIENT;
+	}
+	else
+	{
+		pEdict->v.flags &= ~FL_FAKECLIENT;
+	}
+	
 	pEdict->v.button = 0;
 	pBot->ForwardMove = 0.0f;
 	pBot->SideMove = 0.0f;

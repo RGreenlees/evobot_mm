@@ -790,8 +790,6 @@ bool MarineCombatThink(bot_t* pBot)
 		TrackedEnemyRef = &pBot->TrackedEnemies[pBot->CurrentEnemy];
 	}
 
-	int NavProfileIndex = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
-
 	// ENEMY IS OUT OF SIGHT
 
 	if (!TrackedEnemyRef->bCurrentlyVisible && !UTIL_QuickTrace(pEdict, pBot->CurrentEyePosition, CurrentEnemy->v.origin))
@@ -803,9 +801,10 @@ bool MarineCombatThink(bot_t* pBot)
 			float Dist = vDist2DSq(Armoury->v.origin, pEdict->v.origin);
 
 			bool bShouldHeal = (pBot->pEdict->v.health < 50.0f || (pBot->pEdict->v.health < 100.0f && Dist <= sqrf(UTIL_MetresToGoldSrcUnits(10.0f))));
+			bool bNeedsAmmo = (BotGetCurrentWeaponClipAmmo(pBot) < BotGetCurrentWeaponMaxClipAmmo(pBot) && BotGetPrimaryWeaponAmmoReserve(pBot) == 0);
 
 			// If we're out of primary ammo or badly hurt, then use opportunity to disengage and head to the nearest armoury to resupply
-			if ((BotGetCurrentWeaponClipAmmo(pBot) < BotGetCurrentWeaponMaxClipAmmo(pBot) && BotGetPrimaryWeaponAmmoReserve(pBot) == 0) || bShouldHeal)
+			if (bNeedsAmmo || bShouldHeal || bNeedsAmmo)
 			{
 				if (IsPlayerInUseRange(pBot->pEdict, Armoury))
 				{
@@ -947,7 +946,7 @@ bool MarineCombatThink(bot_t* pBot)
 
 		}
 
-		MoveTo(pBot, UTIL_GetCommChairLocation(), MOVESTYLE_NORMAL);
+		MoveTo(pBot, RetreatLocation, MOVESTYLE_NORMAL);
 
 		BotReloadWeapons(pBot);
 	}

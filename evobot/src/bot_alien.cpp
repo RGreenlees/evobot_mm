@@ -2128,8 +2128,7 @@ CombatModeAlienUpgrade AlienGetNextCombatUpgrade(bot_t* pBot)
 			}
 			else
 			{
-				//pBot->CombatUpgradeMask |= COMBAT_ALIEN_UPGRADE_ONOS;
-				pBot->CombatUpgradeMask |= COMBAT_ALIEN_UPGRADE_FADE;
+				pBot->CombatUpgradeMask |= COMBAT_ALIEN_UPGRADE_ONOS;
 			}
 		}
 	}
