@@ -781,18 +781,12 @@ bool MarineCombatThink(bot_t* pBot)
 
 	if (pBot->CurrentEnemy < 0) { return false; }
 
-	edict_t* CurrentEnemy = nullptr;
-	enemy_status* TrackedEnemyRef = nullptr;
-	
-	if (pBot->CurrentEnemy >= 0)
-	{
-		CurrentEnemy = pBot->TrackedEnemies[pBot->CurrentEnemy].EnemyEdict;
-		TrackedEnemyRef = &pBot->TrackedEnemies[pBot->CurrentEnemy];
-	}
+	edict_t* CurrentEnemy = pBot->TrackedEnemies[pBot->CurrentEnemy].EnemyEdict;
+	enemy_status* TrackedEnemyRef = &pBot->TrackedEnemies[pBot->CurrentEnemy];
 
 	// ENEMY IS OUT OF SIGHT
 
-	if (!TrackedEnemyRef->bCurrentlyVisible && !UTIL_QuickTrace(pEdict, pBot->CurrentEyePosition, CurrentEnemy->v.origin))
+	if (!TrackedEnemyRef->bHasLOS)
 	{
 		edict_t* Armoury = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ANYARMOURY, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(50.0f), true, true);
 
@@ -1149,16 +1143,14 @@ void MarineHuntEnemy(bot_t* pBot, enemy_status* TrackedEnemy)
 
 	if (FNullEnt(CurrentEnemy) || IsPlayerDead(CurrentEnemy)) { return; }
 
-	Vector LastSeenLocation = (TrackedEnemy->bIsTracked) ? TrackedEnemy->TrackedLocation : TrackedEnemy->LastSeenLocation;
-	float LastSeenTime = (TrackedEnemy->bIsTracked) ? TrackedEnemy->LastTrackedTime : TrackedEnemy->LastSeenTime;
-	float TimeSinceLastSighting = (gpGlobals->time - LastSeenTime);
+	float TimeSinceLastSighting = (gpGlobals->time - TrackedEnemy->LastSeenTime);
 
 	// If the enemy is being motion tracked, or the last seen time was within the last 5 seconds, and the suspected location is close enough, then throw a grenade!
 	if (PlayerHasWeapon(pBot->pEdict, WEAPON_MARINE_GRENADE) || ((PlayerHasWeapon(pBot->pEdict, WEAPON_MARINE_GL) && (BotGetPrimaryWeaponClipAmmo(pBot) > 0 || BotGetPrimaryWeaponAmmoReserve(pBot) > 0))))
 	{
-		if (TimeSinceLastSighting < 5.0f && vDist3DSq(pBot->pEdict->v.origin, LastSeenLocation) <= sqrf(UTIL_MetresToGoldSrcUnits(10.0f)))
+		if (TimeSinceLastSighting < 5.0f && vDist3DSq(pBot->pEdict->v.origin, TrackedEnemy->LastSeenLocation) <= sqrf(UTIL_MetresToGoldSrcUnits(10.0f)))
 		{
-			Vector GrenadeThrowLocation = UTIL_GetGrenadeThrowTarget(pBot, LastSeenLocation, UTIL_MetresToGoldSrcUnits(5.0f));
+			Vector GrenadeThrowLocation = UTIL_GetGrenadeThrowTarget(pBot, TrackedEnemy->LastSeenLocation, UTIL_MetresToGoldSrcUnits(5.0f));
 
 			if (GrenadeThrowLocation != ZERO_VECTOR)
 			{
@@ -1174,36 +1166,17 @@ void MarineHuntEnemy(bot_t* pBot, enemy_status* TrackedEnemy)
 
 	if (BotGetCurrentWeaponClipAmmo(pBot) < BotGetCurrentWeaponMaxClipAmmo(pBot) && BotGetCurrentWeaponReserveAmmo(pBot) > 0)
 	{
-		if (TrackedEnemy->bIsTracked)
-		{
-			if (vDist2DSq(pBot->pEdict->v.origin, LastSeenLocation) >= sqrf(UTIL_MetresToGoldSrcUnits(5.0f)))
-			{
-				BotReloadWeapons(pBot);
-			}
-		}
-		else
-		{
-			float ReloadTime = BotGetCurrentWeaponClipAmmo(pBot) < (BotGetCurrentWeaponMaxClipAmmo(pBot) * 0.5f) ? 2.0f : 5.0f;
-			if (gpGlobals->time - LastSeenTime >= ReloadTime)
-			{
-				BotReloadWeapons(pBot);
-			}
-		}
+		
 
 	}
 
 	int NavProfileIndex = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
 
-	if (UTIL_PointIsReachable(NavProfileIndex, pBot->pEdict->v.origin, LastSeenLocation, max_player_use_reach))
+	if (UTIL_PointIsReachable(NavProfileIndex, pBot->pEdict->v.origin, TrackedEnemy->LastSeenLocation, max_player_use_reach))
 	{
-		MoveTo(pBot, LastSeenLocation, MOVESTYLE_NORMAL);
+		MoveTo(pBot, TrackedEnemy->LastSeenLocation, MOVESTYLE_NORMAL);
 	}
 	
-	if (!TrackedEnemy->bIsTracked)
-	{
-		BotLookAt(pBot, LastSeenLocation);
-	}
-
 	return;
 }
 

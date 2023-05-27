@@ -105,11 +105,12 @@ void BotClearEnemyTrackingInfo(enemy_status* TrackingInfo);
 
 byte BotThrottledMsec(bot_t* pBot);
 
+bool IsPlayerInBotFOV(bot_t* Observer, edict_t* TargetPlayer);
+bool DoesBotHaveLOSToPlayer(bot_t* Observer, edict_t* TargetPlayer);
 bool IsPlayerVisibleToBot(bot_t* Observer, edict_t* TargetPlayer);
 
 void StartNewBotFrame(bot_t* pBot);
 int BotGetNextEnemyTarget(bot_t* pBot);
-int GorgeGetNextEnemyTarget(bot_t* pBot);
 
 void WaitGameStartThink(bot_t* pBot);
 void ReadyRoomThink(bot_t* pBot);

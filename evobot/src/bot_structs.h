@@ -206,12 +206,11 @@ typedef struct _ENEMY_STATUS
 	Vector LastSeenVelocity = ZERO_VECTOR; // Last visibly-confirmed movement direction of the player
 	Vector PendingSeenLocation = ZERO_VECTOR; // The last visibly-confirmed location of the player
 	Vector PendingSeenVelocity = ZERO_VECTOR; // Last visibly-confirmed movement direction of the player
-	Vector TrackedLocation = ZERO_VECTOR; // If tracked by parasite or motion-tracking, last pinged location of player
 	float LastSeenTime = 0.0f; // Last time the bot saw the player (not tracked)
-	float LastTrackedTime = 0.0f; // Last time the player was pinged to the bot if parasited/motion-tracked
-	bool bCurrentlyVisible = false; // Is the player directly visible to the bot
-	bool bIsValidTarget = false; // Should the bot care about this enemy player? Will be false if too far away or not seen for long enough
-	bool bIsTracked = false; // Is this enemy currently parasited or motion-tracked?
+	float LastTrackedTime = 0.0f; // Last time the bot saw the player (tracked position)
+	bool bInFOV = false; // Is the player in the bot's FOV
+	bool bHasLOS = false; // Does the bot have LOS to the target
+	bool bIsAwareOfPlayer = false; // Is the bot aware of this player's presence?
 	float NextUpdateTime = 0.0f; // When the bot can next react to a change in target's state
 	float NextVelocityUpdateTime = 0.0f; // When the bot can next react to a change in target's state
 

@@ -143,9 +143,14 @@ void ClientCommand(edict_t* pEntity)
 		RETURN_META(MRES_SUPERCEDE);
 	}
 
-	if (FStrEq(pcmd, "testflight"))
+	if (FStrEq(pcmd, "testbackpath"))
 	{
-		DEBUG_TestFlightPathFind(pEntity, UTIL_GetCommChairLocation());
+		Vector Result = DEBUG_FindClosestPointBackOnPath(pEntity);
+
+		if (Result != ZERO_VECTOR)
+		{
+			UTIL_DrawLine(pEntity, pEntity->v.origin, Result, 5.0f);
+		}
 
 		RETURN_META(MRES_SUPERCEDE);
 	}

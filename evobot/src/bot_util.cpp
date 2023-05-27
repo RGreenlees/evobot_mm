@@ -326,7 +326,7 @@ void BotTakeDamage(bot_t* pBot, int damageTaken, edict_t* aggressor)
 		pBot->TrackedEnemies[aggressorIndex].LastSeenTime = gpGlobals->time;
 
 		// If the bot can't see the enemy (bCurrentlyVisible is false) then set the last seen location to a random point in the vicinity so the bot doesn't immediately know where they are
-		if (pBot->TrackedEnemies[aggressorIndex].bCurrentlyVisible)
+		if (pBot->TrackedEnemies[aggressorIndex].bInFOV)
 		{
 			pBot->TrackedEnemies[aggressorIndex].LastSeenLocation = aggressor->v.origin;
 		}
@@ -339,7 +339,7 @@ void BotTakeDamage(bot_t* pBot, int damageTaken, edict_t* aggressor)
 		//UTIL_DrawLine(clients[0], pBot->pEdict->v.origin, pBot->TrackedEnemies[aggressorIndex].LastSeenLocation, 5.0f);
 
 		pBot->TrackedEnemies[aggressorIndex].LastSeenVelocity = aggressor->v.velocity;
-		pBot->TrackedEnemies[aggressorIndex].bIsValidTarget = true;
+		pBot->TrackedEnemies[aggressorIndex].bIsAwareOfPlayer = true;
 	}
 }
 
@@ -1247,21 +1247,29 @@ void BotUpdateView(bot_t* pBot)
 			continue;
 		}
 
-		pBot->TrackedEnemies[i].EnemyEdict = clients[i];
 		edict_t* Enemy = clients[i];
 
-		bool bBotCanSeePlayer = IsPlayerVisibleToBot(pBot, Enemy);
+		bool bInFOV = IsPlayerInBotFOV(pBot, Enemy);
+		bool bHasLOS = DoesBotHaveLOSToPlayer(pBot, Enemy);
 
 		float bot_reaction_time = (IsPlayerMarine(pBot->pEdict)) ? pBot->BotSkillSettings.marine_bot_reaction_time : pBot->BotSkillSettings.alien_bot_reaction_time;
 
-		if (bBotCanSeePlayer != TrackingInfo->bCurrentlyVisible)
+		if (bInFOV != TrackingInfo->bInFOV || bHasLOS != TrackingInfo->bHasLOS)
 		{
-			TrackingInfo->bCurrentlyVisible = bBotCanSeePlayer;
+			TrackingInfo->bInFOV = bInFOV;
+			TrackingInfo->bHasLOS = bHasLOS;
+
 			TrackingInfo->NextUpdateTime = gpGlobals->time + bot_reaction_time;
 			continue;
 		}
 
-		if (bBotCanSeePlayer)
+		bool bIsTracked = (!bHasLOS && (IsPlayerParasited(Enemy) || IsPlayerMotionTracked(Enemy)));
+
+		// If the enemy is too far away to engage, ignore them
+		float MaxRelevantDist = (bIsTracked) ? UTIL_MetresToGoldSrcUnits(15.0f) : UTIL_MetresToGoldSrcUnits(50.0f);
+		bool bIsRelevant = (vDist2DSq(pBot->pEdict->v.origin, Enemy->v.origin) <= sqrf(MaxRelevantDist));
+
+		if (bIsRelevant && bInFOV && (bHasLOS || bIsTracked))
 		{
 			Vector BotLocation = UTIL_GetCentreOfEntity(Enemy);
 			Vector BotVelocity = Enemy->v.velocity;
@@ -1277,57 +1285,63 @@ void BotUpdateView(bot_t* pBot)
 				TrackingInfo->NextVelocityUpdateTime = gpGlobals->time + bot_reaction_time;
 			}
 
-			TrackingInfo->bIsValidTarget = true;
-			TrackingInfo->bCurrentlyVisible = true;
+			TrackingInfo->bIsAwareOfPlayer = true;
 			TrackingInfo->LastSeenLocation = BotLocation;
 
-			TrackingInfo->bIsTracked = false;
-			TrackingInfo->LastSeenTime = gpGlobals->time;
-
-			continue;
-
-		}
-
-
-		TrackingInfo->bCurrentlyVisible = false;
-
-		if (IsPlayerParasited(Enemy) || IsPlayerMotionTracked(Enemy))
-		{
-			TrackingInfo->TrackedLocation = Enemy->v.origin;
-			TrackingInfo->LastSeenVelocity = Enemy->v.velocity;
-			TrackingInfo->LastTrackedTime = gpGlobals->time;
-			TrackingInfo->bIsTracked = true;
-
-		}
-		else
-		{
-			TrackingInfo->bIsTracked = false;
-		}
-
-		if (TrackingInfo->bIsTracked)
-		{
-			bool IsCloseEnoughToBeRelevant = vDist2DSq(pBot->pEdict->v.origin, TrackingInfo->TrackedLocation) < sqrf(UTIL_MetresToGoldSrcUnits(10.0f));
-			bool RecentlyTracked = (gpGlobals->time - TrackingInfo->LastTrackedTime) < 5.0f;
-			TrackingInfo->bIsValidTarget = IsCloseEnoughToBeRelevant && RecentlyTracked;
-		}
-		else
-		{
-			if (vDist2DSq(pBot->pEdict->v.origin, TrackingInfo->LastSeenLocation) < sqrf(GetPlayerRadius(pBot->pEdict)))
+			if (bHasLOS)
 			{
-				if (UTIL_QuickTrace(pBot->pEdict, pBot->CurrentEyePosition, Enemy->v.origin))
-				{
-					TrackingInfo->LastSeenLocation = Enemy->v.origin;
-					TrackingInfo->LastSeenTime = gpGlobals->time;
-				}
-				else
-				{
-					TrackingInfo->LastSeenTime = 0.0f;
-				}
+				TrackingInfo->LastSeenTime = gpGlobals->time;
 			}
-			TrackingInfo->bIsValidTarget = (gpGlobals->time - TrackingInfo->LastSeenTime) < 10.0f;
+			else
+			{
+				TrackingInfo->LastTrackedTime = gpGlobals->time;
+			}
+			
+			continue;
+		}
+
+		// If we've not been aware of the enemy's location for over 10 seconds, forget about them
+		float LastDetectedTime = fmaxf(TrackingInfo->LastSeenTime, TrackingInfo->LastTrackedTime);
+
+		if (!bIsRelevant || ((gpGlobals->time - LastDetectedTime) > 10.0f))
+		{
+			BotClearEnemyTrackingInfo(TrackingInfo);
+			continue;
 		}
 
 	}
+}
+
+bool DoesBotHaveLOSToPlayer(bot_t* Observer, edict_t* TargetPlayer)
+{
+	TraceResult hit;
+	UTIL_TraceLine(GetPlayerEyePosition(Observer->pEdict), TargetPlayer->v.origin, ignore_monsters, ignore_glass, Observer->pEdict->v.pContainingEntity, &hit);
+
+	if (hit.flFraction >= 1.0f) { return true; }
+
+	UTIL_TraceLine(GetPlayerEyePosition(Observer->pEdict), GetPlayerEyePosition(TargetPlayer), ignore_monsters, ignore_glass, Observer->pEdict->v.pContainingEntity, &hit);
+
+	if (hit.flFraction >= 1.0f) { return true; }
+
+	UTIL_TraceLine(GetPlayerEyePosition(Observer->pEdict), GetPlayerBottomOfCollisionHull(TargetPlayer) + Vector(0.0f, 0.0f, 5.0f), ignore_monsters, ignore_glass, Observer->pEdict->v.pContainingEntity, &hit);
+
+	return (hit.flFraction >= 1.0f);
+}
+
+bool IsPlayerInBotFOV(bot_t* Observer, edict_t* TargetPlayer)
+{
+	if (FNullEnt(TargetPlayer) || !IsPlayerActiveInGame(TargetPlayer)) { return false; }
+	// To make things a little more accurate, we're going to treat players as cylinders rather than boxes
+	for (int i = 0; i < 6; i++)
+	{
+		// Our cylinder must be inside all planes to be visible, otherwise return false
+		if (!UTIL_CylinderInsidePlane(&Observer->viewFrustum[i], TargetPlayer->v.origin - Vector(0, 0, 5), 60.0f, 16.0f))
+		{
+			return false;
+		}
+	}
+
+	return true;
 }
 
 // Checks to see if pBot can see player. Returns true if player is visible
@@ -1348,19 +1362,18 @@ bool IsPlayerVisibleToBot(bot_t* Observer, edict_t* TargetPlayer)
 	//       Probably should just check the head, middle and feet.
 
 	TraceResult hit;
-	UTIL_TraceLine((Observer->pEdict->v.origin + Observer->pEdict->v.view_ofs), TargetPlayer->v.origin, ignore_monsters, ignore_glass, Observer->pEdict->v.pContainingEntity, &hit);
+	UTIL_TraceLine(GetPlayerEyePosition(Observer->pEdict), TargetPlayer->v.origin, ignore_monsters, ignore_glass, Observer->pEdict->v.pContainingEntity, &hit);
 
 	return hit.flFraction >= 1.0f;
 }
 
 void BotClearEnemyTrackingInfo(enemy_status* TrackingInfo)
 {
-	TrackingInfo->bCurrentlyVisible = false;
-	TrackingInfo->bIsTracked = false;
-	TrackingInfo->TrackedLocation = ZERO_VECTOR;
+	TrackingInfo->bInFOV = false;
+	TrackingInfo->bHasLOS = false;
 	TrackingInfo->LastSeenLocation = ZERO_VECTOR;
 	TrackingInfo->LastSeenVelocity = ZERO_VECTOR;
-	TrackingInfo->bIsValidTarget = false;
+	TrackingInfo->bIsAwareOfPlayer = false;
 	TrackingInfo->LastSeenTime = 0.0f;
 }
 
@@ -1630,157 +1643,58 @@ void WaitGameStartThink(bot_t* pBot)
 
 int BotGetNextEnemyTarget(bot_t* pBot)
 {
-	if (IsPlayerGorge(pBot->pEdict))
+	int NearestVisibleEnemy = -1;
+	int NearestUnseenEnemy = -1;
+
+	float ClosestVisibleDist = 0.0f;
+	float ClosestUnseenDist = 0.0f;
+
+	for (int i = 0; i < MAX_CLIENTS; i++)
 	{
-		return GorgeGetNextEnemyTarget(pBot);
-	}
+		if (!pBot->TrackedEnemies[i].bIsAwareOfPlayer) { continue; }
 
-	int ClosestVisibleEnemy = -1;
-	float MinVisibleDist = 0.0f;
-
-	int ClosestNonVisibleEnemy = -1;
-	float MinNonVisibleDist = 0.0f;
-
-	edict_t* ClosestVisibleEnemyEdict = nullptr;
-	edict_t* ClosestNonVisibleEnemyEdict = nullptr;
-
-	for (int i = 0; i < 32; i++)
-	{
-		if (pBot->TrackedEnemies[i].bIsValidTarget)
-		{
-			float thisDist = vDist2DSq(pBot->pEdict->v.origin, pBot->TrackedEnemies[i].EnemyEdict->v.origin);
-
-			if (pBot->TrackedEnemies[i].bCurrentlyVisible)
-			{
-				if (ClosestVisibleEnemy < 0 || thisDist < MinVisibleDist)
-				{
-					ClosestVisibleEnemy = i;
-					MinVisibleDist = thisDist;
-				}
-			}
-			else
-			{
-				bool bHasLOS = UTIL_QuickTrace(pBot->pEdict, pBot->CurrentEyePosition, pBot->TrackedEnemies[i].EnemyEdict->v.origin);
-				// Don't hunt an enemy if we have something important to do
-				if (!bHasLOS && (pBot->PrimaryBotTask.bTaskIsUrgent || pBot->SecondaryBotTask.bTaskIsUrgent || pBot->WantsAndNeedsTask.bTaskIsUrgent)) { continue; }
-				if (ClosestNonVisibleEnemy < 0 || thisDist < MinNonVisibleDist)
-				{
-					ClosestNonVisibleEnemy = i;
-					MinNonVisibleDist = thisDist;
-				}
-			}
-		}
-	}
-
-	if (ClosestNonVisibleEnemy == -1 || ClosestVisibleEnemy == -1)
-	{
-		return fmaxf(ClosestNonVisibleEnemy, ClosestVisibleEnemy);
-	}
-	else
-	{
-		ClosestVisibleEnemyEdict = pBot->TrackedEnemies[ClosestVisibleEnemy].EnemyEdict;
-		ClosestNonVisibleEnemyEdict = pBot->TrackedEnemies[ClosestNonVisibleEnemy].EnemyEdict;
-
-		if (pBot->TrackedEnemies[ClosestNonVisibleEnemy].LastSeenTime > 5.0f || IsPlayerGorge(ClosestNonVisibleEnemyEdict))
-		{
-			return ClosestVisibleEnemy;
-		}
-		else
-		{
-			bool bNonVisibleEnemyHasLOS = UTIL_QuickTrace(pBot->pEdict, pBot->CurrentEyePosition, ClosestNonVisibleEnemyEdict->v.origin);
-
-			if (bNonVisibleEnemyHasLOS)
-			{
-				return (MinVisibleDist < MinNonVisibleDist) ? ClosestVisibleEnemy : ClosestNonVisibleEnemy;
-			}
-			else
-			{
-				return ClosestVisibleEnemy;
-			}
-		}
-	}
-
-	return -1;
-}
-
-int GorgeGetNextEnemyTarget(bot_t* pBot)
-{
-	int ClosestVisibleEnemy = -1;
-	float MinVisibleDist = 0.0f;
-
-	int ClosestNonVisibleEnemy = -1;
-	float MinNonVisibleDist = 0.0f;
-
-	edict_t* ClosestVisibleEnemyEdict = nullptr;
-	edict_t* ClosestNonVisibleEnemyEdict = nullptr;
-
-	for (int i = 0; i < 32; i++)
-	{
 		enemy_status* TrackingInfo = &pBot->TrackedEnemies[i];
-		if (TrackingInfo->bIsValidTarget)
+
+		float Dist = vDist2DSq(TrackingInfo->LastSeenLocation, pBot->pEdict->v.origin);
+
+		if (TrackingInfo->bHasLOS)
 		{
-			float thisDist = vDist2DSq(pBot->pEdict->v.origin, TrackingInfo->EnemyEdict->v.origin);
-
-			if (TrackingInfo->bCurrentlyVisible)
+			if (NearestVisibleEnemy < 0 || Dist < ClosestVisibleDist)
 			{
-				if (ClosestVisibleEnemy < 0 || thisDist < MinVisibleDist)
-				{
-					ClosestVisibleEnemy = i;
-					MinVisibleDist = thisDist;
-				}
+				NearestVisibleEnemy = i;
+				ClosestVisibleDist = Dist;
 			}
-			else
-			{
-				// Ignore enemies we haven't directly seen for more than 5 seconds. Stops gorges constantly freaking out if a parasited marine is nearby
-				if ((gpGlobals->time - TrackingInfo->LastSeenTime) > 5.0f) { continue; }
-
-				if (ClosestNonVisibleEnemy < 0 || thisDist < MinNonVisibleDist)
-				{
-					ClosestNonVisibleEnemy = i;
-					MinNonVisibleDist = thisDist;
-				}
-			}
-		}
-	}
-
-	if (ClosestNonVisibleEnemy == -1 || ClosestVisibleEnemy == -1)
-	{
-		return fmaxf(ClosestNonVisibleEnemy, ClosestVisibleEnemy);
-	}
-	else
-	{
-		ClosestVisibleEnemyEdict = pBot->TrackedEnemies[ClosestVisibleEnemy].EnemyEdict;
-		ClosestNonVisibleEnemyEdict = pBot->TrackedEnemies[ClosestNonVisibleEnemy].EnemyEdict;
-
-		if (pBot->TrackedEnemies[ClosestNonVisibleEnemy].LastSeenTime > 5.0f || IsPlayerGorge(ClosestNonVisibleEnemyEdict))
-		{
-			return ClosestVisibleEnemy;
 		}
 		else
 		{
-			bool bNonVisibleEnemyHasLOS = UTIL_QuickTrace(pBot->pEdict, pBot->CurrentEyePosition, ClosestNonVisibleEnemyEdict->v.origin);
-
-			if (bNonVisibleEnemyHasLOS)
+			// Ignore tracked enemies if we've not seen them in a while and we have something important to do
+			if (pBot->CurrentTask && (pBot->CurrentTask->bTaskIsUrgent || pBot->CurrentTask->bIssuedByCommander))
 			{
-				return (MinVisibleDist < MinNonVisibleDist) ? ClosestVisibleEnemy : ClosestNonVisibleEnemy;
+				if ((gpGlobals->time - TrackingInfo->LastSeenTime) > 5.0f) { continue; }
 			}
-			else
+
+			if (NearestUnseenEnemy < 0 || Dist < ClosestUnseenDist)
 			{
-				return ClosestVisibleEnemy;
+				NearestUnseenEnemy = i;
+				ClosestUnseenDist = Dist;
 			}
 		}
 	}
 
-	return -1;
+	return (NearestVisibleEnemy > -1) ? NearestVisibleEnemy : NearestUnseenEnemy;
+
 }
+
 
 void DroneThink(bot_t* pBot)
 {
 	BotUpdateAndClearTasks(pBot);
 
-	if (pBot->PrimaryBotTask.TaskType != TASK_NONE)
+	pBot->CurrentTask = BotGetNextTask(pBot);
+
+	if (pBot->CurrentTask->TaskType != TASK_NONE)
 	{
-		BotProgressTask(pBot, &pBot->PrimaryBotTask);
+		BotProgressTask(pBot, pBot->CurrentTask);
 	}
 
 	//if (pBot->BotNavInfo.PathSize > 0)
@@ -1793,7 +1707,10 @@ void CustomThink(bot_t* pBot)
 {
 	pBot->CurrentEnemy = BotGetNextEnemyTarget(pBot);
 
-	MarineCombatThink(pBot);
+	if (pBot->CurrentEnemy > -1)
+	{
+		UTIL_DrawLine(GAME_GetListenServerEdict(), pBot->CurrentEyePosition, pBot->TrackedEnemies[pBot->CurrentEnemy].LastSeenLocation);
+	}
 }
 
 void TestAimThink(bot_t* pBot)

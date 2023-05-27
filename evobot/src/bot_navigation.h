@@ -325,6 +325,8 @@ dtStatus FindDetailedPathClosestToPoint(const int NavProfileIndex, const Vector 
 // If the bot is stuck and off the path or nav mesh, this will try to find a point it can directly move towards to get it back on track
 Vector FindClosestPointBackOnPath(bot_t* pBot);
 
+Vector DEBUG_FindClosestPointBackOnPath(edict_t* Player);
+
 Vector FindClosestNavigablePointToDestination(const int NavProfileIndex, const Vector FromLocation, const Vector ToLocation, float MaxAcceptableDistance);
 
 // Will attempt to move directly towards MoveDestination while jumping/ducking as needed, and avoiding obstacles in the way

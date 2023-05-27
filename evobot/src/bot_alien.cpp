@@ -1081,11 +1081,10 @@ void SkulkCombatThink(bot_t* pBot)
 
 	if (FNullEnt(CurrentEnemy) || !TrackedEnemyRef || IsPlayerDead(CurrentEnemy)) { return; }
 
-	if (!TrackedEnemyRef->bCurrentlyVisible)
+	if (!TrackedEnemyRef->bHasLOS)
 	{
-		Vector EnemyLoc = (TrackedEnemyRef->bIsTracked) ? TrackedEnemyRef->TrackedLocation : TrackedEnemyRef->LastSeenLocation;
 
-		MoveTo(pBot, EnemyLoc, MOVESTYLE_AMBUSH);
+		MoveTo(pBot, TrackedEnemyRef->LastSeenLocation, MOVESTYLE_AMBUSH);
 
 		return;
 	}
@@ -1253,11 +1252,9 @@ void FadeCombatThink(bot_t* pBot)
 	}
 
 	// If the enemy is not visible
-	if (!TrackedEnemyRef->bCurrentlyVisible && !UTIL_QuickTrace(pEdict, pBot->CurrentEyePosition, CurrentEnemy->v.origin))
+	if (!TrackedEnemyRef->bHasLOS)
 	{
-		Vector EnemyLoc = (TrackedEnemyRef->bIsTracked) ? TrackedEnemyRef->TrackedLocation : TrackedEnemyRef->LastSeenLocation;
-
-		MoveTo(pBot, EnemyLoc, MOVESTYLE_NORMAL);
+		MoveTo(pBot, TrackedEnemyRef->LastSeenLocation, MOVESTYLE_NORMAL);
 
 		return;
 	}
@@ -1347,7 +1344,7 @@ void GorgeCombatThink(bot_t* pBot)
 
 	if (!TrackedEnemyRef || FNullEnt(CurrentEnemy) || IsPlayerDead(CurrentEnemy)) { return; }
 
-	if (TrackedEnemyRef->bCurrentlyVisible)
+	if (TrackedEnemyRef->bHasLOS)
 	{
 		BotLookAt(pBot, CurrentEnemy);
 
@@ -1623,11 +1620,9 @@ void OnosCombatThink(bot_t* pBot)
 		return;
 	}
 
-	if (!TrackedEnemyRef->bCurrentlyVisible)
+	if (!TrackedEnemyRef->bHasLOS)
 	{
-		Vector EnemyLoc = (TrackedEnemyRef->bIsTracked) ? TrackedEnemyRef->TrackedLocation : TrackedEnemyRef->LastSeenLocation;
-
-		MoveTo(pBot, EnemyLoc, MOVESTYLE_NORMAL);
+		MoveTo(pBot, TrackedEnemyRef->LastSeenLocation, MOVESTYLE_NORMAL);
 
 		return;
 	}
