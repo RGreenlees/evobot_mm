@@ -51,9 +51,6 @@ void OnosCombatThink(bot_t* pBot);
 
 int CalcNumAlienBuildersRequired();
 
-// Called when an alien levels up in combat mode
-void OnAlienLevelUp(bot_t* pBot);
-
 CombatModeAlienUpgrade AlienGetNextCombatUpgrade(bot_t* pBot);
 
 #endif

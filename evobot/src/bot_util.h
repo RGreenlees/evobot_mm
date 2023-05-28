@@ -109,6 +109,8 @@ bool IsPlayerInBotFOV(bot_t* Observer, edict_t* TargetPlayer);
 bool DoesBotHaveLOSToPlayer(bot_t* Observer, edict_t* TargetPlayer);
 bool IsPlayerVisibleToBot(bot_t* Observer, edict_t* TargetPlayer);
 
+void OnBotBeginGestation(bot_t* pBot);
+
 void StartNewBotFrame(bot_t* pBot);
 int BotGetNextEnemyTarget(bot_t* pBot);
 

@@ -111,6 +111,28 @@ void MarineCombatModeThink(bot_t* pBot)
 		}
 	}
 
+	if (GetBotAvailableCombatPoints(pBot) >= 1)
+	{
+		if (gpGlobals->time - pBot->LastCombatTime > 2.0f)
+		{
+			pBot->BotNextCombatUpgrade = (int)MarineGetNextCombatUpgrade(pBot);
+
+			if (pBot->BotNextCombatUpgrade != COMBAT_MARINE_UPGRADE_NONE)
+			{
+				int cost = GetMarineCombatUpgradeCost((CombatModeMarineUpgrade)pBot->BotNextCombatUpgrade);
+
+				if (GetBotAvailableCombatPoints(pBot) >= cost)
+				{
+					pBot->pEdict->v.impulse = GetImpulseForMarineCombatUpgrade((CombatModeMarineUpgrade)pBot->BotNextCombatUpgrade);
+					pBot->CombatUpgradeMask |= pBot->BotNextCombatUpgrade;
+					pBot->BotNextCombatUpgrade = 0;
+					return;
+				}
+
+			}
+		}
+	}
+
 	BotUpdateAndClearTasks(pBot);
 
 	if (pBot->PrimaryBotTask.TaskType == TASK_NONE || (!pBot->PrimaryBotTask.bTaskIsUrgent && !pBot->PrimaryBotTask.bIssuedByCommander))
@@ -1505,21 +1527,7 @@ BotRole MarineGetBestBotRole(const bot_t* pBot)
 
 void OnMarineLevelUp(bot_t* pBot)
 {
-	if (pBot->BotNextCombatUpgrade == COMBAT_MARINE_UPGRADE_NONE)
-	{
-		pBot->BotNextCombatUpgrade = (int)MarineGetNextCombatUpgrade(pBot);
-	}
 
-	int cost = GetMarineCombatUpgradeCost((CombatModeMarineUpgrade)pBot->BotNextCombatUpgrade);
-
-	if (pBot->NumUpgradePoints >= cost)
-	{
-		pBot->pEdict->v.impulse = GetImpulseForMarineCombatUpgrade((CombatModeMarineUpgrade)pBot->BotNextCombatUpgrade);
-		pBot->CombatUpgradeMask |= pBot->BotNextCombatUpgrade;
-		pBot->NumUpgradePoints -= cost;
-
-		pBot->BotNextCombatUpgrade = (int)MarineGetNextCombatUpgrade(pBot);
-	}
 }
 
 CombatModeMarineUpgrade MarineGetNextCombatUpgrade(bot_t* pBot)

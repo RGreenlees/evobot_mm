@@ -116,6 +116,27 @@ void AlienCombatModeThink(bot_t* pBot)
 		return;
 	}
 
+	if (GetBotAvailableCombatPoints(pBot) >= 1)
+	{
+		if ((gpGlobals->time - pBot->LastCombatTime > 5.0f) && (gpGlobals->time - pBot->LastGestateAttemptTime > 1.0f))
+		{
+			pBot->BotNextCombatUpgrade = (int)AlienGetNextCombatUpgrade(pBot);
+
+			if (pBot->BotNextCombatUpgrade != COMBAT_ALIEN_UPGRADE_NONE)
+			{
+				int cost = GetAlienCombatUpgradeCost((CombatModeAlienUpgrade)pBot->BotNextCombatUpgrade);
+
+				if (GetBotAvailableCombatPoints(pBot) >= cost)
+				{
+					pBot->pEdict->v.impulse = GetImpulseForAlienCombatUpgrade((CombatModeAlienUpgrade)pBot->BotNextCombatUpgrade);
+					pBot->LastGestateAttemptTime = gpGlobals->time;
+					return;
+				}
+
+			}
+		}
+	}
+
 	BotUpdateAndClearTasks(pBot);
 	AlienCheckCombatModeWantsAndNeeds(pBot);
 
@@ -1457,15 +1478,16 @@ void OnosCombatThink(bot_t* pBot)
 {
 	edict_t* pEdict = pBot->pEdict;
 
-	if (pBot->CurrentEnemy < 0) { return; }
-
 	edict_t* CurrentEnemy = pBot->TrackedEnemies[pBot->CurrentEnemy].EnemyEdict;
 
-	if (FNullEnt(CurrentEnemy)) { return; }
+	if (FNullEnt(CurrentEnemy) || !IsPlayerActiveInGame(CurrentEnemy)) { return; }
 
 	enemy_status* TrackedEnemyRef = &pBot->TrackedEnemies[pBot->CurrentEnemy];
 
-	bool bLowOnHealth = (GetPlayerOverallHealthPercent(pEdict) < 0.4f);
+	float MaxHealthAndArmour = pEdict->v.max_health + GetPlayerMaxArmour(pEdict);
+	float CurrentHealthAndArmour = pEdict->v.health + pEdict->v.armorvalue;
+
+	bool bLowOnHealth = (GetPlayerOverallHealthPercent(pEdict) < 0.35f);
 	bool bNeedsHealth = (GetPlayerOverallHealthPercent(pEdict) < 0.9f);
 
 	edict_t* NearestHealingSource = (bNeedsHealth) ? UTIL_AlienFindNearestHealingSpot(pBot, pEdict->v.origin) : nullptr;
@@ -1478,11 +1500,13 @@ void OnosCombatThink(bot_t* pBot)
 
 		if (bLowOnHealth)
 		{
+			bool bOutOfEnemyLOS = !UTIL_QuickTrace(pEdict, pBot->CurrentEyePosition, GetPlayerEyePosition(CurrentEnemy));
+
 			if (vDist3DSq(pEdict->v.origin, NearestHealingSource->v.origin) > sqrf(DesiredDistFromHealingSource))
 			{
 				MoveTo(pBot, UTIL_GetFloorUnderEntity(NearestHealingSource), MOVESTYLE_NORMAL, DesiredDistFromHealingSource);
 
-				if (UTIL_QuickTrace(pEdict, pBot->CurrentEyePosition, GetPlayerEyePosition(CurrentEnemy)))
+				if (!bOutOfEnemyLOS)
 				{
 					Vector EnemyTargetDir = UTIL_GetVectorNormal2D(CurrentEnemy->v.origin - pEdict->v.origin);
 
@@ -1495,27 +1519,14 @@ void OnosCombatThink(bot_t* pBot)
 						if (LOSCheck == ATTACK_SUCCESS)
 						{
 							BotShootTarget(pBot, WEAPON_ONOS_GORE, CurrentEnemy);
-							return;
 						}
-					}
-				}
-
-				if (PlayerHasWeapon(pBot->pEdict, WEAPON_ONOS_CHARGE))
-				{
-					if (GetBotCurrentWeapon(pBot) != WEAPON_ONOS_CHARGE)
-					{
-						pBot->DesiredMoveWeapon = WEAPON_ONOS_CHARGE;
-					}
-					else
-					{
-						pEdict->v.button |= IN_ATTACK2;
 					}
 				}
 
 				return;
 			}
 
-			if (UTIL_QuickTrace(pEdict, pBot->CurrentEyePosition, GetPlayerEyePosition(CurrentEnemy)))
+			if (!bOutOfEnemyLOS)
 			{
 				if (IsEdictPlayer(NearestHealingSource))
 				{
@@ -1544,82 +1555,13 @@ void OnosCombatThink(bot_t* pBot)
 			}
 			else
 			{
-				return;
+				BotGuardLocation(pBot, pBot->pEdict->v.origin);
 			}
 
 		}
-		else
-		{
-			if (vDist3DSq(pEdict->v.origin, NearestHealingSource->v.origin) < sqrf(DesiredDistFromHealingSource) && !UTIL_QuickTrace(pEdict, pBot->CurrentEyePosition, GetPlayerEyePosition(CurrentEnemy)))
-			{
-				return;
-			}
-		}
-
 	}
 
-	if (bLowOnHealth)
-	{
-		const hive_definition* NearestHive = UTIL_GetNearestHiveOfStatus(pEdict->v.origin, HIVE_STATUS_BUILT);
-
-		if (NearestHive)
-		{
-			if (vDist2DSq(pBot->pEdict->v.origin, NearestHive->FloorLocation) > sqrf(UTIL_MetresToGoldSrcUnits(10.0f)))
-			{
-				MoveTo(pBot, NearestHive->FloorLocation, MOVESTYLE_NORMAL);
-			}
-		}
-
-		if (vDist2DSq(CurrentEnemy->v.origin, pBot->pEdict->v.origin) < sqrf(UTIL_MetresToGoldSrcUnits(2.0f)))
-		{
-			Vector EnemyDir = UTIL_GetVectorNormal2D(CurrentEnemy->v.origin - pBot->pEdict->v.origin);
-			Vector DesiredMoveDir = UTIL_GetVectorNormal2D(pBot->desiredMovementDir);
-
-			bool bCanDevour = !IsPlayerDigesting(pBot->pEdict);
-
-			NSWeapon MeleeWeapon = (bCanDevour) ? WEAPON_ONOS_DEVOUR : WEAPON_ONOS_GORE;
-
-			if (UTIL_GetDotProduct2D(EnemyDir, DesiredMoveDir) > 0.75f)
-			{
-				if (GetBotCurrentWeapon(pBot) != MeleeWeapon)
-				{
-					pBot->DesiredCombatWeapon = MeleeWeapon;
-				}
-				else
-				{
-					BotShootTarget(pBot, pBot->DesiredCombatWeapon, CurrentEnemy);
-				}
-
-				return;
-			}
-		}		
-
-		if (PlayerHasWeapon(pBot->pEdict, WEAPON_ONOS_CHARGE))
-		{
-			if (GetBotCurrentWeapon(pBot) != WEAPON_ONOS_CHARGE)
-			{
-				pBot->DesiredMoveWeapon = WEAPON_ONOS_CHARGE;
-			}
-			else
-			{
-				// Only charge if it will leave us with enough energy to stomp after, otherwise Onos charges in and then can't do anything
-
-				float RequiredEnergy = (kStompEnergyCost + GetLeapCost(pBot)) - (GetPlayerEnergyRegenPerSecond(pEdict) * 0.5f); // We allow for around .5s of regen time as well
-
-				if (GetPlayerEnergy(pEdict) >= RequiredEnergy)
-				{
-					if (UTIL_PointIsDirectlyReachable(pBot->pEdict->v.origin, CurrentEnemy->v.origin))
-					{
-						pEdict->v.button |= IN_ATTACK2;
-					}
-				}
-
-			}
-		}
-
-		return;
-	}
-
+	// If the enemy is not visible
 	if (!TrackedEnemyRef->bHasLOS)
 	{
 		MoveTo(pBot, TrackedEnemyRef->LastSeenLocation, MOVESTYLE_NORMAL);
@@ -1627,20 +1569,69 @@ void OnosCombatThink(bot_t* pBot)
 		return;
 	}
 
-	BotLookAt(pBot, CurrentEnemy);
-
 	NSWeapon DesiredCombatWeapon = OnosGetBestWeaponForCombatTarget(pBot, CurrentEnemy);
 
-	pBot->DesiredCombatWeapon = DesiredCombatWeapon;
+	BotAttackResult LOSCheck = PerformAttackLOSCheck(pBot, DesiredCombatWeapon, CurrentEnemy);
 
-	if (GetBotCurrentWeapon(pBot) == DesiredCombatWeapon)
+	if (LOSCheck == ATTACK_SUCCESS)
 	{
-		BotShootTarget(pBot, pBot->DesiredCombatWeapon, CurrentEnemy);
+		BotShootTarget(pBot, DesiredCombatWeapon, CurrentEnemy);
 	}
 
-	MoveTo(pBot, CurrentEnemy->v.origin, MOVESTYLE_NORMAL);
+	if (IsMeleeWeapon(DesiredCombatWeapon))
+	{
 
-	return;
+		Vector EnemyFacing = UTIL_GetForwardVector2D(CurrentEnemy->v.angles);
+		Vector BotFacing = UTIL_GetVectorNormal2D(CurrentEnemy->v.origin - pEdict->v.origin);
+
+		float Dot = UTIL_GetDotProduct2D(EnemyFacing, BotFacing);
+
+		if (Dot < 0.0f || LOSCheck != ATTACK_SUCCESS)
+		{
+			Vector TargetLocation = UTIL_GetFloorUnderEntity(CurrentEnemy);
+			Vector BehindPlayer = TargetLocation - (UTIL_GetForwardVector2D(CurrentEnemy->v.v_angle) * 50.0f);
+
+			int NavProfileIndex = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
+
+			if (UTIL_PointIsReachable(NavProfileIndex, pBot->CurrentFloorPosition, BehindPlayer, 0.0f))
+			{
+				MoveTo(pBot, BehindPlayer, MOVESTYLE_NORMAL);
+			}
+			else
+			{
+				if (UTIL_PointIsReachable(NavProfileIndex, pBot->CurrentFloorPosition, TargetLocation, 50.0f))
+				{
+					MoveTo(pBot, TargetLocation, MOVESTYLE_NORMAL);
+				}
+			}
+		}
+
+		return;
+	}
+
+
+	float CurrentDistance = vDist2DSq(pBot->pEdict->v.origin, CurrentEnemy->v.origin);
+	float WeaponMaxDistance = sqrf(GetMaxIdealWeaponRange(DesiredCombatWeapon));
+	float MinWeaponDistance = GetMinIdealWeaponRange(DesiredCombatWeapon);
+
+	Vector EngagementLocation = pBot->BotNavInfo.TargetDestination;
+
+	float EngagementLocationDist = vDist2DSq(EngagementLocation, CurrentEnemy->v.origin);
+
+	if (!EngagementLocation || EngagementLocationDist > WeaponMaxDistance || EngagementLocationDist < MinWeaponDistance || !UTIL_QuickTrace(pBot->pEdict, EngagementLocation, CurrentEnemy->v.origin))
+	{
+		int MoveProfile = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
+		EngagementLocation = UTIL_GetRandomPointOnNavmeshInRadius(MoveProfile, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(2.0f));
+
+		if (!vEquals(EngagementLocation, ZERO_VECTOR) && EngagementLocationDist < WeaponMaxDistance || EngagementLocationDist > MinWeaponDistance && UTIL_QuickTrace(pBot->pEdict, EngagementLocation, CurrentEnemy->v.origin))
+		{
+			MoveTo(pBot, EngagementLocation, MOVESTYLE_NORMAL);
+		}
+	}
+	else
+	{
+		MoveTo(pBot, EngagementLocation, MOVESTYLE_NORMAL);
+	}
 }
 
 void AlienCheckWantsAndNeeds(bot_t* pBot)
@@ -2030,27 +2021,6 @@ BotRole AlienGetBestCombatModeRole(const bot_t* pBot)
 	}
 
 	return BOT_ROLE_DESTROYER;
-}
-
-void OnAlienLevelUp(bot_t* pBot)
-{
-	if (pBot->BotNextCombatUpgrade == COMBAT_ALIEN_UPGRADE_NONE)
-	{
-		pBot->BotNextCombatUpgrade = (int)AlienGetNextCombatUpgrade(pBot);
-	}
-
-	if (pBot->BotNextCombatUpgrade != COMBAT_ALIEN_UPGRADE_NONE)
-	{
-		int cost = GetAlienCombatUpgradeCost((CombatModeAlienUpgrade)pBot->BotNextCombatUpgrade);
-
-		if (GetBotAvailableCombatPoints(pBot) >= cost)
-		{
-			pBot->pEdict->v.impulse = GetImpulseForAlienCombatUpgrade((CombatModeAlienUpgrade)pBot->BotNextCombatUpgrade);
-			pBot->CombatUpgradeMask |= pBot->BotNextCombatUpgrade;
-			pBot->NumUpgradePoints -= cost;
-			pBot->BotNextCombatUpgrade = 0;
-		}
-	}
 }
 
 CombatModeAlienUpgrade AlienGetNextCombatUpgrade(bot_t* pBot)

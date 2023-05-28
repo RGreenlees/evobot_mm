@@ -887,6 +887,11 @@ void StartFrame(void)
 						}
 						else
 						{
+							if (!bot->bBotThinkPaused && IsPlayerGestating(bot->pEdict))
+							{
+								OnBotBeginGestation(bot);
+							}
+
 							bot->bBotThinkPaused = true;
 						}
 						// Adjust msec to command time interval

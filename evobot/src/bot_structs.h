@@ -419,6 +419,8 @@ typedef struct _BOT_T
 
 	float CommanderLastBeaconTime = 0.0f; // When the last time commander used beacon was
 
+	float LastGestateAttemptTime = 0.0f; // When the bot last attempted to gestate (either evolve or get upgrade)
+
 	// Current combat mode level
 	int CombatLevel = 1;
 	// Number of upgrade points the bot has in combat mode

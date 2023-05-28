@@ -674,21 +674,25 @@ bool IsPlayerInUseRange(const edict_t* Player, const edict_t* Target)
 
 bool PlayerHasHeavyArmour(const edict_t* Player)
 {
+	if (!IsPlayerMarine(Player)) { return false; }
 	return (Player->v.iuser4 & MASK_UPGRADE_13);
 }
 
 bool PlayerHasJetpack(edict_t* Player)
 {
+	if (!IsPlayerMarine(Player)) { return false; }
 	return (Player->v.iuser4 & MASK_UPGRADE_7);
 }
 
 bool PlayerHasEquipment(edict_t* Player)
 {
+	if (!IsPlayerMarine(Player)) { return false; }
 	return PlayerHasHeavyArmour(Player) || PlayerHasJetpack(Player);
 }
 
 bool PlayerHasSpecialWeapon(edict_t* Player)
 {
+	if (!IsPlayerMarine(Player)) { return false; }
 	return !PlayerHasWeapon(Player, WEAPON_MARINE_MG);
 }
 

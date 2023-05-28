@@ -1788,6 +1788,19 @@ void TestNavThink(bot_t* pBot)
 	}
 }
 
+void OnBotBeginGestation(bot_t* pBot)
+{
+	if (GAME_GetGameMode() == GAME_MODE_COMBAT)
+	{
+		if (pBot->BotNextCombatUpgrade > 0)
+		{
+			pBot->CombatUpgradeMask |= pBot->BotNextCombatUpgrade;
+		}
+		
+		pBot->BotNextCombatUpgrade = COMBAT_ALIEN_UPGRADE_NONE;
+	}
+}
+
 bool ShouldBotThink(const bot_t* bot)
 {
 	edict_t* pEdict = bot->pEdict;
@@ -2000,10 +2013,6 @@ void OnBotCombatLevelUp(bot_t* pBot)
 	{
 		OnMarineLevelUp(pBot);
 	}
-	else
-	{
-		OnAlienLevelUp(pBot);
-	}
 }
 
 int GetMarineCombatUpgradeCost(const CombatModeMarineUpgrade Upgrade)
@@ -2043,15 +2052,25 @@ int GetBotSpentCombatPoints(bot_t* pBot)
 	int NumUpgrades = UTIL_CountSetBitsInInteger(pBot->CombatUpgradeMask);
 	int NumSpentPoints = 0;
 
-	if (pBot->CombatUpgradeMask & COMBAT_ALIEN_UPGRADE_FADE)
+	if (IsPlayerAlien(pBot->pEdict))
 	{
-		NumUpgrades--;
+		if (pBot->CombatUpgradeMask & COMBAT_ALIEN_UPGRADE_FADE)
+		{
+			NumUpgrades--;
+		}
+
+		if (pBot->CombatUpgradeMask & COMBAT_ALIEN_UPGRADE_ONOS)
+		{
+			NumUpgrades--;
+		}
+
+		if (pBot->CombatUpgradeMask & COMBAT_ALIEN_UPGRADE_FOCUS)
+		{
+			NumSpentPoints += 2;
+			NumUpgrades--;
+		}
 	}
 
-	if (pBot->CombatUpgradeMask & COMBAT_ALIEN_UPGRADE_ONOS)
-	{
-		NumUpgrades--;
-	}
 
 	if (IsPlayerOnos(pBot->pEdict))
 	{
@@ -2074,12 +2093,6 @@ int GetBotSpentCombatPoints(bot_t* pBot)
 	}
 
 	if (PlayerHasEquipment(pBot->pEdict))
-	{
-		NumSpentPoints += 2;
-		NumUpgrades--;
-	}
-
-	if (pBot->CombatUpgradeMask & COMBAT_ALIEN_UPGRADE_FOCUS)
 	{
 		NumSpentPoints += 2;
 		NumUpgrades--;
