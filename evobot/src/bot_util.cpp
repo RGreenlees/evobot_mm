@@ -571,6 +571,148 @@ BotAttackResult PerformAttackLOSCheck(const Vector Location, const NSWeapon Weap
 	return ATTACK_SUCCESS;
 }
 
+void BotShootLocation(bot_t* pBot, NSWeapon AttackWeapon, const Vector TargetLocation)
+{
+	if (!TargetLocation) { return; }
+
+	NSWeapon CurrentWeapon = GetBotCurrentWeapon(pBot);
+
+	pBot->DesiredCombatWeapon = AttackWeapon;
+
+	if (CurrentWeapon != AttackWeapon)
+	{
+		return;
+	}
+
+	if (CurrentWeapon == WEAPON_NONE) { return; }
+
+	if (CurrentWeapon == WEAPON_SKULK_XENOCIDE)
+	{
+		if ((gpGlobals->time - pBot->current_weapon.LastFireTime) >= pBot->current_weapon.MinRefireTime)
+		{
+			pBot->pEdict->v.button |= IN_ATTACK;
+			pBot->current_weapon.LastFireTime = gpGlobals->time;
+		}
+
+		return;
+	}
+
+	// For charge and stomp, we can go through stuff so don't need to check for being blocked
+	if (CurrentWeapon == WEAPON_ONOS_CHARGE || CurrentWeapon == WEAPON_ONOS_STOMP)
+	{
+		BotLookAt(pBot, TargetLocation);
+
+		Vector DirToTarget = UTIL_GetVectorNormal2D(TargetLocation - pBot->pEdict->v.origin);
+		float DotProduct = UTIL_GetDotProduct2D(UTIL_GetForwardVector(pBot->pEdict->v.v_angle), DirToTarget);
+
+		float MinDotProduct = (CurrentWeapon == WEAPON_ONOS_STOMP) ? 0.95f : 0.75f;
+
+		if (DotProduct >= MinDotProduct)
+		{
+			if ((gpGlobals->time - pBot->current_weapon.LastFireTime) < pBot->current_weapon.MinRefireTime)
+			{
+				return;
+			}
+
+			if (CurrentWeapon == WEAPON_ONOS_CHARGE)
+			{
+				pBot->pEdict->v.button |= IN_ATTACK2;
+			}
+			else
+			{
+				pBot->pEdict->v.button |= IN_ATTACK;
+			}
+
+			pBot->current_weapon.LastFireTime = gpGlobals->time;
+		}
+
+		return;
+	}
+
+	if (IsMeleeWeapon(CurrentWeapon))
+	{
+		BotLookAt(pBot, TargetLocation);
+		if ((gpGlobals->time - pBot->current_weapon.LastFireTime) >= pBot->current_weapon.MinRefireTime)
+		{
+			pBot->pEdict->v.button |= IN_ATTACK;
+			pBot->current_weapon.LastFireTime = gpGlobals->time;
+		}
+		return;
+	}
+
+	Vector TargetAimDir = ZERO_VECTOR;
+
+	if (CurrentWeapon == WEAPON_MARINE_GL || CurrentWeapon == WEAPON_MARINE_GRENADE)
+	{
+		Vector AimLocation = TargetLocation;
+		Vector NewAimAngle = GetPitchForProjectile(pBot->CurrentEyePosition, AimLocation, 800.0f, 640.0f);
+
+		NewAimAngle = UTIL_GetVectorNormal(NewAimAngle);
+
+		AimLocation = pBot->CurrentEyePosition + (NewAimAngle * 200.0f);
+
+		BotLookAt(pBot, AimLocation);
+		TargetAimDir = UTIL_GetVectorNormal(AimLocation - pBot->CurrentEyePosition);
+	}
+	else
+	{
+		BotLookAt(pBot, TargetLocation);
+		TargetAimDir = UTIL_GetVectorNormal(TargetLocation - pBot->CurrentEyePosition);
+	}
+
+	if (WeaponCanBeReloaded(CurrentWeapon))
+	{
+		bool bShouldReload = (BotGetCurrentWeaponReserveAmmo(pBot) > 0);
+
+		if (CurrentWeapon == WEAPON_MARINE_SHOTGUN)
+		{
+			bShouldReload = bShouldReload && ((float)BotGetCurrentWeaponClipAmmo(pBot) / (float)BotGetCurrentWeaponMaxClipAmmo(pBot) < 0.5f);
+		}
+		else
+		{
+			bShouldReload = bShouldReload && BotGetCurrentWeaponClipAmmo(pBot) == 0;
+		}
+
+		if (bShouldReload)
+		{
+			if (!pBot->current_weapon.bIsReloading)
+			{
+				pBot->pEdict->v.button |= IN_RELOAD;
+				pBot->current_weapon.bIsReloading = true;
+			}
+			return;
+		}
+
+	}
+
+	if (IsBotReloading(pBot))
+	{
+		if (BotGetCurrentWeaponClipAmmo(pBot) == BotGetCurrentWeaponMaxClipAmmo(pBot) || BotGetCurrentWeaponReserveAmmo(pBot) == 0)
+		{
+			pBot->current_weapon.bIsReloading = false;
+		}
+		else
+		{
+			return;
+		}
+	}
+
+	Vector AimDir = UTIL_GetForwardVector(pBot->pEdict->v.v_angle);
+
+	float AimDot = UTIL_GetDotProduct(AimDir, TargetAimDir);
+
+	float MinAcceptableAccuracy = (CurrentWeapon == WEAPON_LERK_SPORES || CurrentWeapon == WEAPON_LERK_UMBRA) ? 0.8f : 0.9f;
+
+	if (AimDot >= MinAcceptableAccuracy)
+	{
+		if ((gpGlobals->time - pBot->current_weapon.LastFireTime) >= pBot->current_weapon.MinRefireTime)
+		{
+			pBot->pEdict->v.button |= IN_ATTACK;
+			pBot->current_weapon.LastFireTime = gpGlobals->time;
+		}
+	}
+}
+
 void BotShootTarget(bot_t* pBot, NSWeapon AttackWeapon, edict_t* Target)
 {
 	if (FNullEnt(Target) || (Target->v.deadflag != DEAD_NO)) { return; }
@@ -715,7 +857,10 @@ void BotShootTarget(bot_t* pBot, NSWeapon AttackWeapon, edict_t* Target)
 
 	float AimDot = UTIL_GetDotProduct(AimDir, TargetAimDir);
 
-	if (AimDot >= 0.90f)
+	// We can be less accurate with spores and umbra since they have AoE effects
+	float MinAcceptableAccuracy = (CurrentWeapon == WEAPON_LERK_SPORES || CurrentWeapon == WEAPON_LERK_UMBRA) ? 0.8f : 0.9f;
+
+	if (AimDot >= MinAcceptableAccuracy)
 	{
 		if ((gpGlobals->time - pBot->current_weapon.LastFireTime) >= pBot->current_weapon.MinRefireTime)
 		{
@@ -976,7 +1121,6 @@ void UTIL_ClearAllBotData(bot_t* pBot)
 
 	pBot->CombatLevel = 1;
 	pBot->CombatUpgradeMask = 0;
-	pBot->NumUpgradePoints = 0;
 
 	if (pBot->logFile)
 	{
@@ -1057,6 +1201,12 @@ void BotUpdateDesiredViewRotation(bot_t* pBot)
 {
 	// We always prioritise MoveLookLocation if it is set so the bot doesn't screw up wall climbing or ladder movement
 	Vector NewLookLocation = (!vEquals(pBot->MoveLookLocation, ZERO_VECTOR)) ? pBot->MoveLookLocation : pBot->LookTargetLocation;
+
+	// We make an exception for Lerks, they always look where they need to go when flying UNLESS they're aiming at someone/something
+	if (IsPlayerLerk(pBot->pEdict))
+	{
+		NewLookLocation = (!vEquals(pBot->LookTargetLocation, ZERO_VECTOR)) ? pBot->LookTargetLocation : pBot->MoveLookLocation;
+	}
 
 	bool bIsMoveLook = !vEquals(pBot->MoveLookLocation, ZERO_VECTOR);
 
@@ -1291,13 +1441,20 @@ void BotUpdateView(bot_t* pBot)
 			if (bHasLOS)
 			{
 				TrackingInfo->LastSeenTime = gpGlobals->time;
+				
 			}
 			else
 			{
 				TrackingInfo->LastTrackedTime = gpGlobals->time;
 			}
 			
+
 			continue;
+		}
+
+		if (bHasLOS)
+		{
+			TrackingInfo->LastLOSPosition = pBot->CurrentFloorPosition + Vector(0.0f, 0.0f, 5.0f);
 		}
 
 		// If we've not been aware of the enemy's location for over 10 seconds, forget about them
@@ -1537,13 +1694,7 @@ void RegularModeThink(bot_t* pBot)
 
 void CombatModeThink(bot_t* pBot)
 {
-	int NewLevel = GetPlayerCombatLevel(pBot->pEdict);
-
-	if (NewLevel > pBot->CombatLevel)
-	{
-		pBot->CombatLevel = NewLevel;
-		OnBotCombatLevelUp(pBot);
-	}
+	pBot->CombatLevel = GetPlayerCombatLevel(pBot->pEdict);
 
 	pBot->CurrentEnemy = BotGetNextEnemyTarget(pBot);
 
@@ -1705,12 +1856,25 @@ void DroneThink(bot_t* pBot)
 
 void CustomThink(bot_t* pBot)
 {
+	if (!IsPlayerLerk(pBot->pEdict)) { return; }
+
 	pBot->CurrentEnemy = BotGetNextEnemyTarget(pBot);
 
 	if (pBot->CurrentEnemy > -1)
 	{
-		UTIL_DrawLine(GAME_GetListenServerEdict(), pBot->CurrentEyePosition, pBot->TrackedEnemies[pBot->CurrentEnemy].LastSeenLocation);
+		AlienCombatThink(pBot);
 	}
+	else
+	{
+		edict_t* Enemy = UTIL_GetNearestPlayerOfTeamInArea(pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(100.0f), MARINE_TEAM, nullptr, CLASS_NONE);
+
+		if (!FNullEnt(Enemy))
+		{
+			MoveTo(pBot, Enemy->v.origin, MOVESTYLE_NORMAL, 100.0f);
+		}
+	}
+
+	BotDrawPath(pBot, 0.0f, false);
 }
 
 void TestAimThink(bot_t* pBot)
@@ -1790,6 +1954,7 @@ void TestNavThink(bot_t* pBot)
 
 void OnBotBeginGestation(bot_t* pBot)
 {
+	// If the game mode is combat and we previously input a request to obtain an upgrade, then confirm it was successful since we're now gestating as expected
 	if (GAME_GetGameMode() == GAME_MODE_COMBAT)
 	{
 		if (pBot->BotNextCombatUpgrade > 0)
@@ -2005,16 +2170,6 @@ void DEBUG_BotMeleeTarget(bot_t* pBot, edict_t* Target)
 	}
 }
 
-void OnBotCombatLevelUp(bot_t* pBot)
-{
-	pBot->NumUpgradePoints++;
-
-	if (IsPlayerMarine(pBot->pEdict))
-	{
-		OnMarineLevelUp(pBot);
-	}
-}
-
 int GetMarineCombatUpgradeCost(const CombatModeMarineUpgrade Upgrade)
 {
 	switch (Upgrade)
@@ -2049,9 +2204,12 @@ int GetAlienCombatUpgradeCost(const CombatModeAlienUpgrade Upgrade)
 
 int GetBotSpentCombatPoints(bot_t* pBot)
 {
+	// First count all the upgrades the bot has so far
 	int NumUpgrades = UTIL_CountSetBitsInInteger(pBot->CombatUpgradeMask);
 	int NumSpentPoints = 0;
 
+	// Remove any flags for fade or onos as these are hacks to indicate what they WANT to evolve to, not necessarily what they HAVE evolved to
+	// Also, focus uses 2 points so take into consideration
 	if (IsPlayerAlien(pBot->pEdict))
 	{
 		if (pBot->CombatUpgradeMask & COMBAT_ALIEN_UPGRADE_FADE)
@@ -2071,7 +2229,7 @@ int GetBotSpentCombatPoints(bot_t* pBot)
 		}
 	}
 
-
+	// Now remove points based on if they've already evolved. Onos requires 4 points, so if they are Onos then they must have spent 4 points etc.
 	if (IsPlayerOnos(pBot->pEdict))
 	{
 		NumSpentPoints += 4;
@@ -2092,14 +2250,17 @@ int GetBotSpentCombatPoints(bot_t* pBot)
 		NumSpentPoints += 1;
 	}
 
+	// Same goes for if the bot is a marine player and has jetpack or heavy armour
 	if (PlayerHasEquipment(pBot->pEdict))
 	{
 		NumSpentPoints += 2;
 		NumUpgrades--;
 	}
 
+	// All other upgrades cost 1 point, so whatever remaining upgrades they have must all have cost one point each
 	NumSpentPoints += NumUpgrades;
 
+	// Return the total amount of points they've spent!
 	return NumSpentPoints;
 }
 

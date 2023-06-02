@@ -305,10 +305,6 @@ void MoveDirectlyTo(bot_t* pBot, const Vector Destination);
 // Check if there are any players in our way and try to move around them. If we can't, then back up to let them through
 void HandlePlayerAvoidance(bot_t* pBot, const Vector MoveDestination);
 
-// Finds a path between two supplied points, using the supplied nav profile. Will return a failure if it can't reach the exact given location, and bAllowPartial is false.
-// If bAllowPartial is true, it will return success and provide the partial path that got it as close as possible to the destination
-dtStatus FindPathToPoint(const int NavProfileIndex, const Vector FromLocation, const Vector ToLocation, bot_path_node* path, int* pathSize, bool bAllowPartial);
-
 // Special path finding that takes the presence of phase gates into account 
 dtStatus FindPhaseGatePathToPoint(const int NavProfileIndex, Vector FromLocation, Vector ToLocation, bot_path_node* path, int* pathSize, float MaxAcceptableDistance);
 

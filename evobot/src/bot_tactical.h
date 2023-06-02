@@ -373,4 +373,6 @@ int UTIL_StructureTypeToImpulseCommand(const NSStructureType StructureType);
 
 bool UTIL_IsThereACommander();
 
+bool UTIL_IsAreaAffectedBySpores(const Vector Location);
+
 #endif

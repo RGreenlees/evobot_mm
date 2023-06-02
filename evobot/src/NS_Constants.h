@@ -180,33 +180,35 @@ const float kHiveHealRadius = 500.0f;
 #define kFadeEvolutionCost 50
 #define kOnosEvolutionCost 75
 
-#define kBiteEnergyCost 0.05 // Skulk bite cost
-#define kParasiteEnergyCost 0.30
-#define kLeapEnergyCost 0.25
-#define kDivineWindEnergyCost 0.70
+#define kBiteEnergyCost 0.05f // Skulk bite cost
+#define kParasiteEnergyCost 0.30f
+#define kLeapEnergyCost 0.25f
+#define kDivineWindEnergyCost 0.70f
 
-#define kSpitEnergyCost 0.12
-#define kHealingSprayEnergyCost 0.15
-#define kBileBombEnergyCost 0.22
-#define kWebEnergyCost 0.18
+#define kSpitEnergyCost 0.12f
+#define kHealingSprayEnergyCost 0.15f
+#define kBileBombEnergyCost 0.22f
+#define kWebEnergyCost 0.18f
 
-#define kBite2EnergyCost 0.05 // Lerk bite cost
-#define kSporesEnergyCost 0.35
-#define kUmbraEnergyCost 0.30
-#define kPrimalScreamEnergyCost 0.45
+#define kBite2EnergyCost 0.05f // Lerk bite cost
+#define kSporesEnergyCost 0.35f
+#define kUmbraEnergyCost 0.30f
+#define kPrimalScreamEnergyCost 0.45f
 
-#define kSwipeEnergyCost 0.06 // Fade swipe cost
-#define kBlinkEnergyCost 0.04
-#define kMetabolizeEnergyCost 0.25
-#define kAcidRocketEnergyCost 0.10
+#define kSwipeEnergyCost 0.06f // Fade swipe cost
+#define kBlinkEnergyCost 0.04f
+#define kMetabolizeEnergyCost 0.25f
+#define kAcidRocketEnergyCost 0.10f
 
-#define kClawsEnergyCost 0.07 // Onos gore cost
-#define kDevourEnergyCost 0.20
-#define kStompEnergyCost 0.30
-#define kChargeEnergyCost 0.15
+#define kClawsEnergyCost 0.07f // Onos gore cost
+#define kDevourEnergyCost 0.20f
+#define kStompEnergyCost 0.30f
+#define kChargeEnergyCost 0.15f
 
-#define kAlienEnergyRate 0.08 // How much energy is regenerated per second (max 1.0). 12.5 seconds to regen from empty
-#define kAdrenalineEnergyPercentPerLevel 0.33 // How much faster energy regens with adrenaline. That's an extra 33% faster per level for 2x speed regen at level 3
+#define kAlienEnergyRate 0.08f // How much energy is regenerated per second (max 1.0). 12.5 seconds to regen from empty
+#define kAdrenalineEnergyPercentPerLevel 0.33f // How much faster energy regens with adrenaline. That's an extra 33% faster per level for 2x speed regen at level 3
+
+#define kSporeCloudRadius 225.0f
 
 // Game Status Constants
 const int		kGameStatusReset = 0;

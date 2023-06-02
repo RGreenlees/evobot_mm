@@ -93,15 +93,16 @@ void ClientCommand(edict_t* pEntity)
 		RETURN_META(MRES_SUPERCEDE);
 	}
 
-	if (FStrEq(pcmd, "cloakstatus"))
+	if (FStrEq(pcmd, "testflightpath"))
 	{
-		if ((pEntity->v.iuser4 & MASK_VIS_SIGHTED))
+		bot_path_node FlightPath[MAX_PATH_SIZE];
+		int FlightPathSize = 0;
+
+		dtStatus FlightPathStatus = FindFlightPathToPoint(SKULK_REGULAR_NAV_PROFILE, pEntity->v.origin, UTIL_GetCommChairLocation(), FlightPath, &FlightPathSize, 100.0f);
+
+		if (dtStatusSucceed(FlightPathStatus))
 		{
-			UTIL_SayText("False\n", pEntity);
-		}
-		else
-		{
-			UTIL_SayText("True\n", pEntity);
+			DEBUG_DrawPath(FlightPath, FlightPathSize, 10.0f);
 		}
 
 		RETURN_META(MRES_SUPERCEDE);

@@ -46,6 +46,7 @@ void AlienDestroyerSetSecondaryTask(bot_t* pBot, bot_task* Task);
 void AlienCombatThink(bot_t* pBot);
 void SkulkCombatThink(bot_t* pBot);
 void GorgeCombatThink(bot_t* pBot);
+void LerkCombatThink(bot_t* pBot);
 void FadeCombatThink(bot_t* pBot);
 void OnosCombatThink(bot_t* pBot);
 

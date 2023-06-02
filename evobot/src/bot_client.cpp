@@ -93,7 +93,15 @@ void BotClient_Valve_WeaponList(void* p, int bot_index)
 		{
 			bot_weapon.MinRefireTime = 0.5f;
 		}
+		else if (!strcmp(bot_weapon.szClassname, "weapon_umbra"))
+		{
+			bot_weapon.MinRefireTime = 0.5f;
+		}
 		else if (!strcmp(bot_weapon.szClassname, "weapon_stomp"))
+		{
+			bot_weapon.MinRefireTime = 1.0f;
+		}
+		else if (!strcmp(bot_weapon.szClassname, "weapon_spore"))
 		{
 			bot_weapon.MinRefireTime = 1.0f;
 		}

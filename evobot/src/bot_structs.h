@@ -206,6 +206,7 @@ typedef struct _ENEMY_STATUS
 	Vector LastSeenVelocity = ZERO_VECTOR; // Last visibly-confirmed movement direction of the player
 	Vector PendingSeenLocation = ZERO_VECTOR; // The last visibly-confirmed location of the player
 	Vector PendingSeenVelocity = ZERO_VECTOR; // Last visibly-confirmed movement direction of the player
+	Vector LastLOSPosition = ZERO_VECTOR; // The last position where the bot has LOS to the enemy
 	float LastSeenTime = 0.0f; // Last time the bot saw the player (not tracked)
 	float LastTrackedTime = 0.0f; // Last time the bot saw the player (tracked position)
 	bool bInFOV = false; // Is the player in the bot's FOV
@@ -423,8 +424,6 @@ typedef struct _BOT_T
 
 	// Current combat mode level
 	int CombatLevel = 1;
-	// Number of upgrade points the bot has in combat mode
-	int NumUpgradePoints = 0;
 	// Which upgrades the bot has already chosen in combat mode
 	int CombatUpgradeMask = 0;
 	// Which combat mode upgrade does the bot want to get next? Will save if necessary for it

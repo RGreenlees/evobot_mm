@@ -52,10 +52,7 @@ void BotReceiveAttackOrder(bot_t* pBot, AvHUser3 TargetType, Vector destination)
 void BotReceiveGuardOrder(bot_t* pBot, AvHUser3 TargetType, Vector destination);
 void BotReceiveWeldOrder(bot_t* pBot, AvHUser3 TargetType, Vector destination);
 
-// Called when a marine levels up in combat mode
-void OnMarineLevelUp(bot_t* pBot);
-
-// Sets the bot's next desired combat upgrade to save for
+// Sets the bot's next desired combat upgrade to get / save for
 CombatModeMarineUpgrade MarineGetNextCombatUpgrade(bot_t* pBot);
 
 #endif

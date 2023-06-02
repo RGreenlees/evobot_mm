@@ -94,6 +94,7 @@ void AlienCombatThink(bot_t* pBot)
 				GorgeCombatThink(pBot);
 				return;
 			case CLASS_LERK:
+				LerkCombatThink(pBot);
 				return;
 			case CLASS_FADE:
 				FadeCombatThink(pBot);
@@ -126,6 +127,8 @@ void AlienCombatModeThink(bot_t* pBot)
 			{
 				int cost = GetAlienCombatUpgradeCost((CombatModeAlienUpgrade)pBot->BotNextCombatUpgrade);
 
+				// Aliens aren't guaranteed to get their requested upgrade due to limitations on when/where they can gestate
+				// See OnBotBeginGestation() for where this check is performed and the upgrade confirmed
 				if (GetBotAvailableCombatPoints(pBot) >= cost)
 				{
 					pBot->pEdict->v.impulse = GetImpulseForAlienCombatUpgrade((CombatModeAlienUpgrade)pBot->BotNextCombatUpgrade);
@@ -1474,7 +1477,7 @@ void GorgeCombatThink(bot_t* pBot)
 	}
 }
 
-void OnosCombatThink(bot_t* pBot)
+void LerkCombatThink(bot_t* pBot)
 {
 	edict_t* pEdict = pBot->pEdict;
 
@@ -1484,8 +1487,264 @@ void OnosCombatThink(bot_t* pBot)
 
 	enemy_status* TrackedEnemyRef = &pBot->TrackedEnemies[pBot->CurrentEnemy];
 
-	float MaxHealthAndArmour = pEdict->v.max_health + GetPlayerMaxArmour(pEdict);
-	float CurrentHealthAndArmour = pEdict->v.health + pEdict->v.armorvalue;
+	float HealthPercent = GetPlayerOverallHealthPercent(pEdict);
+
+	bool bLowOnHealth = (HealthPercent < 0.5f);
+	bool bNeedsHealth = (HealthPercent < 0.9f);
+
+	edict_t* NearestHealingSource = (bNeedsHealth) ? UTIL_AlienFindNearestHealingSpot(pBot, pEdict->v.origin) : nullptr;
+
+	// Run away if low on health
+	if ((bLowOnHealth || bNeedsHealth) && !FNullEnt(NearestHealingSource))
+	{
+		// TODO: Attack enemy if they're in trouble
+		float DesiredDistFromHealingSource = (IsEdictPlayer(NearestHealingSource)) ? UTIL_MetresToGoldSrcUnits(2.0f) : UTIL_MetresToGoldSrcUnits(5.0f);
+
+
+		if (bLowOnHealth)
+		{
+			if (!TrackedEnemyRef->bHasLOS)
+			{
+				UTIL_DrawLine(GAME_GetListenServerEdict(), pBot->pEdict->v.origin, TrackedEnemyRef->LastLOSPosition);
+				if (!UTIL_IsAreaAffectedBySpores(TrackedEnemyRef->LastLOSPosition))
+				{
+					if (UTIL_QuickTrace(pEdict, pBot->CurrentEyePosition, TrackedEnemyRef->LastLOSPosition))
+					{
+						pBot->DesiredCombatWeapon = WEAPON_LERK_SPORES;
+
+						if (GetBotCurrentWeapon(pBot) == WEAPON_LERK_SPORES)
+						{
+							if ((gpGlobals->time - pBot->current_weapon.LastFireTime) >= pBot->current_weapon.MinRefireTime)
+							{
+								BotDirectLookAt(pBot, TrackedEnemyRef->LastLOSPosition);
+								BotShootTarget(pBot, WEAPON_LERK_SPORES, CurrentEnemy);
+								return;
+							}
+						}
+					}
+				}
+			}
+
+			bool bOutOfEnemyLOS = !UTIL_QuickTrace(pEdict, pBot->CurrentEyePosition, GetPlayerEyePosition(CurrentEnemy));
+
+			if (vDist3DSq(pEdict->v.origin, NearestHealingSource->v.origin) > sqrf(DesiredDistFromHealingSource))
+			{
+				MoveTo(pBot, UTIL_GetFloorUnderEntity(NearestHealingSource), MOVESTYLE_NORMAL, DesiredDistFromHealingSource);
+
+				if (!bOutOfEnemyLOS)
+				{
+					Vector EnemyTargetDir = UTIL_GetVectorNormal2D(CurrentEnemy->v.origin - pEdict->v.origin);
+
+					float Dot = UTIL_GetDotProduct2D(pBot->desiredMovementDir, EnemyTargetDir);
+
+					if (Dot > 0.7f)
+					{
+						BotAttackResult LOSCheck = PerformAttackLOSCheck(pBot, WEAPON_LERK_BITE, CurrentEnemy);
+
+						if (LOSCheck == ATTACK_SUCCESS)
+						{
+							BotDirectLookAt(pBot, UTIL_GetCentreOfEntity(CurrentEnemy));
+							BotShootTarget(pBot, WEAPON_LERK_BITE, CurrentEnemy);
+						}
+					}
+				}
+
+				return;
+			}
+
+			if (!bOutOfEnemyLOS)
+			{
+				if (IsEdictPlayer(NearestHealingSource))
+				{
+					const hive_definition* Hive = UTIL_GetNearestBuiltHiveToLocation(pEdict->v.origin);
+
+					if (Hive && vDist3DSq(pEdict->v.origin, Hive->FloorLocation) > sqrf(UTIL_MetresToGoldSrcUnits(5.0f)))
+					{
+						MoveTo(pBot, UTIL_GetFloorUnderEntity(NearestHealingSource), MOVESTYLE_NORMAL, UTIL_MetresToGoldSrcUnits(5.0f));
+						return;
+					}
+				}
+
+				Vector CurrentHealSpot = pBot->BotNavInfo.ActualMoveDestination;
+
+				if (!CurrentHealSpot || UTIL_QuickTrace(pEdict, CurrentHealSpot + Vector(0.0f, 0.0f, 32.0f), GetPlayerEyePosition(CurrentEnemy)))
+				{
+					int BotMoveProfile = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
+					CurrentHealSpot = UTIL_GetRandomPointOnNavmeshInRadius(BotMoveProfile, pBot->CurrentFloorPosition, UTIL_MetresToGoldSrcUnits(5.0f));
+
+					if (CurrentHealSpot != ZERO_VECTOR && vDist2DSq(CurrentHealSpot, NearestHealingSource->v.origin) < DesiredDistFromHealingSource && !UTIL_QuickTrace(pEdict, CurrentHealSpot + Vector(0.0f, 0.0f, 32.0f), GetPlayerEyePosition(CurrentEnemy)))
+					{
+						MoveTo(pBot, CurrentHealSpot, MOVESTYLE_NORMAL);
+						return;
+					}
+				}
+			}
+			else
+			{
+				BotGuardLocation(pBot, pBot->pEdict->v.origin);
+				return;
+			}
+		}
+
+		if (bNeedsHealth && !TrackedEnemyRef->bHasLOS && vDist2DSq(pEdict->v.origin, NearestHealingSource->v.origin) <= DesiredDistFromHealingSource)
+		{
+			BotGuardLocation(pBot, pBot->pEdict->v.origin);
+			return;
+		}
+
+	}
+
+	// If the enemy is not visible
+	if (!TrackedEnemyRef->bHasLOS)
+	{
+		int NumFriends = UTIL_GetNumPlayersOfTeamInArea(TrackedEnemyRef->LastSeenLocation, UTIL_MetresToGoldSrcUnits(5.0f), MARINE_TEAM, TrackedEnemyRef->EnemyEdict, CLASS_NONE, false);
+
+		bool EnemyIsSpored = UTIL_IsAreaAffectedBySpores(TrackedEnemyRef->LastSeenLocation);
+
+		if (!EnemyIsSpored)
+		{
+			MoveTo(pBot, TrackedEnemyRef->LastSeenLocation, MOVESTYLE_NORMAL);
+		}
+		else
+		{
+			BotGuardLocation(pBot, pBot->pEdict->v.origin);
+		}
+
+		return;
+	}
+
+	int NumFriends = UTIL_GetNumPlayersOfTeamInArea(TrackedEnemyRef->LastSeenLocation, UTIL_MetresToGoldSrcUnits(5.0f), MARINE_TEAM, TrackedEnemyRef->EnemyEdict, CLASS_NONE, false);
+
+	if (NumFriends > 1 || HealthPercent < GetPlayerOverallHealthPercent(CurrentEnemy))
+	{
+		pBot->DesiredCombatWeapon = WEAPON_LERK_SPORES;
+
+		if (GetBotCurrentWeapon(pBot) == WEAPON_LERK_SPORES && (gpGlobals->time - pBot->current_weapon.LastFireTime >= pBot->current_weapon.MinRefireTime) && !UTIL_IsAreaAffectedBySpores(TrackedEnemyRef->LastSeenLocation))
+		{			
+			BotDirectLookAt(pBot, TrackedEnemyRef->LastSeenLocation);
+			pBot->pEdict->v.button |= IN_ATTACK;
+			pBot->current_weapon.LastFireTime = gpGlobals->time;
+			return;
+		}
+		else
+		{
+			int MoveProfile = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_HIDE);
+
+			Vector EscapeLocation = pBot->BotNavInfo.TargetDestination;
+
+			if (!EscapeLocation || UTIL_QuickTrace(pBot->pEdict, (TrackedEnemyRef->LastSeenLocation + TrackedEnemyRef->EnemyEdict->v.view_ofs), (EscapeLocation + Vector(0.0f, 0.0f, 5.0f))))
+			{
+				Vector EnemyDir = UTIL_GetVectorNormal2D(TrackedEnemyRef->LastSeenLocation - pEdict->v.origin);
+
+				Vector SearchLocation = pEdict->v.origin - (EnemyDir * UTIL_MetresToGoldSrcUnits(20.0f));
+
+				Vector NewMove = UTIL_GetRandomPointOnNavmeshInRadius(MoveProfile, SearchLocation, UTIL_MetresToGoldSrcUnits(10.0f));
+
+				if (!NewMove)
+				{
+					NewMove = UTIL_GetRandomPointOnNavmeshInRadius(MoveProfile, SearchLocation, UTIL_MetresToGoldSrcUnits(30.0f));
+				}
+
+
+				EscapeLocation = UTIL_GetRandomPointOnNavmeshInRadius(MoveProfile, NewMove, UTIL_MetresToGoldSrcUnits(10.0f));
+			}
+
+
+			MoveTo(pBot, EscapeLocation, MOVESTYLE_HIDE);
+
+			return;
+		}
+	}
+
+	NSWeapon DesiredCombatWeapon = WEAPON_LERK_BITE;
+
+	if (!UTIL_IsAreaAffectedBySpores(TrackedEnemyRef->LastSeenLocation))
+	{
+		DesiredCombatWeapon = WEAPON_LERK_SPORES;
+	}
+
+	BotAttackResult LOSCheck = PerformAttackLOSCheck(pBot, DesiredCombatWeapon, CurrentEnemy);
+
+	if (LOSCheck == ATTACK_SUCCESS)
+	{
+		pBot->DesiredCombatWeapon = DesiredCombatWeapon;
+
+		if (GetBotCurrentWeapon(pBot) == DesiredCombatWeapon)
+		{
+			if ((gpGlobals->time - pBot->current_weapon.LastFireTime) >= pBot->current_weapon.MinRefireTime)
+			{
+				BotDirectLookAt(pBot, TrackedEnemyRef->LastSeenLocation);
+				BotShootTarget(pBot, DesiredCombatWeapon, CurrentEnemy);
+				return;
+			}
+		}		
+	}
+
+	if (IsMeleeWeapon(DesiredCombatWeapon))
+	{
+		Vector EnemyFacing = UTIL_GetForwardVector2D(CurrentEnemy->v.angles);
+		Vector BotFacing = UTIL_GetVectorNormal2D(CurrentEnemy->v.origin - pEdict->v.origin);
+
+		float Dot = UTIL_GetDotProduct2D(EnemyFacing, BotFacing);
+
+		if (Dot < 0.0f || LOSCheck != ATTACK_SUCCESS)
+		{
+			Vector TargetLocation = UTIL_GetFloorUnderEntity(CurrentEnemy);
+			Vector BehindPlayer = TargetLocation - (UTIL_GetForwardVector2D(CurrentEnemy->v.v_angle) * 50.0f);
+
+			int NavProfileIndex = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
+
+			if (UTIL_PointIsReachable(NavProfileIndex, pBot->CurrentFloorPosition, BehindPlayer, 0.0f))
+			{
+				MoveTo(pBot, BehindPlayer, MOVESTYLE_NORMAL);
+			}
+			else
+			{
+				if (UTIL_PointIsReachable(NavProfileIndex, pBot->CurrentFloorPosition, TargetLocation, 50.0f))
+				{
+					MoveTo(pBot, TargetLocation, MOVESTYLE_NORMAL);
+				}
+			}
+		}
+
+		return;
+	}
+
+
+	float CurrentDistance = vDist2DSq(pBot->pEdict->v.origin, CurrentEnemy->v.origin);
+	float WeaponMaxDistance = sqrf(GetMaxIdealWeaponRange(DesiredCombatWeapon));
+	float MinWeaponDistance = GetMinIdealWeaponRange(DesiredCombatWeapon);
+
+	Vector EngagementLocation = pBot->BotNavInfo.TargetDestination;
+
+	float EngagementLocationDist = vDist2DSq(EngagementLocation, CurrentEnemy->v.origin);
+
+	if (!EngagementLocation || EngagementLocationDist > WeaponMaxDistance || EngagementLocationDist < MinWeaponDistance || !UTIL_QuickTrace(pBot->pEdict, EngagementLocation, CurrentEnemy->v.origin))
+	{
+		int MoveProfile = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
+		EngagementLocation = UTIL_GetRandomPointOnNavmeshInRadius(MoveProfile, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(2.0f));
+
+		if (!vEquals(EngagementLocation, ZERO_VECTOR) && EngagementLocationDist < WeaponMaxDistance || EngagementLocationDist > MinWeaponDistance && UTIL_QuickTrace(pBot->pEdict, EngagementLocation, CurrentEnemy->v.origin))
+		{
+			MoveTo(pBot, EngagementLocation, MOVESTYLE_NORMAL);
+		}
+	}
+	else
+	{
+		MoveTo(pBot, EngagementLocation, MOVESTYLE_NORMAL);
+	}
+
+}
+
+void OnosCombatThink(bot_t* pBot)
+{
+	edict_t* pEdict = pBot->pEdict;
+
+	edict_t* CurrentEnemy = pBot->TrackedEnemies[pBot->CurrentEnemy].EnemyEdict;
+
+	if (FNullEnt(CurrentEnemy) || !IsPlayerActiveInGame(CurrentEnemy)) { return; }
+
+	enemy_status* TrackedEnemyRef = &pBot->TrackedEnemies[pBot->CurrentEnemy];
 
 	bool bLowOnHealth = (GetPlayerOverallHealthPercent(pEdict) < 0.35f);
 	bool bNeedsHealth = (GetPlayerOverallHealthPercent(pEdict) < 0.9f);

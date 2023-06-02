@@ -111,6 +111,7 @@ void MarineCombatModeThink(bot_t* pBot)
 		}
 	}
 
+	// If the bot has points to spend
 	if (GetBotAvailableCombatPoints(pBot) >= 1)
 	{
 		if (gpGlobals->time - pBot->LastCombatTime > 2.0f)
@@ -121,6 +122,7 @@ void MarineCombatModeThink(bot_t* pBot)
 			{
 				int cost = GetMarineCombatUpgradeCost((CombatModeMarineUpgrade)pBot->BotNextCombatUpgrade);
 
+				// Marines are guaranteed to get their upgrade since they don't gestate, so send the input and assume it was successful
 				if (GetBotAvailableCombatPoints(pBot) >= cost)
 				{
 					pBot->pEdict->v.impulse = GetImpulseForMarineCombatUpgrade((CombatModeMarineUpgrade)pBot->BotNextCombatUpgrade);
@@ -1523,11 +1525,6 @@ BotRole MarineGetBestBotRole(const bot_t* pBot)
 	}
 
 	return BOT_ROLE_ASSAULT;
-}
-
-void OnMarineLevelUp(bot_t* pBot)
-{
-
 }
 
 CombatModeMarineUpgrade MarineGetNextCombatUpgrade(bot_t* pBot)

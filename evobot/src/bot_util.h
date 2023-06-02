@@ -60,6 +60,7 @@ void BotJump(bot_t* pBot);
 
 // Bot will perform LOS checks and return true if it successfully attacked the target
 void BotShootTarget(bot_t* pBot, NSWeapon AttackWeapon, edict_t* Target);
+void BotShootLocation(bot_t* pBot, NSWeapon AttackWeapon, const Vector TargetLocation);
 
 void BotAttackTarget(bot_t* pBot, edict_t* Target);
 
@@ -132,27 +133,34 @@ void TestAimThink(bot_t* pBot);
 void DroneThink(bot_t* pBot);
 void CustomThink(bot_t* pBot);
 
+// Returns false if the bot is spectating, dead, gestating or being digested
 bool ShouldBotThink(const bot_t* bot);
+// Called whenever the bot respawns, finishes gestation or is rescued from digestion
 void BotRestartPlay(bot_t* pBot);
 
+// Simulates a fake client inputting a console command
 void FakeClientCommand(edict_t* pBot, const char* arg1, const char* arg2, const char* arg3);
+// Simulates the bot inputting the command to switch to a given weapon
 void BotSwitchToWeapon(bot_t* pBot, NSWeapon NewWeaponSlot);
 
 // Test the bot melee system
 void DEBUG_BotMeleeTarget(bot_t* pBot, edict_t* Target);
 
-// Called when the bot levels up in Combat mode
-void OnBotCombatLevelUp(bot_t* pBot);
-// How many points has the bot spent on stuff?
+// How many points has the bot spent on stuff in combat mode?
 int GetBotSpentCombatPoints(bot_t* pBot);
-// How many points does the bot have right now to spent?
+// How many points does the bot have right now to spend?
 int GetBotAvailableCombatPoints(bot_t* pBot);
 
+// Returns the cost in points for the chosen marine combat mode upgrade
 int GetMarineCombatUpgradeCost(const CombatModeMarineUpgrade Upgrade);
+// Returns the cost in points for the chosen alien combat mode upgrade
 int GetAlienCombatUpgradeCost(const CombatModeAlienUpgrade Upgrade);
+// What impulse the bot needs to input to "buy" the chosen marine upgrade in combat mode
 int GetImpulseForMarineCombatUpgrade(const CombatModeMarineUpgrade Upgrade);
+// What impulse the bot needs to input to "buy" the chosen alien upgrade in combat mode
 int GetImpulseForAlienCombatUpgrade(const CombatModeAlienUpgrade Upgrade);
 
+// If the observer is spectating a bot, it will return the bot reference (or nullptr if not spectating a bot)
 bot_t* UTIL_GetSpectatedBot(const edict_t* Observer);
 
 #endif

@@ -45,7 +45,9 @@ void ClientPrint(edict_t* pEntity, int msg_dest, const char* msg_name);
 
 // Performs a simple line trace between start and end, ignoring monsters and glass. Returns true if the trace does NOT hit anything.
 bool UTIL_QuickTrace(const edict_t* pEdict, const Vector& start, const Vector& end);
+// Performs a simple hull trace between start and end, ignoring monsters and using the requested hull index. Returns true if the trace does NOT hit anything.
 bool UTIL_QuickHullTrace(const edict_t* pEdict, const Vector& start, const Vector& end, int hullNum);
+// Performs a simple hull trace between start and end, ignoring monsters and using the visibility hull index. Returns true if the trace does NOT hit anything.
 bool UTIL_QuickHullTrace(const edict_t* pEdict, const Vector& start, const Vector& end);
 // Same as quick trace, but allows fAllSolid (since commander can place structures through walls)
 bool UTIL_CommanderTrace(const edict_t* pEdict, const Vector& start, const Vector& end);

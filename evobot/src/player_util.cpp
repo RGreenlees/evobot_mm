@@ -281,6 +281,7 @@ int GetPlayerCombatExperience(const edict_t* Player)
 
 int GetPlayerCombatLevel(const edict_t* Player)
 {
+	// This is taken from the NS source, so should be fully accurate
 	int thePlayerLevel = 1;
 
 	int theCombatBaseExperience = 100;

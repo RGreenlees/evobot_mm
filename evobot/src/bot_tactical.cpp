@@ -4481,3 +4481,17 @@ bool UTIL_IsDroppedItemStillReachable(bot_t* pBot, const edict_t* Item)
 
 	return MarineDroppedItemMap[Index].bIsReachableMarine;
 }
+
+bool UTIL_IsAreaAffectedBySpores(const Vector Location)
+{
+	edict_t* sporeEntity = NULL;
+	while ((sporeEntity = UTIL_FindEntityInSphere(sporeEntity, Location, kSporeCloudRadius)) != NULL)
+	{
+		if (FClassnameIs(sporeEntity, "sporegunprojectile"))
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
