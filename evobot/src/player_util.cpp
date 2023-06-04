@@ -733,14 +733,11 @@ bool UTIL_PlayerHasLOSToLocation(const edict_t* Player, const Vector Target, con
 	if (FNullEnt(Player)) { return false; }
 	Vector StartTrace = GetPlayerEyePosition(Player);
 
-	Vector LookDirection = UTIL_GetVectorNormal(Target - StartTrace);
-	float dist = vDist3DSq(StartTrace, Target);
-	dist = fminf(dist, sqrf(MaxRange));
-	Vector EndTrace = StartTrace + (LookDirection * sqrtf(dist));
+	if (vDist3DSq(StartTrace, Target) > sqrf(MaxRange)) { return false; }
 
 	TraceResult hit;
 
-	UTIL_TraceLine(StartTrace, EndTrace, dont_ignore_monsters, dont_ignore_glass, Player->v.pContainingEntity, &hit);
+	UTIL_TraceLine(StartTrace, Target, dont_ignore_monsters, dont_ignore_glass, Player->v.pContainingEntity, &hit);
 
 	return (hit.flFraction >= 1.0f);
 

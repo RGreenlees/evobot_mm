@@ -225,6 +225,35 @@ void AlienSetCombatModeSecondaryTask(bot_t* pBot, bot_task* Task)
 
 	}
 
+	if (pBot->CurrentRole == BOT_ROLE_HARASS && !IsPlayerLerk(pBot->pEdict) && GetBotAvailableCombatPoints(pBot) >= 2)
+	{
+		if (Task->TaskType == TASK_EVOLVE) { return; }
+
+		int BotProfile = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
+
+		Vector EvolvePosition = FindClosestNavigablePointToDestination(BotProfile, pBot->pEdict->v.origin, Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(5.0f));
+
+		if (EvolvePosition == ZERO_VECTOR)
+		{
+			EvolvePosition = pBot->pEdict->v.origin;
+		}
+		else
+		{
+			// Don't evolve right underneath the hive even if we can reach it...
+			if (vDist2DSq(EvolvePosition, Hive->FloorLocation) < sqrf(UTIL_MetresToGoldSrcUnits(2.0f)))
+			{
+				EvolvePosition = UTIL_GetRandomPointOnNavmeshInDonut(BotProfile, EvolvePosition, UTIL_MetresToGoldSrcUnits(3.0f), UTIL_MetresToGoldSrcUnits(5.0f));
+			}
+		}
+
+		Task->TaskType = TASK_EVOLVE;
+		Task->TaskLocation = EvolvePosition;
+		Task->Evolution = IMPULSE_ALIEN_EVOLVE_LERK;
+		Task->bTaskIsUrgent = true;
+		return;
+
+	}
+
 	if (pBot->CurrentRole == BOT_ROLE_DESTROYER && IsPlayerSkulk(pBot->pEdict) && GetBotAvailableCombatPoints(pBot) >= 3)
 	{
 		if (Task->TaskType == TASK_EVOLVE) { return; }
@@ -381,7 +410,7 @@ void AlienHarasserSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 void AlienHarasserSetCombatModePrimaryTask(bot_t* pBot, bot_task* Task)
 {
-
+	AlienDestroyerSetCombatModePrimaryTask(pBot, Task);
 }
 
 void AlienCapperSetPrimaryTask(bot_t* pBot, bot_task* Task)
@@ -1505,7 +1534,6 @@ void LerkCombatThink(bot_t* pBot)
 		{
 			if (!TrackedEnemyRef->bHasLOS)
 			{
-				UTIL_DrawLine(GAME_GetListenServerEdict(), pBot->pEdict->v.origin, TrackedEnemyRef->LastLOSPosition);
 				if (!UTIL_IsAreaAffectedBySpores(TrackedEnemyRef->LastLOSPosition))
 				{
 					if (UTIL_QuickTrace(pEdict, pBot->CurrentEyePosition, TrackedEnemyRef->LastLOSPosition))
@@ -1516,7 +1544,6 @@ void LerkCombatThink(bot_t* pBot)
 						{
 							if ((gpGlobals->time - pBot->current_weapon.LastFireTime) >= pBot->current_weapon.MinRefireTime)
 							{
-								BotDirectLookAt(pBot, TrackedEnemyRef->LastLOSPosition);
 								BotShootTarget(pBot, WEAPON_LERK_SPORES, CurrentEnemy);
 								return;
 							}
@@ -1543,7 +1570,6 @@ void LerkCombatThink(bot_t* pBot)
 
 						if (LOSCheck == ATTACK_SUCCESS)
 						{
-							BotDirectLookAt(pBot, UTIL_GetCentreOfEntity(CurrentEnemy));
 							BotShootTarget(pBot, WEAPON_LERK_BITE, CurrentEnemy);
 						}
 					}
@@ -1603,11 +1629,19 @@ void LerkCombatThink(bot_t* pBot)
 
 		if (!EnemyIsSpored)
 		{
-			MoveTo(pBot, TrackedEnemyRef->LastSeenLocation, MOVESTYLE_NORMAL);
+			if (!TrackedEnemyRef->LastLOSPosition || vDist2DSq(pBot->pEdict->v.origin, TrackedEnemyRef->LastLOSPosition) > sqrf(UTIL_MetresToGoldSrcUnits(5.0f)))
+			{
+				MoveTo(pBot, TrackedEnemyRef->LastSeenLocation, MOVESTYLE_NORMAL);
+			}
+			else
+			{
+				MoveTo(pBot, TrackedEnemyRef->LastSeenLocation, MOVESTYLE_HIDE);
+			}
+			
 		}
 		else
 		{
-			BotGuardLocation(pBot, pBot->pEdict->v.origin);
+			BotLookAt(pBot, TrackedEnemyRef->LastLOSPosition);
 		}
 
 		return;
@@ -1621,10 +1655,7 @@ void LerkCombatThink(bot_t* pBot)
 
 		if (GetBotCurrentWeapon(pBot) == WEAPON_LERK_SPORES && (gpGlobals->time - pBot->current_weapon.LastFireTime >= pBot->current_weapon.MinRefireTime) && !UTIL_IsAreaAffectedBySpores(TrackedEnemyRef->LastSeenLocation))
 		{			
-			BotDirectLookAt(pBot, TrackedEnemyRef->LastSeenLocation);
-			pBot->pEdict->v.button |= IN_ATTACK;
-			pBot->current_weapon.LastFireTime = gpGlobals->time;
-			return;
+			BotShootTarget(pBot, WEAPON_LERK_SPORES, TrackedEnemyRef->EnemyEdict);
 		}
 		else
 		{
@@ -1632,33 +1663,47 @@ void LerkCombatThink(bot_t* pBot)
 
 			Vector EscapeLocation = pBot->BotNavInfo.TargetDestination;
 
-			if (!EscapeLocation || UTIL_QuickTrace(pBot->pEdict, (TrackedEnemyRef->LastSeenLocation + TrackedEnemyRef->EnemyEdict->v.view_ofs), (EscapeLocation + Vector(0.0f, 0.0f, 5.0f))))
+			if (!EscapeLocation || UTIL_PlayerHasLOSToLocation(TrackedEnemyRef->EnemyEdict, EscapeLocation, UTIL_MetresToGoldSrcUnits(50.0f)))
 			{
-				Vector EnemyDir = UTIL_GetVectorNormal2D(TrackedEnemyRef->LastSeenLocation - pEdict->v.origin);
-
-				Vector SearchLocation = pEdict->v.origin - (EnemyDir * UTIL_MetresToGoldSrcUnits(20.0f));
-
-				Vector NewMove = UTIL_GetRandomPointOnNavmeshInRadius(MoveProfile, SearchLocation, UTIL_MetresToGoldSrcUnits(10.0f));
-
-				if (!NewMove)
+				if (TrackedEnemyRef->LastHiddenPosition != ZERO_VECTOR && !UTIL_PlayerHasLOSToLocation(TrackedEnemyRef->EnemyEdict, TrackedEnemyRef->LastHiddenPosition, UTIL_MetresToGoldSrcUnits(50.0f)))
 				{
-					NewMove = UTIL_GetRandomPointOnNavmeshInRadius(MoveProfile, SearchLocation, UTIL_MetresToGoldSrcUnits(30.0f));
+					EscapeLocation = TrackedEnemyRef->LastHiddenPosition;
 				}
+				else
+				{
+					Vector EnemyDir = UTIL_GetVectorNormal2D(TrackedEnemyRef->LastSeenLocation - pEdict->v.origin);
+
+					Vector SearchLocation = pEdict->v.origin - (EnemyDir * UTIL_MetresToGoldSrcUnits(20.0f));
+
+					Vector NewMove = UTIL_GetRandomPointOnNavmeshInRadius(MoveProfile, SearchLocation, UTIL_MetresToGoldSrcUnits(10.0f));
+
+					if (!NewMove)
+					{
+						NewMove = UTIL_GetRandomPointOnNavmeshInRadius(MoveProfile, SearchLocation, UTIL_MetresToGoldSrcUnits(30.0f));
+					}
 
 
-				EscapeLocation = UTIL_GetRandomPointOnNavmeshInRadius(MoveProfile, NewMove, UTIL_MetresToGoldSrcUnits(10.0f));
+					EscapeLocation = UTIL_GetRandomPointOnNavmeshInRadius(MoveProfile, NewMove, UTIL_MetresToGoldSrcUnits(10.0f));
+				}				
 			}
 
+			if (vDist2DSq(pBot->pEdict->v.origin, EscapeLocation) > sqrf(UTIL_MetresToGoldSrcUnits(5.0f)))
+			{
+				MoveTo(pBot, EscapeLocation, MOVESTYLE_NORMAL);
+			}
+			else
+			{
+				MoveTo(pBot, EscapeLocation, MOVESTYLE_HIDE);
+			}
 
-			MoveTo(pBot, EscapeLocation, MOVESTYLE_HIDE);
-
-			return;
+			
 		}
+		return;
 	}
 
 	NSWeapon DesiredCombatWeapon = WEAPON_LERK_BITE;
 
-	if (!UTIL_IsAreaAffectedBySpores(TrackedEnemyRef->LastSeenLocation))
+	if (pBot->Adrenaline > GetEnergyCostForWeapon(WEAPON_LERK_SPORES) && !UTIL_IsAreaAffectedBySpores(TrackedEnemyRef->LastSeenLocation))
 	{
 		DesiredCombatWeapon = WEAPON_LERK_SPORES;
 	}
@@ -1667,71 +1712,30 @@ void LerkCombatThink(bot_t* pBot)
 
 	if (LOSCheck == ATTACK_SUCCESS)
 	{
-		pBot->DesiredCombatWeapon = DesiredCombatWeapon;
-
-		if (GetBotCurrentWeapon(pBot) == DesiredCombatWeapon)
-		{
-			if ((gpGlobals->time - pBot->current_weapon.LastFireTime) >= pBot->current_weapon.MinRefireTime)
-			{
-				BotDirectLookAt(pBot, TrackedEnemyRef->LastSeenLocation);
-				BotShootTarget(pBot, DesiredCombatWeapon, CurrentEnemy);
-				return;
-			}
-		}		
+		BotShootTarget(pBot, DesiredCombatWeapon, CurrentEnemy);
 	}
 
-	if (IsMeleeWeapon(DesiredCombatWeapon))
+	
+	Vector EnemyFacing = UTIL_GetForwardVector2D(CurrentEnemy->v.angles);
+	Vector BotFacing = UTIL_GetVectorNormal2D(CurrentEnemy->v.origin - pEdict->v.origin);
+
+	float Dot = UTIL_GetDotProduct2D(EnemyFacing, BotFacing);
+
+	if (Dot < 0.0f || LOSCheck != ATTACK_SUCCESS)
 	{
-		Vector EnemyFacing = UTIL_GetForwardVector2D(CurrentEnemy->v.angles);
-		Vector BotFacing = UTIL_GetVectorNormal2D(CurrentEnemy->v.origin - pEdict->v.origin);
+		Vector TargetLocation = UTIL_GetFloorUnderEntity(CurrentEnemy);
+		Vector BehindPlayer = TargetLocation - (UTIL_GetForwardVector2D(CurrentEnemy->v.v_angle) * 50.0f);
 
-		float Dot = UTIL_GetDotProduct2D(EnemyFacing, BotFacing);
+		int NavProfileIndex = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
 
-		if (Dot < 0.0f || LOSCheck != ATTACK_SUCCESS)
+		if (UTIL_PointIsReachable(NavProfileIndex, pBot->CurrentFloorPosition, BehindPlayer, 0.0f))
 		{
-			Vector TargetLocation = UTIL_GetFloorUnderEntity(CurrentEnemy);
-			Vector BehindPlayer = TargetLocation - (UTIL_GetForwardVector2D(CurrentEnemy->v.v_angle) * 50.0f);
-
-			int NavProfileIndex = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
-
-			if (UTIL_PointIsReachable(NavProfileIndex, pBot->CurrentFloorPosition, BehindPlayer, 0.0f))
-			{
-				MoveTo(pBot, BehindPlayer, MOVESTYLE_NORMAL);
-			}
-			else
-			{
-				if (UTIL_PointIsReachable(NavProfileIndex, pBot->CurrentFloorPosition, TargetLocation, 50.0f))
-				{
-					MoveTo(pBot, TargetLocation, MOVESTYLE_NORMAL);
-				}
-			}
+			MoveTo(pBot, BehindPlayer, MOVESTYLE_NORMAL);
 		}
-
-		return;
-	}
-
-
-	float CurrentDistance = vDist2DSq(pBot->pEdict->v.origin, CurrentEnemy->v.origin);
-	float WeaponMaxDistance = sqrf(GetMaxIdealWeaponRange(DesiredCombatWeapon));
-	float MinWeaponDistance = GetMinIdealWeaponRange(DesiredCombatWeapon);
-
-	Vector EngagementLocation = pBot->BotNavInfo.TargetDestination;
-
-	float EngagementLocationDist = vDist2DSq(EngagementLocation, CurrentEnemy->v.origin);
-
-	if (!EngagementLocation || EngagementLocationDist > WeaponMaxDistance || EngagementLocationDist < MinWeaponDistance || !UTIL_QuickTrace(pBot->pEdict, EngagementLocation, CurrentEnemy->v.origin))
-	{
-		int MoveProfile = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
-		EngagementLocation = UTIL_GetRandomPointOnNavmeshInRadius(MoveProfile, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(2.0f));
-
-		if (!vEquals(EngagementLocation, ZERO_VECTOR) && EngagementLocationDist < WeaponMaxDistance || EngagementLocationDist > MinWeaponDistance && UTIL_QuickTrace(pBot->pEdict, EngagementLocation, CurrentEnemy->v.origin))
+		else
 		{
-			MoveTo(pBot, EngagementLocation, MOVESTYLE_NORMAL);
+			MoveTo(pBot, CurrentEnemy->v.origin, MOVESTYLE_NORMAL);
 		}
-	}
-	else
-	{
-		MoveTo(pBot, EngagementLocation, MOVESTYLE_NORMAL);
 	}
 
 }
@@ -2279,6 +2283,13 @@ BotRole AlienGetBestCombatModeRole(const bot_t* pBot)
 		return BOT_ROLE_BUILDER;
 	}
 
+	int NumHarassers = GAME_GetBotsWithRoleType(BOT_ROLE_HARASS, ALIEN_TEAM, pBot->pEdict);
+
+	if (NumHarassers < 1)
+	{
+		return BOT_ROLE_HARASS;
+	}
+
 	return BOT_ROLE_DESTROYER;
 }
 
@@ -2297,6 +2308,13 @@ CombatModeAlienUpgrade AlienGetNextCombatUpgrade(bot_t* pBot)
 	{
 		// We need one point to evolve into a gorge
 		if (NumAvailablePoints <= 1) { return COMBAT_ALIEN_UPGRADE_NONE; }
+	}
+
+	// If we are defending our base and are not gorge yet, make sure we save a point at all times so we can evolve when we want to
+	if (pBot->CurrentRole == BOT_ROLE_HARASS && !IsPlayerLerk(pBot->pEdict))
+	{
+		// We need two points to evolve into a lerk
+		if (NumAvailablePoints <= 2) { return COMBAT_ALIEN_UPGRADE_NONE; }
 	}
 
 	// Get adrenaline if we're defending
@@ -2332,6 +2350,38 @@ CombatModeAlienUpgrade AlienGetNextCombatUpgrade(bot_t* pBot)
 			return COMBAT_ALIEN_UPGRADE_REDEMPTION;
 		}
 
+		if (!(pBot->CombatUpgradeMask & COMBAT_ALIEN_UPGRADE_ABILITY3))
+		{
+			return COMBAT_ALIEN_UPGRADE_ABILITY3;
+		}
+
+		return COMBAT_ALIEN_UPGRADE_NONE;
+	}
+
+	// Get adrenaline if we're defending
+	if (pBot->CurrentRole == BOT_ROLE_HARASS)
+	{
+		if (!(pBot->CombatUpgradeMask & COMBAT_ALIEN_UPGRADE_ADRENALINE))
+		{
+			return COMBAT_ALIEN_UPGRADE_ADRENALINE;
+		}
+
+		if (!(pBot->CombatUpgradeMask & COMBAT_ALIEN_UPGRADE_FOCUS))
+		{
+			return COMBAT_ALIEN_UPGRADE_FOCUS;
+		}
+
+		if (!(pBot->CombatUpgradeMask & COMBAT_ALIEN_UPGRADE_CELERITY))
+		{
+			return COMBAT_ALIEN_UPGRADE_CELERITY;
+		}
+
+		if (!(pBot->CombatUpgradeMask & COMBAT_ALIEN_UPGRADE_SILENCE))
+		{
+			return COMBAT_ALIEN_UPGRADE_SILENCE;
+		}
+
+		// Get ability 3
 		if (!(pBot->CombatUpgradeMask & COMBAT_ALIEN_UPGRADE_ABILITY3))
 		{
 			return COMBAT_ALIEN_UPGRADE_ABILITY3;
@@ -2390,24 +2440,24 @@ CombatModeAlienUpgrade AlienGetNextCombatUpgrade(bot_t* pBot)
 		return COMBAT_ALIEN_UPGRADE_ABILITY3;
 	}
 
-	if ((pBot->CombatUpgradeMask & COMBAT_ALIEN_UPGRADE_ADRENALINE))
+	if (!(pBot->CombatUpgradeMask & COMBAT_ALIEN_UPGRADE_ADRENALINE))
+	{
+		return COMBAT_ALIEN_UPGRADE_ADRENALINE;
+	}
+
+	if (!(pBot->CombatUpgradeMask & COMBAT_ALIEN_UPGRADE_CELERITY))
 	{
 		return COMBAT_ALIEN_UPGRADE_CELERITY;
 	}
 
-	if ((pBot->CombatUpgradeMask & COMBAT_ALIEN_UPGRADE_CELERITY))
+	if (!(pBot->CombatUpgradeMask & COMBAT_ALIEN_UPGRADE_FOCUS))
 	{
-		return COMBAT_ALIEN_UPGRADE_CELERITY;
+		return COMBAT_ALIEN_UPGRADE_FOCUS;
 	}
 
-	if ((pBot->CombatUpgradeMask & COMBAT_ALIEN_UPGRADE_FOCUS))
+	if (!(pBot->CombatUpgradeMask & COMBAT_ALIEN_UPGRADE_SILENCE))
 	{
-		return COMBAT_ALIEN_UPGRADE_CELERITY;
-	}
-
-	if ((pBot->CombatUpgradeMask & COMBAT_ALIEN_UPGRADE_SILENCE))
-	{
-		return COMBAT_ALIEN_UPGRADE_CELERITY;
+		return COMBAT_ALIEN_UPGRADE_SILENCE;
 	}
 
 

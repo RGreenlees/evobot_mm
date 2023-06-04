@@ -1077,6 +1077,7 @@ bool loadNavigationData(const char* mapname)
 	NavProfiles[MARINE_REGULAR_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_HIGHJUMP, 10.0f);
 	NavProfiles[MARINE_REGULAR_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_CROUCH, 2.0f);
 	NavProfiles[MARINE_REGULAR_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_ASTRUCTURE, 20.0f);
+	NavProfiles[MARINE_REGULAR_NAV_PROFILE].bFlyingProfile = false;
 
 	NavProfiles[SKULK_REGULAR_NAV_PROFILE].NavMeshIndex = REGULAR_NAV_MESH;
 	NavProfiles[SKULK_REGULAR_NAV_PROFILE].Filters.setIncludeFlags(0xFFFF);
@@ -1093,6 +1094,7 @@ bool loadNavigationData(const char* mapname)
 	NavProfiles[SKULK_REGULAR_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_CROUCH, 1.0f);
 	NavProfiles[SKULK_REGULAR_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_BLOCKED, 2.0f);
 	NavProfiles[SKULK_REGULAR_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_MSTRUCTURE, 20.0f);
+	NavProfiles[SKULK_REGULAR_NAV_PROFILE].bFlyingProfile = false;
 
 	NavProfiles[FADE_REGULAR_NAV_PROFILE].NavMeshIndex = REGULAR_NAV_MESH;
 	NavProfiles[FADE_REGULAR_NAV_PROFILE].Filters.setIncludeFlags(0xFFFF);
@@ -1110,6 +1112,7 @@ bool loadNavigationData(const char* mapname)
 	NavProfiles[FADE_REGULAR_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_WALLCLIMB, 1.0f);
 	NavProfiles[FADE_REGULAR_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_BLOCKED, 2.0f);
 	NavProfiles[FADE_REGULAR_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_MSTRUCTURE, 20.0f);
+	NavProfiles[FADE_REGULAR_NAV_PROFILE].bFlyingProfile = false;
 
 	NavProfiles[GORGE_REGULAR_NAV_PROFILE].NavMeshIndex = REGULAR_NAV_MESH;
 	NavProfiles[GORGE_REGULAR_NAV_PROFILE].Filters.setIncludeFlags(0xFFFF);
@@ -1126,6 +1129,7 @@ bool loadNavigationData(const char* mapname)
 	NavProfiles[GORGE_REGULAR_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_CROUCH, 1.0f);
 	NavProfiles[GORGE_REGULAR_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_BLOCKED, 2.0f);
 	NavProfiles[GORGE_REGULAR_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_MSTRUCTURE, 20.0f);
+	NavProfiles[GORGE_REGULAR_NAV_PROFILE].bFlyingProfile = false;
 
 	NavProfiles[ONOS_REGULAR_NAV_PROFILE].NavMeshIndex = ONOS_NAV_MESH;
 	NavProfiles[ONOS_REGULAR_NAV_PROFILE].Filters.setIncludeFlags(0xFFFF);
@@ -1143,6 +1147,7 @@ bool loadNavigationData(const char* mapname)
 	NavProfiles[ONOS_REGULAR_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_CROUCH, 3.0f);
 	NavProfiles[ONOS_REGULAR_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_BLOCKED, 2.0f);
 	NavProfiles[ONOS_REGULAR_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_MSTRUCTURE, 10.0f);
+	NavProfiles[ONOS_REGULAR_NAV_PROFILE].bFlyingProfile = false;
 
 	NavProfiles[BUILDING_REGULAR_NAV_PROFILE].NavMeshIndex = BUILDING_NAV_MESH;
 	NavProfiles[BUILDING_REGULAR_NAV_PROFILE].Filters.setIncludeFlags(0xFFFF);
@@ -1150,7 +1155,7 @@ bool loadNavigationData(const char* mapname)
 	NavProfiles[BUILDING_REGULAR_NAV_PROFILE].Filters.addExcludeFlags(SAMPLE_POLYFLAGS_BLOCKED);
 	NavProfiles[BUILDING_REGULAR_NAV_PROFILE].Filters.addExcludeFlags(SAMPLE_POLYFLAGS_ASTRUCTURE);
 	NavProfiles[BUILDING_REGULAR_NAV_PROFILE].Filters.addExcludeFlags(SAMPLE_POLYFLAGS_MSTRUCTURE);
-
+	NavProfiles[BUILDING_REGULAR_NAV_PROFILE].bFlyingProfile = false;
 
 	NavProfiles[SKULK_AMBUSH_NAV_PROFILE].NavMeshIndex = REGULAR_NAV_MESH;
 	NavProfiles[SKULK_AMBUSH_NAV_PROFILE].Filters.setIncludeFlags(0xFFFF);
@@ -1167,6 +1172,7 @@ bool loadNavigationData(const char* mapname)
 	NavProfiles[SKULK_AMBUSH_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_CROUCH, 1.0f);
 	NavProfiles[SKULK_AMBUSH_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_BLOCKED, 2.0f);
 	NavProfiles[SKULK_AMBUSH_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_MSTRUCTURE, 20.0f);
+	NavProfiles[SKULK_AMBUSH_NAV_PROFILE].bFlyingProfile = false;
 
 	NavProfiles[GORGE_HIDE_NAV_PROFILE].NavMeshIndex = REGULAR_NAV_MESH;
 	NavProfiles[GORGE_HIDE_NAV_PROFILE].Filters.setIncludeFlags(0xFFFF);
@@ -1183,10 +1189,28 @@ bool loadNavigationData(const char* mapname)
 	NavProfiles[GORGE_HIDE_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_CROUCH, 1.0f);
 	NavProfiles[GORGE_HIDE_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_BLOCKED, 2.0f);
 	NavProfiles[GORGE_HIDE_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_MSTRUCTURE, 20.0f);
+	NavProfiles[GORGE_HIDE_NAV_PROFILE].bFlyingProfile = false;
+
+	NavProfiles[LERK_FLYING_NAV_PROFILE].NavMeshIndex = REGULAR_NAV_MESH;
+	NavProfiles[LERK_FLYING_NAV_PROFILE].Filters.setIncludeFlags(0xFFFF);
+	NavProfiles[LERK_FLYING_NAV_PROFILE].Filters.setExcludeFlags(0);
+	NavProfiles[LERK_FLYING_NAV_PROFILE].Filters.addExcludeFlags(SAMPLE_POLYFLAGS_ASTRUCTURE);
+	NavProfiles[LERK_FLYING_NAV_PROFILE].Filters.addExcludeFlags(SAMPLE_POLYFLAGS_PHASEGATE);
+	NavProfiles[LERK_FLYING_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_GROUND, 1.0f);
+	NavProfiles[LERK_FLYING_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_JUMP, 1.0f);
+	NavProfiles[LERK_FLYING_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_FALL, 1.0f);
+	NavProfiles[LERK_FLYING_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_WALLCLIMB, 1.0f);
+	NavProfiles[LERK_FLYING_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_HIGHFALL, 1.0f);
+	NavProfiles[LERK_FLYING_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_HIGHJUMP, 1.0f);
+	NavProfiles[LERK_FLYING_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_CROUCH, 1.0f);
+	NavProfiles[LERK_FLYING_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_BLOCKED, 2.0f);
+	NavProfiles[LERK_FLYING_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_MSTRUCTURE, 20.0f);
+	NavProfiles[LERK_FLYING_NAV_PROFILE].bFlyingProfile = true;
 
 	NavProfiles[ALL_NAV_PROFILE].NavMeshIndex = REGULAR_NAV_MESH;
 	NavProfiles[ALL_NAV_PROFILE].Filters.setIncludeFlags(0xFFFF);
 	NavProfiles[ALL_NAV_PROFILE].Filters.setExcludeFlags(0);
+	NavProfiles[ALL_NAV_PROFILE].bFlyingProfile = false;
 
 	return true;
 }
@@ -3902,7 +3926,15 @@ int UTIL_GetMoveProfileForGorge(const BotMoveStyle MoveStyle)
 
 int UTIL_GetMoveProfileForLerk(const BotMoveStyle MoveStyle)
 {
-	return SKULK_REGULAR_NAV_PROFILE;
+	switch (MoveStyle)
+	{
+	case MOVESTYLE_NORMAL:
+		return LERK_FLYING_NAV_PROFILE;
+	default:
+		return GORGE_REGULAR_NAV_PROFILE;
+	}
+
+	return GORGE_REGULAR_NAV_PROFILE;
 }
 
 int UTIL_GetMoveProfileForFade(const BotMoveStyle MoveStyle)
@@ -4122,6 +4154,7 @@ bool MoveTo(bot_t* pBot, const Vector Destination, const BotMoveStyle MoveStyle,
 	}
 
 	int MoveProfile = UTIL_GetMoveProfileForBot(pBot, pBot->BotNavInfo.MoveStyle);
+	bool bIsFlyingProfile = NavProfiles[MoveProfile].bFlyingProfile;
 
 	bool bMoveStyleChanged = (MoveStyle != pBot->BotNavInfo.MoveStyle);
 	bool bNavProfileChanged = (MoveProfile != pBot->BotNavInfo.LastMoveProfile);
@@ -4134,7 +4167,7 @@ bool MoveTo(bot_t* pBot, const Vector Destination, const BotMoveStyle MoveStyle,
 	if (bShouldCalculatePath)
 	{
 		// First abort our current move so we don't try to recalculate half-way up a wall or ladder
-		if (!IsPlayerLerk(pBot->pEdict) && !AbortCurrentMove(pBot, Destination))
+		if (!bIsFlyingProfile && !AbortCurrentMove(pBot, Destination))
 		{
 			return true;
 		}
@@ -4166,9 +4199,9 @@ bool MoveTo(bot_t* pBot, const Vector Destination, const BotMoveStyle MoveStyle,
 
 		dtStatus PathFindingStatus = DT_FAILURE;
 		
-		if (IsPlayerLerk(pBot->pEdict))
+		if (bIsFlyingProfile)
 		{
-			PathFindingStatus = FindFlightPathToPoint(SKULK_REGULAR_NAV_PROFILE, pBot->CurrentFloorPosition, ValidNavmeshPoint, BotNavInfo->CurrentPath, &BotNavInfo->PathSize, MaxAcceptableDist);
+			PathFindingStatus = FindFlightPathToPoint(MoveProfile, pBot->CurrentFloorPosition, ValidNavmeshPoint, BotNavInfo->CurrentPath, &BotNavInfo->PathSize, MaxAcceptableDist);
 		}
 		else
 		{
@@ -4225,7 +4258,7 @@ bool MoveTo(bot_t* pBot, const Vector Destination, const BotMoveStyle MoveStyle,
 
 	if (BotNavInfo->PathSize > 0)
 	{
-		if (IsPlayerLerk(pBot->pEdict) && (pBot->BotNavInfo.PathSize > 2 || vDist2DSq(pBot->pEdict->v.origin, pBot->BotNavInfo.ActualMoveDestination) > sqrf(UTIL_MetresToGoldSrcUnits(5.0f))))
+		if (bIsFlyingProfile)
 		{
 			BotFollowFlightPath(pBot);
 		}
@@ -4687,7 +4720,7 @@ void BotFollowFlightPath(bot_t* pBot)
 
 
 	
-	BotDirectLookAt(pBot, LookLocation);
+	BotMoveLookAt(pBot, LookLocation);
 
 	CheckAndHandleBreakableObstruction(pBot, MoveFrom, CurrentMoveDest);
 }

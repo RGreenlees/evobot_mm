@@ -235,14 +235,15 @@ float GetMaxIdealWeaponRange(const NSWeapon Weapon)
 {
 	switch (Weapon)
 	{
+	case WEAPON_LERK_SPORES:
+	case WEAPON_LERK_UMBRA:
+		return UTIL_MetresToGoldSrcUnits(50.0f);
 	case WEAPON_MARINE_GL:
 	case WEAPON_MARINE_MG:
 	case WEAPON_MARINE_PISTOL:
 	case WEAPON_FADE_ACIDROCKET:
 	case WEAPON_SKULK_PARASITE:
 	case WEAPON_SKULK_LEAP:
-	case WEAPON_LERK_SPORES:
-	case WEAPON_LERK_UMBRA:
 	case WEAPON_ONOS_CHARGE:
 		return UTIL_MetresToGoldSrcUnits(20.0f);
 	case WEAPON_MARINE_HMG:

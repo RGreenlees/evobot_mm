@@ -1607,7 +1607,16 @@ void BotGuardLocation(bot_t* pBot, const Vector GuardLocation)
 		pBot->GuardInfo.GuardStartLookTime = gpGlobals->time;
 	}
 
-	MoveTo(pBot, pBot->GuardInfo.GuardStandPosition, MOVESTYLE_NORMAL);
+	if (IsPlayerLerk(pBot->pEdict))
+	{
+		MoveTo(pBot, pBot->GuardInfo.GuardStandPosition, MOVESTYLE_HIDE);
+	}
+	else
+	{
+		MoveTo(pBot, pBot->GuardInfo.GuardStandPosition, MOVESTYLE_NORMAL);
+	}
+
+	
 
 	BotLookAt(pBot, pBot->GuardInfo.GuardLookLocation);
 

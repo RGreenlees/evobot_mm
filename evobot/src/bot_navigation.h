@@ -38,6 +38,8 @@ constexpr auto BUILDING_REGULAR_NAV_PROFILE = 7;
 
 constexpr auto ALL_NAV_PROFILE = 8;
 
+constexpr auto LERK_FLYING_NAV_PROFILE = 9;
+
 
 constexpr auto MIN_PATH_RECALC_TIME = 0.33f; // How frequently can a bot recalculate its path? Default to max 3 times per second
 
@@ -123,6 +125,7 @@ typedef struct _NAV_PROFILE
 {
 	int NavMeshIndex = -1;
 	dtQueryFilter Filters;
+	bool bFlyingProfile = false;
 } nav_profile;
 
 static const int NAVMESHSET_MAGIC = 'M' << 24 | 'S' << 16 | 'E' << 8 | 'T'; //'MSET', used to confirm the nav mesh we're loading is compatible;

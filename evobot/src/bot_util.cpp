@@ -482,8 +482,6 @@ BotAttackResult PerformAttackLOSCheck(bot_t* pBot, const NSWeapon Weapon, const 
 		return ATTACK_SUCCESS;
 	}
 
-	bool bIsMeleeWeapon = IsMeleeWeapon(Weapon);
-
 	TraceResult hit;
 
 	Vector StartTrace = pBot->CurrentEyePosition;
@@ -855,10 +853,33 @@ void BotShootTarget(bot_t* pBot, NSWeapon AttackWeapon, edict_t* Target)
 
 	Vector AimDir = UTIL_GetForwardVector(pBot->pEdict->v.v_angle);
 
+	if (AttackWeapon == WEAPON_LERK_SPORES || AttackWeapon == WEAPON_LERK_UMBRA)
+	{
+		if ((gpGlobals->time - pBot->current_weapon.LastFireTime) < pBot->current_weapon.MinRefireTime)
+		{
+			return;
+		}
+
+		TraceResult Hit;
+		Vector TraceEnd = pBot->CurrentEyePosition + (AimDir * 3000.0f);
+
+		UTIL_TraceLine(pBot->CurrentEyePosition, TraceEnd, dont_ignore_monsters, dont_ignore_glass, pBot->pEdict->v.pContainingEntity, &Hit);
+
+		if (Hit.flFraction >= 1.0f) { return; }
+
+		if (vDist3DSq(Hit.vecEndPos, Target->v.origin) <= sqrf(kSporeCloudRadius))
+		{
+			pBot->pEdict->v.button |= IN_ATTACK;
+			pBot->current_weapon.LastFireTime = gpGlobals->time;
+		}
+
+		return;
+	}
+
 	float AimDot = UTIL_GetDotProduct(AimDir, TargetAimDir);
 
 	// We can be less accurate with spores and umbra since they have AoE effects
-	float MinAcceptableAccuracy = (CurrentWeapon == WEAPON_LERK_SPORES || CurrentWeapon == WEAPON_LERK_UMBRA) ? 0.8f : 0.9f;
+	float MinAcceptableAccuracy = 0.9f;
 
 	if (AimDot >= MinAcceptableAccuracy)
 	{
@@ -1343,6 +1364,13 @@ void BotUpdateDesiredViewRotation(bot_t* pBot)
 	else
 	{
 		pBot->ViewInterpolationSpeed = 50.0f * bot_view_speed;
+
+		
+	}
+
+	if (IsPlayerLerk(pBot->pEdict))
+	{
+		pBot->ViewInterpolationSpeed *= 2.0f;
 	}
 
 
@@ -1445,6 +1473,7 @@ void BotUpdateView(bot_t* pBot)
 			}
 			else
 			{
+				TrackingInfo->LastHiddenPosition = pBot->CurrentFloorPosition;
 				TrackingInfo->LastTrackedTime = gpGlobals->time;
 			}
 			
@@ -1455,6 +1484,10 @@ void BotUpdateView(bot_t* pBot)
 		if (bHasLOS)
 		{
 			TrackingInfo->LastLOSPosition = pBot->CurrentFloorPosition + Vector(0.0f, 0.0f, 5.0f);
+		}
+		else
+		{
+			TrackingInfo->LastHiddenPosition = pBot->CurrentFloorPosition;
 		}
 
 		// If we've not been aware of the enemy's location for over 10 seconds, forget about them
