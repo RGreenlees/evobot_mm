@@ -1703,7 +1703,7 @@ void LerkCombatThink(bot_t* pBot)
 
 	NSWeapon DesiredCombatWeapon = WEAPON_LERK_BITE;
 
-	if (pBot->Adrenaline > GetEnergyCostForWeapon(WEAPON_LERK_SPORES) && !UTIL_IsAreaAffectedBySpores(TrackedEnemyRef->LastSeenLocation))
+	if (vDist2DSq(pBot->pEdict->v.origin, CurrentEnemy->v.origin) > sqrf(UTIL_MetresToGoldSrcUnits(3.0f)) && pBot->Adrenaline > GetEnergyCostForWeapon(WEAPON_LERK_SPORES) && !UTIL_IsAreaAffectedBySpores(TrackedEnemyRef->LastSeenLocation))
 	{
 		DesiredCombatWeapon = WEAPON_LERK_SPORES;
 	}
