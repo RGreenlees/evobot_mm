@@ -737,6 +737,31 @@ void BotShootTarget(bot_t* pBot, NSWeapon AttackWeapon, edict_t* Target)
 		return;
 	}
 
+	if (AttackWeapon == WEAPON_LERK_SPORES || AttackWeapon == WEAPON_LERK_UMBRA)
+	{
+		if ((gpGlobals->time - pBot->current_weapon.LastFireTime) < pBot->current_weapon.MinRefireTime)
+		{
+			return;
+		}
+
+		Vector AimDir = UTIL_GetForwardVector(pBot->pEdict->v.v_angle);
+
+		TraceResult Hit;
+		Vector TraceEnd = pBot->CurrentEyePosition + (AimDir * 3000.0f);
+
+		UTIL_TraceLine(pBot->CurrentEyePosition, TraceEnd, dont_ignore_monsters, dont_ignore_glass, pBot->pEdict->v.pContainingEntity, &Hit);
+
+		if (Hit.flFraction >= 1.0f) { return; }
+
+		if (vDist3DSq(Hit.vecEndPos, Target->v.origin) <= sqrf(kSporeCloudRadius))
+		{
+			pBot->pEdict->v.button |= IN_ATTACK;
+			pBot->current_weapon.LastFireTime = gpGlobals->time;
+		}
+
+		return;
+	}
+
 	// For charge and stomp, we can go through stuff so don't need to check for being blocked
 	if (CurrentWeapon == WEAPON_ONOS_CHARGE || CurrentWeapon == WEAPON_ONOS_STOMP)
 	{
@@ -852,29 +877,6 @@ void BotShootTarget(bot_t* pBot, NSWeapon AttackWeapon, edict_t* Target)
 	}
 
 	Vector AimDir = UTIL_GetForwardVector(pBot->pEdict->v.v_angle);
-
-	if (AttackWeapon == WEAPON_LERK_SPORES || AttackWeapon == WEAPON_LERK_UMBRA)
-	{
-		if ((gpGlobals->time - pBot->current_weapon.LastFireTime) < pBot->current_weapon.MinRefireTime)
-		{
-			return;
-		}
-
-		TraceResult Hit;
-		Vector TraceEnd = pBot->CurrentEyePosition + (AimDir * 3000.0f);
-
-		UTIL_TraceLine(pBot->CurrentEyePosition, TraceEnd, dont_ignore_monsters, dont_ignore_glass, pBot->pEdict->v.pContainingEntity, &Hit);
-
-		if (Hit.flFraction >= 1.0f) { return; }
-
-		if (vDist3DSq(Hit.vecEndPos, Target->v.origin) <= sqrf(kSporeCloudRadius))
-		{
-			pBot->pEdict->v.button |= IN_ATTACK;
-			pBot->current_weapon.LastFireTime = gpGlobals->time;
-		}
-
-		return;
-	}
 
 	float AimDot = UTIL_GetDotProduct(AimDir, TargetAimDir);
 
@@ -1488,6 +1490,11 @@ void BotUpdateView(bot_t* pBot)
 		else
 		{
 			TrackingInfo->LastHiddenPosition = pBot->CurrentFloorPosition;
+
+			if (vDist2DSq(pBot->pEdict->v.origin, TrackingInfo->LastLOSPosition) < sqrf(18.0f))
+			{
+				TrackingInfo->LastLOSPosition = ZERO_VECTOR;
+			}
 		}
 
 		// If we've not been aware of the enemy's location for over 10 seconds, forget about them

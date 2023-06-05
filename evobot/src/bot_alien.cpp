@@ -1151,30 +1151,37 @@ void SkulkCombatThink(bot_t* pBot)
 		BotShootTarget(pBot, DesiredCombatWeapon, CurrentEnemy);
 	}
 
-	Vector EnemyFacing = UTIL_GetForwardVector2D(CurrentEnemy->v.angles);
-	Vector BotFacing = UTIL_GetVectorNormal2D(CurrentEnemy->v.origin - pBot->pEdict->v.origin);
-
-	float Dot = UTIL_GetDotProduct2D(EnemyFacing, BotFacing);
-
-	if (Dot < 0.0f || LOSCheck != ATTACK_SUCCESS)
+	if (vDist2DSq(pBot->pEdict->v.origin, CurrentEnemy->v.origin) < sqrf(UTIL_MetresToGoldSrcUnits(2.0f)))
 	{
-		Vector TargetLocation = UTIL_GetFloorUnderEntity(CurrentEnemy);
-		Vector BehindPlayer = TargetLocation - (UTIL_GetForwardVector2D(CurrentEnemy->v.v_angle) * 50.0f);
 
-		int NavProfileIndex = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
+		Vector EnemyFacing = UTIL_GetForwardVector2D(CurrentEnemy->v.angles);
+		Vector BotFacing = UTIL_GetVectorNormal2D(CurrentEnemy->v.origin - pBot->pEdict->v.origin);
 
-		if (UTIL_PointIsReachable(NavProfileIndex, pBot->CurrentFloorPosition, BehindPlayer, 0.0f))
+		float Dot = UTIL_GetDotProduct2D(EnemyFacing, BotFacing);
+
+		if (Dot < 0.0f || LOSCheck != ATTACK_SUCCESS)
 		{
-			MoveTo(pBot, BehindPlayer, MOVESTYLE_NORMAL);
-		}
-		else
-		{
-			if (UTIL_PointIsReachable(NavProfileIndex, pBot->CurrentFloorPosition, TargetLocation, 50.0f))
+			Vector TargetLocation = UTIL_GetFloorUnderEntity(CurrentEnemy);
+			Vector BehindPlayer = TargetLocation - (UTIL_GetForwardVector2D(CurrentEnemy->v.v_angle) * 50.0f);
+
+			int NavProfileIndex = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
+
+			if (UTIL_PointIsReachable(NavProfileIndex, pBot->CurrentFloorPosition, BehindPlayer, 0.0f))
 			{
-				MoveTo(pBot, TargetLocation, MOVESTYLE_NORMAL);
+				MoveTo(pBot, BehindPlayer, MOVESTYLE_NORMAL);
+			}
+			else
+			{
+				if (UTIL_PointIsReachable(NavProfileIndex, pBot->CurrentFloorPosition, TargetLocation, 50.0f))
+				{
+					MoveTo(pBot, TargetLocation, MOVESTYLE_NORMAL);
+					return;
+				}
 			}
 		}
-	}	
+	}
+
+	MoveTo(pBot, CurrentEnemy->v.origin, MOVESTYLE_NORMAL);
 }
 
 void FadeCombatThink(bot_t* pBot)
@@ -1323,39 +1330,39 @@ void FadeCombatThink(bot_t* pBot)
 
 	if (IsMeleeWeapon(DesiredCombatWeapon))
 	{
-
-		Vector EnemyFacing = UTIL_GetForwardVector2D(CurrentEnemy->v.angles);
-		Vector BotFacing = UTIL_GetVectorNormal2D(CurrentEnemy->v.origin - pEdict->v.origin);
-
-		float Dot = UTIL_GetDotProduct2D(EnemyFacing, BotFacing);
-
-		if (Dot < 0.0f || LOSCheck != ATTACK_SUCCESS)
+		if (LOSCheck == ATTACK_OUTOFRANGE)
 		{
-			Vector TargetLocation = UTIL_GetFloorUnderEntity(CurrentEnemy);
-			Vector BehindPlayer = TargetLocation - (UTIL_GetForwardVector2D(CurrentEnemy->v.v_angle) * 50.0f);
-
-			int NavProfileIndex = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
-
-			if (UTIL_PointIsReachable(NavProfileIndex, pBot->CurrentFloorPosition, BehindPlayer, 0.0f))
+			if (PlayerHasWeapon(pEdict, WEAPON_FADE_BLINK) && UTIL_PointIsDirectlyReachable(pEdict->v.origin, CurrentEnemy->v.origin))
 			{
-				MoveTo(pBot, BehindPlayer, MOVESTYLE_NORMAL);
-			}
-			else
-			{
-				if (UTIL_PointIsReachable(NavProfileIndex, pBot->CurrentFloorPosition, TargetLocation, 50.0f))
-				{
-					MoveTo(pBot, TargetLocation, MOVESTYLE_NORMAL);
-				}
-			}
-
-			if (LOSCheck == ATTACK_OUTOFRANGE)
-			{
-				if (PlayerHasWeapon(pEdict, WEAPON_FADE_BLINK) && UTIL_PointIsDirectlyReachable(pEdict->v.origin, CurrentEnemy->v.origin))
-				{
-					BotLeap(pBot, CurrentEnemy->v.origin);
-				}
+				MoveTo(pBot, CurrentEnemy->v.origin, MOVESTYLE_NORMAL);
+				BotLeap(pBot, CurrentEnemy->v.origin);
+				return;
 			}
 		}
+
+		if (vDist2DSq(pBot->pEdict->v.origin, CurrentEnemy->v.origin) < sqrf(UTIL_MetresToGoldSrcUnits(2.0f)))
+		{
+			Vector EnemyFacing = UTIL_GetForwardVector2D(CurrentEnemy->v.angles);
+			Vector BotFacing = UTIL_GetVectorNormal2D(CurrentEnemy->v.origin - pEdict->v.origin);
+
+			float Dot = UTIL_GetDotProduct2D(EnemyFacing, BotFacing);
+
+			if (Dot < 0.0f || LOSCheck != ATTACK_SUCCESS)
+			{
+				Vector TargetLocation = UTIL_GetFloorUnderEntity(CurrentEnemy);
+				Vector BehindPlayer = TargetLocation - (UTIL_GetForwardVector2D(CurrentEnemy->v.v_angle) * 50.0f);
+
+				int NavProfileIndex = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
+
+				if (UTIL_PointIsReachable(NavProfileIndex, pBot->CurrentFloorPosition, BehindPlayer, 0.0f))
+				{
+					MoveTo(pBot, BehindPlayer, MOVESTYLE_NORMAL);
+					return;
+				}				
+			}
+		}
+
+		MoveTo(pBot, CurrentEnemy->v.origin, MOVESTYLE_NORMAL);
 
 		return;
 	}
@@ -1532,7 +1539,7 @@ void LerkCombatThink(bot_t* pBot)
 
 		if (bLowOnHealth)
 		{
-			if (!TrackedEnemyRef->bHasLOS)
+			if (!TrackedEnemyRef->bHasLOS && TrackedEnemyRef->LastLOSPosition != ZERO_VECTOR)
 			{
 				if (!UTIL_IsAreaAffectedBySpores(TrackedEnemyRef->LastLOSPosition))
 				{
@@ -1620,34 +1627,47 @@ void LerkCombatThink(bot_t* pBot)
 
 	}
 
+	int NumFriends = UTIL_GetNumPlayersOfTeamInArea(TrackedEnemyRef->LastSeenLocation, UTIL_MetresToGoldSrcUnits(5.0f), MARINE_TEAM, TrackedEnemyRef->EnemyEdict, CLASS_NONE, false);
+
 	// If the enemy is not visible
 	if (!TrackedEnemyRef->bHasLOS)
 	{
-		int NumFriends = UTIL_GetNumPlayersOfTeamInArea(TrackedEnemyRef->LastSeenLocation, UTIL_MetresToGoldSrcUnits(5.0f), MARINE_TEAM, TrackedEnemyRef->EnemyEdict, CLASS_NONE, false);
-
-		bool EnemyIsSpored = UTIL_IsAreaAffectedBySpores(TrackedEnemyRef->LastSeenLocation);
-
-		if (!EnemyIsSpored)
+		if (NumFriends > 1 || HealthPercent < GetPlayerOverallHealthPercent(CurrentEnemy))
 		{
-			if (!TrackedEnemyRef->LastLOSPosition || vDist2DSq(pBot->pEdict->v.origin, TrackedEnemyRef->LastLOSPosition) > sqrf(UTIL_MetresToGoldSrcUnits(5.0f)))
+			pBot->DesiredCombatWeapon = WEAPON_LERK_SPORES;
+
+			if (GetBotCurrentWeapon(pBot) == WEAPON_LERK_SPORES && (gpGlobals->time - pBot->current_weapon.LastFireTime >= pBot->current_weapon.MinRefireTime) && UTIL_IsAreaAffectedBySpores(TrackedEnemyRef->LastSeenLocation))
 			{
-				MoveTo(pBot, TrackedEnemyRef->LastSeenLocation, MOVESTYLE_NORMAL);
+				if (!TrackedEnemyRef->LastLOSPosition || vDist2DSq(pBot->pEdict->v.origin, TrackedEnemyRef->LastLOSPosition) > sqrf(UTIL_MetresToGoldSrcUnits(5.0f)))
+				{
+					MoveTo(pBot, TrackedEnemyRef->LastSeenLocation, MOVESTYLE_NORMAL);
+				}
+				else
+				{
+					MoveTo(pBot, TrackedEnemyRef->LastSeenLocation, MOVESTYLE_HIDE);
+				}
+
 			}
 			else
 			{
-				MoveTo(pBot, TrackedEnemyRef->LastSeenLocation, MOVESTYLE_HIDE);
+				BotLookAt(pBot, TrackedEnemyRef->LastLOSPosition);
 			}
-			
+			return;
+		}
+
+		if (!TrackedEnemyRef->LastLOSPosition || vDist2DSq(pBot->pEdict->v.origin, TrackedEnemyRef->LastLOSPosition) > sqrf(UTIL_MetresToGoldSrcUnits(5.0f)))
+		{
+			MoveTo(pBot, TrackedEnemyRef->LastSeenLocation, MOVESTYLE_NORMAL);
 		}
 		else
 		{
-			BotLookAt(pBot, TrackedEnemyRef->LastLOSPosition);
+			MoveTo(pBot, TrackedEnemyRef->LastSeenLocation, MOVESTYLE_HIDE);
 		}
 
 		return;
 	}
 
-	int NumFriends = UTIL_GetNumPlayersOfTeamInArea(TrackedEnemyRef->LastSeenLocation, UTIL_MetresToGoldSrcUnits(5.0f), MARINE_TEAM, TrackedEnemyRef->EnemyEdict, CLASS_NONE, false);
+	
 
 	if (NumFriends > 1 || HealthPercent < GetPlayerOverallHealthPercent(CurrentEnemy))
 	{
@@ -1703,7 +1723,7 @@ void LerkCombatThink(bot_t* pBot)
 
 	NSWeapon DesiredCombatWeapon = WEAPON_LERK_BITE;
 
-	if (vDist2DSq(pBot->pEdict->v.origin, CurrentEnemy->v.origin) > sqrf(UTIL_MetresToGoldSrcUnits(3.0f)) && pBot->Adrenaline > GetEnergyCostForWeapon(WEAPON_LERK_SPORES) && !UTIL_IsAreaAffectedBySpores(TrackedEnemyRef->LastSeenLocation))
+	if (pBot->Adrenaline > GetEnergyCostForWeapon(WEAPON_LERK_SPORES) && !UTIL_IsAreaAffectedBySpores(TrackedEnemyRef->EnemyEdict->v.origin))
 	{
 		DesiredCombatWeapon = WEAPON_LERK_SPORES;
 	}
@@ -1715,28 +1735,29 @@ void LerkCombatThink(bot_t* pBot)
 		BotShootTarget(pBot, DesiredCombatWeapon, CurrentEnemy);
 	}
 
-	
-	Vector EnemyFacing = UTIL_GetForwardVector2D(CurrentEnemy->v.angles);
-	Vector BotFacing = UTIL_GetVectorNormal2D(CurrentEnemy->v.origin - pEdict->v.origin);
-
-	float Dot = UTIL_GetDotProduct2D(EnemyFacing, BotFacing);
-
-	if (Dot < 0.0f || LOSCheck != ATTACK_SUCCESS)
+	if (vDist2DSq(pBot->pEdict->v.origin, CurrentEnemy->v.origin) < sqrf(UTIL_MetresToGoldSrcUnits(2.0f)))
 	{
-		Vector TargetLocation = UTIL_GetFloorUnderEntity(CurrentEnemy);
-		Vector BehindPlayer = TargetLocation - (UTIL_GetForwardVector2D(CurrentEnemy->v.v_angle) * 50.0f);
+		Vector EnemyFacing = UTIL_GetForwardVector2D(CurrentEnemy->v.angles);
+		Vector BotFacing = UTIL_GetVectorNormal2D(CurrentEnemy->v.origin - pEdict->v.origin);
 
-		int NavProfileIndex = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
+		float Dot = UTIL_GetDotProduct2D(EnemyFacing, BotFacing);
 
-		if (UTIL_PointIsReachable(NavProfileIndex, pBot->CurrentFloorPosition, BehindPlayer, 0.0f))
+		if (Dot < 0.0f || LOSCheck != ATTACK_SUCCESS)
 		{
-			MoveTo(pBot, BehindPlayer, MOVESTYLE_NORMAL);
-		}
-		else
-		{
-			MoveTo(pBot, CurrentEnemy->v.origin, MOVESTYLE_NORMAL);
+			Vector TargetLocation = UTIL_GetFloorUnderEntity(CurrentEnemy);
+			Vector BehindPlayer = TargetLocation - (UTIL_GetForwardVector2D(CurrentEnemy->v.v_angle) * 50.0f);
+
+			int NavProfileIndex = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
+
+			if (UTIL_PointIsReachable(NavProfileIndex, pBot->CurrentFloorPosition, BehindPlayer, 0.0f))
+			{
+				MoveTo(pBot, BehindPlayer, MOVESTYLE_NORMAL);
+				return;
+			}
 		}
 	}
+
+	MoveTo(pBot, CurrentEnemy->v.origin, MOVESTYLE_NORMAL);
 
 }
 
