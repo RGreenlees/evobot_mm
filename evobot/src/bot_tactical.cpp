@@ -169,12 +169,20 @@ void SetHiveStatus(int HiveIndex, int NewStatus)
 	if (Hives[HiveIndex].Status != HIVE_STATUS_UNBUILT && Hives[HiveIndex].ObstacleRef == 0)
 	{
 		Hives[HiveIndex].ObstacleRef = UTIL_AddTemporaryObstacle(UTIL_GetCentreOfEntity(Hives[HiveIndex].edict), 125.0f, 250.0f, DT_AREA_NULL);
+		UTIL_UpdateTileCache();
+
+		Hives[HiveIndex].FloorLocation = FindClosestNavigablePointToDestination(MARINE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), UTIL_GetFloorUnderEntity(Hives[HiveIndex].edict), UTIL_MetresToGoldSrcUnits(20.0f));
 	}
 
-	if (Hives[HiveIndex].Status == HIVE_STATUS_UNBUILT && Hives[HiveIndex].ObstacleRef > 0)
+	if (Hives[HiveIndex].Status == HIVE_STATUS_UNBUILT)
 	{
-		UTIL_RemoveTemporaryObstacle(Hives[HiveIndex].ObstacleRef);
-		Hives[HiveIndex].ObstacleRef = 0;
+		if (Hives[HiveIndex].ObstacleRef > 0)
+		{
+			UTIL_RemoveTemporaryObstacle(Hives[HiveIndex].ObstacleRef);
+			Hives[HiveIndex].ObstacleRef = 0;
+		}
+		
+		Hives[HiveIndex].FloorLocation = UTIL_GetFloorUnderEntity(Hives[HiveIndex].edict);
 	}
 }
 
@@ -2627,6 +2635,43 @@ edict_t* UTIL_GetClosestPlayerOnTeamWithLOS(const Vector& Location, const int Te
 					MinDist = ThisDist;
 				}
 
+			}
+		}
+	}
+
+	return Result;
+}
+
+bool UTIL_AnyPlayerOnTeamHasLOSToLocation(const edict_t* Player, const int Team, const Vector Target, const float MaxRange)
+{
+	float distSq = sqrf(MaxRange);
+
+	for (int i = 0; i < 32; i++)
+	{
+		if (!FNullEnt(clients[i]) && clients[i]->v.team == Team && IsPlayerActiveInGame(clients[i]))
+		{
+			if (vDist2DSq(clients[i]->v.origin, Target) <= distSq && UTIL_QuickTrace(clients[i], GetPlayerEyePosition(clients[i]), Target))
+			{
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+int UTIL_GetNumPlayersOnTeamWithLOS(const Vector& Location, const int Team, float SearchRadius, edict_t* IgnorePlayer)
+{
+	float distSq = sqrf(SearchRadius);
+	int Result = 0;
+
+	for (int i = 0; i < 32; i++)
+	{
+		if (!FNullEnt(clients[i]) && clients[i] != IgnorePlayer && clients[i]->v.team == Team && IsPlayerActiveInGame(clients[i]))
+		{
+			if (vDist2DSq(clients[i]->v.origin, Location) <= distSq && UTIL_QuickTrace(clients[i], GetPlayerEyePosition(clients[i]), Location))
+			{
+				Result++;
 			}
 		}
 	}

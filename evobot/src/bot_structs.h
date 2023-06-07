@@ -385,6 +385,7 @@ typedef struct _BOT_T
 
 	Vector CurrentEyePosition = ZERO_VECTOR; // Represents the world view location for the bot
 
+	Vector LastSafeLocation = ZERO_VECTOR; // Last location where the bot was out of LOS of any enemy
 
 	float Adrenaline = 0.0f; // For alien abilities
 

@@ -260,6 +260,9 @@ edict_t* UTIL_FindClosestMarineStructureToLocation(const Vector& Location, const
 
 bool UTIL_AnyMarinePlayerNearLocation(const Vector& Location, float SearchRadius);
 bool UTIL_AnyPlayerOnTeamWithLOS(const Vector& Location, const int Team, float SearchRadius);
+int UTIL_GetNumPlayersOnTeamWithLOS(const Vector& Location, const int Team, float SearchRadius, edict_t* IgnorePlayer);
+
+bool UTIL_AnyPlayerOnTeamHasLOSToLocation(const edict_t* Player, const int Team, const Vector Target, const float MaxRange);
 
 edict_t* UTIL_GetClosestPlayerOnTeamWithLOS(const Vector& Location, const int Team, float SearchRadius, edict_t* IgnorePlayer);
 

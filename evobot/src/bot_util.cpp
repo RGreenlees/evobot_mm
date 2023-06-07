@@ -739,6 +739,7 @@ void BotShootTarget(bot_t* pBot, NSWeapon AttackWeapon, edict_t* Target)
 
 	if (AttackWeapon == WEAPON_LERK_SPORES || AttackWeapon == WEAPON_LERK_UMBRA)
 	{
+		BotLookAt(pBot, Target);
 		if ((gpGlobals->time - pBot->current_weapon.LastFireTime) < pBot->current_weapon.MinRefireTime)
 		{
 			return;
@@ -1410,6 +1411,8 @@ void BotUpdateView(bot_t* pBot)
 	// Updates the view frustum based on the bot's position and v_angle
 	BotUpdateViewFrustum(pBot);
 
+	bool bHasLOSToAnyEnemy = false;
+
 	// Update list of currently visible players
 	for (int i = 0; i < 32; i++)
 	{
@@ -1431,6 +1434,11 @@ void BotUpdateView(bot_t* pBot)
 
 		bool bInFOV = IsPlayerInBotFOV(pBot, Enemy);
 		bool bHasLOS = DoesBotHaveLOSToPlayer(pBot, Enemy);
+
+		if (bHasLOS)
+		{
+			bHasLOSToAnyEnemy = true;
+		}
 
 		float bot_reaction_time = (IsPlayerMarine(pBot->pEdict)) ? pBot->BotSkillSettings.marine_bot_reaction_time : pBot->BotSkillSettings.alien_bot_reaction_time;
 
@@ -1470,13 +1478,24 @@ void BotUpdateView(bot_t* pBot)
 
 			if (bHasLOS)
 			{
+				TrackingInfo->LastLOSPosition = pBot->pEdict->v.origin;
 				TrackingInfo->LastSeenTime = gpGlobals->time;
+
+				if (vDist2DSq(pBot->pEdict->v.origin, TrackingInfo->LastHiddenPosition) < sqrf(18.0f))
+				{
+					TrackingInfo->LastHiddenPosition = ZERO_VECTOR;
+				}
 				
 			}
 			else
 			{
-				TrackingInfo->LastHiddenPosition = pBot->CurrentFloorPosition;
+				TrackingInfo->LastHiddenPosition = pBot->pEdict->v.origin;
 				TrackingInfo->LastTrackedTime = gpGlobals->time;
+
+				if (vDist2DSq(pBot->pEdict->v.origin, TrackingInfo->LastLOSPosition) < sqrf(18.0f))
+				{
+					TrackingInfo->LastLOSPosition = ZERO_VECTOR;
+				}
 			}
 			
 
@@ -1485,11 +1504,15 @@ void BotUpdateView(bot_t* pBot)
 
 		if (bHasLOS)
 		{
-			TrackingInfo->LastLOSPosition = pBot->CurrentFloorPosition + Vector(0.0f, 0.0f, 5.0f);
+			TrackingInfo->LastLOSPosition = pBot->pEdict->v.origin;
+			if (vDist2DSq(pBot->pEdict->v.origin, TrackingInfo->LastHiddenPosition) < sqrf(18.0f))
+			{
+				TrackingInfo->LastHiddenPosition = ZERO_VECTOR;
+			}
 		}
 		else
 		{
-			TrackingInfo->LastHiddenPosition = pBot->CurrentFloorPosition;
+			TrackingInfo->LastHiddenPosition = pBot->pEdict->v.origin;
 
 			if (vDist2DSq(pBot->pEdict->v.origin, TrackingInfo->LastLOSPosition) < sqrf(18.0f))
 			{
@@ -1505,7 +1528,11 @@ void BotUpdateView(bot_t* pBot)
 			BotClearEnemyTrackingInfo(TrackingInfo);
 			continue;
 		}
+	}
 
+	if (!bHasLOSToAnyEnemy)
+	{
+		pBot->LastSafeLocation = pBot->pEdict->v.origin;
 	}
 }
 
