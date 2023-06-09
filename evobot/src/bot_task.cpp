@@ -1010,6 +1010,17 @@ void BotProgressEvolveTask(bot_t* pBot, bot_task* Task)
 {
 	if (!Task || !Task->Evolution) { return; }
 
+	// We tried evolving a second ago and nothing happened. Must be in a bad spot
+	if (Task->TaskStartedTime > 0.0f)
+	{
+		if ((gpGlobals->time - Task->TaskStartedTime) > 1.0f)
+		{
+			Task->TaskLocation = UTIL_GetRandomPointOnNavmeshInRadius(BUILDING_REGULAR_NAV_PROFILE, pBot->CurrentFloorPosition, UTIL_MetresToGoldSrcUnits(3.0f));
+			Task->TaskStartedTime = 0.0f;
+		}
+		return;
+	}
+
 	switch (Task->Evolution)
 	{
 	case IMPULSE_ALIEN_EVOLVE_LERK:
@@ -1042,16 +1053,19 @@ void BotProgressEvolveTask(bot_t* pBot, bot_task* Task)
 				}
 
 				pBot->pEdict->v.impulse = Task->Evolution;
+				Task->TaskStartedTime = gpGlobals->time;
 			}
 		}
 		else
 		{
 			pBot->pEdict->v.impulse = Task->Evolution;
+			Task->TaskStartedTime = gpGlobals->time;
 		}
 	}
 	break;
 	default:
 		pBot->pEdict->v.impulse = Task->Evolution;
+		Task->TaskStartedTime = gpGlobals->time;
 	}
 }
 

@@ -196,6 +196,9 @@ typedef struct _NAV_STATUS
 
 	bool bPendingRecalculation = false; // This bot should recalculate its path as soon as it can
 
+	bool bZig; // Is the bot zigging, or zagging?
+	float NextZigTime; // Controls how frequently they zig or zag
+
 } nav_status;
 
 // Represents a bot's current understanding of an enemy player's status

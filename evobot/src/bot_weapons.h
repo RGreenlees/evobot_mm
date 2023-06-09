@@ -44,5 +44,6 @@ NSWeapon BotMarineChooseBestWeapon(bot_t* pBot, edict_t* target);
 NSWeapon FadeGetBestWeaponForCombatTarget(bot_t* pBot, edict_t* Target);
 NSWeapon OnosGetBestWeaponForCombatTarget(bot_t* pBot, edict_t* Target);
 NSWeapon SkulkGetBestWeaponForCombatTarget(bot_t* pBot, edict_t* Target);
+NSWeapon LerkGetBestWeaponForCombatTarget(bot_t* pBot, edict_t* Target);
 
 #endif

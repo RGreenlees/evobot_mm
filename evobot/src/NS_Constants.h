@@ -131,14 +131,14 @@ const int kSpitVelocity = 1500;
 const int kShootCloudVelocity = 1100;
 const int kAcidRocketVelocity = 2000;
 
-const float kBiteRange = 75.0f;
-const float kBite2Range = 75.0f; // Lerk bite range
+const float kBiteRange = 80.0f;
+const float kBite2Range = 80.0f; // Lerk bite range
 
-const float kHealingSprayRange = 300.0f;
+const float kHealingSprayRange = 250.0f;
 
 const float kSwipeRange = 90.0f; // Fade swipe range
 
-const float kClawsRange = 90.0f; // Onos gore range
+const float kClawsRange = 110.0f; // Onos gore range
 const float kDevourRange = 100.0f; // Onos gore range
 
 const float kDefensiveChamberHealRange = 400.0f;
@@ -209,6 +209,7 @@ const float kHiveHealRadius = 500.0f;
 #define kAdrenalineEnergyPercentPerLevel 0.33f // How much faster energy regens with adrenaline. That's an extra 33% faster per level for 2x speed regen at level 3
 
 #define kSporeCloudRadius 225.0f
+#define kUmbraCloudRadius 225.0f
 
 // Game Status Constants
 const int		kGameStatusReset = 0;

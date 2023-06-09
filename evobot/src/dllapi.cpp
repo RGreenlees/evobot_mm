@@ -156,11 +156,16 @@ void ClientCommand(edict_t* pEntity)
 		RETURN_META(MRES_SUPERCEDE);
 	}
 
-	if (FStrEq(pcmd, "testadjust"))
+	if (FStrEq(pcmd, "testumbra"))
 	{
-		Vector AdjustLoc = UTIL_AdjustPointAwayFromNavWall(UTIL_GetEntityGroundLocation(pEntity), 32.0f);
-
-		UTIL_DrawLine(pEntity, pEntity->v.origin, AdjustLoc, 10.0f);
+		if (UTIL_IsAreaAffectedByUmbra(pEntity->v.origin))
+		{
+			UTIL_SayText("True\n", pEntity);
+		}
+		else
+		{
+			UTIL_SayText("False\n", pEntity);
+		}
 
 		RETURN_META(MRES_SUPERCEDE);
 
@@ -633,6 +638,7 @@ void ClientCommand(edict_t* pEntity)
 					bots[i].PrimaryBotTask.TaskType = TASK_EVOLVE;
 					bots[i].PrimaryBotTask.Evolution = IMPULSE_ALIEN_EVOLVE_GORGE;
 					bots[i].PrimaryBotTask.TaskLocation = bots[i].pEdict->v.origin;
+					bots[i].PrimaryBotTask.TaskStartedTime = 0.0f;
 				}
 			}
 		}
@@ -656,6 +662,7 @@ void ClientCommand(edict_t* pEntity)
 					bots[i].PrimaryBotTask.TaskType = TASK_EVOLVE;
 					bots[i].PrimaryBotTask.Evolution = IMPULSE_ALIEN_EVOLVE_LERK;
 					bots[i].PrimaryBotTask.TaskLocation = bots[i].pEdict->v.origin;
+					bots[i].PrimaryBotTask.TaskStartedTime = 0.0f;
 				}
 			}
 		}
@@ -679,6 +686,7 @@ void ClientCommand(edict_t* pEntity)
 					bots[i].PrimaryBotTask.TaskType = TASK_EVOLVE;
 					bots[i].PrimaryBotTask.Evolution = IMPULSE_ALIEN_EVOLVE_FADE;
 					bots[i].PrimaryBotTask.TaskLocation = bots[i].pEdict->v.origin;
+					bots[i].PrimaryBotTask.TaskStartedTime = 0.0f;
 				}
 			}
 		}
@@ -702,6 +710,7 @@ void ClientCommand(edict_t* pEntity)
 					bots[i].PrimaryBotTask.TaskType = TASK_EVOLVE;
 					bots[i].PrimaryBotTask.Evolution = IMPULSE_ALIEN_EVOLVE_ONOS;
 					bots[i].PrimaryBotTask.TaskLocation = bots[i].pEdict->v.origin;
+					bots[i].PrimaryBotTask.TaskStartedTime = 0.0f;
 				}
 			}
 		}

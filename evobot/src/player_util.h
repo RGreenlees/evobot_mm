@@ -80,6 +80,8 @@ bool IsPlayerMotionTracked(const edict_t* Player);
 bool IsPlayerOnLadder(const edict_t* Player);
 // Is the player an onos under the effect of charge?
 bool IsPlayerCharging(const edict_t* Player);
+// Is the player buffed by catalysts (for marines) or primal scream (for aliens)?
+bool IsPlayerBuffed(const edict_t* Player);
 
 // Returns the player's max armour, based on armour research levels (marines) or class and carapace level (aliens)
 int GetPlayerMaxArmour(const edict_t* Player);

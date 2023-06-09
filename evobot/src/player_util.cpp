@@ -128,6 +128,12 @@ bool IsPlayerCharging(const edict_t* Player)
 	return (Player->v.iuser4 & MASK_ALIEN_MOVEMENT);
 }
 
+bool IsPlayerBuffed(const edict_t* Player)
+{
+	if (FNullEnt(Player)) { return false; }
+	return (Player->v.iuser4 & MASK_BUFFED);
+}
+
 bool IsPlayerOnLadder(const edict_t* Player)
 {
 	return (Player->v.movetype == MOVETYPE_FLY);

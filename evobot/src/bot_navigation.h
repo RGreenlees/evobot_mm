@@ -445,5 +445,8 @@ void DEBUG_TestFlightPathFind(edict_t* pEdict, const Vector Destination);
 
 Vector UTIL_AdjustPointAwayFromNavWall(const Vector Location, const float MaxDistanceFromWall);
 
+unsigned char UTIL_GetBotCurrentPathArea(bot_t* pBot);
+unsigned char UTIL_GetNextBotCurrentPathArea(bot_t* pBot);
+
 #endif // BOT_NAVIGATION_H
 

@@ -262,7 +262,7 @@ bool UTIL_AnyMarinePlayerNearLocation(const Vector& Location, float SearchRadius
 bool UTIL_AnyPlayerOnTeamWithLOS(const Vector& Location, const int Team, float SearchRadius);
 int UTIL_GetNumPlayersOnTeamWithLOS(const Vector& Location, const int Team, float SearchRadius, edict_t* IgnorePlayer);
 
-bool UTIL_AnyPlayerOnTeamHasLOSToLocation(const edict_t* Player, const int Team, const Vector Target, const float MaxRange);
+bool UTIL_AnyPlayerOnTeamHasLOSToLocation(const int Team, const Vector Target, const float MaxRange);
 
 edict_t* UTIL_GetClosestPlayerOnTeamWithLOS(const Vector& Location, const int Team, float SearchRadius, edict_t* IgnorePlayer);
 
@@ -377,5 +377,6 @@ int UTIL_StructureTypeToImpulseCommand(const NSStructureType StructureType);
 bool UTIL_IsThereACommander();
 
 bool UTIL_IsAreaAffectedBySpores(const Vector Location);
+bool UTIL_IsAreaAffectedByUmbra(const Vector Location);
 
 #endif

@@ -235,6 +235,8 @@ float GetMaxIdealWeaponRange(const NSWeapon Weapon)
 {
 	switch (Weapon)
 	{
+	case WEAPON_LERK_PRIMALSCREAM:
+		return UTIL_MetresToGoldSrcUnits(100.0f);
 	case WEAPON_LERK_SPORES:
 	case WEAPON_LERK_UMBRA:
 		return UTIL_MetresToGoldSrcUnits(50.0f);
@@ -661,6 +663,38 @@ NSWeapon SkulkGetBestWeaponForCombatTarget(bot_t* pBot, edict_t* Target)
 
 	return WEAPON_SKULK_BITE;
 
+}
+
+NSWeapon LerkGetBestWeaponForCombatTarget(bot_t* pBot, edict_t* Target)
+{
+	if (!IsPlayerBuffed(pBot->pEdict) && PlayerHasWeapon(pBot->pEdict, WEAPON_LERK_PRIMALSCREAM) && pBot->Adrenaline > (GetEnergyCostForWeapon(WEAPON_LERK_PRIMALSCREAM) * 1.25f))
+	{
+		int NumAllies = UTIL_GetNumPlayersOnTeamWithLOS(Target->v.origin, ALIEN_TEAM, UTIL_MetresToGoldSrcUnits(15.0f), pBot->pEdict);
+
+		if (NumAllies > 0)
+		{
+			return WEAPON_LERK_PRIMALSCREAM;
+		}
+	}
+
+	float DistFromEnemy = vDist2DSq(pBot->pEdict->v.origin, Target->v.origin);
+
+	if (DistFromEnemy > sqrf(UTIL_MetresToGoldSrcUnits(5.0f)) && PlayerHasWeapon(pBot->pEdict, WEAPON_LERK_UMBRA) && pBot->Adrenaline > (GetEnergyCostForWeapon(WEAPON_LERK_UMBRA) * 1.25f))
+	{
+		int NumAllies = UTIL_GetNumPlayersOfTeamInArea(Target->v.origin, kUmbraCloudRadius, ALIEN_TEAM, pBot->pEdict, CLASS_NONE, false);
+
+		if (NumAllies > 0)
+		{
+			return WEAPON_LERK_UMBRA;
+		}
+	}
+
+	if (DistFromEnemy > sqrf(UTIL_MetresToGoldSrcUnits(5.0f)) && pBot->Adrenaline > GetEnergyCostForWeapon(WEAPON_LERK_SPORES) && !UTIL_IsAreaAffectedBySpores(Target->v.origin))
+	{
+		return WEAPON_LERK_SPORES;
+	}
+
+	return WEAPON_LERK_BITE;
 }
 
 NSWeapon OnosGetBestWeaponForCombatTarget(bot_t* pBot, edict_t* Target)

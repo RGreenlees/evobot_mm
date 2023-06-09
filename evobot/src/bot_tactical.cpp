@@ -2642,7 +2642,7 @@ edict_t* UTIL_GetClosestPlayerOnTeamWithLOS(const Vector& Location, const int Te
 	return Result;
 }
 
-bool UTIL_AnyPlayerOnTeamHasLOSToLocation(const edict_t* Player, const int Team, const Vector Target, const float MaxRange)
+bool UTIL_AnyPlayerOnTeamHasLOSToLocation(const int Team, const Vector Target, const float MaxRange)
 {
 	float distSq = sqrf(MaxRange);
 
@@ -4536,6 +4536,19 @@ bool UTIL_IsAreaAffectedBySpores(const Vector Location)
 		{
 			return true;
 		}
+	}
+
+	return false;
+}
+
+bool UTIL_IsAreaAffectedByUmbra(const Vector Location)
+{
+	edict_t* umbraEntity = NULL;
+	float UmbraDist = sqrf(kUmbraCloudRadius);
+
+	while ((umbraEntity = UTIL_FindEntityByClassname(umbraEntity, "umbracloud")) != NULL)
+	{
+		if (vDist3DSq(umbraEntity->v.origin, Location) <= UmbraDist) { return true; }
 	}
 
 	return false;

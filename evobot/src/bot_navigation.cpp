@@ -1163,8 +1163,8 @@ bool loadNavigationData(const char* mapname)
 	NavProfiles[SKULK_AMBUSH_NAV_PROFILE].Filters.addExcludeFlags(SAMPLE_POLYFLAGS_LADDER);
 	NavProfiles[SKULK_AMBUSH_NAV_PROFILE].Filters.addExcludeFlags(SAMPLE_POLYFLAGS_ASTRUCTURE);
 	NavProfiles[SKULK_AMBUSH_NAV_PROFILE].Filters.addExcludeFlags(SAMPLE_POLYFLAGS_PHASEGATE);
-	NavProfiles[SKULK_AMBUSH_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_GROUND, 5.0f);
-	NavProfiles[SKULK_AMBUSH_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_JUMP, 1.5f);
+	NavProfiles[SKULK_AMBUSH_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_GROUND, 50.0f);
+	NavProfiles[SKULK_AMBUSH_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_JUMP, 1.0f);
 	NavProfiles[SKULK_AMBUSH_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_FALL, 1.0f);
 	NavProfiles[SKULK_AMBUSH_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_WALLCLIMB, 1.0f);
 	NavProfiles[SKULK_AMBUSH_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_HIGHFALL, 1.0f);
@@ -5754,4 +5754,18 @@ void UTIL_PopulateDoors()
 
 		NumDoors++;
 	}
+}
+
+unsigned char UTIL_GetBotCurrentPathArea(bot_t* pBot)
+{
+	if (pBot->BotNavInfo.PathSize == 0) { return SAMPLE_POLYAREA_GROUND; }
+
+	return pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].area;
+}
+
+unsigned char UTIL_GetNextBotCurrentPathArea(bot_t* pBot)
+{
+	if (pBot->BotNavInfo.PathSize == 0 || pBot->BotNavInfo.CurrentPathPoint >= pBot->BotNavInfo.PathSize - 1) { return SAMPLE_POLYAREA_GROUND; }
+
+	return pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint + 1].area;
 }
