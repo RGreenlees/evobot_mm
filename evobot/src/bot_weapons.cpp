@@ -623,10 +623,11 @@ NSWeapon BotMarineChooseBestWeaponForStructure(bot_t* pBot, edict_t* target)
 
 NSWeapon GorgeGetBestWeaponForCombatTarget(bot_t* pBot, edict_t* Target)
 {
-	if (Target->v.armorvalue > 0.0f && PlayerHasWeapon(pBot->pEdict, WEAPON_GORGE_BILEBOMB) && vDist2DSq(pBot->pEdict->v.origin, Target->v.origin) < sqrf(GetMaxIdealWeaponRange(WEAPON_GORGE_BILEBOMB)))
+	// Apparently I only imagined bile bomb doing damage to marine armour. Leaving it commented out in case we want to enable it again in future
+	/*if (Target->v.armorvalue > 0.0f && PlayerHasWeapon(pBot->pEdict, WEAPON_GORGE_BILEBOMB) && vDist2DSq(pBot->pEdict->v.origin, Target->v.origin) < sqrf(GetMaxIdealWeaponRange(WEAPON_GORGE_BILEBOMB)))
 	{
 		return WEAPON_GORGE_BILEBOMB;
-	}
+	}*/
 
 	return WEAPON_GORGE_SPIT;
 }
