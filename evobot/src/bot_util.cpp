@@ -841,10 +841,13 @@ void BotShootTarget(bot_t* pBot, NSWeapon AttackWeapon, edict_t* Target)
 
 	Vector TargetAimDir = ZERO_VECTOR;
 
-	if (CurrentWeapon == WEAPON_MARINE_GL || CurrentWeapon == WEAPON_MARINE_GRENADE)
+	if (CurrentWeapon == WEAPON_MARINE_GL || CurrentWeapon == WEAPON_MARINE_GRENADE || CurrentWeapon == WEAPON_GORGE_BILEBOMB)
 	{
 		Vector AimLocation = UTIL_GetCentreOfEntity(Target);
-		Vector NewAimAngle = GetPitchForProjectile(pBot->CurrentEyePosition, AimLocation, 800.0f, 640.0f);
+
+		float ProjectileVelocity = (CurrentWeapon == WEAPON_GORGE_BILEBOMB) ? 750.0f : 800.0f;
+
+		Vector NewAimAngle = GetPitchForProjectile(pBot->CurrentEyePosition, AimLocation, ProjectileVelocity, 640.0f);
 
 		NewAimAngle = UTIL_GetVectorNormal(NewAimAngle);
 
@@ -1472,7 +1475,7 @@ void BotUpdateView(bot_t* pBot)
 		bool bInFOV = IsPlayerInBotFOV(pBot, Enemy);
 		bool bHasLOS = DoesBotHaveLOSToPlayer(pBot, Enemy);
 
-		if (pBot->LastSafeLocation != ZERO_VECTOR && UTIL_PlayerHasLOSToLocation(clients[i], pBot->LastSafeLocation, UTIL_MetresToGoldSrcUnits(50.0f)))
+		if (pBot->LastSafeLocation != ZERO_VECTOR && UTIL_PlayerHasLOSToLocation(Enemy, pBot->LastSafeLocation, UTIL_MetresToGoldSrcUnits(50.0f)))
 		{
 			pBot->LastSafeLocation = ZERO_VECTOR;
 		}
@@ -1965,26 +1968,20 @@ void DroneThink(bot_t* pBot)
 
 void CustomThink(bot_t* pBot)
 {
-	if (!IsPlayerSkulk(pBot->pEdict)) { return; }
+	if (!IsPlayerGorge(pBot->pEdict)) { return; }
 
 	pBot->CurrentEnemy = BotGetNextEnemyTarget(pBot);
 
 	if (pBot->CurrentEnemy > -1)
 	{
-		AlienCombatThink(pBot);
-	}
-	else
-	{
-		edict_t* Enemy = UTIL_GetNearestPlayerOfTeamInArea(pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(100.0f), MARINE_TEAM, nullptr, CLASS_NONE);
+		edict_t* Enemy = pBot->TrackedEnemies[pBot->CurrentEnemy].EnemyEdict;
 
-		if (!FNullEnt(Enemy))
+		if (pBot->TrackedEnemies[pBot->CurrentEnemy].bHasLOS)
 		{
-			MoveTo(pBot, Enemy->v.origin, MOVESTYLE_NORMAL, 100.0f);
+			BotShootTarget(pBot, WEAPON_GORGE_BILEBOMB, Enemy);
 		}
 	}
 
-	//BotDrawPath(pBot, 0.0f, false);
-	UTIL_DrawLine(GAME_GetListenServerEdict(), pBot->pEdict->v.origin, pBot->pEdict->v.origin + (pBot->desiredMovementDir * 100.0f));
 }
 
 void TestAimThink(bot_t* pBot)

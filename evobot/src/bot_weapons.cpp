@@ -621,6 +621,16 @@ NSWeapon BotMarineChooseBestWeaponForStructure(bot_t* pBot, edict_t* target)
 	return GetBotMarinePrimaryWeapon(pBot);
 }
 
+NSWeapon GorgeGetBestWeaponForCombatTarget(bot_t* pBot, edict_t* Target)
+{
+	if (Target->v.armorvalue > 0.0f && PlayerHasWeapon(pBot->pEdict, WEAPON_GORGE_BILEBOMB) && vDist2DSq(pBot->pEdict->v.origin, Target->v.origin) < sqrf(GetMaxIdealWeaponRange(WEAPON_GORGE_BILEBOMB)))
+	{
+		return WEAPON_GORGE_BILEBOMB;
+	}
+
+	return WEAPON_GORGE_SPIT;
+}
+
 NSWeapon SkulkGetBestWeaponForCombatTarget(bot_t* pBot, edict_t* Target)
 {
 	if (FNullEnt(Target) || IsPlayerDead(Target))

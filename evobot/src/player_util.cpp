@@ -743,7 +743,7 @@ bool UTIL_PlayerHasLOSToLocation(const edict_t* Player, const Vector Target, con
 
 	TraceResult hit;
 
-	UTIL_TraceLine(StartTrace, Target, dont_ignore_monsters, dont_ignore_glass, Player->v.pContainingEntity, &hit);
+	UTIL_TraceLine(StartTrace, Target, ignore_monsters, ignore_glass, Player->v.pContainingEntity, &hit);
 
 	return (hit.flFraction >= 1.0f);
 
