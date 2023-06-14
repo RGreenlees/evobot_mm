@@ -520,7 +520,6 @@ bool UTIL_IsAlienBuildTaskStillValid(bot_t* pBot, bot_task* Task)
 			return false;
 		}
 
-
 		edict_t* OtherGorge = UTIL_GetNearestPlayerOfClass(HiveIndex->Location, CLASS_GORGE, UTIL_MetresToGoldSrcUnits(10.0f), pBot->pEdict);
 
 		if (!FNullEnt(OtherGorge) && GetPlayerResources(OtherGorge) > pBot->resources)
@@ -1023,37 +1022,20 @@ void BotProgressEvolveTask(bot_t* pBot, bot_task* Task)
 
 	if (Task->TaskLocation != ZERO_VECTOR)
 	{
-		if (vDist2DSq(pBot->pEdict->v.origin, Task->TaskLocation) > sqrf(UTIL_MetresToGoldSrcUnits(1.0f)))
+		if (vDist2DSq(pBot->pEdict->v.origin, Task->TaskLocation) > sqrf(32.0f))
 		{
 			MoveTo(pBot, Task->TaskLocation, MOVESTYLE_NORMAL);
 			return;
 		}
 		else
 		{
-			dtPolyRef BotPoly = UTIL_GetNavAreaAtLocation(BUILDING_REGULAR_NAV_PROFILE, pBot->CurrentFloorPosition);
-
-			if (BotPoly != SAMPLE_POLYAREA_GROUND)
-			{
-				Vector MoveLoc = UTIL_ProjectPointToNavmesh(pBot->pEdict->v.origin, BUILDING_REGULAR_NAV_PROFILE);
-
-				if (MoveLoc != ZERO_VECTOR)
-				{
-					Vector MoveDir = UTIL_GetVectorNormal2D(MoveLoc - pBot->CurrentFloorPosition);
-
-
-					MoveDirectlyTo(pBot, MoveLoc + (MoveDir * (32.0f)));
-					return;
-				}
-			}
-
 			pBot->pEdict->v.impulse = Task->Evolution;
 			Task->TaskStartedTime = gpGlobals->time;
 		}
 	}
 	else
 	{
-		pBot->pEdict->v.impulse = Task->Evolution;
-		Task->TaskStartedTime = gpGlobals->time;
+		Task->TaskLocation = UTIL_GetRandomPointOnNavmeshInRadius(BUILDING_REGULAR_NAV_PROFILE, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(3.0f));
 	}
 }
 
@@ -1740,6 +1722,12 @@ char* UTIL_TaskTypeToChar(const BotTaskType TaskType)
 
 void TASK_SetAttackTask(bot_t* pBot, bot_task* Task, edict_t* Target, const bool bIsUrgent)
 {
+	if (Task->TaskType == TASK_ATTACK && Task->TaskTarget == Target) 
+	{
+		Task->bTaskIsUrgent = bIsUrgent;
+		return;
+	}
+
 	UTIL_ClearBotTask(pBot, Task);
 
 	// Don't set the task if the target is invalid, dead or on the same team as the bot (can't picture a situation where you want them to teamkill...)
@@ -1767,12 +1755,18 @@ void TASK_SetAttackTask(bot_t* pBot, bot_task* Task, edict_t* Target, const bool
 	}
 	else
 	{
-		AttackLocation = UTIL_GetEntityGroundLocation(Target);
+		AttackLocation = Target->v.origin;
 	}
 }
 
 void TASK_SetMoveTask(bot_t* pBot, bot_task* Task, const Vector Location, bool bIsUrgent)
 {
+	if (Task->TaskType == TASK_MOVE && Task->TaskLocation == Location)
+	{
+		Task->bTaskIsUrgent = bIsUrgent;
+		return;
+	}
+
 	UTIL_ClearBotTask(pBot, Task);
 
 	if (!Location) { return; }
@@ -1864,6 +1858,12 @@ void TASK_SetCapResNodeTask(bot_t* pBot, bot_task* Task, const resource_node* No
 
 void TASK_SetDefendTask(bot_t* pBot, bot_task* Task, edict_t* Target, const bool bIsUrgent)
 {
+	if (Task->TaskType == TASK_DEFEND && Task->TaskTarget == Target)
+	{
+		Task->bTaskIsUrgent = bIsUrgent;
+		return;
+	}
+
 	UTIL_ClearBotTask(pBot, Task);
 
 	// Can't defend an invalid or dead target

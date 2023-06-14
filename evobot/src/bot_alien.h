@@ -54,4 +54,7 @@ int CalcNumAlienBuildersRequired();
 
 CombatModeAlienUpgrade AlienGetNextCombatUpgrade(bot_t* pBot);
 
+bool IsAlienBuilderTaskNeeded(bot_t* pBot);
+bool IsAlienCapperTaskNeeded();
+
 #endif

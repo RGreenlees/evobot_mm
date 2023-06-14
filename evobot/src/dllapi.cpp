@@ -572,22 +572,13 @@ void ClientCommand(edict_t* pEntity)
 		{
 			if (bots[i].is_used)  // not respawning
 			{
-				if (IsPlayerMarine(bots[i].pEdict))
+				if (IsPlayerSkulk(bots[i].pEdict))
 				{
-					edict_t* ResTower = UTIL_GetNearestStructureIndexOfType(bots[i].pEdict->v.origin, STRUCTURE_ALIEN_RESTOWER, UTIL_MetresToGoldSrcUnits(200.0f), false, true);
+					edict_t* PhaseGate = UTIL_GetNearestStructureIndexOfType(bots[i].pEdict->v.origin, STRUCTURE_MARINE_PHASEGATE, UTIL_MetresToGoldSrcUnits(200.0f), false, false);
 
-					if (!FNullEnt(ResTower))
+					if (!FNullEnt(PhaseGate))
 					{
-						TASK_SetAttackTask(&bots[i], &bots[i].PrimaryBotTask, ResTower, true);
-					}
-					else
-					{
-						const hive_definition* Hive = UTIL_GetNearestBuiltHiveToLocation(bots[i].pEdict->v.origin);
-
-						if (Hive)
-						{
-							TASK_SetAttackTask(&bots[i], &bots[i].PrimaryBotTask, Hive->edict, true);
-						}
+						TASK_SetAttackTask(&bots[i], &bots[i].PrimaryBotTask, PhaseGate, true);
 					}
 				}
 
