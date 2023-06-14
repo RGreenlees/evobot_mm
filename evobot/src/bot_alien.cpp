@@ -173,6 +173,29 @@ void AlienCombatModeThink(bot_t* pBot)
 
 void BotAlienSetPrimaryTask(bot_t* pBot, bot_task* Task)
 {
+	if ((IsPlayerSkulk(pBot->pEdict) || IsPlayerGorge(pBot->pEdict)) && GetPlayerResources(pBot->pEdict) > 45 && !UTIL_HiveIsInProgress() && UTIL_GetNumUnbuiltHives() > 0)
+	{
+		if (Task->TaskType == TASK_BUILD && Task->StructureType == STRUCTURE_ALIEN_HIVE) { return; }
+
+		const hive_definition* UnbuiltHiveIndex = UTIL_GetClosestViableUnbuiltHive(pBot->pEdict->v.origin);
+
+		if (UnbuiltHiveIndex)
+		{
+			edict_t* OtherBuilder = GetFirstBotWithBuildTask(STRUCTURE_ALIEN_HIVE, pBot->pEdict);
+
+			if (FNullEnt(OtherBuilder))
+			{
+				OtherBuilder = UTIL_GetNearestPlayerOfClass(UnbuiltHiveIndex->Location, CLASS_GORGE, UTIL_MetresToGoldSrcUnits(30.0f), pBot->pEdict);
+			}
+
+			if (FNullEnt(OtherBuilder) || GetPlayerResources(OtherBuilder) < GetPlayerResources(pBot->pEdict))
+			{
+				TASK_SetBuildTask(pBot, Task, STRUCTURE_ALIEN_HIVE, UnbuiltHiveIndex->FloorLocation, true);
+				return;
+			}
+		}
+	}
+
 	switch (pBot->CurrentRole)
 	{
 	case BOT_ROLE_HARASS:
@@ -601,12 +624,17 @@ void AlienBuilderSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 		if (UnbuiltHiveIndex)
 		{
-			edict_t* OtherGorge = UTIL_GetNearestPlayerOfClass(UnbuiltHiveIndex->Location, CLASS_GORGE, UTIL_MetresToGoldSrcUnits(30.0f), pEdict);
+			edict_t* OtherBuilder = GetFirstBotWithBuildTask(STRUCTURE_ALIEN_HIVE, pBot->pEdict);
 
-			if (FNullEnt(OtherGorge) || GetPlayerResources(OtherGorge) < pBot->resources)
+			if (FNullEnt(OtherBuilder))
+			{
+				OtherBuilder = UTIL_GetNearestPlayerOfClass(UnbuiltHiveIndex->Location, CLASS_GORGE, UTIL_MetresToGoldSrcUnits(30.0f), pEdict);
+			}
+
+			if (FNullEnt(OtherBuilder) || GetPlayerResources(OtherBuilder) < GetPlayerResources(pBot->pEdict))
 			{
 				TASK_SetBuildTask(pBot, Task, STRUCTURE_ALIEN_HIVE, UnbuiltHiveIndex->FloorLocation, false);
-				return;				
+				return;
 			}
 		}
 	}
@@ -905,11 +933,6 @@ void AlienDestroyerSetPrimaryTask(bot_t* pBot, bot_task* Task)
 	if (!FNullEnt(BlockingStructure))
 	{
 		TASK_SetAttackTask(pBot, Task, BlockingStructure, IsPlayerOnos(pBot->pEdict));
-		return;
-	}
-
-	if (Task->TaskType == TASK_ATTACK)
-	{
 		return;
 	}
 
@@ -1943,8 +1966,6 @@ void AlienCheckWantsAndNeeds(bot_t* pBot)
 {
 	edict_t* pEdict = pBot->pEdict;
 
-	if (IsPlayerDead(pEdict)) { return; }
-
 	float MaxHealthAndArmour = pEdict->v.max_health + GetPlayerMaxArmour(pEdict);
 	float CurrentHealthAndArmour = pEdict->v.health + pEdict->v.armorvalue;
 
@@ -1963,13 +1984,40 @@ void AlienCheckWantsAndNeeds(bot_t* pBot)
 		}
 	}
 
-	bool bLowOnHealth = ((CurrentHealthAndArmour / MaxHealthAndArmour) <= 0.5f);
+	float OverallHealthPercent = (CurrentHealthAndArmour / MaxHealthAndArmour);
+
+	bool bLowOnHealth = (OverallHealthPercent <= 0.5f);
 
 	// Don't go hunting for health as a gorge, can heal themselves quickly. Fades will because metabolise isn't enough
 	if (bLowOnHealth && !IsPlayerGorge(pBot->pEdict))
 	{
+		// Already getting health
+		if (pBot->WantsAndNeedsTask.TaskType == TASK_GET_HEALTH && (OverallHealthPercent > 0.35f || IsEdictStructure(pBot->WantsAndNeedsTask.TaskTarget)) )
+		{
+			pBot->WantsAndNeedsTask.bTaskIsUrgent = true;
+			return;
+		}
 
-		edict_t* HealingSource = UTIL_AlienFindNearestHealingSpot(pBot, pEdict->v.origin);
+		edict_t* HealingSource = nullptr;
+		
+		// If we're REALLY low on health then go to the hive, don't try to heal at a gorge
+		if (OverallHealthPercent > 0.35f)
+		{
+			HealingSource = UTIL_AlienFindNearestHealingSpot(pBot, pEdict->v.origin);
+		}
+		else
+		{
+			const hive_definition* NearestHive = UTIL_GetNearestBuiltHiveToLocation(pBot->pEdict->v.origin);
+
+			if (NearestHive)
+			{
+				HealingSource = NearestHive->edict;
+			}
+			else
+			{
+				HealingSource = UTIL_AlienFindNearestHealingSpot(pBot, pEdict->v.origin);
+			}
+		}
 
 		if (!FNullEnt(HealingSource))
 		{

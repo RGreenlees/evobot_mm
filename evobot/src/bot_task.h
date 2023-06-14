@@ -82,5 +82,6 @@ void BotGuardLocation(bot_t* pBot, const Vector GuardLocation);
 void UTIL_GenerateGuardWatchPoints(bot_t* pBot, const Vector& GuardLocation);
 
 bool BotWithBuildTaskExists(NSStructureType StructureType);
+edict_t* GetFirstBotWithBuildTask(NSStructureType StructureType, edict_t* IgnorePlayer);
 
 #endif

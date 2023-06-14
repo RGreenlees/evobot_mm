@@ -504,6 +504,20 @@ bool UTIL_IsAlienBuildTaskStillValid(bot_t* pBot, bot_task* Task)
 
 		if (HiveIndex->Status != HIVE_STATUS_UNBUILT) { return false; }
 
+		edict_t* OtherHiveBuilder = GetFirstBotWithBuildTask(STRUCTURE_ALIEN_HIVE, pBot->pEdict);
+
+		if (!FNullEnt(OtherHiveBuilder) && GetPlayerResources(OtherHiveBuilder) > GetPlayerResources(pBot->pEdict)) { return false; }
+
+		edict_t* OtherGorge = UTIL_GetNearestPlayerOfClass(HiveIndex->Location, CLASS_GORGE, UTIL_MetresToGoldSrcUnits(10.0f), pBot->pEdict);
+
+		if (!FNullEnt(OtherGorge) && GetPlayerResources(OtherGorge) > pBot->resources)
+		{
+			char buf[128];
+			sprintf(buf, "I won't drop hive, %s can do it", STRING(OtherGorge->v.netname));
+			BotTeamSay(pBot, 1.0f, buf);
+			return false;
+		}
+
 		if (UTIL_StructureOfTypeExistsInLocation(STRUCTURE_MARINE_PHASEGATE, HiveIndex->Location, UTIL_MetresToGoldSrcUnits(15.0f)))
 		{
 			char buf[128];
@@ -520,15 +534,7 @@ bool UTIL_IsAlienBuildTaskStillValid(bot_t* pBot, bot_task* Task)
 			return false;
 		}
 
-		edict_t* OtherGorge = UTIL_GetNearestPlayerOfClass(HiveIndex->Location, CLASS_GORGE, UTIL_MetresToGoldSrcUnits(10.0f), pBot->pEdict);
-
-		if (!FNullEnt(OtherGorge) && GetPlayerResources(OtherGorge) > pBot->resources)
-		{
-			char buf[128];
-			sprintf(buf, "I won't drop hive, %s can do it", STRING(OtherGorge->v.netname));
-			BotTeamSay(pBot, 1.0f, buf);
-			return false;
-		}
+		
 
 		return true;
 	}
@@ -1679,6 +1685,21 @@ bool BotWithBuildTaskExists(NSStructureType StructureType)
 	}
 
 	return false;
+}
+
+edict_t* GetFirstBotWithBuildTask(NSStructureType StructureType, edict_t* IgnorePlayer)
+{
+	for (int i = 0; i < 32; i++)
+	{
+		if (!bots[i].is_used || FNullEnt(bots[i].pEdict || bots[i].pEdict == IgnorePlayer)) { continue; }
+
+		if ((bots[i].PrimaryBotTask.TaskType == TASK_BUILD && bots[i].PrimaryBotTask.StructureType == StructureType) || (bots[i].SecondaryBotTask.TaskType == TASK_BUILD && bots[i].SecondaryBotTask.StructureType == StructureType))
+		{
+			return bots[i].pEdict;
+		}
+	}
+
+	return nullptr;
 }
 
 char* UTIL_TaskTypeToChar(const BotTaskType TaskType)

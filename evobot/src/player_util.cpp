@@ -785,33 +785,33 @@ bool PlayerHasWeapon(const edict_t* Player, const NSWeapon DesiredCombatWeapon)
 	case WEAPON_SKULK_PARASITE:
 		return IsPlayerSkulk(Player);
 	case WEAPON_SKULK_LEAP:
-		return (IsPlayerSkulk(Player) && (bIsCombatMode) ? bUnlockedAbility3 : (UTIL_GetNumActiveHives() >= 2));
+		return (IsPlayerSkulk(Player) && ((bIsCombatMode) ? bUnlockedAbility3 : (UTIL_GetNumActiveHives() >= 2)));
 	case WEAPON_SKULK_XENOCIDE:
-		return (IsPlayerSkulk(Player) && (bIsCombatMode) ? bUnlockedAbility4 : (UTIL_GetNumActiveHives() >= 3));
+		return (IsPlayerSkulk(Player) && ((bIsCombatMode) ? bUnlockedAbility4 : (UTIL_GetNumActiveHives() >= 3)));
 
 	case WEAPON_GORGE_SPIT:
 	case WEAPON_GORGE_HEALINGSPRAY:
 		return IsPlayerGorge(Player);
 	case WEAPON_GORGE_BILEBOMB:
-		return (IsPlayerGorge(Player) && (bIsCombatMode) ? bUnlockedAbility3 : (UTIL_GetNumActiveHives() >= 2));
+		return (IsPlayerGorge(Player) && ((bIsCombatMode) ? bUnlockedAbility3 : (UTIL_GetNumActiveHives() >= 2)));
 	case WEAPON_GORGE_WEB:
-		return (IsPlayerGorge(Player) && (bIsCombatMode) ? bUnlockedAbility4 : (UTIL_GetNumActiveHives() >= 3));
+		return (IsPlayerGorge(Player) && ((bIsCombatMode) ? bUnlockedAbility4 : (UTIL_GetNumActiveHives() >= 3)));
 
 	case WEAPON_LERK_BITE:
 	case WEAPON_LERK_SPORES:
 		return IsPlayerLerk(Player);
 	case WEAPON_LERK_UMBRA:
-		return (IsPlayerLerk(Player) && (bIsCombatMode) ? bUnlockedAbility3 : (UTIL_GetNumActiveHives() >= 2));
+		return (IsPlayerLerk(Player) && ((bIsCombatMode) ? bUnlockedAbility3 : (UTIL_GetNumActiveHives() >= 2)));
 	case WEAPON_LERK_PRIMALSCREAM:
-		return (IsPlayerLerk(Player) && (bIsCombatMode) ? bUnlockedAbility4 : (UTIL_GetNumActiveHives() >= 3));
+		return (IsPlayerLerk(Player) && ((bIsCombatMode) ? bUnlockedAbility4 : (UTIL_GetNumActiveHives() >= 3)));
 
 	case WEAPON_FADE_SWIPE:
 	case WEAPON_FADE_BLINK:
 		return IsPlayerFade(Player);
 	case WEAPON_FADE_METABOLIZE:
-		return (IsPlayerFade(Player) && (bIsCombatMode) ? bUnlockedAbility3 : (UTIL_GetNumActiveHives() >= 2));
+		return (IsPlayerFade(Player) && ((bIsCombatMode) ? bUnlockedAbility3 : (UTIL_GetNumActiveHives() >= 2)));
 	case WEAPON_FADE_ACIDROCKET:
-		return (IsPlayerFade(Player) && (bIsCombatMode) ? bUnlockedAbility4 : (UTIL_GetNumActiveHives() >= 3));
+		return (IsPlayerFade(Player) && ((bIsCombatMode) ? bUnlockedAbility4 : (UTIL_GetNumActiveHives() >= 3)));
 
 	case WEAPON_ONOS_GORE:
 	case WEAPON_ONOS_DEVOUR:

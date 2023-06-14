@@ -572,17 +572,12 @@ void ClientCommand(edict_t* pEntity)
 		{
 			if (bots[i].is_used)  // not respawning
 			{
-				if (IsPlayerSkulk(bots[i].pEdict))
+				edict_t* PhaseGate = UTIL_GetNearestStructureIndexOfType(bots[i].pEdict->v.origin, STRUCTURE_MARINE_PHASEGATE, UTIL_MetresToGoldSrcUnits(200.0f), false, false);
+
+				if (!FNullEnt(PhaseGate))
 				{
-					edict_t* PhaseGate = UTIL_GetNearestStructureIndexOfType(bots[i].pEdict->v.origin, STRUCTURE_MARINE_PHASEGATE, UTIL_MetresToGoldSrcUnits(200.0f), false, false);
-
-					if (!FNullEnt(PhaseGate))
-					{
-						TASK_SetAttackTask(&bots[i], &bots[i].PrimaryBotTask, PhaseGate, true);
-					}
-				}
-
-				
+					TASK_SetAttackTask(&bots[i], &bots[i].PrimaryBotTask, PhaseGate, true);
+				}				
 			}
 		}
 		RETURN_META(MRES_SUPERCEDE);
