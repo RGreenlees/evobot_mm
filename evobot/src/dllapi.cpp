@@ -171,6 +171,23 @@ void ClientCommand(edict_t* pEntity)
 
 	}
 
+	if (FStrEq(pcmd, "testambush"))
+	{
+		for (int i = 0; i < MAX_CLIENTS; i++)
+		{
+			if (bots[i].is_used && !FNullEnt(bots[i].pEdict))
+			{
+				Vector AmbushLoc = UTIL_GetAmbushPositionForTarget2(&bots[i], pEntity);
+
+				if (AmbushLoc != ZERO_VECTOR)
+				{
+					UTIL_DrawLine(pEntity, pEntity->v.origin, AmbushLoc, 10.0f, 255, 0, 0);
+				}
+			}
+		}
+		RETURN_META(MRES_SUPERCEDE);
+	}
+
 
 	if (FStrEq(pcmd, "traceentity"))
 	{
@@ -635,10 +652,7 @@ void ClientCommand(edict_t* pEntity)
 			{
 				if (IsPlayerOnAlienTeam(bots[i].pEdict) && !IsPlayerDead(bots[i].pEdict))
 				{
-					bots[i].PrimaryBotTask.TaskType = TASK_EVOLVE;
-					bots[i].PrimaryBotTask.Evolution = IMPULSE_ALIEN_EVOLVE_GORGE;
-					bots[i].PrimaryBotTask.TaskLocation = bots[i].pEdict->v.origin;
-					bots[i].PrimaryBotTask.TaskStartedTime = 0.0f;
+					TASK_SetEvolveTask(&bots[i], &bots[i].PrimaryBotTask, bots[i].pEdict->v.origin, IMPULSE_ALIEN_EVOLVE_GORGE, true);
 				}
 			}
 		}
@@ -659,10 +673,7 @@ void ClientCommand(edict_t* pEntity)
 			{
 				if (IsPlayerOnAlienTeam(bots[i].pEdict) && !IsPlayerDead(bots[i].pEdict))
 				{
-					bots[i].PrimaryBotTask.TaskType = TASK_EVOLVE;
-					bots[i].PrimaryBotTask.Evolution = IMPULSE_ALIEN_EVOLVE_LERK;
-					bots[i].PrimaryBotTask.TaskLocation = bots[i].pEdict->v.origin;
-					bots[i].PrimaryBotTask.TaskStartedTime = 0.0f;
+					TASK_SetEvolveTask(&bots[i], &bots[i].PrimaryBotTask, bots[i].pEdict->v.origin, IMPULSE_ALIEN_EVOLVE_LERK, true);
 				}
 			}
 		}
@@ -683,10 +694,7 @@ void ClientCommand(edict_t* pEntity)
 			{
 				if (IsPlayerOnAlienTeam(bots[i].pEdict) && !IsPlayerDead(bots[i].pEdict))
 				{
-					bots[i].PrimaryBotTask.TaskType = TASK_EVOLVE;
-					bots[i].PrimaryBotTask.Evolution = IMPULSE_ALIEN_EVOLVE_FADE;
-					bots[i].PrimaryBotTask.TaskLocation = bots[i].pEdict->v.origin;
-					bots[i].PrimaryBotTask.TaskStartedTime = 0.0f;
+					TASK_SetEvolveTask(&bots[i], &bots[i].PrimaryBotTask, bots[i].pEdict->v.origin, IMPULSE_ALIEN_EVOLVE_FADE, true);
 				}
 			}
 		}
@@ -707,10 +715,7 @@ void ClientCommand(edict_t* pEntity)
 			{
 				if (IsPlayerOnAlienTeam(bots[i].pEdict) && !IsPlayerDead(bots[i].pEdict))
 				{
-					bots[i].PrimaryBotTask.TaskType = TASK_EVOLVE;
-					bots[i].PrimaryBotTask.Evolution = IMPULSE_ALIEN_EVOLVE_ONOS;
-					bots[i].PrimaryBotTask.TaskLocation = bots[i].pEdict->v.origin;
-					bots[i].PrimaryBotTask.TaskStartedTime = 0.0f;
+					TASK_SetEvolveTask(&bots[i], &bots[i].PrimaryBotTask, bots[i].pEdict->v.origin, IMPULSE_ALIEN_EVOLVE_ONOS, true);
 				}
 			}
 		}

@@ -4553,3 +4553,86 @@ bool UTIL_IsAreaAffectedByUmbra(const Vector Location)
 
 	return false;
 }
+
+Vector UTIL_GetAmbushPositionForTarget(bot_t* pBot, edict_t* Target)
+{
+	bot_path_node BackwardsPath[MAX_PATH_SIZE];
+	memset(BackwardsPath, 0, sizeof(BackwardsPath));
+	int BackwardsPathSize = 0;
+
+	// Now we find a path backwards from the valid nav mesh point to our location, trying to get as close as we can to it
+
+	int BotProfile = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_AMBUSH);
+
+	const hive_definition* Hive = UTIL_GetNearestHiveAtLocation(pBot->pEdict->v.origin);
+
+	Vector AmbushStartLocation = (!UTIL_PlayerHasLOSToLocation(Target, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(100.0f))) ? UTIL_GetEntityGroundLocation(pBot->pEdict) : Hive->FloorLocation;
+	
+	dtStatus BackwardFindingStatus = FindDetailedPathClosestToPoint(BotProfile, AmbushStartLocation, UTIL_GetEntityGroundLocation(Target), BackwardsPath, &BackwardsPathSize, 500.0f);
+
+	int EnemyTeam = (pBot->pEdict->v.team == ALIEN_TEAM) ? MARINE_TEAM : ALIEN_TEAM;
+
+	if (dtStatusSucceed(BackwardFindingStatus))
+	{
+		int PathIndex = BackwardsPathSize - 1;
+
+		Vector PotentialAmbushPoint = BackwardsPath[PathIndex].Location;
+
+		// The end point of this backwards path might not actually be reachable (e.g. behind a wall). Try and find any point along this path we can see ourselves
+		while (UTIL_AnyPlayerOnTeamHasLOSToLocation(EnemyTeam, PotentialAmbushPoint, UTIL_MetresToGoldSrcUnits(50.0f)) && PathIndex > 0)
+		{
+			PathIndex--;
+			PotentialAmbushPoint = BackwardsPath[PathIndex].Location;
+		}
+
+		nav_hitresult HitResult;
+
+		UTIL_TraceNavLine(BotProfile, PotentialAmbushPoint, UTIL_GetEntityGroundLocation(Target), &HitResult);
+
+		return HitResult.TraceEndPoint + Vector(0.0f, 0.0f, 18.0f);
+	}
+
+	return ZERO_VECTOR;
+}
+
+Vector UTIL_GetAmbushPositionForTarget2(bot_t* pBot, edict_t* Target)
+{
+	Vector TestPoints[32];
+
+	float Dist = vDist2D(pBot->pEdict->v.origin, Target->v.origin);
+
+	int BotMoveProfile = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_AMBUSH);
+
+	for (int i = 0; i < 32; i++)
+	{
+		TestPoints[i] = UTIL_GetRandomPointOnNavmeshInRadius(BotMoveProfile, pBot->pEdict->v.origin, Dist) + Vector(0.0f, 0.0f, 18.0f);
+
+		UTIL_DrawLine(GAME_GetListenServerEdict(), TestPoints[i], TestPoints[i] + Vector(0.0f, 0.0f, 100.0f), 10.0f);
+	}
+
+	float BestScore = 0.0f;
+	int WinningIndex = -1;
+
+
+	for (int i = 0; i < 32; i++)
+	{
+		if (UTIL_AnyPlayerOnTeamHasLOSToLocation(MARINE_TEAM, TestPoints[i], UTIL_MetresToGoldSrcUnits(100.0f))) { continue;}
+
+		float ThisScore = vDist3DSq(TestPoints[i], pBot->pEdict->v.origin);
+		ThisScore += vDist3DSq(TestPoints[i], Target->v.origin) * 2.0f;
+
+		if (UTIL_GetNavAreaAtLocation(TestPoints[i]) == SAMPLE_POLYAREA_CROUCH) { ThisScore *= 0.1f; }
+
+		if ((Target->v.origin.z - TestPoints[i].z) > 100.0f) { ThisScore *= 5.0f; }
+
+		if (WinningIndex < 0 || ThisScore < BestScore)
+		{
+			BestScore = ThisScore;
+			WinningIndex = i;
+		}
+	}
+
+	if (WinningIndex > -1) { return TestPoints[WinningIndex]; }
+
+	return ZERO_VECTOR;
+}

@@ -1021,49 +1021,37 @@ void BotProgressEvolveTask(bot_t* pBot, bot_task* Task)
 		return;
 	}
 
-	switch (Task->Evolution)
+	if (Task->TaskLocation != ZERO_VECTOR)
 	{
-	case IMPULSE_ALIEN_EVOLVE_LERK:
-	case IMPULSE_ALIEN_EVOLVE_FADE:
-	case IMPULSE_ALIEN_EVOLVE_ONOS:
-	{
-		if (Task->TaskLocation != ZERO_VECTOR)
+		if (vDist2DSq(pBot->pEdict->v.origin, Task->TaskLocation) > sqrf(UTIL_MetresToGoldSrcUnits(1.0f)))
 		{
-			if (vDist2DSq(pBot->pEdict->v.origin, Task->TaskLocation) > sqrf(UTIL_MetresToGoldSrcUnits(1.0f)))
-			{
-				MoveTo(pBot, Task->TaskLocation, MOVESTYLE_NORMAL);
-				return;
-			}
-			else
-			{
-				dtPolyRef BotPoly = UTIL_GetNavAreaAtLocation(BUILDING_REGULAR_NAV_PROFILE, pBot->CurrentFloorPosition);
-
-				if (BotPoly != SAMPLE_POLYAREA_GROUND)
-				{
-					Vector MoveLoc = UTIL_ProjectPointToNavmesh(pBot->pEdict->v.origin, BUILDING_REGULAR_NAV_PROFILE);
-
-					if (MoveLoc != ZERO_VECTOR)
-					{
-						Vector MoveDir = UTIL_GetVectorNormal2D(MoveLoc - pBot->CurrentFloorPosition);
-
-
-						MoveDirectlyTo(pBot, MoveLoc + (MoveDir * (32.0f)));
-						return;
-					}
-				}
-
-				pBot->pEdict->v.impulse = Task->Evolution;
-				Task->TaskStartedTime = gpGlobals->time;
-			}
+			MoveTo(pBot, Task->TaskLocation, MOVESTYLE_NORMAL);
+			return;
 		}
 		else
 		{
+			dtPolyRef BotPoly = UTIL_GetNavAreaAtLocation(BUILDING_REGULAR_NAV_PROFILE, pBot->CurrentFloorPosition);
+
+			if (BotPoly != SAMPLE_POLYAREA_GROUND)
+			{
+				Vector MoveLoc = UTIL_ProjectPointToNavmesh(pBot->pEdict->v.origin, BUILDING_REGULAR_NAV_PROFILE);
+
+				if (MoveLoc != ZERO_VECTOR)
+				{
+					Vector MoveDir = UTIL_GetVectorNormal2D(MoveLoc - pBot->CurrentFloorPosition);
+
+
+					MoveDirectlyTo(pBot, MoveLoc + (MoveDir * (32.0f)));
+					return;
+				}
+			}
+
 			pBot->pEdict->v.impulse = Task->Evolution;
 			Task->TaskStartedTime = gpGlobals->time;
 		}
 	}
-	break;
-	default:
+	else
+	{
 		pBot->pEdict->v.impulse = Task->Evolution;
 		Task->TaskStartedTime = gpGlobals->time;
 	}
@@ -1899,4 +1887,16 @@ void TASK_SetDefendTask(bot_t* pBot, bot_task* Task, edict_t* Target, const bool
 	}
 
 	
+}
+
+void TASK_SetEvolveTask(bot_t* pBot, bot_task* Task, const Vector EvolveLocation, const int EvolveImpulse, const bool bIsUrgent)
+{
+	UTIL_ClearBotTask(pBot, Task);
+
+	if (EvolveImpulse <= 0) { return; }
+
+	Task->TaskType = TASK_EVOLVE;
+	Task->TaskLocation = EvolveLocation;
+	Task->Evolution = EvolveImpulse;
+	Task->bTaskIsUrgent = bIsUrgent;
 }

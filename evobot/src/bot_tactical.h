@@ -379,4 +379,7 @@ bool UTIL_IsThereACommander();
 bool UTIL_IsAreaAffectedBySpores(const Vector Location);
 bool UTIL_IsAreaAffectedByUmbra(const Vector Location);
 
+Vector UTIL_GetAmbushPositionForTarget(bot_t* pBot, edict_t* Target);
+Vector UTIL_GetAmbushPositionForTarget2(bot_t* pBot, edict_t* Target);
+
 #endif

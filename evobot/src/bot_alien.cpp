@@ -217,11 +217,7 @@ void AlienSetCombatModeSecondaryTask(bot_t* pBot, bot_task* Task)
 			}
 		}
 
-		Task->TaskType = TASK_EVOLVE;
-		Task->TaskLocation = EvolvePosition;
-		Task->Evolution = IMPULSE_ALIEN_EVOLVE_GORGE;
-		Task->bTaskIsUrgent = true;
-		Task->TaskStartedTime = 0.0f;
+		TASK_SetEvolveTask(pBot, Task, EvolvePosition, IMPULSE_ALIEN_EVOLVE_GORGE, true);
 		return;
 
 	}
@@ -247,11 +243,7 @@ void AlienSetCombatModeSecondaryTask(bot_t* pBot, bot_task* Task)
 			}
 		}
 
-		Task->TaskType = TASK_EVOLVE;
-		Task->TaskLocation = EvolvePosition;
-		Task->Evolution = IMPULSE_ALIEN_EVOLVE_LERK;
-		Task->bTaskIsUrgent = true;
-		Task->TaskStartedTime = 0.0f;
+		TASK_SetEvolveTask(pBot, Task, EvolvePosition, IMPULSE_ALIEN_EVOLVE_LERK, true);
 		return;
 
 	}
@@ -277,20 +269,14 @@ void AlienSetCombatModeSecondaryTask(bot_t* pBot, bot_task* Task)
 			}
 		}
 
-		Task->TaskType = TASK_EVOLVE;
-		Task->TaskLocation = EvolvePosition;
-		Task->TaskStartedTime = 0.0f;
+		int EvolutionImpulse = Task->Evolution = IMPULSE_ALIEN_EVOLVE_FADE;
 
 		if ((pBot->CombatUpgradeMask & COMBAT_ALIEN_UPGRADE_ONOS) && GetBotAvailableCombatPoints(pBot) >= 4)
 		{
-			Task->Evolution = IMPULSE_ALIEN_EVOLVE_ONOS;
-		}
-		else
-		{
-			Task->Evolution = IMPULSE_ALIEN_EVOLVE_FADE;
+			EvolutionImpulse = IMPULSE_ALIEN_EVOLVE_ONOS;
 		}
 		
-		Task->bTaskIsUrgent = true;
+		TASK_SetEvolveTask(pBot, Task, EvolvePosition, EvolutionImpulse, true);
 		return;
 
 	}
@@ -843,11 +829,7 @@ void AlienDestroyerSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 			if (pBot->resources >= kOnosEvolutionCost)
 			{
-				Task->TaskType = TASK_EVOLVE;
-				Task->Evolution = IMPULSE_ALIEN_EVOLVE_ONOS;
-				Task->bTaskIsUrgent = true;
-				Task->TaskLocation = EvolveLocation;
-				Task->TaskStartedTime = 0.0f;
+				TASK_SetEvolveTask(pBot, Task, EvolveLocation, IMPULSE_ALIEN_EVOLVE_ONOS, true);
 				return;
 			}
 
@@ -855,11 +837,7 @@ void AlienDestroyerSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 			if (NumFades < 2)
 			{
-				Task->TaskType = TASK_EVOLVE;
-				Task->Evolution = IMPULSE_ALIEN_EVOLVE_FADE;
-				Task->bTaskIsUrgent = true;
-				Task->TaskLocation = EvolveLocation;
-				Task->TaskStartedTime = 0.0f;
+				TASK_SetEvolveTask(pBot, Task, EvolveLocation, IMPULSE_ALIEN_EVOLVE_FADE, true);
 				return;
 			}
 		}
@@ -867,11 +845,7 @@ void AlienDestroyerSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 	if (IsPlayerGorge(pBot->pEdict))
 	{
-		Task->TaskType = TASK_EVOLVE;
-		Task->Evolution = IMPULSE_ALIEN_EVOLVE_SKULK;
-		Task->bTaskIsUrgent = true;
-		Task->TaskLocation = pBot->pEdict->v.origin;
-		Task->TaskStartedTime = 0.0f;
+		TASK_SetEvolveTask(pBot, Task, pBot->pEdict->v.origin, IMPULSE_ALIEN_EVOLVE_SKULK, true);
 		return;
 	}
 
@@ -1194,7 +1168,7 @@ void SkulkCombatThink(bot_t* pBot)
 	bool bHealingSourceIsStructure = (!FNullEnt(HealingSource)) ? IsEdictStructure(HealingSource) : false;
 
 	// If we have backup, or we're near a source of healing then charge in
-	if (NumFriends >= NumEnemyAllies || bHealingSourceIsStructure && vDist2DSq(CurrentEnemy->v.origin, HealingSource->v.origin) < sqrf(UTIL_MetresToGoldSrcUnits(10.0f)))
+	if (NumFriends >= NumEnemyAllies || ( bHealingSourceIsStructure && vDist2DSq(CurrentEnemy->v.origin, HealingSource->v.origin) < sqrf(UTIL_MetresToGoldSrcUnits(10.0f)) ) )
 	{
 		MoveTo(pBot, CurrentEnemy->v.origin, MOVESTYLE_NORMAL);
 
@@ -1237,7 +1211,7 @@ void SkulkCombatThink(bot_t* pBot)
 	{
 		int MoveProfile = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_HIDE);
 
-		Vector EscapeLocation = pBot->LastSafeLocation;
+		Vector EscapeLocation = ZERO_VECTOR;//pBot->LastSafeLocation;
 
 		if (!EscapeLocation)
 		{
@@ -1254,7 +1228,14 @@ void SkulkCombatThink(bot_t* pBot)
 		return;
 	}
 
-	BotLookAt(pBot, TrackedEnemyRef->LastLOSPosition);
+	if (TrackedEnemyRef->LastLOSPosition != ZERO_VECTOR)
+	{
+		BotLookAt(pBot, TrackedEnemyRef->LastSeenLocation);
+
+		return;
+	}
+
+	MoveTo(pBot, TrackedEnemyRef->LastSeenLocation, MOVESTYLE_AMBUSH);
 	
 }
 
@@ -1700,7 +1681,7 @@ void LerkCombatThink(bot_t* pBot)
 			}
 			else
 			{
-				BotLookAt(pBot, TrackedEnemyRef->LastLOSPosition);
+				BotLookAt(pBot, TrackedEnemyRef->LastSeenLocation);
 
 				if (TrackedEnemyRef->LastLOSPosition != ZERO_VECTOR && vDist2DSq(CurrentEnemy->v.origin, TrackedEnemyRef->LastLOSPosition) < sqrf(UTIL_MetresToGoldSrcUnits(5.0f)) && UTIL_QuickTrace(pBot->pEdict, pBot->CurrentEyePosition, TrackedEnemyRef->LastLOSPosition) && !UTIL_IsAreaAffectedBySpores(TrackedEnemyRef->LastLOSPosition))
 				{

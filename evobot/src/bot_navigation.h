@@ -112,6 +112,14 @@ typedef struct _NAV_DOOR
 	Vector CurrentPosition = ZERO_VECTOR; // Current world position
 } nav_door;
 
+// Door reference. Not used, but is a future feature to allow bots to track if a door is open or not, and how to open it etc.
+typedef struct _NAV_HITRESULT
+{
+	float flFraction = 0.0f;
+	bool bStartOffMesh = false;
+	Vector TraceEndPoint = ZERO_VECTOR;
+} nav_hitresult;
+
 // Links together a tile cache, nav query and the nav mesh into one handy structure for all your querying needs
 typedef struct _NAV_MESH
 {
@@ -357,6 +365,8 @@ bool UTIL_PointIsDirectlyReachable(const int NavProfileIndex, const Vector start
 
 // Will trace along the nav mesh from start to target and return true if the trace reaches within MaxAcceptableDistance
 bool UTIL_TraceNav(const int NavProfileIndex, const Vector start, const Vector target, const float MaxAcceptableDistance);
+
+void UTIL_TraceNavLine(const int NavProfileIndex, const Vector Start, const Vector End, nav_hitresult* HitResult);
 
 /*
 	Project point to navmesh:
