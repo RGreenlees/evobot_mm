@@ -280,10 +280,20 @@ bool vEquals(const Vector v1, const Vector v2)
 	return fabsf(v1.x - v2.x) <= 0.01f && fabsf(v1.y - v2.y) <= 0.01f && fabsf(v1.z - v2.z) <= 0.01f;
 }
 
+bool vEquals2D(const Vector v1, const Vector v2)
+{
+	return fabsf(v1.x - v2.x) <= 0.01f && fabsf(v1.y - v2.y) <= 0.01f;
+}
+
 // Returns true if the two vectors are the same (all components are within epsilon of each other)
 bool vEquals(const Vector v1, const Vector v2, const float epsilon)
 {
 	return fabsf(v1.x - v2.x) <= epsilon && fabsf(v1.y - v2.y) <= epsilon && fabsf(v1.z - v2.z) <= epsilon;
+}
+
+bool vEquals2D(const Vector v1, const Vector v2, const float epsilon)
+{
+	return fabsf(v1.x - v2.x) <= epsilon && fabsf(v1.y - v2.y) <= epsilon;
 }
 
 bool fNearlyEqual(const float f1, const float f2)

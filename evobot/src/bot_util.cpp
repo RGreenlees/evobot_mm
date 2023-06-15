@@ -956,6 +956,12 @@ void BotAttackTarget(bot_t* pBot, edict_t* Target)
 
 	if (AttackResult == ATTACK_OUTOFRANGE)
 	{
+		// Might need to duck if it's an infantry portal
+		if (vDist2DSq(pBot->pEdict->v.origin, Target->v.origin) < sqrf(max_player_use_reach))
+		{
+			pBot->pEdict->v.button |= IN_DUCK;
+		}
+
 		MoveTo(pBot, Target->v.origin, MOVESTYLE_NORMAL, WeaponRange);
 
 		if (IsPlayerMarine(pBot->pEdict))
@@ -999,6 +1005,12 @@ void BotAttackTarget(bot_t* pBot, edict_t* Target)
 
 	if (AttackResult == ATTACK_SUCCESS)
 	{
+		// If we were ducking before then keep ducking
+		if (pBot->pEdict->v.oldbuttons & IN_DUCK)
+		{
+			pBot->pEdict->v.button |= IN_DUCK;
+		}
+
 		BotShootTarget(pBot, Weapon, Target);
 	}
 }

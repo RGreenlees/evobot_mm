@@ -2276,7 +2276,7 @@ bool HasBotReachedPathPoint(const bot_t* pBot)
 	Vector ClosestPointToPath = vClosestPointOnLine2D(pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint - 1].Location, pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].Location, pEdict->v.origin);
 
 	bool bDestIsDirectlyReachable = UTIL_PointIsDirectlyReachable(CurrentPos, CurrentMoveDest);
-	bool bAtOrPastDestination = vEquals(ClosestPointToPath, Vector(CurrentMoveDest.x, CurrentMoveDest.y, 0.0f), 1.0f) && bDestIsDirectlyReachable;
+	bool bAtOrPastDestination = vEquals2D(ClosestPointToPath, CurrentMoveDest, 1.0f) && bDestIsDirectlyReachable;
 
 	dtPolyRef BotPoly = pBot->BotNavInfo.CurrentPoly;
 	dtPolyRef DestinationPoly = pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].poly;
@@ -4202,9 +4202,13 @@ bool MoveTo(bot_t* pBot, const Vector Destination, const BotMoveStyle MoveStyle,
 	// If we are currently in the process of getting back on the navmesh, don't interrupt
 	if (BotNavInfo->UnstuckMoveLocation != ZERO_VECTOR)
 	{
+		Vector MoveTarget = BotNavInfo->UnstuckMoveStartLocation + (UTIL_GetVectorNormal2D(BotNavInfo->UnstuckMoveLocation - BotNavInfo->UnstuckMoveStartLocation) * 100.0f);
+
+		MoveDirectlyTo(pBot, MoveTarget);
+
 		Vector ClosestPoint = vClosestPointOnLine2D(BotNavInfo->UnstuckMoveStartLocation, BotNavInfo->UnstuckMoveLocation, pBot->pEdict->v.origin);
 
-		bool bAtOrPastMoveLocation = vEquals(ClosestPoint, BotNavInfo->UnstuckMoveLocation, 0.1f);
+		bool bAtOrPastMoveLocation = vEquals2D(ClosestPoint, BotNavInfo->UnstuckMoveLocation, 0.1f);
 
 		if (bAtOrPastMoveLocation)
 		{
@@ -4231,7 +4235,7 @@ bool MoveTo(bot_t* pBot, const Vector Destination, const BotMoveStyle MoveStyle,
 				pBot->pEdict->v.button |= IN_DUCK;
 			}
 
-			MoveDirectlyTo(pBot, BotNavInfo->UnstuckMoveLocation);
+			
 
 			return true;
 		}

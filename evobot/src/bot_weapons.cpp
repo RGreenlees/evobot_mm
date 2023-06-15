@@ -269,6 +269,8 @@ float GetMaxIdealWeaponRange(const NSWeapon Weapon)
 		return kBite2Range;
 	case WEAPON_GORGE_HEALINGSPRAY:
 		return kHealingSprayRange;
+	case WEAPON_MARINE_WELDER:
+		return kWelderRange;
 	default:
 		return max_player_use_reach;
 	}

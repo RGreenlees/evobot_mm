@@ -85,8 +85,10 @@ float vSize2DSq(const Vector V);
 
 // Are two vectors equal, using default epsilon of 0.1f
 bool vEquals(const Vector v1, const Vector v2);
+bool vEquals2D(const Vector v1, const Vector v2);
 // Are two vectors equal, using custom epsilon
 bool vEquals(const Vector v1, const Vector v2, const float epsilon);
+bool vEquals2D(const Vector v1, const Vector v2, const float epsilon);
 
 bool fNearlyEqual(const float f1, const float f2);
 
