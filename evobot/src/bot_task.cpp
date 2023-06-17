@@ -465,6 +465,11 @@ bool UTIL_IsMarineBuildTaskStillValid(bot_t* pBot, bot_task* Task)
 
 	if (!UTIL_IsBuildableStructureStillReachable(pBot, Task->TaskTarget)) { return false; }
 
+	if (UTIL_StructureIsRecycling(Task->TaskTarget) == true)
+	{
+		return false;
+	}
+
 	NSStructureType StructureType = GetStructureTypeFromEdict(Task->TaskTarget);
 
 	if (StructureType == STRUCTURE_NONE) { return false; }
