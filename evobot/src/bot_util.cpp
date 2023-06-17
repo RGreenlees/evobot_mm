@@ -1979,7 +1979,7 @@ void DroneThink(bot_t* pBot)
 
 void CustomThink(bot_t* pBot)
 {
-	if (!IsPlayerSkulk(pBot->pEdict)) { return; }
+	if (!IsPlayerAlien(pBot->pEdict)) { return; }
 
 	pBot->CurrentEnemy = BotGetNextEnemyTarget(pBot);
 
@@ -1993,7 +1993,25 @@ void CustomThink(bot_t* pBot)
 
 		if (!FNullEnt(Enemy))
 		{
-			MoveTo(pBot, Enemy->v.origin, MOVESTYLE_NORMAL, 100.0f);
+			if (pBot->BotNavInfo.PathSize > 0 && vDist2DSq(Enemy->v.origin, UTIL_GetCommChairLocation()) < sqrf(UTIL_MetresToGoldSrcUnits(15.0f)) || UTIL_GetNumPlayersOnTeamWithLOS(Enemy->v.origin, MARINE_TEAM, UTIL_MetresToGoldSrcUnits(30.0f), Enemy) > 0)
+			{
+				const bot_path_node* CurrentNode = &pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint];
+
+				if (UTIL_PlayerHasLOSToLocation(Enemy, CurrentNode->Location, UTIL_MetresToGoldSrcUnits(50.0f)) && vDist2DSq(pBot->pEdict->v.origin, CurrentNode->Location) < sqrf(UTIL_MetresToGoldSrcUnits(5.0f)))
+				{
+					MoveTo(pBot, Enemy->v.origin, MOVESTYLE_HIDE, 100.0f);
+				}
+				else
+				{
+					MoveTo(pBot, Enemy->v.origin, MOVESTYLE_NORMAL, 100.0f);
+				}
+			}
+			else
+			{
+				MoveTo(pBot, Enemy->v.origin, MOVESTYLE_NORMAL, 100.0f);
+			}
+
+			
 		}
 	}
 

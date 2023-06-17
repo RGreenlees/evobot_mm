@@ -4066,10 +4066,7 @@ bool AbortCurrentMove(bot_t* pBot, const Vector NewDestination)
 
 	Vector ClosestPointOnLine = vClosestPointOnLine2D(MoveFrom, MoveTo, pBot->pEdict->v.origin);
 
-	Vector MoveFrom2D = Vector(MoveFrom.x, MoveFrom.y, 0.0f);
-	Vector MoveTo2D = Vector(MoveTo.x, MoveTo.y, 0.0f);
-
-	bool bAtOrPastMovement = (vEquals(ClosestPointOnLine, MoveFrom2D, 1.0f) || vEquals(ClosestPointOnLine, MoveTo2D, 1.0f));
+	bool bAtOrPastMovement = (vEquals2D(ClosestPointOnLine, MoveFrom, 1.0f) || vEquals2D(ClosestPointOnLine, MoveTo, 1.0f));
 
 	if ((pBot->pEdict->v.flags & FL_ONGROUND) && (bAtOrPastMovement || UTIL_PointIsDirectlyReachable(pBot->pEdict->v.origin, MoveFrom) || UTIL_PointIsDirectlyReachable(pBot->pEdict->v.origin, MoveTo)))
 	{

@@ -1804,7 +1804,7 @@ void LerkCombatThink(bot_t* pBot)
 			return;
 		}
 
-		if (vDist2DSq(pBot->pEdict->v.origin, EscapeLocation) > sqrf(UTIL_MetresToGoldSrcUnits(10.0f)))
+		if (vDist2DSq(pBot->pEdict->v.origin, EscapeLocation) > sqrf(UTIL_MetresToGoldSrcUnits(3.0f)))
 		{
 			
 			MoveTo(pBot, EscapeLocation, MOVESTYLE_NORMAL);

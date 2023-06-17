@@ -1200,6 +1200,7 @@ void AlienProgressBuildTask(bot_t* pBot, bot_task* Task)
 			Task->LastBuildAttemptTime = gpGlobals->time;
 			Task->BuildAttempts++;
 			Task->bIsWaitingForBuildLink = true;
+			Task->bTaskIsUrgent = true;
 		}
 
 	}
