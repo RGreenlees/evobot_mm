@@ -962,6 +962,20 @@ void BotAttackTarget(bot_t* pBot, edict_t* Target)
 			pBot->pEdict->v.button |= IN_DUCK;
 		}
 
+		if (IsPlayerLerk(pBot->pEdict))
+		{
+			if (UTIL_ShouldBotBeCautious(pBot))
+			{
+				MoveTo(pBot, Target->v.origin, MOVESTYLE_HIDE, 100.0f);
+			}
+			else
+			{
+				MoveTo(pBot, Target->v.origin, MOVESTYLE_NORMAL, 100.0f);
+			}
+
+			return;
+		}
+
 		MoveTo(pBot, Target->v.origin, MOVESTYLE_NORMAL, WeaponRange);
 
 		if (IsPlayerMarine(pBot->pEdict))
@@ -1989,22 +2003,13 @@ void CustomThink(bot_t* pBot)
 	}
 	else
 	{
-		edict_t* Enemy = UTIL_GetNearestPlayerOfTeamInArea(pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(100.0f), MARINE_TEAM, nullptr, CLASS_NONE);
+		edict_t* Enemy = UTIL_GetNearestPlayerOfTeamInArea(pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(500.0f), MARINE_TEAM, nullptr, CLASS_NONE);
 
 		if (!FNullEnt(Enemy))
 		{
-			if (pBot->BotNavInfo.PathSize > 0 && vDist2DSq(Enemy->v.origin, UTIL_GetCommChairLocation()) < sqrf(UTIL_MetresToGoldSrcUnits(15.0f)) || UTIL_GetNumPlayersOnTeamWithLOS(Enemy->v.origin, MARINE_TEAM, UTIL_MetresToGoldSrcUnits(30.0f), Enemy) > 0)
+			if (UTIL_ShouldBotBeCautious(pBot))
 			{
-				const bot_path_node* CurrentNode = &pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint];
-
-				if (UTIL_PlayerHasLOSToLocation(Enemy, CurrentNode->Location, UTIL_MetresToGoldSrcUnits(50.0f)) && vDist2DSq(pBot->pEdict->v.origin, CurrentNode->Location) < sqrf(UTIL_MetresToGoldSrcUnits(5.0f)))
-				{
-					MoveTo(pBot, Enemy->v.origin, MOVESTYLE_HIDE, 100.0f);
-				}
-				else
-				{
-					MoveTo(pBot, Enemy->v.origin, MOVESTYLE_NORMAL, 100.0f);
-				}
+				MoveTo(pBot, Enemy->v.origin, MOVESTYLE_HIDE, 100.0f);
 			}
 			else
 			{
@@ -2609,4 +2614,27 @@ bot_t* UTIL_GetSpectatedBot(const edict_t* Observer)
 	}
 
 	return &bots[BotIndex];
+}
+
+bool UTIL_ShouldBotBeCautious(bot_t* pBot)
+{
+	if (pBot->BotNavInfo.PathSize == 0) { return false; }
+
+	if (UTIL_GetBotCurrentPathArea(pBot) != SAMPLE_POLYAREA_GROUND) { return false; }
+
+	int EnemyTeam = (pBot->bot_team == MARINE_TEAM) ? ALIEN_TEAM : MARINE_TEAM;
+
+	int NumEnemiesAtDestination = UTIL_GetNumPlayersOnTeamWithLOS(pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].Location, EnemyTeam, UTIL_MetresToGoldSrcUnits(50.0f), pBot->pEdict);
+
+	if (NumEnemiesAtDestination > 1)
+	{
+		return (vDist2DSq(pBot->pEdict->v.origin, pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].Location) < sqrf(UTIL_MetresToGoldSrcUnits(5.0f)));
+	}
+
+	return false;
+}
+
+bool BotHasTaskOfType(bot_t* pBot, BotTaskType TaskType)
+{
+	return (pBot->PrimaryBotTask.TaskType == TaskType || pBot->SecondaryBotTask.TaskType == TaskType || pBot->WantsAndNeedsTask.TaskType == TaskType || pBot->CommanderTask.TaskType == TaskType);
 }

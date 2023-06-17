@@ -768,8 +768,23 @@ bool UTIL_IsAlienHealTaskStillValid(bot_t* pBot, bot_task* Task)
 
 void BotProgressMoveTask(bot_t* pBot, bot_task* Task)
 {
-	MoveTo(pBot, Task->TaskLocation, MOVESTYLE_NORMAL);
 	Task->TaskStartedTime = gpGlobals->time;
+
+	if (IsPlayerLerk(pBot->pEdict))
+	{
+		if (UTIL_ShouldBotBeCautious(pBot))
+		{
+			MoveTo(pBot, Task->TaskLocation, MOVESTYLE_HIDE, 100.0f);
+		}
+		else
+		{
+			MoveTo(pBot, Task->TaskLocation, MOVESTYLE_NORMAL, 100.0f);
+		}
+
+		return;
+	}
+
+	MoveTo(pBot, Task->TaskLocation, MOVESTYLE_NORMAL);
 
 	if (IsPlayerMarine(pBot->pEdict))
 	{
@@ -940,6 +955,21 @@ void BotProgressGuardTask(bot_t* pBot, bot_task* Task)
 
 	if (vDist2DSq(pBot->pEdict->v.origin, Task->TaskLocation) > sqrf(UTIL_MetresToGoldSrcUnits(5.0f)))
 	{
+		if (IsPlayerLerk(pBot->pEdict))
+		{
+			if (UTIL_ShouldBotBeCautious(pBot))
+			{
+				MoveTo(pBot, Task->TaskLocation, MOVESTYLE_HIDE, 100.0f);
+			}
+			else
+			{
+				MoveTo(pBot, Task->TaskLocation, MOVESTYLE_NORMAL, 100.0f);
+			}
+
+			return;
+		}
+
+
 		MoveTo(pBot, Task->TaskLocation, MOVESTYLE_NORMAL);
 		return;
 	}

@@ -87,6 +87,8 @@ void BotSay(bot_t* pBot, float Delay, char* textToSay);
 void BotTeamSay(bot_t* pBot, char* textToSay);
 void BotTeamSay(bot_t* pBot, float Delay, char* textToSay);
 
+bool UTIL_ShouldBotBeCautious(bot_t* pBot);
+
 void BotReceiveCommanderOrder(bot_t* pBot, AvHOrderType orderType, AvHUser3 TargetType, Vector destination);
 
 void BotDropWeapon(bot_t* pBot);
@@ -162,5 +164,7 @@ int GetImpulseForAlienCombatUpgrade(const CombatModeAlienUpgrade Upgrade);
 
 // If the observer is spectating a bot, it will return the bot reference (or nullptr if not spectating a bot)
 bot_t* UTIL_GetSpectatedBot(const edict_t* Observer);
+
+bool BotHasTaskOfType(bot_t* pBot, BotTaskType TaskType);
 
 #endif
