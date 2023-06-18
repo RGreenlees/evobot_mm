@@ -895,7 +895,9 @@ void AlienDestroyerSetPrimaryTask(bot_t* pBot, bot_task* Task)
 				EvolveLocation = pBot->pEdict->v.origin;
 			}
 
-			if (pBot->resources >= kOnosEvolutionCost)
+			int NumOnos = GAME_GetNumPlayersOnTeamOfClass(pBot->pEdict->v.team, CLASS_ONOS);
+
+			if (pBot->resources >= kOnosEvolutionCost && NumOnos < 2)
 			{
 				TASK_SetEvolveTask(pBot, Task, EvolveLocation, IMPULSE_ALIEN_EVOLVE_ONOS, true);
 				return;
@@ -903,7 +905,7 @@ void AlienDestroyerSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 			int NumFades = GAME_GetNumPlayersOnTeamOfClass(ALIEN_TEAM, CLASS_FADE);
 
-			if (NumFades < 2)
+			if (NumOnos >= 2 || NumFades < 2)
 			{
 				TASK_SetEvolveTask(pBot, Task, EvolveLocation, IMPULSE_ALIEN_EVOLVE_FADE, true);
 				return;

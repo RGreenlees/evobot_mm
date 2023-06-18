@@ -723,7 +723,7 @@ bool UTIL_IsEvolveTaskStillValid(bot_t* pBot, bot_task* Task)
 	case IMPULSE_ALIEN_EVOLVE_FADE:
 		return !IsPlayerFade(pBot->pEdict) && pBot->resources >= kFadeEvolutionCost;
 	case IMPULSE_ALIEN_EVOLVE_ONOS:
-		return !IsPlayerOnos(pBot->pEdict) && pBot->resources >= kOnosEvolutionCost;
+		return !IsPlayerOnos(pBot->pEdict) && pBot->resources >= kOnosEvolutionCost && (GAME_GetNumPlayersOnTeamOfClass(pBot->pEdict->v.team, CLASS_ONOS) < 2);
 	case IMPULSE_ALIEN_EVOLVE_LERK:
 		return !IsPlayerLerk(pBot->pEdict) && pBot->resources >= kLerkEvolutionCost;
 	case IMPULSE_ALIEN_EVOLVE_GORGE:

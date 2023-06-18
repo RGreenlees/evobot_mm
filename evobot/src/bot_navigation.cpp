@@ -2695,6 +2695,12 @@ void LadderMove(bot_t* pBot, const Vector StartPoint, const Vector EndPoint, flo
 
 	bool bIsGoingUpLadder = (EndPoint.z > StartPoint.z);
 
+	// Onos is buggy as hell getting on and off ladders, ducking seems to help...
+	if (IsPlayerOnos(pBot->pEdict))
+	{
+		pEdict->v.button |= IN_DUCK;
+	}
+
 
 	if (IsPlayerOnLadder(pEdict))
 	{
@@ -4863,11 +4869,19 @@ void BotFollowPath(bot_t* pBot)
 			return;
 		}
 
+		// If onos, ducking is usually a good way to get unstuck...
+		if (IsPlayerOnos(pBot->pEdict))
+		{
+			pEdict->v.button |= IN_DUCK;
+		}
+
 		if (!IsPlayerClimbingWall(pBot->pEdict) && !IsPlayerOnLadder(pBot->pEdict))
 		{
 			PerformUnstuckMove(pBot, TargetMoveLocation);
 			return;
 		}
+
+		
 
 	}
 

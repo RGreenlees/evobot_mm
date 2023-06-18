@@ -168,7 +168,7 @@ void SetHiveStatus(int HiveIndex, int NewStatus)
 
 	if (Hives[HiveIndex].Status != HIVE_STATUS_UNBUILT && Hives[HiveIndex].ObstacleRef == 0)
 	{
-		Hives[HiveIndex].ObstacleRef = UTIL_AddTemporaryObstacle(UTIL_GetCentreOfEntity(Hives[HiveIndex].edict), 125.0f, 250.0f, DT_AREA_NULL);
+		Hives[HiveIndex].ObstacleRef = UTIL_AddTemporaryObstacle(UTIL_GetCentreOfEntity(Hives[HiveIndex].edict) - Vector(0.0f, 0.0f, 25.0f), 125.0f, 300.0f, DT_AREA_NULL);
 		UTIL_UpdateTileCache();
 
 		Hives[HiveIndex].FloorLocation = FindClosestNavigablePointToDestination(MARINE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), UTIL_GetFloorUnderEntity(Hives[HiveIndex].edict), UTIL_MetresToGoldSrcUnits(20.0f));
