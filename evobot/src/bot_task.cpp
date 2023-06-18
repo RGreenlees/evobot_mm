@@ -1063,6 +1063,7 @@ void BotProgressEvolveTask(bot_t* pBot, bot_task* Task)
 
 	if (Task->TaskLocation != ZERO_VECTOR)
 	{
+
 		if (vDist2DSq(pBot->pEdict->v.origin, Task->TaskLocation) > sqrf(32.0f))
 		{
 			MoveTo(pBot, Task->TaskLocation, MOVESTYLE_NORMAL);

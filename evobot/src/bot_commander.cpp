@@ -1189,7 +1189,7 @@ void CommanderThink(bot_t* pBot)
 
 	CommanderQueueNextAction(pBot);
 
-	DEBUG_ShowCommanderBuildingPlacements(pBot);
+	//DEBUG_ShowCommanderBuildingPlacements(pBot);
 
 	UpdateCommanderActions(pBot);
 

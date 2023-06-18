@@ -361,9 +361,10 @@ void BotDied(bot_t* pBot, edict_t* killer)
 		pBot->TrackedEnemies[i].LastSeenTime = 0.0f;
 	}
 
-	//UTIL_ClearBotTask(pBot, &pBot->PrimaryBotTask);
-	//UTIL_ClearBotTask(pBot, &pBot->SecondaryBotTask);
-	//UTIL_ClearBotTask(pBot, &pBot->WantsAndNeedsTask);
+	UTIL_ClearBotTask(pBot, &pBot->PrimaryBotTask);
+	UTIL_ClearBotTask(pBot, &pBot->SecondaryBotTask);
+	UTIL_ClearBotTask(pBot, &pBot->WantsAndNeedsTask);
+	
 
 	pBot->bIsPendingKill = false;
 

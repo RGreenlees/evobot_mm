@@ -951,7 +951,7 @@ void AlienDestroyerSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 	if (!FNullEnt(BlockingStructure))
 	{
-		TASK_SetAttackTask(pBot, Task, BlockingStructure, IsPlayerOnos(pBot->pEdict));
+		TASK_SetAttackTask(pBot, Task, BlockingStructure, false);
 		return;
 	}
 
@@ -2013,7 +2013,6 @@ void AlienCheckWantsAndNeeds(bot_t* pBot)
 		// Already getting health
 		if (pBot->WantsAndNeedsTask.TaskType == TASK_GET_HEALTH && (OverallHealthPercent > 0.35f || IsEdictStructure(pBot->WantsAndNeedsTask.TaskTarget)) )
 		{
-			pBot->WantsAndNeedsTask.bTaskIsUrgent = true;
 			return;
 		}
 
@@ -2162,12 +2161,10 @@ int GetDesiredAlienUpgrade(const bot_t* pBot, const HiveTechStatus TechType)
 		switch (pBot->bot_ns_class)
 		{
 		case CLASS_SKULK:
-		{
-			return IMPULSE_ALIEN_UPGRADE_CARAPACE;
-		}
+		case CLASS_LERK:
+			return IMPULSE_ALIEN_UPGRADE_CARAPACE; // Lerks are fragile so best get carapace while the bot is still not great at staying alive with them...
 		case CLASS_GORGE:
 		case CLASS_FADE:
-		case CLASS_LERK:
 		{
 			if (randbool())
 			{
