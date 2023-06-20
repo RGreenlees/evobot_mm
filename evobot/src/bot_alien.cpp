@@ -173,7 +173,9 @@ void AlienCombatModeThink(bot_t* pBot)
 
 void BotAlienSetPrimaryTask(bot_t* pBot, bot_task* Task)
 {
-	if ((IsPlayerSkulk(pBot->pEdict) || IsPlayerGorge(pBot->pEdict)) && GetPlayerResources(pBot->pEdict) > 45 && !UTIL_HiveIsInProgress() && UTIL_GetNumUnbuiltHives() > 0)
+	int RequiredSourcesForHive = (IsPlayerGorge(pBot->pEdict)) ? 35 : 45;
+
+	if ((IsPlayerSkulk(pBot->pEdict) || IsPlayerGorge(pBot->pEdict)) && GetPlayerResources(pBot->pEdict) > RequiredSourcesForHive && !UTIL_HiveIsInProgress() && UTIL_GetNumUnbuiltHives() > 0)
 	{
 		if (Task->TaskType == TASK_BUILD && Task->StructureType == STRUCTURE_ALIEN_HIVE) { return; }
 
@@ -190,9 +192,20 @@ void BotAlienSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 			if (FNullEnt(OtherBuilder) || GetPlayerResources(OtherBuilder) < GetPlayerResources(pBot->pEdict))
 			{
-				TASK_SetBuildTask(pBot, Task, STRUCTURE_ALIEN_HIVE, UnbuiltHiveIndex->FloorLocation, true);
+				TASK_SetBuildTask(pBot, Task, STRUCTURE_ALIEN_HIVE, UnbuiltHiveIndex->FloorLocation, false);
 				return;
 			}
+		}
+	}
+
+	if (IsPlayerGorge(pBot->pEdict))
+	{
+		edict_t* IncompleteTower = UTIL_GetNearestUnbuiltStructureOfTypeInLocation(STRUCTURE_ALIEN_RESTOWER, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
+
+		if (!FNullEnt(IncompleteTower))
+		{
+			TASK_SetBuildTask(pBot, Task, IncompleteTower, false);
+			return;
 		}
 	}
 
@@ -637,27 +650,6 @@ void AlienBuilderSetPrimaryTask(bot_t* pBot, bot_task* Task)
 		}
 	}
 
-	if (!UTIL_HiveIsInProgress() && UTIL_GetNumUnbuiltHives() > 0)
-	{
-		const hive_definition* UnbuiltHiveIndex = UTIL_GetClosestViableUnbuiltHive(pEdict->v.origin);
-
-		if (UnbuiltHiveIndex)
-		{
-			edict_t* OtherBuilder = GetFirstBotWithBuildTask(STRUCTURE_ALIEN_HIVE, pBot->pEdict);
-
-			if (FNullEnt(OtherBuilder))
-			{
-				OtherBuilder = UTIL_GetNearestPlayerOfClass(UnbuiltHiveIndex->Location, CLASS_GORGE, UTIL_MetresToGoldSrcUnits(30.0f), pEdict);
-			}
-
-			if (FNullEnt(OtherBuilder) || GetPlayerResources(OtherBuilder) < GetPlayerResources(pBot->pEdict))
-			{
-				TASK_SetBuildTask(pBot, Task, STRUCTURE_ALIEN_HIVE, UnbuiltHiveIndex->FloorLocation, false);
-				return;
-			}
-		}
-	}
-
 	// Build 2 defence chambers under every hive
 	if (UTIL_ActiveHiveWithTechExists(HIVE_TECH_DEFENCE))
 	{
@@ -677,8 +669,6 @@ void AlienBuilderSetPrimaryTask(bot_t* pBot, bot_task* Task)
 					return;
 				}
 			}
-
-			
 		}
 	}
 
@@ -779,7 +769,6 @@ void AlienBuilderSetPrimaryTask(bot_t* pBot, bot_task* Task)
 				return;
 			}
 		}
-
 	}
 }
 

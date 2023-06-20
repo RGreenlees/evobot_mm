@@ -2639,3 +2639,8 @@ bool BotHasTaskOfType(bot_t* pBot, BotTaskType TaskType)
 {
 	return (pBot->PrimaryBotTask.TaskType == TaskType || pBot->SecondaryBotTask.TaskType == TaskType || pBot->WantsAndNeedsTask.TaskType == TaskType || pBot->CommanderTask.TaskType == TaskType);
 }
+
+const char* BSP_GetEntityKeyValue(const edict_t* Entity, const char* Key)
+{
+	return "";
+}

@@ -167,4 +167,6 @@ bot_t* UTIL_GetSpectatedBot(const edict_t* Observer);
 
 bool BotHasTaskOfType(bot_t* pBot, BotTaskType TaskType);
 
+const char* BSP_GetEntityKeyValue(const edict_t* Entity, const char* Key);
+
 #endif

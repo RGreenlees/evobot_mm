@@ -93,21 +93,6 @@ void ClientCommand(edict_t* pEntity)
 		RETURN_META(MRES_SUPERCEDE);
 	}
 
-	if (FStrEq(pcmd, "testflightpath"))
-	{
-		bot_path_node FlightPath[MAX_PATH_SIZE];
-		int FlightPathSize = 0;
-
-		dtStatus FlightPathStatus = FindFlightPathToPoint(SKULK_REGULAR_NAV_PROFILE, pEntity->v.origin, UTIL_GetCommChairLocation(), FlightPath, &FlightPathSize, 100.0f);
-
-		if (dtStatusSucceed(FlightPathStatus))
-		{
-			DEBUG_DrawPath(FlightPath, FlightPathSize, 10.0f);
-		}
-
-		RETURN_META(MRES_SUPERCEDE);
-	}
-
 	if (FStrEq(pcmd, "teleportbot"))
 	{
 		Vector TraceStart = GetPlayerEyePosition(pEntity); // origin + pev->view_ofs
@@ -226,6 +211,57 @@ void ClientCommand(edict_t* pEntity)
 		RETURN_META(MRES_SUPERCEDE);
 	}
 
+	if (FStrEq(pcmd, "showconnections"))
+	{
+		if (NavmeshLoaded())
+		{
+			DEBUG_DrawOffMeshConnections();
+		}
+
+		RETURN_META(MRES_SUPERCEDE);
+	}
+
+	if (FStrEq(pcmd, "tracedoor"))
+	{
+		UTIL_PopulateDoors();
+		
+		Vector TraceStart = GetPlayerEyePosition(pEntity); // origin + pev->view_ofs
+		Vector LookDir = UTIL_GetForwardVector(pEntity->v.v_angle); // Converts view angles to normalized unit vector
+
+		Vector TraceEnd = TraceStart + (LookDir * 1000.0f);
+
+		edict_t* TracedEntity = UTIL_TraceEntity(pEntity, TraceStart, TraceEnd);
+
+		if (!FNullEnt(TracedEntity))
+		{
+			const nav_door* Door = UTIL_GetNavDoorByEdict(TracedEntity);
+
+			if (Door)
+			{
+				UTIL_DrawLine(pEntity, Door->DoorEdict->v.absmin, Door->DoorEdict->v.absmax, 10.0f, 255, 255, 255);
+
+				if (Door->bStartOpen)
+				{
+					UTIL_SayText("START OPEN\n", pEntity);
+				}
+				else
+				{
+					UTIL_SayText("START CLOSED\n", pEntity);
+				}
+
+				if (!FNullEnt(Door->TriggerEdict))
+				{
+					UTIL_DrawLine(pEntity, Door->CurrentPosition, UTIL_GetCentreOfEntity(Door->TriggerEdict), 10.0f, 255, 255, 0);
+				}
+				
+			}
+		}
+
+		
+
+		RETURN_META(MRES_SUPERCEDE);
+	}
+
 	if (FStrEq(pcmd, "showdoors"))
 	{
 		FILE* DoorLog = fopen("DoorLog.txt", "w+");
@@ -237,6 +273,34 @@ void ClientCommand(edict_t* pEntity)
 
 		edict_t* currDoor = NULL;
 		while (((currDoor = UTIL_FindEntityByClassname(currDoor, "func_door")) != NULL) && (!FNullEnt(currDoor)))
+		{
+
+			Vector StartLine = pEntity->v.origin;
+			Vector EndX = StartLine + Vector(50.0f, 0.0f, 0.0f);
+			Vector EndY = StartLine + Vector(0.0f, 50.0f, 0.0f);
+			Vector EndZ = StartLine + Vector(0.0f, 0.0f, 50.0f);
+
+			Vector LocalMin = currDoor->v.mins;
+			Vector LocalMax = currDoor->v.maxs;
+
+			UTIL_DrawLine(pEntity, StartLine, EndX, 10.0f, 255, 0, 0);
+			UTIL_DrawLine(pEntity, StartLine, EndY, 10.0f, 255, 255, 0);
+			UTIL_DrawLine(pEntity, StartLine, EndZ, 10.0f, 0, 0, 255);
+
+
+			//UTIL_DrawLine(pEntity, currDoor->v.mins, currDoor->v.maxs, 10.0f, 255, 0, 0);
+			UTIL_DrawLine(pEntity, currDoor->v.absmin, currDoor->v.absmax, 10.0f, 255, 255, 255);
+
+			fprintf(DoorLog, "Door %s origin: (%f, %f, %f)\n", STRING(currDoor->v.targetname), currDoor->v.origin.x, currDoor->v.origin.y, currDoor->v.origin.z);
+			fprintf(DoorLog, "Door %s containing entity: %s, %s\n", STRING(currDoor->v.targetname), STRING(currDoor->v.pContainingEntity->v.targetname), STRING(currDoor->v.pContainingEntity->v.classname));
+			fprintf(DoorLog, "Door %s v_angle: (%f, %f, %f)\n", STRING(currDoor->v.targetname), currDoor->v.v_angle.x, currDoor->v.v_angle.y, currDoor->v.v_angle.z);
+			fprintf(DoorLog, "Door %s ideal_yaw: %f\n", STRING(currDoor->v.targetname), currDoor->v.ideal_yaw);
+			fprintf(DoorLog, "Door %s: (%f, %f, %f) - (%f, %f, %f)\n", STRING(currDoor->v.targetname), currDoor->v.mins.x, currDoor->v.mins.y, currDoor->v.mins.z, currDoor->v.maxs.x, currDoor->v.maxs.y, currDoor->v.maxs.z);
+			fprintf(DoorLog, "Door %s: (%f, %f, %f) - (%f, %f, %f)\n\n", STRING(currDoor->v.targetname), currDoor->v.absmin.x, currDoor->v.absmin.y, currDoor->v.absmin.z, currDoor->v.absmax.x, currDoor->v.absmax.y, currDoor->v.absmax.z);
+		}
+
+		currDoor = NULL;
+		while (((currDoor = UTIL_FindEntityByClassname(currDoor, "func_door_rotating")) != NULL) && (!FNullEnt(currDoor)))
 		{
 
 			Vector StartLine = pEntity->v.origin;

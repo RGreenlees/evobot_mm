@@ -253,6 +253,7 @@ struct MeshProcess : public dtTileCacheMeshProcess
 				UTIL_DrawLine(clients[0], StartLine, EndLine, 30.0f, 255, 255, 255);
 				break;
 			case SAMPLE_POLYFLAGS_JUMP:
+			case SAMPLE_POLYFLAGS_HIGHJUMP:
 				UTIL_DrawLine(clients[0], StartLine, EndLine, 30.0f, 255, 255, 0);
 				break;
 			case SAMPLE_POLYFLAGS_WALLCLIMB:
@@ -697,6 +698,19 @@ void GetFullFilePath(char* buffer, const char* mapname)
 {
 	UTIL_BuildFileName(buffer, "addons", "evobot", "navmeshes", mapname);
 	strcat(buffer, ".nav");
+}
+
+void DEBUG_DrawOffMeshConnections()
+{
+	if (NavMeshes[0].tileCache)
+	{
+		MeshProcess* m_tmproc = (MeshProcess*)NavMeshes[0].tileCache->getMeshProcess();
+
+		if (m_tmproc)
+		{
+			m_tmproc->DrawAllConnections();
+		}
+	}
 }
 
 void UnloadNavigationData()
@@ -5847,6 +5861,7 @@ void UTIL_PopulateDoors()
 		NavDoors[NumDoors].PositionOne = UTIL_GetCentreOfEntity(currDoor);
 		NavDoors[NumDoors].PositionTwo = UTIL_GetCentreOfEntity(currDoor) + (currDoor->v.movedir * (fabs(currDoor->v.movedir.x * (currDoor->v.size.x - 2)) + fabs(currDoor->v.movedir.y * (currDoor->v.size.y - 2)) + fabs(currDoor->v.movedir.z * (currDoor->v.size.z - 2)) - 0.0f));
 		NavDoors[NumDoors].CurrentPosition = NavDoors[NumDoors].PositionOne;
+		NavDoors[NumDoors].bStartOpen = (currDoor->v.flags & DOOR_START_OPEN);
 
 		if (currDoor->v.flags & DOOR_USE_ONLY)
 		{
@@ -5860,6 +5875,40 @@ void UTIL_PopulateDoors()
 
 		NumDoors++;
 	}
+
+	currDoor = NULL;
+	while (((currDoor = UTIL_FindEntityByClassname(currDoor, "func_seethroughdoor")) != NULL) && (!FNullEnt(currDoor)))
+	{
+		NavDoors[NumDoors].DoorEdict = currDoor;
+		NavDoors[NumDoors].PositionOne = UTIL_GetCentreOfEntity(currDoor);
+		NavDoors[NumDoors].PositionTwo = UTIL_GetCentreOfEntity(currDoor) + (currDoor->v.movedir * (fabs(currDoor->v.movedir.x * (currDoor->v.size.x - 2)) + fabs(currDoor->v.movedir.y * (currDoor->v.size.y - 2)) + fabs(currDoor->v.movedir.z * (currDoor->v.size.z - 2)) - 0.0f));
+		NavDoors[NumDoors].CurrentPosition = NavDoors[NumDoors].PositionOne;
+
+		if (currDoor->v.flags & DOOR_USE_ONLY)
+		{
+			NavDoors[NumDoors].ActivationType = DOOR_USE;
+		}
+		else
+		{
+			UTIL_LinkTriggerToDoor(currDoor, &NavDoors[NumDoors]);
+
+		}
+
+		NumDoors++;
+	}
+}
+
+const nav_door* UTIL_GetNavDoorByEdict(const edict_t* DoorEdict)
+{
+	for (int i = 0; i < NumDoors; i++)
+	{
+		if (NavDoors[i].DoorEdict == DoorEdict)
+		{
+			return &NavDoors[i];
+		}
+	}
+
+	return nullptr;
 }
 
 unsigned char UTIL_GetBotCurrentPathArea(bot_t* pBot)

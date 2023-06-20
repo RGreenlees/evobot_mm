@@ -909,9 +909,9 @@ const hive_definition* UTIL_GetClosestViableUnbuiltHive(const Vector SearchLocat
 	{
 		if (Hives[i].bIsValid && Hives[i].Status == HIVE_STATUS_UNBUILT)
 		{
-			if (UTIL_StructureOfTypeExistsInLocation(STRUCTURE_MARINE_PHASEGATE, Hives[i].Location, UTIL_MetresToGoldSrcUnits(15.0f))) { continue; }
+			if (UTIL_StructureOfTypeExistsInLocation(STRUCTURE_MARINE_PHASEGATE, Hives[i].Location, UTIL_MetresToGoldSrcUnits(25.0f))) { continue; }
 
-			if (UTIL_StructureOfTypeExistsInLocation(STRUCTURE_MARINE_TURRETFACTORY, Hives[i].Location, UTIL_MetresToGoldSrcUnits(15.0f))) { continue; }
+			if (UTIL_StructureOfTypeExistsInLocation(STRUCTURE_MARINE_TURRETFACTORY, Hives[i].Location, UTIL_MetresToGoldSrcUnits(25.0f))) { continue; }
 
 			float ThisDist = vDist2DSq(SearchLocation, Hives[i].Location);
 
@@ -2047,7 +2047,7 @@ edict_t* UTIL_GetNearestUnbuiltStructureOfTypeInLocation(const NSStructureType S
 
 		for (auto& it : MarineBuildableStructureMap)
 		{
-			if (!it.second.bOnNavmesh || it.second.bFullyConstructed) { continue; }
+			if (!it.second.bOnNavmesh || !it.second.bIsReachableMarine || it.second.bFullyConstructed) { continue; }
 			if (!UTIL_StructureTypesMatch(StructureType, it.second.StructureType)) { continue; }
 
 			float ThisDist = vDist2DSq(it.second.Location, Location);
@@ -2065,7 +2065,7 @@ edict_t* UTIL_GetNearestUnbuiltStructureOfTypeInLocation(const NSStructureType S
 	{
 		for (auto& it : AlienBuildableStructureMap)
 		{
-			if (!it.second.bOnNavmesh || it.second.bFullyConstructed) { continue; }
+			if (!it.second.bOnNavmesh || !it.second.bIsReachableAlien || it.second.bFullyConstructed) { continue; }
 			if (!UTIL_StructureTypesMatch(StructureType, it.second.StructureType)) { continue; }
 
 			float ThisDist = vDist2DSq(it.second.Location, Location);

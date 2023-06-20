@@ -110,6 +110,7 @@ typedef struct _NAV_DOOR
 	Vector PositionOne = ZERO_VECTOR; // Door's starting position
 	Vector PositionTwo = ZERO_VECTOR; // Door's open/close position (depending on if it starts open or not)
 	Vector CurrentPosition = ZERO_VECTOR; // Current world position
+	bool bStartOpen = false; // Does the door start open? (PositionOne = open position, not close position)
 } nav_door;
 
 // Door reference. Not used, but is a future feature to allow bots to track if a door is open or not, and how to open it etc.
@@ -158,6 +159,7 @@ static const int DT_AREA_BLOCKED = 3; // Area occupied by an obstruction (e.g. b
 static const int MAX_OFFMESH_CONNS = 1024; // Max number of dynamic connections that can be placed. Not currently used (connections are baked into the nav mesh using the external tool)
 
 static const int DOOR_USE_ONLY = 256; // Flag used by GoldSrc to determine if a door entity can only be used to open (i.e. can't be triggered)
+static const int DOOR_START_OPEN = 1;
 
 static const float CHECK_STUCK_INTERVAL = 0.1f; // How frequently should the bot check if it's stuck?
 
@@ -251,6 +253,7 @@ void ClearBotMovement(bot_t* pBot);
 
 // Will draw all temporary obstacles placed on the nav mesh, within a 10 metre (525 unit) radius
 void UTIL_DrawTemporaryObstacles();
+void DEBUG_DrawOffMeshConnections();
 
 // Checks if the bot has managed to make progress towards MoveDestination. Move destination should be the bot's current path point, not overall destination
 bool IsBotStuck(bot_t* pBot, const Vector MoveDestination);
@@ -447,6 +450,8 @@ void OnBotEndLadder(bot_t* pBot);
 
 // Not in use yet, will track all doors and their current status
 void UTIL_PopulateDoors();
+
+const nav_door* UTIL_GetNavDoorByEdict(const edict_t* DoorEdict);
 
 // If the bot has a path, will draw it out in full if bShort is false, or just the first 5 path nodes if bShort is true
 void BotDrawPath(bot_t* pBot, float DrawTimeInSeconds, bool bShort);
