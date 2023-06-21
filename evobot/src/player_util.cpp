@@ -658,25 +658,15 @@ bool IsPlayerInUseRange(const edict_t* Player, const edict_t* Target)
 	Vector UseDir = UTIL_GetVectorNormal(UTIL_GetCentreOfEntity(Target) - StartTrace);
 	// Sometimes if the bot is REALLY close to the target, the trace fails. Give it 5 units extra of room to avoid this and compensate during the trace.
 	StartTrace = StartTrace - (UseDir * 5.0f);
-	
-	Vector EndTrace = UTIL_GetCentreOfEntity(Target);
+		
+	Vector EndTrace = StartTrace + (UseDir * (max_player_use_reach + 5.0f));
 
-	float TraceDist = vDist3D(StartTrace, EndTrace);
-	
-	float MaxDist = max_player_use_reach;
 	
 	TraceResult hit;
 
 	UTIL_TraceLine(StartTrace, EndTrace, dont_ignore_monsters, dont_ignore_glass, Player->v.pContainingEntity, &hit);
 
-	if (hit.flFraction < 1.0f && (TraceDist * hit.flFraction) <= MaxDist)
-	{
-		return hit.pHit == Target;
-	}
-	else
-	{
-		return false;
-	}
+	return hit.pHit == Target;
 }
 
 bool PlayerHasHeavyArmour(const edict_t* Player)

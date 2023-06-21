@@ -681,7 +681,7 @@ int CONFIG_GetNSVersion()
     return NSVersion;
 }
 
-const char* UTIL_LookUpLocationName(const char* InputName)
+void UTIL_LookUpLocationName(const char* InputName, char* Result)
 {
     char filename[256];
 
@@ -710,7 +710,7 @@ const char* UTIL_LookUpLocationName(const char* InputName)
         }
     }
 
-    auto delimiterPos = InputString.find("-");
+   /* auto delimiterPos = InputString.find("-");
 
     if (delimiterPos != std::string::npos)
     {
@@ -719,9 +719,9 @@ const char* UTIL_LookUpLocationName(const char* InputName)
         AreaName.erase(0, AreaName.find_first_not_of(" \r\n\t\v\f"));
 
         return AreaName.c_str();
-    }
+    }*/
 
-    return InputString.c_str();
+    sprintf(Result, "%s", InputString.c_str());
 }
 
 void CONFIG_PopulateBotNames()

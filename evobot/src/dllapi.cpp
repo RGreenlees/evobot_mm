@@ -211,6 +211,17 @@ void ClientCommand(edict_t* pEntity)
 		RETURN_META(MRES_SUPERCEDE);
 	}
 
+	if (FStrEq(pcmd, "maploc"))
+	{
+		const char* LocName = UTIL_GetClosestMapLocationToPoint(pEntity->v.origin);
+
+		UTIL_SayText(LocName, pEntity);
+
+		RETURN_META(MRES_SUPERCEDE);
+	}
+
+	
+
 	if (FStrEq(pcmd, "showconnections"))
 	{
 		if (NavmeshLoaded())

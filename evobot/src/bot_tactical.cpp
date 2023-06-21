@@ -459,7 +459,7 @@ void AddMapLocation(const char* LocationName, Vector MinLocation, Vector MaxLoca
 	{
 		if (!MapLocations[i].bIsValid)
 		{
-			sprintf(MapLocations[i].LocationName, "%s", UTIL_LookUpLocationName(LocationName));
+			UTIL_LookUpLocationName(LocationName, MapLocations[i].LocationName);
 			MapLocations[i].MinLocation = MinLocation;
 			MapLocations[i].MaxLocation = MaxLocation;
 			MapLocations[i].bIsValid = true;
