@@ -190,8 +190,8 @@ void ClientCommand(edict_t* pEntity)
 
 		if (!FNullEnt(Hit.pHit))
 		{
-			char buf[64];
-			sprintf(buf, "Hit Entity: %s\n", STRING(Hit.pHit->v.classname));
+			char buf[128];
+			sprintf(buf, "Hit Entity: %s (name: %s)\n", STRING(Hit.pHit->v.classname), STRING(Hit.pHit->v.targetname));
 			UTIL_SayText(buf, pEntity);
 
 			NSStructureType StructType = UTIL_IUSER3ToStructureType(Hit.pHit->v.iuser3);
@@ -260,15 +260,15 @@ void ClientCommand(edict_t* pEntity)
 					UTIL_SayText("START CLOSED\n", pEntity);
 				}
 
-				if (!FNullEnt(Door->TriggerEdict))
+				for (int i = 0; i < 4; i++)
 				{
-					UTIL_DrawLine(pEntity, Door->CurrentPosition, UTIL_GetCentreOfEntity(Door->TriggerEdict), 10.0f, 255, 255, 0);
+					if (!FNullEnt(Door->TriggerEdicts[i]))
+					{
+						UTIL_DrawLine(pEntity, Door->CurrentPosition, UTIL_GetCentreOfEntity(Door->TriggerEdicts[i]), 10.0f, 255, 255, 0);
+					}
 				}
-				
 			}
-		}
-
-		
+		}		
 
 		RETURN_META(MRES_SUPERCEDE);
 	}

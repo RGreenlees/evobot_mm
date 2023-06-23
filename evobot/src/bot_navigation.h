@@ -105,7 +105,8 @@ typedef struct _NAV_DOOR
 {
 	edict_t* DoorEdict = nullptr; // Reference to the func_door
 	unsigned int ObstacleRef = 0; // Dynamic obstacle ref. Used to add/remove the obstacle as the door is opened/closed
-	edict_t* TriggerEdict = nullptr; // Reference to the trigger edict (e.g. func_trigger, func_button etc.)
+	edict_t* TriggerEdicts[4] = { nullptr, nullptr, nullptr, nullptr }; // Reference to the trigger edict (e.g. func_trigger, func_button etc.)
+	int NumTriggers = 0; // How many triggers can activate the door (bot will pick best one)
 	DoorActivationType ActivationType = DOOR_NONE; // How the door should be opened
 	Vector PositionOne = ZERO_VECTOR; // Door's starting position
 	Vector PositionTwo = ZERO_VECTOR; // Door's open/close position (depending on if it starts open or not)
@@ -245,6 +246,13 @@ void PhaseGateMove(bot_t* pBot, const Vector StartPoint, const Vector EndPoint);
 
 // Will check for any func_breakable which might be in the way (e.g. window, vent) and make the bot aim and attack it to break it. Marines will switch to knife to break it.
 void CheckAndHandleBreakableObstruction(bot_t* pBot, const Vector MoveFrom, const Vector MoveTo);
+
+void CheckAndHandleDoorObstruction(bot_t* pBot, const Vector MoveFrom, const Vector MoveTo);
+
+edict_t* UTIL_GetNearestDoorTrigger(const Vector Location, const nav_door* Door, edict_t* IgnoreTrigger);
+bool UTIL_IsPathBlockedByDoor(const Vector StartLoc, const Vector EndLoc, edict_t* SearchDoor);
+
+edict_t* UTIL_GetDoorBlockingPathPoint(bot_path_node* PathNode, edict_t* SearchDoor);
 
 // Clears all tracking of a bot's stuck status
 void ClearBotStuck(bot_t* pBot);

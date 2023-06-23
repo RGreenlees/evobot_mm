@@ -53,7 +53,7 @@ void UTIL_DisplayBotInfo(bot_t* pBot);
 
 enemy_status* UTIL_GetTrackedEnemyRefForTarget(bot_t* pBot, edict_t* Target);
 
-void BotUseObject(bot_t* pBot, edict_t* Target, bool bContinuous);
+bool BotUseObject(bot_t* pBot, edict_t* Target, bool bContinuous);
 void BotLeap(bot_t* pBot, const Vector TargetLocation);
 bool CanBotLeap(bot_t* pBot);
 void BotJump(bot_t* pBot);

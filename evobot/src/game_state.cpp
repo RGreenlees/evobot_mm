@@ -1046,6 +1046,7 @@ void EvoBot_ServerCommand(void)
 				UTIL_ClearBotTask(&bots[i], &bots[i].SecondaryBotTask);
 				UTIL_ClearBotTask(&bots[i], &bots[i].WantsAndNeedsTask);
 				UTIL_ClearBotTask(&bots[i], &bots[i].CommanderTask);
+				UTIL_ClearBotTask(&bots[i], &bots[i].MoveTask);
 			}
 
 			return;
@@ -1061,6 +1062,7 @@ void EvoBot_ServerCommand(void)
 				UTIL_ClearBotTask(&bots[i], &bots[i].SecondaryBotTask);
 				UTIL_ClearBotTask(&bots[i], &bots[i].WantsAndNeedsTask);
 				UTIL_ClearBotTask(&bots[i], &bots[i].CommanderTask);
+				UTIL_ClearBotTask(&bots[i], &bots[i].MoveTask);
 			}
 
 			return;
@@ -1076,6 +1078,7 @@ void EvoBot_ServerCommand(void)
 				UTIL_ClearBotTask(&bots[i], &bots[i].SecondaryBotTask);
 				UTIL_ClearBotTask(&bots[i], &bots[i].WantsAndNeedsTask);
 				UTIL_ClearBotTask(&bots[i], &bots[i].CommanderTask);
+				UTIL_ClearBotTask(&bots[i], &bots[i].MoveTask);
 			}
 
 			return;
@@ -1091,6 +1094,7 @@ void EvoBot_ServerCommand(void)
 				UTIL_ClearBotTask(&bots[i], &bots[i].SecondaryBotTask);
 				UTIL_ClearBotTask(&bots[i], &bots[i].WantsAndNeedsTask);
 				UTIL_ClearBotTask(&bots[i], &bots[i].CommanderTask);
+				UTIL_ClearBotTask(&bots[i], &bots[i].MoveTask);
 			}
 
 			return;
@@ -1106,6 +1110,7 @@ void EvoBot_ServerCommand(void)
 				UTIL_ClearBotTask(&bots[i], &bots[i].SecondaryBotTask);
 				UTIL_ClearBotTask(&bots[i], &bots[i].WantsAndNeedsTask);
 				UTIL_ClearBotTask(&bots[i], &bots[i].CommanderTask);
+				UTIL_ClearBotTask(&bots[i], &bots[i].MoveTask);
 			}
 
 			return;
@@ -1121,6 +1126,7 @@ void EvoBot_ServerCommand(void)
 				UTIL_ClearBotTask(&bots[i], &bots[i].SecondaryBotTask);
 				UTIL_ClearBotTask(&bots[i], &bots[i].WantsAndNeedsTask);
 				UTIL_ClearBotTask(&bots[i], &bots[i].CommanderTask);
+				UTIL_ClearBotTask(&bots[i], &bots[i].MoveTask);
 			}
 
 			return;

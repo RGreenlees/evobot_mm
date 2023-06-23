@@ -102,7 +102,8 @@ typedef enum
 	TASK_WELD,
 	TASK_RESUPPLY,
 	TASK_EVOLVE,
-	TASK_COMMAND
+	TASK_COMMAND,
+	TASK_USE
 }
 BotTaskType;
 
@@ -149,6 +150,7 @@ typedef struct _BOT_CURRENT_WEAPON_T
 // Bot path node. A path will be several of these strung together to lead the bot to its destination
 typedef struct _BOT_PATH_NODE
 {
+	Vector FromLocation = ZERO_VECTOR; // Location to move from
 	Vector Location = ZERO_VECTOR; // Location to move to
 	float requiredZ = 0.0f; // If climbing a up ladder or wall, how high should they aim to get before dismounting.
 	unsigned short flag = 0; // Is this a ladder movement, wall climb, walk etc
@@ -376,6 +378,7 @@ typedef struct _BOT_T
 	bot_task SecondaryBotTask;
 	bot_task WantsAndNeedsTask;
 	bot_task CommanderTask; // Task assigned by the commander
+	bot_task MoveTask; // Movement task
 
 	Vector DesiredLookDirection = ZERO_VECTOR; // What view angle is the bot currently turning towards
 	Vector InterpolatedLookDirection = ZERO_VECTOR; // Used to smoothly interpolate the bot's view rather than snap instantly like an aimbot

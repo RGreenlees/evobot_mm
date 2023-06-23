@@ -661,7 +661,6 @@ bool IsPlayerInUseRange(const edict_t* Player, const edict_t* Target)
 		
 	Vector EndTrace = StartTrace + (UseDir * (max_player_use_reach + 5.0f));
 
-	
 	TraceResult hit;
 
 	UTIL_TraceLine(StartTrace, EndTrace, dont_ignore_monsters, dont_ignore_glass, Player->v.pContainingEntity, &hit);

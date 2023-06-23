@@ -157,6 +157,11 @@ bool UTIL_IsMoveTaskUrgent(bot_t* pBot, bot_task* Task)
 
 bot_task* BotGetNextTask(bot_t* pBot)
 {
+	if (pBot->MoveTask.TaskType != TASK_NONE)
+	{
+		return &pBot->MoveTask;
+	}
+
 	// Any orders issued by the commander take priority over everything else
 	if (pBot->CommanderTask.TaskType != TASK_NONE)
 	{
@@ -792,6 +797,33 @@ void BotProgressMoveTask(bot_t* pBot, bot_task* Task)
 	}
 }
 
+void BotProgressUseTask(bot_t* pBot, bot_task* Task)
+{
+
+	if (IsPlayerInUseRange(pBot->pEdict, Task->TaskTarget))
+	{
+		if (pBot->pEdict->v.oldbuttons & IN_DUCK)
+		{
+			pBot->pEdict->v.button |= IN_DUCK;
+		}
+
+		if (BotUseObject(pBot, Task->TaskTarget, false))
+		{
+			UTIL_ClearBotTask(pBot, Task);
+		}
+	}
+	else
+	{
+		if (vDist2DSq(pBot->pEdict->v.origin, Task->TaskLocation) < sqrf(18.0f))
+		{
+			pBot->pEdict->v.button |= IN_DUCK;
+			return;
+		}
+
+		MoveTo(pBot, Task->TaskLocation, MOVESTYLE_NORMAL);
+	}
+}
+
 void BotProgressPickupTask(bot_t* pBot, bot_task* Task)
 {
 	if (Task->TaskType == TASK_GET_AMMO)
@@ -1405,6 +1437,9 @@ void BotProgressTask(bot_t* pBot, bot_task* Task)
 	case TASK_MOVE:
 		BotProgressMoveTask(pBot, Task);
 		break;
+	case TASK_USE:
+		BotProgressUseTask(pBot, Task);
+		break;
 	case TASK_GET_AMMO:
 	case TASK_GET_EQUIPMENT:
 	case TASK_GET_WEAPON:
@@ -1999,5 +2034,21 @@ void TASK_SetEvolveTask(bot_t* pBot, bot_task* Task, const Vector EvolveLocation
 	Task->TaskType = TASK_EVOLVE;
 	Task->TaskLocation = EvolveLocation;
 	Task->Evolution = EvolveImpulse;
+	Task->bTaskIsUrgent = bIsUrgent;
+}
+
+void TASK_SetUseTask(bot_t* pBot, bot_task* Task, edict_t* Target, const bool bIsUrgent)
+{
+	if (Task->TaskType == TASK_USE && Task->TaskTarget == Target)
+	{
+		Task->bTaskIsUrgent = bIsUrgent;
+		return;
+	}
+
+	int MoveProfile = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
+
+	Task->TaskType = TASK_USE;
+	Task->TaskTarget = Target;
+	Task->TaskLocation = FindClosestNavigablePointToDestination(MoveProfile, pBot->CurrentFloorPosition, UTIL_ProjectPointToNavmesh(UTIL_GetCentreOfEntity(Target)), UTIL_MetresToGoldSrcUnits(10.0f));
 	Task->bTaskIsUrgent = bIsUrgent;
 }

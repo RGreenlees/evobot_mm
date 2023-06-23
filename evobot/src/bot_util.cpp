@@ -136,15 +136,15 @@ void BotMoveLookAt(bot_t* pBot, const Vector target)
 	pBot->MoveLookLocation.z = target.z;
 }
 
-void BotUseObject(bot_t* pBot, edict_t* Target, bool bContinuous)
+bool BotUseObject(bot_t* pBot, edict_t* Target, bool bContinuous)
 {
-	if (FNullEnt(Target)) { return; }
+	if (FNullEnt(Target)) { return false; }
 
-	Vector AimPoint = (Target->v.size.z < 32.0f) ? Target->v.origin : UTIL_GetCentreOfEntity(Target);
+	Vector AimPoint = UTIL_GetCentreOfEntity(Target);
 
 	BotLookAt(pBot, AimPoint);
 
-	if (!bContinuous && ((gpGlobals->time - pBot->LastUseTime) < min_player_use_interval)) { return; }
+	if (!bContinuous && ((gpGlobals->time - pBot->LastUseTime) < min_player_use_interval)) { return false; }
 
 	Vector AimDir = UTIL_GetForwardVector(pBot->pEdict->v.v_angle);
 	Vector TargetAimDir = UTIL_GetVectorNormal(AimPoint - pBot->CurrentEyePosition);
@@ -155,7 +155,10 @@ void BotUseObject(bot_t* pBot, edict_t* Target, bool bContinuous)
 	{
 		pBot->pEdict->v.button |= IN_USE;
 		pBot->LastUseTime = gpGlobals->time;
+		return true;
 	}
+
+	return false;
 }
 
 void BotJump(bot_t* pBot)
@@ -364,6 +367,7 @@ void BotDied(bot_t* pBot, edict_t* killer)
 	UTIL_ClearBotTask(pBot, &pBot->PrimaryBotTask);
 	UTIL_ClearBotTask(pBot, &pBot->SecondaryBotTask);
 	UTIL_ClearBotTask(pBot, &pBot->WantsAndNeedsTask);
+	UTIL_ClearBotTask(pBot, &pBot->MoveTask);
 	
 
 	pBot->bIsPendingKill = false;
@@ -1166,6 +1170,7 @@ void UTIL_ClearAllBotData(bot_t* pBot)
 	UTIL_ClearBotTask(pBot, &pBot->PrimaryBotTask);
 	UTIL_ClearBotTask(pBot, &pBot->SecondaryBotTask);
 	UTIL_ClearBotTask(pBot, &pBot->WantsAndNeedsTask);
+	UTIL_ClearBotTask(pBot, &pBot->MoveTask);
 
 	UTIL_ClearGuardInfo(pBot);
 
@@ -2068,6 +2073,12 @@ void TestNavThink(bot_t* pBot)
 	BotUpdateAndClearTasks(pBot);
 
 	pBot->CurrentTask = &pBot->PrimaryBotTask;
+
+	if (pBot->MoveTask.TaskType != TASK_NONE)
+	{
+		BotProgressTask(pBot, &pBot->MoveTask);
+		return;
+	}
 
 	if (pBot->PrimaryBotTask.TaskType == TASK_MOVE)
 	{
