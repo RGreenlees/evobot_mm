@@ -651,10 +651,34 @@ bool IsEdictPlayer(const edict_t* edict)
 	return (edict->v.flags & FL_CLIENT) || (edict->v.flags & FL_FAKECLIENT);
 }
 
+bool IsPlayerTouchingEntity(const edict_t* Player, const edict_t* TargetEntity)
+{
+	edict_t* TouchingEdict = nullptr;
+
+	while ((TouchingEdict = UTIL_FindEntityInSphere(TouchingEdict, Player->v.origin, 5.0f)) != NULL)
+	{
+		if (TouchingEdict == TargetEntity) { return true; }
+	}
+
+	return false;
+}
+
 bool IsPlayerInUseRange(const edict_t* Player, const edict_t* Target)
 {
 	if (FNullEnt(Player) || FNullEnt(Target)) { return false; }
-	Vector StartTrace = GetPlayerEyePosition(Player);
+	
+	if (vDist3DSq(Player->v.origin, UTIL_GetCentreOfEntity(Target)) > sqrf(vSize3D(Target->v.size) + vSize3D(Player->v.size))) { return false; }
+
+	edict_t* UseObject = nullptr;
+
+	while ((UseObject = UTIL_FindEntityInSphere(UseObject, Player->v.origin, 60.0f)) != NULL)
+	{
+		if (UseObject == Target) { return true; }
+	}
+
+	return false;
+	
+	/*Vector StartTrace = GetPlayerEyePosition(Player);
 	Vector UseDir = UTIL_GetVectorNormal(UTIL_GetCentreOfEntity(Target) - StartTrace);
 	// Sometimes if the bot is REALLY close to the target, the trace fails. Give it 5 units extra of room to avoid this and compensate during the trace.
 	StartTrace = StartTrace - (UseDir * 5.0f);
@@ -665,7 +689,13 @@ bool IsPlayerInUseRange(const edict_t* Player, const edict_t* Target)
 
 	UTIL_TraceLine(StartTrace, EndTrace, dont_ignore_monsters, dont_ignore_glass, Player->v.pContainingEntity, &hit);
 
-	return hit.pHit == Target;
+	if (!FNullEnt(hit.pHit))
+	{
+		const char* HitName = STRING(hit.pHit->v.classname);
+	}
+	
+
+	return hit.pHit == Target;*/
 }
 
 bool PlayerHasHeavyArmour(const edict_t* Player)

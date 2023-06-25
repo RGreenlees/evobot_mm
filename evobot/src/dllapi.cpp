@@ -173,6 +173,19 @@ void ClientCommand(edict_t* pEntity)
 		RETURN_META(MRES_SUPERCEDE);
 	}
 
+	if (FStrEq(pcmd, "spherecheck"))
+	{
+		edict_t* TriggerEdict = nullptr;
+
+		while ((TriggerEdict = UTIL_FindEntityInSphere(TriggerEdict, pEntity->v.origin, 5.0f)) != NULL)
+		{
+			const char* EdictType = STRING(TriggerEdict->v.classname);
+
+
+		}
+
+		RETURN_META(MRES_SUPERCEDE);
+	}
 
 	if (FStrEq(pcmd, "traceentity"))
 	{
@@ -184,7 +197,7 @@ void ClientCommand(edict_t* pEntity)
 
 		TraceResult Hit;
 
-		UTIL_TraceHull(TraceStart, TraceEnd, dont_ignore_monsters, head_hull, pEntity, &Hit);
+		UTIL_TraceLine(TraceStart, TraceEnd, dont_ignore_monsters, dont_ignore_glass, pEntity, &Hit);
 
 		//UTIL_TraceLine(TraceStart, TraceEnd, dont_ignore_monsters, dont_ignore_glass, pEntity, &Hit);
 
@@ -234,7 +247,6 @@ void ClientCommand(edict_t* pEntity)
 
 	if (FStrEq(pcmd, "tracedoor"))
 	{
-		UTIL_PopulateDoors();
 		
 		Vector TraceStart = GetPlayerEyePosition(pEntity); // origin + pev->view_ofs
 		Vector LookDir = UTIL_GetForwardVector(pEntity->v.v_angle); // Converts view angles to normalized unit vector
@@ -249,26 +261,48 @@ void ClientCommand(edict_t* pEntity)
 
 			if (Door)
 			{
-				UTIL_DrawLine(pEntity, Door->DoorEdict->v.absmin, Door->DoorEdict->v.absmax, 10.0f, 255, 255, 255);
+				edict_t* Trigger = UTIL_GetNearestDoorTrigger(pEntity->v.origin, Door, nullptr);
 
-				if (Door->bStartOpen)
+				if (!FNullEnt(Trigger))
 				{
-					UTIL_SayText("START OPEN\n", pEntity);
-				}
-				else
-				{
-					UTIL_SayText("START CLOSED\n", pEntity);
-				}
-
-				for (int i = 0; i < 4; i++)
-				{
-					if (!FNullEnt(Door->TriggerEdicts[i]))
-					{
-						UTIL_DrawLine(pEntity, Door->CurrentPosition, UTIL_GetCentreOfEntity(Door->TriggerEdicts[i]), 10.0f, 255, 255, 0);
-					}
+					UTIL_DrawLine(pEntity, pEntity->v.origin, UTIL_GetCentreOfEntity(Trigger), 10.0f);
 				}
 			}
 		}		
+
+		RETURN_META(MRES_SUPERCEDE);
+	}
+
+	if (FStrEq(pcmd, "buttonfloor"))
+	{
+		edict_t* currTrigger = NULL;
+		while (((currTrigger = UTIL_FindEntityByClassname(currTrigger, "func_button")) != NULL) && (!FNullEnt(currTrigger)))
+		{
+			Vector EntityCentre = UTIL_GetCentreOfEntity(currTrigger);
+
+			Vector EndLoc = EntityCentre;
+
+			TraceResult Hit;
+			UTIL_TraceLine(EntityCentre, EntityCentre - Vector(0.0f, 0.0f, 1000.0f), ignore_monsters, ignore_glass, currTrigger, &Hit);
+
+			if (Hit.flFraction < 1.0f)
+			{
+				EndLoc = Hit.vecEndPos;
+
+				EndLoc.z = fmaxf(EndLoc.z, EntityCentre.z - 100.0f);
+			}
+
+			UTIL_DrawLine(pEntity, UTIL_GetCentreOfEntity(currTrigger), EndLoc, 5.0f, 255, 0, 0);
+
+			Vector ValidNavmeshPoint = UTIL_ProjectPointToNavmesh(EndLoc, MARINE_REGULAR_NAV_PROFILE);
+
+			if (ValidNavmeshPoint != ZERO_VECTOR)
+			{
+				UTIL_DrawLine(pEntity, UTIL_GetCentreOfEntity(currTrigger), ValidNavmeshPoint, 5.0f);
+			}
+			
+		}
+		
 
 		RETURN_META(MRES_SUPERCEDE);
 	}

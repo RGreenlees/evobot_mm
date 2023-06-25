@@ -1991,10 +1991,7 @@ void DroneThink(bot_t* pBot)
 		BotProgressTask(pBot, pBot->CurrentTask);
 	}
 
-	//if (pBot->BotNavInfo.PathSize > 0)
-	//{
-	//	DEBUG_DrawPath(pBot->BotNavInfo.CurrentPath, pBot->BotNavInfo.PathSize, 0.0f);
-	//}
+	//DEBUG_DrawPath(pBot->BotNavInfo.CurrentPath, pBot->BotNavInfo.PathSize, 0.0f);
 }
 
 void CustomThink(bot_t* pBot)
@@ -2546,7 +2543,7 @@ void BotDirectLookAt(bot_t* pBot, Vector target)
 void UTIL_DisplayBotInfo(bot_t* pBot)
 {
 	char buf[511];
-	char interbuff[64];
+	char interbuff[164];
 
 	sprintf(buf, "Bot Role: %s\n", UTIL_BotRoleToChar(pBot->CurrentRole));
 

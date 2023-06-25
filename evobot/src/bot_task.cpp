@@ -797,6 +797,17 @@ void BotProgressMoveTask(bot_t* pBot, bot_task* Task)
 	}
 }
 
+void BotProgressTouchTask(bot_t* pBot, bot_task* Task)
+{
+	if (FNullEnt(Task->TaskTarget) || IsPlayerTouchingEntity(pBot->pEdict, Task->TaskTarget))
+	{
+		UTIL_ClearBotTask(pBot, Task);
+	}
+
+
+	MoveTo(pBot, Task->TaskLocation, MOVESTYLE_NORMAL);
+}
+
 void BotProgressUseTask(bot_t* pBot, bot_task* Task)
 {
 
@@ -1440,6 +1451,9 @@ void BotProgressTask(bot_t* pBot, bot_task* Task)
 	case TASK_USE:
 		BotProgressUseTask(pBot, Task);
 		break;
+	case TASK_TOUCH:
+		BotProgressTouchTask(pBot, Task);
+		break;
 	case TASK_GET_AMMO:
 	case TASK_GET_EQUIPMENT:
 	case TASK_GET_WEAPON:
@@ -2048,6 +2062,22 @@ void TASK_SetUseTask(bot_t* pBot, bot_task* Task, edict_t* Target, const bool bI
 	int MoveProfile = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
 
 	Task->TaskType = TASK_USE;
+	Task->TaskTarget = Target;
+	Task->TaskLocation = FindClosestNavigablePointToDestination(MoveProfile, pBot->CurrentFloorPosition, UTIL_ProjectPointToNavmesh(UTIL_GetCentreOfEntity(Target)), UTIL_MetresToGoldSrcUnits(10.0f));
+	Task->bTaskIsUrgent = bIsUrgent;
+}
+
+void TASK_SetTouchTask(bot_t* pBot, bot_task* Task, edict_t* Target, bool bIsUrgent)
+{
+	if (Task->TaskType == TASK_TOUCH && Task->TaskTarget == Target)
+	{
+		Task->bTaskIsUrgent = bIsUrgent;
+		return;
+	}
+
+	int MoveProfile = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
+
+	Task->TaskType = TASK_TOUCH;
 	Task->TaskTarget = Target;
 	Task->TaskLocation = FindClosestNavigablePointToDestination(MoveProfile, pBot->CurrentFloorPosition, UTIL_ProjectPointToNavmesh(UTIL_GetCentreOfEntity(Target)), UTIL_MetresToGoldSrcUnits(10.0f));
 	Task->bTaskIsUrgent = bIsUrgent;

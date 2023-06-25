@@ -103,7 +103,8 @@ typedef enum
 	TASK_RESUPPLY,
 	TASK_EVOLVE,
 	TASK_COMMAND,
-	TASK_USE
+	TASK_USE,
+	TASK_TOUCH
 }
 BotTaskType;
 

@@ -10,6 +10,8 @@ int BotGetCurrentWeaponMaxClipAmmo(const bot_t* pBot);
 int BotGetCurrentWeaponReserveAmmo(const bot_t* pBot);
 NSWeapon GetBotCurrentWeapon(const bot_t* pBot);
 
+NSWeapon GetBotPrimaryWeapon(const bot_t* pBot);
+
 NSWeapon GetBotMarinePrimaryWeapon(const bot_t* pBot);
 int BotGetPrimaryWeaponClipAmmo(const bot_t* pBot);
 int BotGetPrimaryWeaponMaxClipSize(const bot_t* pBot);

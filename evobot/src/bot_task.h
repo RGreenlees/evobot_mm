@@ -56,11 +56,13 @@ void TASK_SetCapResNodeTask(bot_t* pBot, bot_task* Task, const resource_node* No
 void TASK_SetDefendTask(bot_t* pBot, bot_task* Task, edict_t* Target, const bool bIsUrgent);
 void TASK_SetEvolveTask(bot_t* pBot, bot_task* Task, const Vector EvolveLocation, const int EvolveImpulse, const bool bIsUrgent);
 void TASK_SetUseTask(bot_t* pBot, bot_task* Task, edict_t* Target, const bool bIsUrgent);
+void TASK_SetTouchTask(bot_t* pBot, bot_task* Task, edict_t* Target, bool bIsUrgent);
 
 void BotProgressTask(bot_t* pBot, bot_task* Task);
 
 void BotProgressMoveTask(bot_t* pBot, bot_task* Task);
 void BotProgressUseTask(bot_t* pBot, bot_task* Task);
+void BotProgressTouchTask(bot_t* pBot, bot_task* Task);
 void BotProgressPickupTask(bot_t* pBot, bot_task* Task);
 void BotProgressGuardTask(bot_t* pBot, bot_task* Task);
 

@@ -2385,14 +2385,39 @@ void CheckAndHandleDoorObstruction(bot_t* pBot, const Vector MoveFrom, const Vec
 
 		if (Door)
 		{
-			edict_t* Trigger = UTIL_GetNearestDoorTrigger(pBot->pEdict->v.origin, Door, nullptr);
-
-			if (!FNullEnt(Trigger))
+			if (Door->ActivationType == DOOR_USE)
 			{
-				TASK_SetUseTask(pBot, &pBot->MoveTask, Trigger, true);
+				TASK_SetUseTask(pBot, &pBot->MoveTask, Door->DoorEdict, true);
 				return;
 			}
 
+			if (Door->ActivationType == DOOR_SHOOT)
+			{
+				BotAttackTarget(pBot, Door->DoorEdict);
+				return;
+			}
+
+			
+
+			if (Door->ActivationType == DOOR_BUTTON || Door->ActivationType == DOOR_TRIGGER)
+			{
+				edict_t* Trigger = UTIL_GetNearestDoorTrigger(pBot->pEdict->v.origin, Door, nullptr);
+
+				if (!FNullEnt(Trigger))
+				{
+					if (Door->ActivationType == DOOR_BUTTON)
+					{
+						TASK_SetUseTask(pBot, &pBot->MoveTask, Trigger, true);
+					}
+					else
+					{
+						TASK_SetTouchTask(pBot, &pBot->MoveTask, Trigger, true);
+						
+					}
+
+					return;
+				}
+			}
 		}
 	}
 
@@ -2406,14 +2431,36 @@ void CheckAndHandleDoorObstruction(bot_t* pBot, const Vector MoveFrom, const Vec
 
 			if (Door)
 			{
-				edict_t* Trigger = UTIL_GetNearestDoorTrigger(pBot->pEdict->v.origin, Door, nullptr);
-
-				if (!FNullEnt(Trigger))
+				if (Door->ActivationType == DOOR_USE)
 				{
-					TASK_SetUseTask(pBot, &pBot->MoveTask, Trigger, true);
+					TASK_SetUseTask(pBot, &pBot->MoveTask, Door->DoorEdict, true);
 					return;
 				}
 
+				if (Door->ActivationType == DOOR_SHOOT)
+				{
+					BotAttackTarget(pBot, Door->DoorEdict);
+					return;
+				}
+
+				if (Door->ActivationType == DOOR_BUTTON || Door->ActivationType == DOOR_TRIGGER)
+				{
+					edict_t* Trigger = UTIL_GetNearestDoorTrigger(pBot->pEdict->v.origin, Door, nullptr);
+
+					if (!FNullEnt(Trigger))
+					{
+						if (Door->ActivationType == DOOR_BUTTON)
+						{
+							TASK_SetUseTask(pBot, &pBot->MoveTask, Trigger, true);
+						}
+						else
+						{
+							TASK_SetTouchTask(pBot, &pBot->MoveTask, Trigger, true);
+						}
+						
+						return;
+					}
+				}
 			}
 		}
 	}
@@ -2428,12 +2475,35 @@ void CheckAndHandleDoorObstruction(bot_t* pBot, const Vector MoveFrom, const Vec
 
 			if (Door)
 			{
-				edict_t* Trigger = UTIL_GetNearestDoorTrigger(pBot->pEdict->v.origin, Door, nullptr);
-
-				if (!FNullEnt(Trigger))
+				if (Door->ActivationType == DOOR_USE)
 				{
-					TASK_SetUseTask(pBot, &pBot->MoveTask, Trigger, true);
+					TASK_SetUseTask(pBot, &pBot->MoveTask, Door->DoorEdict, true);
 					return;
+				}
+
+				if (Door->ActivationType == DOOR_SHOOT)
+				{
+					BotAttackTarget(pBot, Door->DoorEdict);
+					return;
+				}
+
+				if (Door->ActivationType == DOOR_BUTTON || Door->ActivationType == DOOR_TRIGGER)
+				{
+					edict_t* Trigger = UTIL_GetNearestDoorTrigger(pBot->pEdict->v.origin, Door, nullptr);
+
+					if (!FNullEnt(Trigger))
+					{
+						if (Door->ActivationType == DOOR_BUTTON)
+						{
+							TASK_SetUseTask(pBot, &pBot->MoveTask, Trigger, true);
+						}
+						else
+						{
+							TASK_SetTouchTask(pBot, &pBot->MoveTask, Trigger, true);
+						}
+
+						return;
+					}
 				}
 
 			}
@@ -2457,6 +2527,11 @@ edict_t* UTIL_GetDoorBlockingPathPoint(bot_path_node* PathNode, edict_t* SearchD
 
 		UTIL_TraceLine(FromLoc, TargetLoc, ignore_monsters, ignore_glass, nullptr, &doorHit);
 
+		if (!FNullEnt(doorHit.pHit))
+		{
+			const char* HitName = STRING(doorHit.pHit->v.classname);
+		}
+
 		if (!FNullEnt(SearchDoor))
 		{
 			if (doorHit.pHit == SearchDoor) { return doorHit.pHit; }
@@ -2479,6 +2554,11 @@ edict_t* UTIL_GetDoorBlockingPathPoint(bot_path_node* PathNode, edict_t* SearchD
 
 		UTIL_TraceLine(TargetLoc, TargetLoc2, ignore_monsters, ignore_glass, nullptr, &doorHit);
 
+		if (!FNullEnt(doorHit.pHit))
+		{
+			const char* HitName2 = STRING(doorHit.pHit->v.classname);
+		}
+
 		if (!FNullEnt(SearchDoor))
 		{
 			if (doorHit.pHit == SearchDoor) { return doorHit.pHit; }
@@ -2495,12 +2575,18 @@ edict_t* UTIL_GetDoorBlockingPathPoint(bot_path_node* PathNode, edict_t* SearchD
 				}
 			}
 		}
+
 	}
 	else if (PathNode->area == SAMPLE_POLYAREA_FALL || PathNode->area == SAMPLE_POLYAREA_HIGHFALL)
 	{
 		Vector TargetLoc = Vector(ToLoc.x, ToLoc.y, FromLoc.z);
 
 		UTIL_TraceLine(FromLoc, TargetLoc, ignore_monsters, ignore_glass, nullptr, &doorHit);
+
+		if (!FNullEnt(doorHit.pHit))
+		{
+			const char* HitName3 = STRING(doorHit.pHit->v.classname);
+		}
 
 		if (!FNullEnt(SearchDoor))
 		{
@@ -2521,26 +2607,10 @@ edict_t* UTIL_GetDoorBlockingPathPoint(bot_path_node* PathNode, edict_t* SearchD
 
 		UTIL_TraceLine(TargetLoc, ToLoc + Vector(0.0f, 0.0f, 10.0f), ignore_monsters, ignore_glass, nullptr, &doorHit);
 
-		if (!FNullEnt(SearchDoor))
+		if (!FNullEnt(doorHit.pHit))
 		{
-			if (doorHit.pHit == SearchDoor) { return doorHit.pHit; }
+			const char* HitName4 = STRING(doorHit.pHit->v.classname);
 		}
-		else
-		{
-			if (!FNullEnt(doorHit.pHit))
-			{
-				if (strcmp(STRING(doorHit.pHit->v.classname), "func_door") == 0
-					|| strcmp(STRING(doorHit.pHit->v.classname), "func_seethroughdoor") == 0
-					|| strcmp(STRING(doorHit.pHit->v.classname), "func_door_rotating") == 0)
-				{
-					return doorHit.pHit;
-				}
-			}
-		}
-	}
-	else
-	{
-		UTIL_TraceLine(FromLoc, ToLoc + Vector(0.0f, 0.0f, 10.0f), ignore_monsters, ignore_glass, nullptr, &doorHit);
 
 		if (!FNullEnt(SearchDoor))
 		{
@@ -2559,6 +2629,31 @@ edict_t* UTIL_GetDoorBlockingPathPoint(bot_path_node* PathNode, edict_t* SearchD
 			}
 		}
 	}
+
+	UTIL_TraceLine(FromLoc, ToLoc + Vector(0.0f, 0.0f, 10.0f), ignore_monsters, ignore_glass, nullptr, &doorHit);
+
+	if (!FNullEnt(doorHit.pHit))
+	{
+		const char* HitName5 = STRING(doorHit.pHit->v.classname);
+	}
+
+	if (!FNullEnt(SearchDoor))
+	{
+		if (doorHit.pHit == SearchDoor) { return doorHit.pHit; }
+	}
+	else
+	{
+		if (!FNullEnt(doorHit.pHit))
+		{
+			if (strcmp(STRING(doorHit.pHit->v.classname), "func_door") == 0
+				|| strcmp(STRING(doorHit.pHit->v.classname), "func_seethroughdoor") == 0
+				|| strcmp(STRING(doorHit.pHit->v.classname), "func_door_rotating") == 0)
+			{
+				return doorHit.pHit;
+			}
+		}
+	}
+
 
 	return nullptr;
 }
@@ -2578,7 +2673,7 @@ bool UTIL_IsPathBlockedByDoor(const Vector StartLoc, const Vector EndLoc, edict_
 
 	// Now we find a path backwards from the valid nav mesh point to our location, trying to get as close as we can to it
 
-	dtStatus PathFindingStatus = FindPathClosestToPoint(MARINE_REGULAR_NAV_PROFILE, StartLoc, ValidNavmeshPoint, Path, &PathSize, 500.0f);
+	dtStatus PathFindingStatus = FindPathClosestToPoint(MARINE_REGULAR_NAV_PROFILE, StartLoc, ValidNavmeshPoint, Path, &PathSize, 50.0f);
 
 	if (dtStatusSucceed(PathFindingStatus))
 	{
@@ -2589,9 +2684,11 @@ bool UTIL_IsPathBlockedByDoor(const Vector StartLoc, const Vector EndLoc, edict_
 				return true;
 			}
 		}
+
+		return false;
 	}
 
-	return false;
+	return true;
 }
 
 edict_t* UTIL_GetNearestDoorTrigger(const Vector Location, const nav_door* Door, edict_t* IgnoreTrigger)
@@ -2605,18 +2702,25 @@ edict_t* UTIL_GetNearestDoorTrigger(const Vector Location, const nav_door* Door,
 	edict_t* NearestTrigger = nullptr;
 	float NearestDist = 0.0f;
 
-	for (int i = 0; i < 4; i++)
+	for (int i = 0; i < Door->NumTriggers; i++)
 	{
 		if (!FNullEnt(Door->TriggerEdicts[i]) && Door->TriggerEdicts[i] != IgnoreTrigger)
 		{
-			if (!UTIL_IsPathBlockedByDoor(Location, UTIL_GetCentreOfEntity(Door->TriggerEdicts[i]) - Vector(0.0f, 0.0f, 100.0f), Door->DoorEdict))
+			if (!UTIL_IsPathBlockedByDoor(Location, UTIL_GetButtonFloorLocation(Door->TriggerEdicts[i]), Door->DoorEdict))
 			{
-				return Door->TriggerEdicts[i];
+				float ThisDist = vDist3DSq(Location, UTIL_GetCentreOfEntity(Door->TriggerEdicts[i]));
+
+				if (FNullEnt(NearestTrigger) || ThisDist < NearestDist)
+				{
+					NearestTrigger = Door->TriggerEdicts[i];
+					NearestDist = ThisDist;
+				}
+				
 			}
 		}
 	}
 
-	return nullptr;
+	return NearestTrigger;
 }
 
 void CheckAndHandleBreakableObstruction(bot_t* pBot, const Vector MoveFrom, const Vector MoveTo)
@@ -2781,7 +2885,12 @@ void NewMove(bot_t* pBot)
 
 	// While moving, check to make sure we're not obstructed by a func_breakable, e.g. vent or window.
 	CheckAndHandleBreakableObstruction(pBot, MoveFrom, MoveTo);
-	CheckAndHandleDoorObstruction(pBot, MoveFrom, MoveTo);
+
+	if (gpGlobals->time - pBot->LastUseTime >= 3.0f)
+	{
+		CheckAndHandleDoorObstruction(pBot, MoveFrom, MoveTo);
+	}
+	
 
 }
 
@@ -6059,7 +6168,31 @@ Vector UTIL_GetFurthestVisiblePointOnPath(const Vector ViewerLocation, const bot
 	return ZERO_VECTOR;
 }
 
+Vector UTIL_GetButtonFloorLocation(edict_t* ButtonEdict)
+{
+	Vector EntityCentre = UTIL_GetCentreOfEntity(ButtonEdict);
 
+	Vector EndLoc = EntityCentre;
+
+	TraceResult Hit;
+	UTIL_TraceLine(EntityCentre, EntityCentre - Vector(0.0f, 0.0f, 1000.0f), ignore_monsters, ignore_glass, ButtonEdict, &Hit);
+
+	if (Hit.flFraction < 1.0f)
+	{
+		EndLoc = Hit.vecEndPos;
+
+		EndLoc.z = fmaxf(EndLoc.z, EntityCentre.z - 100.0f);
+	}
+
+	Vector ValidNavmeshPoint = UTIL_ProjectPointToNavmesh(EndLoc, MARINE_REGULAR_NAV_PROFILE);
+
+	if (ValidNavmeshPoint != ZERO_VECTOR)
+	{
+		return ValidNavmeshPoint;
+	}
+
+	return EndLoc;
+}
 
 void UTIL_LinkTriggerToDoor(const edict_t* DoorEdict, nav_door* DoorRef)
 {
@@ -6072,7 +6205,7 @@ void UTIL_LinkTriggerToDoor(const edict_t* DoorEdict, nav_door* DoorRef)
 			DoorRef->TriggerEdicts[DoorRef->NumTriggers++] = currTrigger;
 			DoorRef->ActivationType = DOOR_TRIGGER;
 
-			if (DoorRef->NumTriggers >= 4) { return; }
+			if (DoorRef->NumTriggers >= 8) { return; }
 		}
 	}
 
@@ -6084,7 +6217,7 @@ void UTIL_LinkTriggerToDoor(const edict_t* DoorEdict, nav_door* DoorRef)
 			DoorRef->TriggerEdicts[DoorRef->NumTriggers++] = currTrigger;
 			DoorRef->ActivationType = DOOR_BUTTON;
 
-			if (DoorRef->NumTriggers >= 4) { return; }
+			if (DoorRef->NumTriggers >= 8) { return; }
 		}
 	}
 
@@ -6096,7 +6229,7 @@ void UTIL_LinkTriggerToDoor(const edict_t* DoorEdict, nav_door* DoorRef)
 			DoorRef->TriggerEdicts[DoorRef->NumTriggers++] = currTrigger;
 			DoorRef->ActivationType = DOOR_TRIGGER;
 
-			if (DoorRef->NumTriggers >= 4) { return; }
+			if (DoorRef->NumTriggers >= 8) { return; }
 		}
 	}
 
@@ -6117,7 +6250,7 @@ void UTIL_PopulateDoors()
 		NavDoors[NumDoors].CurrentPosition = NavDoors[NumDoors].PositionOne;
 		NavDoors[NumDoors].bStartOpen = (currDoor->v.flags & DOOR_START_OPEN);
 
-		if (currDoor->v.flags & DOOR_USE_ONLY)
+		if (currDoor->v.spawnflags & DOOR_USE_ONLY)
 		{
 			NavDoors[NumDoors].ActivationType = DOOR_USE;
 		}
@@ -6138,7 +6271,7 @@ void UTIL_PopulateDoors()
 		NavDoors[NumDoors].PositionTwo = UTIL_GetCentreOfEntity(currDoor) + (currDoor->v.movedir * (fabs(currDoor->v.movedir.x * (currDoor->v.size.x - 2)) + fabs(currDoor->v.movedir.y * (currDoor->v.size.y - 2)) + fabs(currDoor->v.movedir.z * (currDoor->v.size.z - 2)) - 0.0f));
 		NavDoors[NumDoors].CurrentPosition = NavDoors[NumDoors].PositionOne;
 
-		if (currDoor->v.flags & DOOR_USE_ONLY)
+		if (currDoor->v.spawnflags & DOOR_USE_ONLY)
 		{
 			NavDoors[NumDoors].ActivationType = DOOR_USE;
 		}
@@ -6158,7 +6291,7 @@ void UTIL_PopulateDoors()
 		NavDoors[NumDoors].PositionTwo = UTIL_GetCentreOfEntity(currDoor) + (currDoor->v.movedir * (fabs(currDoor->v.movedir.x * (currDoor->v.size.x - 2)) + fabs(currDoor->v.movedir.y * (currDoor->v.size.y - 2)) + fabs(currDoor->v.movedir.z * (currDoor->v.size.z - 2)) - 0.0f));
 		NavDoors[NumDoors].CurrentPosition = NavDoors[NumDoors].PositionOne;
 
-		if (currDoor->v.flags & DOOR_USE_ONLY)
+		if (currDoor->v.spawnflags & DOOR_USE_ONLY)
 		{
 			NavDoors[NumDoors].ActivationType = DOOR_USE;
 		}

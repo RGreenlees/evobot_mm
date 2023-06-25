@@ -143,6 +143,8 @@ int GetPlayerIndex(const edict_t* Edict);
 // Returns true if the supplied edict is a player (bot or human)
 bool IsEdictPlayer(const edict_t* edict);
 
+bool IsPlayerTouchingEntity(const edict_t* Player, const edict_t* TargetEntity);
+
 bool IsPlayerInUseRange(const edict_t* Player, const edict_t* Target);
 
 bool PlayerHasHeavyArmour(const edict_t* Player);

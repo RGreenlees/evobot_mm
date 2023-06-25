@@ -145,6 +145,18 @@ NSWeapon GetBotMarinePrimaryWeapon(const bot_t* pBot)
 	return WEAPON_NONE;
 }
 
+NSWeapon GetBotPrimaryWeapon(const bot_t* pBot)
+{
+	if (IsPlayerMarine(pBot->pEdict))
+	{
+		return GetBotMarinePrimaryWeapon(pBot);
+	}
+	else
+	{
+		return GetBotAlienPrimaryWeapon(pBot);
+	}
+}
+
 NSWeapon GetBotMarineSecondaryWeapon(const bot_t* pBot)
 {
 	if (PlayerHasWeapon(pBot->pEdict, WEAPON_MARINE_PISTOL))
