@@ -197,7 +197,7 @@ void ClientCommand(edict_t* pEntity)
 
 		TraceResult Hit;
 
-		UTIL_TraceLine(TraceStart, TraceEnd, dont_ignore_monsters, dont_ignore_glass, pEntity, &Hit);
+		UTIL_TraceLine(TraceStart, TraceEnd, ignore_monsters, dont_ignore_glass, pEntity, &Hit);
 
 		//UTIL_TraceLine(TraceStart, TraceEnd, dont_ignore_monsters, dont_ignore_glass, pEntity, &Hit);
 

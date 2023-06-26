@@ -2525,7 +2525,7 @@ edict_t* UTIL_GetDoorBlockingPathPoint(bot_path_node* PathNode, edict_t* SearchD
 	{
 		Vector TargetLoc = Vector(FromLoc.x, FromLoc.y, PathNode->requiredZ);
 
-		UTIL_TraceLine(FromLoc, TargetLoc, ignore_monsters, ignore_glass, nullptr, &doorHit);
+		UTIL_TraceLine(FromLoc, TargetLoc, ignore_monsters, dont_ignore_glass, nullptr, &doorHit);
 
 		if (!FNullEnt(doorHit.pHit))
 		{
@@ -2552,7 +2552,7 @@ edict_t* UTIL_GetDoorBlockingPathPoint(bot_path_node* PathNode, edict_t* SearchD
 
 		Vector TargetLoc2 = Vector(ToLoc.x, ToLoc.y, PathNode->requiredZ);
 
-		UTIL_TraceLine(TargetLoc, TargetLoc2, ignore_monsters, ignore_glass, nullptr, &doorHit);
+		UTIL_TraceLine(TargetLoc, TargetLoc2, ignore_monsters, dont_ignore_glass, nullptr, &doorHit);
 
 		if (!FNullEnt(doorHit.pHit))
 		{
@@ -2581,7 +2581,7 @@ edict_t* UTIL_GetDoorBlockingPathPoint(bot_path_node* PathNode, edict_t* SearchD
 	{
 		Vector TargetLoc = Vector(ToLoc.x, ToLoc.y, FromLoc.z);
 
-		UTIL_TraceLine(FromLoc, TargetLoc, ignore_monsters, ignore_glass, nullptr, &doorHit);
+		UTIL_TraceLine(FromLoc, TargetLoc, ignore_monsters, dont_ignore_glass, nullptr, &doorHit);
 
 		if (!FNullEnt(doorHit.pHit))
 		{
@@ -2605,7 +2605,7 @@ edict_t* UTIL_GetDoorBlockingPathPoint(bot_path_node* PathNode, edict_t* SearchD
 			}
 		}
 
-		UTIL_TraceLine(TargetLoc, ToLoc + Vector(0.0f, 0.0f, 10.0f), ignore_monsters, ignore_glass, nullptr, &doorHit);
+		UTIL_TraceLine(TargetLoc, ToLoc + Vector(0.0f, 0.0f, 10.0f), ignore_monsters, dont_ignore_glass, nullptr, &doorHit);
 
 		if (!FNullEnt(doorHit.pHit))
 		{
@@ -2630,7 +2630,7 @@ edict_t* UTIL_GetDoorBlockingPathPoint(bot_path_node* PathNode, edict_t* SearchD
 		}
 	}
 
-	UTIL_TraceLine(FromLoc, ToLoc + Vector(0.0f, 0.0f, 10.0f), ignore_monsters, ignore_glass, nullptr, &doorHit);
+	UTIL_TraceLine(FromLoc, ToLoc + Vector(0.0f, 0.0f, 10.0f), ignore_monsters, dont_ignore_glass, nullptr, &doorHit);
 
 	if (!FNullEnt(doorHit.pHit))
 	{
