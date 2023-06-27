@@ -2407,7 +2407,9 @@ void CheckAndHandleDoorObstruction(bot_t* pBot, const Vector MoveFrom, const Vec
 				{
 					if (Door->ActivationType == DOOR_BUTTON)
 					{
-						TASK_SetUseTask(pBot, &pBot->MoveTask, Trigger, true);
+						Vector UseLocation = UTIL_GetButtonFloorLocation(pBot->pEdict->v.origin, Trigger);
+
+						TASK_SetUseTask(pBot, &pBot->MoveTask, Trigger, UseLocation, true);
 					}
 					else
 					{
@@ -2451,7 +2453,8 @@ void CheckAndHandleDoorObstruction(bot_t* pBot, const Vector MoveFrom, const Vec
 					{
 						if (Door->ActivationType == DOOR_BUTTON)
 						{
-							TASK_SetUseTask(pBot, &pBot->MoveTask, Trigger, true);
+							Vector UseLocation = UTIL_GetButtonFloorLocation(pBot->pEdict->v.origin, Trigger);
+							TASK_SetUseTask(pBot, &pBot->MoveTask, Trigger, UseLocation, true);
 						}
 						else
 						{
@@ -2495,7 +2498,9 @@ void CheckAndHandleDoorObstruction(bot_t* pBot, const Vector MoveFrom, const Vec
 					{
 						if (Door->ActivationType == DOOR_BUTTON)
 						{
-							TASK_SetUseTask(pBot, &pBot->MoveTask, Trigger, true);
+							Vector UseLocation = UTIL_GetButtonFloorLocation(pBot->pEdict->v.origin, Trigger);
+
+							TASK_SetUseTask(pBot, &pBot->MoveTask, Trigger, UseLocation, true);
 						}
 						else
 						{
@@ -2702,13 +2707,17 @@ edict_t* UTIL_GetNearestDoorTrigger(const Vector Location, const nav_door* Door,
 	edict_t* NearestTrigger = nullptr;
 	float NearestDist = 0.0f;
 
+	Vector DoorLocation = UTIL_GetCentreOfEntity(Door->DoorEdict);
+
 	for (int i = 0; i < Door->NumTriggers; i++)
 	{
 		if (!FNullEnt(Door->TriggerEdicts[i]) && Door->TriggerEdicts[i] != IgnoreTrigger)
 		{
-			if (!UTIL_IsPathBlockedByDoor(Location, UTIL_GetButtonFloorLocation(Door->TriggerEdicts[i]), Door->DoorEdict))
+			Vector ButtonLocation = UTIL_GetButtonFloorLocation(Location, Door->TriggerEdicts[i]);
+
+			if (!UTIL_IsPathBlockedByDoor(Location, ButtonLocation, Door->DoorEdict))
 			{
-				float ThisDist = vDist3DSq(Location, UTIL_GetCentreOfEntity(Door->TriggerEdicts[i]));
+				float ThisDist = vDist3DSq(DoorLocation, ButtonLocation);
 
 				if (FNullEnt(NearestTrigger) || ThisDist < NearestDist)
 				{
@@ -5496,18 +5505,14 @@ Vector UTIL_ProjectPointToNavmesh(const Vector Location, const Vector Extents, c
 
 	if (!m_navQuery) { return ZERO_VECTOR; }
 
-	Vector TraceHit = UTIL_GetTraceHitLocation(Location + Vector(0.0f, 0.0f, 10.0f), Location - Vector(0.0f, 0.0f, 500.0f));
-
-	Vector PointToProject = (TraceHit != ZERO_VECTOR) ? TraceHit : Location;
-
-	float pCheckLoc[3] = { PointToProject.x, PointToProject.z, -PointToProject.y };
+	float pCheckLoc[3] = { Location.x, Location.z, -Location.y };
 
 	dtPolyRef FoundPoly;
 	float NavNearest[3];
 
-	float NewExtents[3] = { Extents.x, Extents.z, Extents.y };
+	float fExtents[3] = { Extents.x, Extents.z, Extents.y };
 
-	dtStatus success = m_navQuery->findNearestPoly(pCheckLoc, NewExtents, m_navFilter, &FoundPoly, NavNearest);
+	dtStatus success = m_navQuery->findNearestPoly(pCheckLoc, fExtents, m_navFilter, &FoundPoly, NavNearest);
 
 	if (dtStatusSucceed(success))
 	{
@@ -6168,30 +6173,52 @@ Vector UTIL_GetFurthestVisiblePointOnPath(const Vector ViewerLocation, const bot
 	return ZERO_VECTOR;
 }
 
-Vector UTIL_GetButtonFloorLocation(edict_t* ButtonEdict)
+Vector UTIL_GetButtonFloorLocation(const Vector UserLocation, edict_t* ButtonEdict)
 {
-	Vector EntityCentre = UTIL_GetCentreOfEntity(ButtonEdict);
+	Vector ClosestPoint = UTIL_GetClosestPointOnEntityToLocation(UserLocation, ButtonEdict);
 
-	Vector EndLoc = EntityCentre;
+	Vector ButtonAccessPoint = UTIL_ProjectPointToNavmesh(ClosestPoint, Vector(100.0f, 100.0f, 100.0f), MARINE_REGULAR_NAV_PROFILE);
 
-	TraceResult Hit;
-	UTIL_TraceLine(EntityCentre, EntityCentre - Vector(0.0f, 0.0f, 1000.0f), ignore_monsters, ignore_glass, ButtonEdict, &Hit);
-
-	if (Hit.flFraction < 1.0f)
+	if (ButtonAccessPoint == ZERO_VECTOR)
 	{
-		EndLoc = Hit.vecEndPos;
-
-		EndLoc.z = fmaxf(EndLoc.z, EntityCentre.z - 100.0f);
+		ButtonAccessPoint = ClosestPoint;
 	}
 
-	Vector ValidNavmeshPoint = UTIL_ProjectPointToNavmesh(EndLoc, MARINE_REGULAR_NAV_PROFILE);
+	Vector PlayerAccessLoc = ButtonAccessPoint;
 
-	if (ValidNavmeshPoint != ZERO_VECTOR)
+	if (ButtonAccessPoint.z > ClosestPoint.z)
 	{
-		return ValidNavmeshPoint;
+		PlayerAccessLoc.z += 18.0f;
+	}
+	else
+	{
+		PlayerAccessLoc.z += 36.0f;
+	}
+	
+	if (fabsf(PlayerAccessLoc.z - ClosestPoint.z) <= 60.0f)
+	{
+		return ButtonAccessPoint;
 	}
 
-	return EndLoc;
+	Vector NewProjection = ClosestPoint;
+
+	if (ButtonAccessPoint.z > ClosestPoint.z)
+	{
+		NewProjection = ClosestPoint - Vector(0.0f, 0.0f, 100.0f);
+	}
+	else
+	{
+		NewProjection = ClosestPoint + Vector(0.0f, 0.0f, 100.0f);
+	}
+
+	Vector NewButtonAccessPoint = UTIL_ProjectPointToNavmesh(NewProjection, MARINE_REGULAR_NAV_PROFILE);
+
+	if (NewButtonAccessPoint == ZERO_VECTOR)
+	{
+		NewButtonAccessPoint = ClosestPoint;
+	}
+
+	return NewButtonAccessPoint;
 }
 
 void UTIL_LinkTriggerToDoor(const edict_t* DoorEdict, nav_door* DoorRef)

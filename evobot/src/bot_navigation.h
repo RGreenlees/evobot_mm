@@ -254,7 +254,7 @@ bool UTIL_IsPathBlockedByDoor(const Vector StartLoc, const Vector EndLoc, edict_
 
 edict_t* UTIL_GetDoorBlockingPathPoint(bot_path_node* PathNode, edict_t* SearchDoor);
 
-Vector UTIL_GetButtonFloorLocation(edict_t* ButtonEdict);
+Vector UTIL_GetButtonFloorLocation(const Vector UserLocation, edict_t* ButtonEdict);
 
 // Clears all tracking of a bot's stuck status
 void ClearBotStuck(bot_t* pBot);

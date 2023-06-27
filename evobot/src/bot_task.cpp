@@ -811,6 +811,15 @@ void BotProgressTouchTask(bot_t* pBot, bot_task* Task)
 void BotProgressUseTask(bot_t* pBot, bot_task* Task)
 {
 
+	if (Task->TaskStartedTime > 0.0f)
+	{
+		if (gpGlobals->time - Task->TaskStartedTime >= 2.0f)
+		{
+			UTIL_ClearBotTask(pBot, Task);
+		}
+		return;
+	}
+
 	if (IsPlayerInUseRange(pBot->pEdict, Task->TaskTarget))
 	{
 		if (pBot->pEdict->v.oldbuttons & IN_DUCK)
@@ -820,15 +829,24 @@ void BotProgressUseTask(bot_t* pBot, bot_task* Task)
 
 		if (BotUseObject(pBot, Task->TaskTarget, false))
 		{
-			UTIL_ClearBotTask(pBot, Task);
+			Task->TaskStartedTime = gpGlobals->time;
+			return;
 		}
 	}
 	else
 	{
 		if (vDist2DSq(pBot->pEdict->v.origin, Task->TaskLocation) < sqrf(18.0f))
 		{
-			pBot->pEdict->v.button |= IN_DUCK;
-			return;
+			BotLookAt(pBot, UTIL_GetCentreOfEntity(Task->TaskTarget));
+
+			if (pBot->pEdict->v.origin.z < UTIL_GetClosestPointOnEntityToLocation(pBot->pEdict->v.origin, Task->TaskTarget).z)
+			{
+				BotJump(pBot);
+			}
+			else
+			{
+				pBot->pEdict->v.button |= IN_DUCK;
+			}
 		}
 
 		MoveTo(pBot, Task->TaskLocation, MOVESTYLE_NORMAL);
@@ -2064,6 +2082,22 @@ void TASK_SetUseTask(bot_t* pBot, bot_task* Task, edict_t* Target, const bool bI
 	Task->TaskType = TASK_USE;
 	Task->TaskTarget = Target;
 	Task->TaskLocation = FindClosestNavigablePointToDestination(MoveProfile, pBot->CurrentFloorPosition, UTIL_ProjectPointToNavmesh(UTIL_GetCentreOfEntity(Target)), UTIL_MetresToGoldSrcUnits(10.0f));
+	Task->bTaskIsUrgent = bIsUrgent;
+}
+
+void TASK_SetUseTask(bot_t* pBot, bot_task* Task, edict_t* Target, const Vector UseLocation, const bool bIsUrgent)
+{
+	if (Task->TaskType == TASK_USE && Task->TaskTarget == Target)
+	{
+		Task->bTaskIsUrgent = bIsUrgent;
+		return;
+	}
+
+	int MoveProfile = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
+
+	Task->TaskType = TASK_USE;
+	Task->TaskTarget = Target;
+	Task->TaskLocation = FindClosestNavigablePointToDestination(MoveProfile, pBot->CurrentFloorPosition, UTIL_ProjectPointToNavmesh(UseLocation), UTIL_MetresToGoldSrcUnits(10.0f));
 	Task->bTaskIsUrgent = bIsUrgent;
 }
 

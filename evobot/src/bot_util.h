@@ -169,4 +169,6 @@ bool BotHasTaskOfType(bot_t* pBot, BotTaskType TaskType);
 
 const char* BSP_GetEntityKeyValue(const edict_t* Entity, const char* Key);
 
+Vector UTIL_GetClosestPointOnEntityToLocation(const Vector UserLocation, edict_t* ButtonEdict);
+
 #endif

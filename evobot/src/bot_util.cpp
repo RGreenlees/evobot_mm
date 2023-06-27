@@ -190,6 +190,11 @@ bool CanBotLeap(bot_t* pBot)
 	return (PlayerHasWeapon(pBot->pEdict, WEAPON_SKULK_LEAP)) || (PlayerHasWeapon(pBot->pEdict, WEAPON_FADE_BLINK));
 }
 
+Vector UTIL_GetClosestPointOnEntityToLocation(const Vector Location, edict_t* Entity)
+{
+	return Vector(clampf(Location.x, Entity->v.absmin.x, Entity->v.absmax.x), clampf(Location.y, Entity->v.absmin.y, Entity->v.absmax.y), clampf(Location.z, Entity->v.absmin.z, Entity->v.absmax.z));
+}
+
 void BotLeap(bot_t* pBot, const Vector TargetLocation)
 {
 
