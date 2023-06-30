@@ -2666,3 +2666,13 @@ const char* BSP_GetEntityKeyValue(const edict_t* Entity, const char* Key)
 {
 	return "";
 }
+
+void BotStopCommanderMode(bot_t* pBot)
+{
+	// Thanks EterniumDev (Alien) for logic to allow commander AI to leave the chair and build structures when needed
+
+	if (IsPlayerCommander(pBot->pEdict))
+	{
+		FakeClientCommand(pBot->pEdict, "stopcommandermode", NULL, NULL);
+	}	
+}

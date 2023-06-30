@@ -1485,6 +1485,36 @@ int UTIL_GetNumBuiltStructuresOfType(const NSStructureType StructureType)
 	return result;
 }
 
+int UTIL_GetNumUnbuiltStructuresOfTeamInArea(const int Team, const Vector SearchLocation, const float SearchRadius)
+{
+	if (Team <= 0 || Team > ALIEN_TEAM_TWO) { return 0; }
+
+	bool bIsMarineStructure = (Team == MARINE_TEAM || Team == MARINE_TEAM_TWO);
+
+	int result = 0;
+
+	float DistSq = sqrf(SearchRadius);
+
+	if (bIsMarineStructure)
+	{
+		for (auto& it : MarineBuildableStructureMap)
+		{
+			if (!it.second.bOnNavmesh || it.second.bFullyConstructed || !it.second.bIsReachableMarine || it.second.edict->v.team != Team) { continue; }
+			if (vDist2DSq(it.second.Location, SearchLocation) <= DistSq) { result++; }
+		}
+	}
+	else
+	{
+		for (auto& it : AlienBuildableStructureMap)
+		{
+			if (!it.second.bOnNavmesh || it.second.bFullyConstructed || !it.second.bIsReachableAlien || it.second.edict->v.team != Team) { continue; }
+			if (vDist2DSq(it.second.Location, SearchLocation) <= DistSq) { result++; }
+		}
+	}
+
+	return result;
+}
+
 int UTIL_GetNearestAvailableResourcePointIndex(const Vector& SearchPoint)
 {
 	int result = -1;

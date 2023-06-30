@@ -201,6 +201,18 @@ void GAME_ClearClientList()
 	memset(&clients, 0, sizeof(clients));
 }
 
+int GAME_GetNumDeadPlayersOnTeam(const int Team)
+{
+	int Result = 0;
+
+	for (int i = 0; i < MAX_CLIENTS; i++)
+	{
+		if (!FNullEnt(clients[i]) && clients[i]->v.team == Team && IsPlayerDead(clients[i])) { Result++; }
+	}
+
+	return Result;
+}
+
 int GAME_GetNumPlayersOnTeam(const int Team)
 {
 	int Result = 0;

@@ -47,6 +47,11 @@ void MarineThink(bot_t* pBot)
 
 		if (pBot->CurrentRole != RequiredRole)
 		{
+			if (IsPlayerCommander(pBot->pEdict) && RequiredRole != BOT_ROLE_COMMAND)
+			{
+				BotStopCommanderMode(pBot);
+			}
+
 			UTIL_ClearBotTask(pBot, &pBot->PrimaryBotTask);
 			UTIL_ClearBotTask(pBot, &pBot->SecondaryBotTask);
 
@@ -1448,30 +1453,53 @@ BotRole MarineGetBestCombatModeRole(const bot_t* pBot)
 
 BotRole MarineGetBestBotRole(const bot_t* pBot)
 {
+	
+
 	// Take command if configured to and nobody is already commanding
 
-	CommanderMode BotCommanderMode = CONFIG_GetCommanderMode();
-
-	if (BotCommanderMode != COMMANDERMODE_NEVER)
+	if (!UTIL_IsThereACommander())
 	{
-		if (!UTIL_IsThereACommander())
+		CommanderMode BotCommanderMode = CONFIG_GetCommanderMode();
+
+		if (BotCommanderMode != COMMANDERMODE_NEVER)
 		{
+			bool bCanCommand = false;
+
 			if (BotCommanderMode == COMMANDERMODE_IFNOHUMAN)
 			{
 				if (!GAME_IsAnyHumanOnTeam(MARINE_TEAM) && GAME_GetBotsWithRoleType(BOT_ROLE_COMMAND, MARINE_TEAM, pBot->pEdict) < 1)
 				{
-					return BOT_ROLE_COMMAND;
+					bCanCommand = true;
 				}
 			}
 			else
 			{
 				if (GAME_GetBotsWithRoleType(BOT_ROLE_COMMAND, MARINE_TEAM, pBot->pEdict) < 1)
 				{
-					return BOT_ROLE_COMMAND;
+					bCanCommand = true;
 				}
+			}
+
+			if (bCanCommand)
+			{
+				// Thanks to EterniumDev (Alien) for the suggestion to have the commander jump out and build if nobody is around to help
+
+				int NumAliveMarinesInBase = UTIL_GetNumPlayersOfTeamInArea(UTIL_GetCommChairLocation(), UTIL_MetresToGoldSrcUnits(30.0f), pBot->pEdict->v.team, pBot->pEdict, CLASS_NONE, true);
+
+				if (NumAliveMarinesInBase > 0) { return BOT_ROLE_COMMAND; }
+
+				int NumUnbuiltStructuresInBase = UTIL_GetNumUnbuiltStructuresOfTeamInArea(pBot->pEdict->v.team, UTIL_GetCommChairLocation(), UTIL_MetresToGoldSrcUnits(15.0f));
+
+				if (NumUnbuiltStructuresInBase > 0)
+				{
+					return BOT_ROLE_SWEEPER;
+				}
+
+				return BOT_ROLE_COMMAND;
 			}
 		}
 	}
+
 
 	// Only guard the base if there isn't a phase gate or turret factory in base
 	

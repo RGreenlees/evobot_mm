@@ -53,6 +53,8 @@ void UpdateCommanderActions(bot_t* Commander);
 
 void DEBUG_ShowCommanderBuildingPlacements(bot_t* Commander);
 
+bool ShouldCommanderLeaveChair(bot_t* pBot);
+
 void CommanderQueueInfantryPortalBuild(bot_t* pBot, int Priority);
 void CommanderQueuePhaseGateBuild(bot_t* pBot, const Vector Location, int Priority);
 void CommanderQueueArmouryBuild(bot_t* pBot, int Priority);

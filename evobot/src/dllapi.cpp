@@ -173,16 +173,15 @@ void ClientCommand(edict_t* pEntity)
 		RETURN_META(MRES_SUPERCEDE);
 	}
 
-	if (FStrEq(pcmd, "spherecheck"))
+	if (FStrEq(pcmd, "checkunbuiltstructure"))
 	{
-		edict_t* TriggerEdict = nullptr;
+		int Num = UTIL_GetNumUnbuiltStructuresOfTeamInArea(pEntity->v.team, UTIL_GetCommChairLocation(), UTIL_MetresToGoldSrcUnits(15.0f));
 
-		while ((TriggerEdict = UTIL_FindEntityInSphere(TriggerEdict, pEntity->v.origin, 5.0f)) != NULL)
-		{
-			const char* EdictType = STRING(TriggerEdict->v.classname);
+		char buf[16];
 
+		sprintf(buf, "%d\n", Num);
 
-		}
+		UTIL_SayText(buf, pEntity);
 
 		RETURN_META(MRES_SUPERCEDE);
 	}

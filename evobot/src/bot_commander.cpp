@@ -160,7 +160,7 @@ bool CommanderProgressBuildAction(bot_t* CommanderBot, int ActionIndex, int Prio
 		bool bBuildingAtBase = (vDist2DSq(UTIL_GetCommChairLocation(), action->BuildLocation) < sqrf(UTIL_MetresToGoldSrcUnits(15.0f)));
 		float MaxDistFromBuildLocation = bBuildingAtBase ? UTIL_MetresToGoldSrcUnits(20.0f) : UTIL_MetresToGoldSrcUnits(10.0f);
 
-		bool IsMarineNearby = (bBuildingAtBase) ? UTIL_AnyMarinePlayerNearLocation(action->BuildLocation, MaxDistFromBuildLocation) : UTIL_AnyPlayerOnTeamWithLOS(action->BuildLocation, MARINE_TEAM, MaxDistFromBuildLocation);
+		bool IsMarineNearby = bBuildingAtBase || UTIL_AnyPlayerOnTeamWithLOS(action->BuildLocation, MARINE_TEAM, MaxDistFromBuildLocation);
 
 		bool IsAlienNearby = UTIL_AnyPlayerOnTeamWithLOS(action->BuildLocation, ALIEN_TEAM, UTIL_MetresToGoldSrcUnits(10.0f));
 
@@ -1175,11 +1175,37 @@ void CommanderQueueObservatoryResearch(bot_t* pBot, NSResearch Research, int Pri
 	}
 }
 
+bool ShouldCommanderLeaveChair(bot_t* pBot)
+{
+	int NumAliveMarinesInBase = UTIL_GetNumPlayersOfTeamInArea(UTIL_GetCommChairLocation(), UTIL_MetresToGoldSrcUnits(30.0f), pBot->pEdict->v.team, pBot->pEdict, CLASS_NONE, true);
+
+	if (NumAliveMarinesInBase > 0) { return false; }
+
+	int NumUnbuiltStructuresInBase = UTIL_GetNumUnbuiltStructuresOfTeamInArea(pBot->pEdict->v.team, UTIL_GetCommChairLocation(), UTIL_MetresToGoldSrcUnits(20.0f));
+
+	if (NumUnbuiltStructuresInBase == 0) { return false; }
+
+	int NumInfantryPortals = UTIL_GetNumBuiltStructuresOfTypeInRadius(STRUCTURE_MARINE_INFANTRYPORTAL, UTIL_GetCommChairLocation(), UTIL_MetresToGoldSrcUnits(10.0f));
+
+	if (NumInfantryPortals == 0) { return true; }
+
+	if (GAME_GetNumDeadPlayersOnTeam(pBot->pEdict->v.team) == 0) { return true; }
+
+	return false;
+}
+
 void CommanderThink(bot_t* pBot)
 {
 
 	if (!bGameIsActive)
 	{
+		return;
+	}
+
+	// Thanks to EterniumDev (Alien) for the suggestion to have the commander jump out and build if nobody is around to help
+	if (ShouldCommanderLeaveChair(pBot))
+	{
+		BotStopCommanderMode(pBot);
 		return;
 	}
 

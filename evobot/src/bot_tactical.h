@@ -210,6 +210,7 @@ int UTIL_GetNumPlacedStructuresOfType(const NSStructureType StructureType);
 int UTIL_GetNumPlacedStructuresOfTypeInRadius(const NSStructureType StructureType, const Vector Location, const float MaxRadius);
 int UTIL_GetNumBuiltStructuresOfTypeInRadius(const NSStructureType StructureType, const Vector Location, const float MaxRadius);
 int UTIL_GetNumBuiltStructuresOfType(const NSStructureType StructureType);
+int UTIL_GetNumUnbuiltStructuresOfTeamInArea(const int Team, const Vector SearchLocation, const float SearchRadius);
 
 int UTIL_GetNearestAvailableResourcePointIndex(const Vector& SearchPoint);
 int UTIL_GetNearestOccupiedResourcePointIndex(const Vector& SearchPoint);
