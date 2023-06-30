@@ -224,11 +224,32 @@ void ClientCommand(edict_t* pEntity)
 		RETURN_META(MRES_SUPERCEDE);
 	}
 
-	if (FStrEq(pcmd, "maploc"))
+	if (FStrEq(pcmd, "testbuildloc"))
 	{
-		const char* LocName = UTIL_GetClosestMapLocationToPoint(pEntity->v.origin);
+		const hive_definition* Hive = UTIL_GetNearestBuiltHiveToLocation(pEntity->v.origin);
 
-		UTIL_SayText(LocName, pEntity);
+		if (Hive)
+		{
+			Vector NearestPointToHive = FindClosestNavigablePointToDestination(GORGE_BUILD_NAV_PROFILE, pEntity->v.origin, Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(50.0f));
+
+			if (NearestPointToHive == ZERO_VECTOR)
+			{
+				NearestPointToHive = pEntity->v.origin;
+			}
+
+			Vector BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(GORGE_BUILD_NAV_PROFILE, NearestPointToHive, UTIL_MetresToGoldSrcUnits(5.0f));
+
+			if (BuildLocation == ZERO_VECTOR)
+			{
+				BuildLocation = pEntity->v.origin;
+			}
+
+			if (BuildLocation != ZERO_VECTOR)
+			{
+				UTIL_DrawLine(GAME_GetListenServerEdict(), pEntity->v.origin, BuildLocation, 20.0f);
+			}
+
+		}
 
 		RETURN_META(MRES_SUPERCEDE);
 	}

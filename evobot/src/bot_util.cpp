@@ -140,16 +140,25 @@ bool BotUseObject(bot_t* pBot, edict_t* Target, bool bContinuous)
 {
 	if (FNullEnt(Target)) { return false; }
 
-	Vector AimPoint = UTIL_GetCentreOfEntity(Target);
+	Vector ClosestPoint = UTIL_GetClosestPointOnEntityToLocation(pBot->pEdict->v.origin, Target);
+	Vector TargetCentre = UTIL_GetCentreOfEntity(Target);
+
+	Vector AimPoint = ClosestPoint;
+
+	if (IsEdictStructure(Target))
+	{
+		AimPoint = TargetCentre;
+		AimPoint.z = ClosestPoint.z;
+	}
 
 	BotLookAt(pBot, AimPoint);
 
 	if (!bContinuous && ((gpGlobals->time - pBot->LastUseTime) < min_player_use_interval)) { return false; }
 
-	Vector AimDir = UTIL_GetForwardVector(pBot->pEdict->v.v_angle);
-	Vector TargetAimDir = UTIL_GetVectorNormal(AimPoint - pBot->CurrentEyePosition);
+	Vector AimDir = UTIL_GetForwardVector2D(pBot->pEdict->v.v_angle);
+	Vector TargetAimDir = (IsEdictStructure(Target) ? UTIL_GetVectorNormal2D(TargetCentre - pBot->CurrentEyePosition) : UTIL_GetVectorNormal2D(ClosestPoint - pBot->CurrentEyePosition));
 
-	float AimDot = UTIL_GetDotProduct(AimDir, TargetAimDir);
+	float AimDot = UTIL_GetDotProduct2D(AimDir, TargetAimDir);
 
 	if (AimDot >= 0.95f)
 	{

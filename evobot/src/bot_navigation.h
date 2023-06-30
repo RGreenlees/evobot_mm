@@ -40,6 +40,7 @@ constexpr auto ALL_NAV_PROFILE = 8;
 
 constexpr auto LERK_FLYING_NAV_PROFILE = 9;
 
+constexpr auto GORGE_BUILD_NAV_PROFILE = 10;
 
 constexpr auto MIN_PATH_RECALC_TIME = 0.33f; // How frequently can a bot recalculate its path? Default to max 3 times per second
 

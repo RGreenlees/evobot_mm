@@ -1176,6 +1176,16 @@ bool loadNavigationData(const char* mapname)
 	NavProfiles[BUILDING_REGULAR_NAV_PROFILE].Filters.addExcludeFlags(SAMPLE_POLYFLAGS_MSTRUCTURE);
 	NavProfiles[BUILDING_REGULAR_NAV_PROFILE].bFlyingProfile = false;
 
+	NavProfiles[GORGE_BUILD_NAV_PROFILE].NavMeshIndex = BUILDING_NAV_MESH;
+	NavProfiles[GORGE_BUILD_NAV_PROFILE].Filters.setIncludeFlags(0xFFFF);
+	NavProfiles[GORGE_BUILD_NAV_PROFILE].Filters.setExcludeFlags(0);
+	NavProfiles[GORGE_BUILD_NAV_PROFILE].Filters.addExcludeFlags(SAMPLE_POLYFLAGS_BLOCKED);
+	NavProfiles[GORGE_BUILD_NAV_PROFILE].Filters.addExcludeFlags(SAMPLE_POLYFLAGS_ASTRUCTURE);
+	NavProfiles[GORGE_BUILD_NAV_PROFILE].Filters.addExcludeFlags(SAMPLE_POLYFLAGS_MSTRUCTURE);
+	NavProfiles[GORGE_BUILD_NAV_PROFILE].Filters.addExcludeFlags(SAMPLE_POLYFLAGS_WALLCLIMB);
+	NavProfiles[GORGE_BUILD_NAV_PROFILE].Filters.addExcludeFlags(SAMPLE_POLYFLAGS_PHASEGATE);
+	NavProfiles[GORGE_BUILD_NAV_PROFILE].bFlyingProfile = false;
+
 	NavProfiles[SKULK_AMBUSH_NAV_PROFILE].NavMeshIndex = REGULAR_NAV_MESH;
 	NavProfiles[SKULK_AMBUSH_NAV_PROFILE].Filters.setIncludeFlags(0xFFFF);
 	NavProfiles[SKULK_AMBUSH_NAV_PROFILE].Filters.setExcludeFlags(0);
@@ -2387,7 +2397,16 @@ void CheckAndHandleDoorObstruction(bot_t* pBot, const Vector MoveFrom, const Vec
 		{
 			if (Door->ActivationType == DOOR_USE)
 			{
-				TASK_SetUseTask(pBot, &pBot->MoveTask, Door->DoorEdict, true);
+				if (IsPlayerInUseRange(pBot->pEdict, Door->DoorEdict))
+				{
+					if (pBot->pEdict->v.oldbuttons & IN_DUCK)
+					{
+						pBot->pEdict->v.button |= IN_DUCK;
+					}
+
+					BotUseObject(pBot, Door->DoorEdict, false);
+				}
+
 				return;
 			}
 
@@ -2435,7 +2454,16 @@ void CheckAndHandleDoorObstruction(bot_t* pBot, const Vector MoveFrom, const Vec
 			{
 				if (Door->ActivationType == DOOR_USE)
 				{
-					TASK_SetUseTask(pBot, &pBot->MoveTask, Door->DoorEdict, true);
+					if (IsPlayerInUseRange(pBot->pEdict, Door->DoorEdict))
+					{
+						if (pBot->pEdict->v.oldbuttons & IN_DUCK)
+						{
+							pBot->pEdict->v.button |= IN_DUCK;
+						}
+
+						BotUseObject(pBot, Door->DoorEdict, false);
+					}
+
 					return;
 				}
 
@@ -2480,7 +2508,16 @@ void CheckAndHandleDoorObstruction(bot_t* pBot, const Vector MoveFrom, const Vec
 			{
 				if (Door->ActivationType == DOOR_USE)
 				{
-					TASK_SetUseTask(pBot, &pBot->MoveTask, Door->DoorEdict, true);
+					if (IsPlayerInUseRange(pBot->pEdict, Door->DoorEdict))
+					{
+						if (pBot->pEdict->v.oldbuttons & IN_DUCK)
+						{
+							pBot->pEdict->v.button |= IN_DUCK;
+						}
+
+						BotUseObject(pBot, Door->DoorEdict, false);
+					}
+
 					return;
 				}
 
@@ -5218,6 +5255,11 @@ void BotFollowFlightPath(bot_t* pBot)
 	BotMoveLookAt(pBot, LookLocation);
 
 	CheckAndHandleBreakableObstruction(pBot, MoveFrom, CurrentMoveDest);
+
+	if (gpGlobals->time - pBot->LastUseTime >= 3.0f)
+	{
+		CheckAndHandleDoorObstruction(pBot, MoveFrom, CurrentMoveDest);
+	}
 }
 
 void BotFollowPath(bot_t* pBot)
