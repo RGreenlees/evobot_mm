@@ -33,6 +33,7 @@ int GAME_GetNumPlayersOnTeam(const int Team);
 int GAME_GetNumHumansOnTeam(const int Team);
 
 int GAME_GetNumDeadPlayersOnTeam(const int Team);
+int GAME_GetNumActivePlayersOnTeam(const int Team);
 
 bool GAME_IsAnyHumanOnTeam(const int Team);
 

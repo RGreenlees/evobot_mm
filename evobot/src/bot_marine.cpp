@@ -26,6 +26,7 @@ void MarineThink(bot_t* pBot)
 {
 	edict_t* pEdict = pBot->pEdict;
 
+	// Don't engage enemies if attempting to take command
 	if (pBot->CurrentRole != BOT_ROLE_COMMAND && pBot->CurrentEnemy > -1)
 	{
 		if (MarineCombatThink(pBot))
