@@ -2387,7 +2387,7 @@ bool HasBotReachedPathPoint(const bot_t* pBot)
 void CheckAndHandleDoorObstruction(bot_t* pBot, const Vector MoveFrom, const Vector MoveTo)
 {
 
-	edict_t* BlockingDoor = UTIL_GetDoorBlockingPathPoint(pBot->pEdict->v.origin, pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].Location, pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].area, nullptr);
+	edict_t* BlockingDoor = UTIL_GetDoorBlockingPathPoint(pBot->pEdict->v.origin, pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].Location, SAMPLE_POLYAREA_GROUND, nullptr);
 
 	if (!FNullEnt(BlockingDoor))
 	{

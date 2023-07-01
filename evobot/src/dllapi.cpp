@@ -173,15 +173,17 @@ void ClientCommand(edict_t* pEntity)
 		RETURN_META(MRES_SUPERCEDE);
 	}
 
-	if (FStrEq(pcmd, "checkunbuiltstructure"))
+	if (FStrEq(pcmd, "hivefloor"))
 	{
-		int Num = UTIL_GetNumUnbuiltStructuresOfTeamInArea(pEntity->v.team, UTIL_GetCommChairLocation(), UTIL_MetresToGoldSrcUnits(15.0f));
+		for (int i = 0; i < UTIL_GetNumTotalHives(); i++)
+		{
+			const hive_definition* Hive = UTIL_GetHiveAtIndex(i);
 
-		char buf[16];
-
-		sprintf(buf, "%d\n", Num);
-
-		UTIL_SayText(buf, pEntity);
+			if (Hive)
+			{
+				UTIL_DrawLine(pEntity, pEntity->v.origin, Hive->FloorLocation, 10.0f);
+			}
+		}
 
 		RETURN_META(MRES_SUPERCEDE);
 	}

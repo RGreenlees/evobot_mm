@@ -973,6 +973,8 @@ void BotAttackTarget(bot_t* pBot, edict_t* Target)
 
 	float WeaponRange = GetMaxIdealWeaponRange(Weapon);
 
+	NSStructureType StructureType = GetStructureTypeFromEdict(Target);
+
 	if (AttackResult == ATTACK_OUTOFRANGE)
 	{
 		// Might need to duck if it's an infantry portal
@@ -995,7 +997,19 @@ void BotAttackTarget(bot_t* pBot, edict_t* Target)
 			return;
 		}
 
-		MoveTo(pBot, Target->v.origin, MOVESTYLE_NORMAL, WeaponRange);
+		Vector AttackPoint = Target->v.origin;
+
+		if (StructureType == STRUCTURE_ALIEN_HIVE)
+		{
+			const hive_definition* HiveDefinition = UTIL_GetHiveFromEdict(Target);
+
+			if (HiveDefinition)
+			{
+				AttackPoint = HiveDefinition->FloorLocation;
+			}
+		}
+
+		MoveTo(pBot, AttackPoint, MOVESTYLE_NORMAL, WeaponRange);
 
 		if (IsPlayerMarine(pBot->pEdict))
 		{

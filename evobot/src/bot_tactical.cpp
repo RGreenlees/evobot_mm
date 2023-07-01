@@ -171,7 +171,8 @@ void SetHiveStatus(int HiveIndex, int NewStatus)
 		Hives[HiveIndex].ObstacleRef = UTIL_AddTemporaryObstacle(UTIL_GetCentreOfEntity(Hives[HiveIndex].edict) - Vector(0.0f, 0.0f, 25.0f), 125.0f, 300.0f, DT_AREA_NULL);
 		UTIL_UpdateTileCache();
 
-		Hives[HiveIndex].FloorLocation = FindClosestNavigablePointToDestination(MARINE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), UTIL_GetFloorUnderEntity(Hives[HiveIndex].edict), UTIL_MetresToGoldSrcUnits(20.0f));
+		Hives[HiveIndex].FloorLocation = ZERO_VECTOR;
+		Hives[HiveIndex].NextFloorLocationCheck = gpGlobals->time + 1.0f;
 	}
 
 	if (Hives[HiveIndex].Status == HIVE_STATUS_UNBUILT)
@@ -697,6 +698,16 @@ void UTIL_RefreshBuildableStructures()
 	}
 
 	StructureRefreshFrame++;
+
+	for (int i = 0; i < NumTotalHives; i++)
+	{
+		if (Hives[i].NextFloorLocationCheck > 0.0f && gpGlobals->time >= Hives[i].NextFloorLocationCheck)
+		{
+			Hives[i].FloorLocation = FindClosestNavigablePointToDestination(MARINE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), UTIL_GetFloorUnderEntity(Hives[i].edict), UTIL_MetresToGoldSrcUnits(20.0f));
+			Hives[i].NextFloorLocationCheck = 0.0f;
+		}
+	}
+
 }
 
 void UTIL_OnStructureCreated(buildable_structure* NewStructure)
@@ -3380,6 +3391,16 @@ NSWeapon UTIL_GetWeaponTypeFromEdict(const edict_t* ItemEdict)
 	}
 
 	return WEAPON_NONE;
+}
+
+const hive_definition* UTIL_GetHiveFromEdict(edict_t* HiveEdict)
+{
+	for (int i = 0; i < NumTotalHives; i++)
+	{
+		if (Hives[i].edict == HiveEdict) { return &Hives[i]; }
+	}
+
+	return nullptr;
 }
 
 const hive_definition* UTIL_GetHiveAtIndex(int Index)

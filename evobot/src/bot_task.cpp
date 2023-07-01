@@ -810,7 +810,6 @@ void BotProgressTouchTask(bot_t* pBot, bot_task* Task)
 
 void BotProgressUseTask(bot_t* pBot, bot_task* Task)
 {
-
 	if (Task->TaskStartedTime > 0.0f)
 	{
 		if (gpGlobals->time - Task->TaskStartedTime >= 2.0f)
@@ -2099,7 +2098,7 @@ void TASK_SetUseTask(bot_t* pBot, bot_task* Task, edict_t* Target, const Vector 
 
 	Task->TaskType = TASK_USE;
 	Task->TaskTarget = Target;
-	Task->TaskLocation = FindClosestNavigablePointToDestination(MoveProfile, pBot->CurrentFloorPosition, UTIL_ProjectPointToNavmesh(UseLocation), UTIL_MetresToGoldSrcUnits(10.0f));
+	Task->TaskLocation = UseLocation;
 	Task->bTaskIsUrgent = bIsUrgent;
 }
 

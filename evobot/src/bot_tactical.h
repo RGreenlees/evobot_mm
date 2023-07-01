@@ -81,6 +81,7 @@ typedef struct _HIVE_DEFINITION_T
 	bool bIsUnderAttack = false; // Is the hive currently under attack? Becomes false if not taken damage for more than 10 seconds
 	int HiveResNodeIndex = -1; // Which resource node (indexes into ResourceNodes array) belongs to this hive?
 	unsigned int ObstacleRef = 0; // When in progress or built, will place an obstacle so bots don't try to walk through it
+	float NextFloorLocationCheck = 0.0f; // When should the closest navigable point to the hive be calculated? Used to delay the check after a hive is built
 
 } hive_definition;
 
@@ -278,6 +279,7 @@ HiveStatusType UTIL_GetHiveStatus(const edict_t* Hive);
 edict_t* UTIL_FindSafePlayerInArea(const int Team, const Vector SearchLocation, float MinRadius, float MaxRadius);
 
 const hive_definition* UTIL_GetHiveAtIndex(int Index);
+const hive_definition* UTIL_GetHiveFromEdict(edict_t* HiveEdict);
 int UTIL_GetNumTotalHives();
 int UTIL_GetNumActiveHives();
 int UTIL_GetNumUnbuiltHives();
