@@ -254,6 +254,8 @@ edict_t* UTIL_GetNearestDoorTrigger(const Vector Location, const nav_door* Door,
 bool UTIL_IsPathBlockedByDoor(const Vector StartLoc, const Vector EndLoc, edict_t* SearchDoor);
 
 edict_t* UTIL_GetDoorBlockingPathPoint(bot_path_node* PathNode, edict_t* SearchDoor);
+edict_t* UTIL_GetDoorBlockingPathPoint(const Vector FromLocation, const Vector ToLocation, const unsigned char Area, edict_t* SearchDoor);
+
 
 Vector UTIL_GetButtonFloorLocation(const Vector UserLocation, edict_t* ButtonEdict);
 

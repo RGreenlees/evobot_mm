@@ -2387,7 +2387,7 @@ bool HasBotReachedPathPoint(const bot_t* pBot)
 void CheckAndHandleDoorObstruction(bot_t* pBot, const Vector MoveFrom, const Vector MoveTo)
 {
 
-	edict_t* BlockingDoor = UTIL_GetDoorBlockingPathPoint(&pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint], nullptr);
+	edict_t* BlockingDoor = UTIL_GetDoorBlockingPathPoint(pBot->pEdict->v.origin, pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].Location, pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].area, nullptr);
 
 	if (!FNullEnt(BlockingDoor))
 	{
@@ -2620,6 +2620,151 @@ edict_t* UTIL_GetDoorBlockingPathPoint(bot_path_node* PathNode, edict_t* SearchD
 
 	}
 	else if (PathNode->area == SAMPLE_POLYAREA_FALL || PathNode->area == SAMPLE_POLYAREA_HIGHFALL)
+	{
+		Vector TargetLoc = Vector(ToLoc.x, ToLoc.y, FromLoc.z);
+
+		UTIL_TraceLine(FromLoc, TargetLoc, ignore_monsters, dont_ignore_glass, nullptr, &doorHit);
+
+		if (!FNullEnt(doorHit.pHit))
+		{
+			const char* HitName3 = STRING(doorHit.pHit->v.classname);
+		}
+
+		if (!FNullEnt(SearchDoor))
+		{
+			if (doorHit.pHit == SearchDoor) { return doorHit.pHit; }
+		}
+		else
+		{
+			if (!FNullEnt(doorHit.pHit))
+			{
+				if (strcmp(STRING(doorHit.pHit->v.classname), "func_door") == 0
+					|| strcmp(STRING(doorHit.pHit->v.classname), "func_seethroughdoor") == 0
+					|| strcmp(STRING(doorHit.pHit->v.classname), "func_door_rotating") == 0)
+				{
+					return doorHit.pHit;
+				}
+			}
+		}
+
+		UTIL_TraceLine(TargetLoc, ToLoc + Vector(0.0f, 0.0f, 10.0f), ignore_monsters, dont_ignore_glass, nullptr, &doorHit);
+
+		if (!FNullEnt(doorHit.pHit))
+		{
+			const char* HitName4 = STRING(doorHit.pHit->v.classname);
+		}
+
+		if (!FNullEnt(SearchDoor))
+		{
+			if (doorHit.pHit == SearchDoor) { return doorHit.pHit; }
+		}
+		else
+		{
+			if (!FNullEnt(doorHit.pHit))
+			{
+				if (strcmp(STRING(doorHit.pHit->v.classname), "func_door") == 0
+					|| strcmp(STRING(doorHit.pHit->v.classname), "func_seethroughdoor") == 0
+					|| strcmp(STRING(doorHit.pHit->v.classname), "func_door_rotating") == 0)
+				{
+					return doorHit.pHit;
+				}
+			}
+		}
+	}
+
+	UTIL_TraceLine(FromLoc, ToLoc + Vector(0.0f, 0.0f, 10.0f), ignore_monsters, dont_ignore_glass, nullptr, &doorHit);
+
+	if (!FNullEnt(doorHit.pHit))
+	{
+		const char* HitName5 = STRING(doorHit.pHit->v.classname);
+	}
+
+	if (!FNullEnt(SearchDoor))
+	{
+		if (doorHit.pHit == SearchDoor) { return doorHit.pHit; }
+	}
+	else
+	{
+		if (!FNullEnt(doorHit.pHit))
+		{
+			if (strcmp(STRING(doorHit.pHit->v.classname), "func_door") == 0
+				|| strcmp(STRING(doorHit.pHit->v.classname), "func_seethroughdoor") == 0
+				|| strcmp(STRING(doorHit.pHit->v.classname), "func_door_rotating") == 0)
+			{
+				return doorHit.pHit;
+			}
+		}
+	}
+
+
+	return nullptr;
+}
+
+edict_t* UTIL_GetDoorBlockingPathPoint(const Vector FromLocation, const Vector ToLocation, const unsigned char Area, edict_t* SearchDoor)
+{
+
+	Vector FromLoc = FromLocation;
+	Vector ToLoc = ToLocation;
+
+	TraceResult doorHit;
+
+	if (Area == SAMPLE_POLYAREA_LADDER || Area == SAMPLE_POLYAREA_WALLCLIMB)
+	{
+		Vector TargetLoc = Vector(FromLoc.x, FromLoc.y, ToLocation.z);
+
+		UTIL_TraceLine(FromLoc, TargetLoc, ignore_monsters, dont_ignore_glass, nullptr, &doorHit);
+
+		if (!FNullEnt(doorHit.pHit))
+		{
+			const char* HitName = STRING(doorHit.pHit->v.classname);
+		}
+
+		if (!FNullEnt(SearchDoor))
+		{
+			if (doorHit.pHit == SearchDoor) { return doorHit.pHit; }
+		}
+		else
+		{
+			if (!FNullEnt(doorHit.pHit))
+			{
+				if (strcmp(STRING(doorHit.pHit->v.classname), "func_door") == 0
+					|| strcmp(STRING(doorHit.pHit->v.classname), "func_seethroughdoor") == 0
+					|| strcmp(STRING(doorHit.pHit->v.classname), "func_door_rotating") == 0)
+				{
+					return doorHit.pHit;
+				}
+			}
+
+		}
+
+		Vector TargetLoc2 = Vector(ToLoc.x, ToLoc.y, ToLocation.z);
+
+		UTIL_TraceLine(TargetLoc, TargetLoc2, ignore_monsters, dont_ignore_glass, nullptr, &doorHit);
+
+		if (!FNullEnt(doorHit.pHit))
+		{
+			const char* HitName2 = STRING(doorHit.pHit->v.classname);
+		}
+
+		if (!FNullEnt(SearchDoor))
+		{
+			if (doorHit.pHit == SearchDoor) { return doorHit.pHit; }
+		}
+		else
+		{
+			if (!FNullEnt(doorHit.pHit))
+			{
+				if (strcmp(STRING(doorHit.pHit->v.classname), "func_door") == 0
+					|| strcmp(STRING(doorHit.pHit->v.classname), "func_seethroughdoor") == 0
+					|| strcmp(STRING(doorHit.pHit->v.classname), "func_door_rotating") == 0)
+				{
+					return doorHit.pHit;
+				}
+			}
+		}
+
+	}
+	else if (Area == SAMPLE_POLYAREA_FALL || Area == SAMPLE_POLYAREA_HIGHFALL)
 	{
 		Vector TargetLoc = Vector(ToLoc.x, ToLoc.y, FromLoc.z);
 
