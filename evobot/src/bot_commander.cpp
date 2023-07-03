@@ -2894,9 +2894,14 @@ void QueueSecureHiveAction(bot_t* CommanderBot, const Vector Area, int Priority)
 		{
 			if (UTIL_ResearchIsComplete(RESEARCH_OBSERVATORY_PHASETECH))
 			{
-				Vector BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(BUILDING_REGULAR_NAV_PROFILE, Area, UTIL_MetresToGoldSrcUnits(5.0f));
+				Vector BuildLocation = FindClosestNavigablePointToDestination(GORGE_BUILD_NAV_PROFILE, UTIL_GetCommChairLocation(), Area, UTIL_MetresToGoldSrcUnits(20.0f));
 
-				if (BuildLocation != ZERO_VECTOR && UTIL_PointIsReachable(MARINE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), BuildLocation, max_player_use_reach))
+				if (BuildLocation != ZERO_VECTOR)
+				{
+					BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(GORGE_BUILD_NAV_PROFILE, BuildLocation, UTIL_MetresToGoldSrcUnits(5.0f));
+				}
+
+				if (BuildLocation != ZERO_VECTOR)
 				{
 					// If we already have secured this hive, then make adding a phase gate a top priority to fully secure it
 					int PhasePriority = FNullEnt(ExistingTurretFactory) ? Priority : 0;
@@ -2910,12 +2915,19 @@ void QueueSecureHiveAction(bot_t* CommanderBot, const Vector Area, int Priority)
 	{
 		if (UTIL_GetQueuedBuildRequestsOfTypeInArea(CommanderBot, STRUCTURE_MARINE_TURRETFACTORY, Area, UTIL_MetresToGoldSrcUnits(10.0f)) == 0)
 		{
-			Vector BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(BUILDING_REGULAR_NAV_PROFILE, Area, UTIL_MetresToGoldSrcUnits(5.0f));
+			Vector BuildLocation = FindClosestNavigablePointToDestination(GORGE_BUILD_NAV_PROFILE, UTIL_GetCommChairLocation(), Area, UTIL_MetresToGoldSrcUnits(20.0f));
 
-			if (BuildLocation != ZERO_VECTOR && UTIL_PointIsReachable(MARINE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), BuildLocation, max_player_use_reach))
+			if (BuildLocation != ZERO_VECTOR)
 			{
-				UTIL_CommanderQueueStructureBuildAtLocation(CommanderBot, BuildLocation, STRUCTURE_MARINE_TURRETFACTORY, Priority);
+				BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(GORGE_BUILD_NAV_PROFILE, BuildLocation, UTIL_MetresToGoldSrcUnits(5.0f));
+
+				if (BuildLocation != ZERO_VECTOR)
+				{
+					UTIL_CommanderQueueStructureBuildAtLocation(CommanderBot, BuildLocation, STRUCTURE_MARINE_TURRETFACTORY, Priority);
+				}
 			}
+
+			
 		}
 	}
 	else

@@ -2902,7 +2902,7 @@ edict_t* UTIL_FindClosestDamagedStructure(const Vector& SearchLocation, const in
 	{
 		for (auto& it : MarineBuildableStructureMap)
 		{
-			if (!it.second.bOnNavmesh || !it.second.bIsReachableAlien) { continue; }
+			if (!it.second.bOnNavmesh || !it.second.bIsReachableMarine) { continue; }
 
 			if (!it.second.bFullyConstructed) { continue; }
 

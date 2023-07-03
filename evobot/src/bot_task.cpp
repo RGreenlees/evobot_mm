@@ -90,6 +90,14 @@ void BotUpdateAndClearTasks(bot_t* pBot)
 		}
 	}
 
+	if (pBot->MoveTask.TaskType != TASK_NONE)
+	{
+		if (!UTIL_IsTaskStillValid(pBot, &pBot->MoveTask))
+		{
+			UTIL_ClearBotTask(pBot, &pBot->MoveTask);
+		}
+	}
+
 }
 
 bool UTIL_IsTaskUrgent(bot_t* pBot, bot_task* Task)
@@ -332,6 +340,8 @@ bool UTIL_IsTaskStillValid(bot_t* pBot, bot_task* Task)
 		return UTIL_IsEvolveTaskStillValid(pBot, Task);
 	case TASK_HEAL:
 		return UTIL_IsAlienHealTaskStillValid(pBot, Task);
+	case TASK_USE:
+		return true;
 	default:
 		return false;
 	}
@@ -810,12 +820,13 @@ void BotProgressTouchTask(bot_t* pBot, bot_task* Task)
 
 void BotProgressUseTask(bot_t* pBot, bot_task* Task)
 {
-	if (Task->TaskStartedTime > 0.0f)
+	if (Task->bIsWaitingForBuildLink)
 	{
-		if (gpGlobals->time - Task->TaskStartedTime >= 2.0f)
+		if (gpGlobals->time - Task->TaskStartedTime > 2.0f)
 		{
 			UTIL_ClearBotTask(pBot, Task);
 		}
+
 		return;
 	}
 
@@ -828,7 +839,9 @@ void BotProgressUseTask(bot_t* pBot, bot_task* Task)
 
 		if (BotUseObject(pBot, Task->TaskTarget, false))
 		{
+			Task->bIsWaitingForBuildLink = true;
 			Task->TaskStartedTime = gpGlobals->time;
+			Task->TaskLength = 0.0f;
 			return;
 		}
 	}
@@ -2084,6 +2097,8 @@ void TASK_SetUseTask(bot_t* pBot, bot_task* Task, edict_t* Target, const bool bI
 	Task->TaskTarget = Target;
 	Task->TaskLocation = FindClosestNavigablePointToDestination(MoveProfile, pBot->CurrentFloorPosition, UTIL_ProjectPointToNavmesh(UTIL_GetCentreOfEntity(Target)), UTIL_MetresToGoldSrcUnits(10.0f));
 	Task->bTaskIsUrgent = bIsUrgent;
+	Task->TaskLength = 10.0f;
+	Task->TaskStartedTime = gpGlobals->time;
 }
 
 void TASK_SetUseTask(bot_t* pBot, bot_task* Task, edict_t* Target, const Vector UseLocation, const bool bIsUrgent)
@@ -2098,8 +2113,11 @@ void TASK_SetUseTask(bot_t* pBot, bot_task* Task, edict_t* Target, const Vector 
 
 	Task->TaskType = TASK_USE;
 	Task->TaskTarget = Target;
-	Task->TaskLocation = UseLocation;
+	//Task->TaskLocation = UseLocation;
+	Task->TaskLocation = FindClosestNavigablePointToDestination(MoveProfile, pBot->CurrentFloorPosition, UseLocation, UTIL_MetresToGoldSrcUnits(10.0f));
 	Task->bTaskIsUrgent = bIsUrgent;
+	Task->TaskLength = 10.0f;
+	Task->TaskStartedTime = gpGlobals->time;
 }
 
 void TASK_SetTouchTask(bot_t* pBot, bot_task* Task, edict_t* Target, bool bIsUrgent)

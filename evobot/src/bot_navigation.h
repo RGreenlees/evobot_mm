@@ -106,13 +106,14 @@ typedef struct _NAV_DOOR
 {
 	edict_t* DoorEdict = nullptr; // Reference to the func_door
 	unsigned int ObstacleRef = 0; // Dynamic obstacle ref. Used to add/remove the obstacle as the door is opened/closed
-	edict_t* TriggerEdicts[8] = { nullptr, nullptr, nullptr, nullptr }; // Reference to the trigger edict (e.g. func_trigger, func_button etc.)
+	edict_t* TriggerEdicts[8] = { nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr }; // Reference to the trigger edicts (e.g. func_trigger, func_button etc.)
 	int NumTriggers = 0; // How many triggers can activate the door (bot will pick best one)
 	DoorActivationType ActivationType = DOOR_NONE; // How the door should be opened
 	Vector PositionOne = ZERO_VECTOR; // Door's starting position
 	Vector PositionTwo = ZERO_VECTOR; // Door's open/close position (depending on if it starts open or not)
 	Vector CurrentPosition = ZERO_VECTOR; // Current world position
 	bool bStartOpen = false; // Does the door start open? (PositionOne = open position, not close position)
+	float OpenDelay = 0.0f; // How long the door takes to start opening after activation
 } nav_door;
 
 // Door reference. Not used, but is a future feature to allow bots to track if a door is open or not, and how to open it etc.

@@ -231,23 +231,13 @@ void ClientCommand(edict_t* pEntity)
 
 		if (Hive)
 		{
-			Vector NearestPointToHive = FindClosestNavigablePointToDestination(GORGE_BUILD_NAV_PROFILE, pEntity->v.origin, Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(50.0f));
-
-			if (NearestPointToHive == ZERO_VECTOR)
-			{
-				NearestPointToHive = pEntity->v.origin;
-			}
-
-			Vector BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(GORGE_BUILD_NAV_PROFILE, NearestPointToHive, UTIL_MetresToGoldSrcUnits(5.0f));
-
-			if (BuildLocation == ZERO_VECTOR)
-			{
-				BuildLocation = pEntity->v.origin;
-			}
+			Vector BuildLocation = FindClosestNavigablePointToDestination(GORGE_BUILD_NAV_PROFILE, UTIL_GetCommChairLocation(), Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(30.0f));
 
 			if (BuildLocation != ZERO_VECTOR)
 			{
-				UTIL_DrawLine(GAME_GetListenServerEdict(), pEntity->v.origin, BuildLocation, 20.0f);
+				BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(GORGE_BUILD_NAV_PROFILE, BuildLocation, UTIL_MetresToGoldSrcUnits(5.0f));
+
+				UTIL_DrawLine(pEntity, pEntity->v.origin, BuildLocation, 10.0f);
 			}
 
 		}
@@ -262,6 +252,35 @@ void ClientCommand(edict_t* pEntity)
 		if (NavmeshLoaded())
 		{
 			DEBUG_DrawOffMeshConnections();
+		}
+
+		RETURN_META(MRES_SUPERCEDE);
+	}
+
+	if (FStrEq(pcmd, "traceplat"))
+	{
+
+		Vector TraceStart = GetPlayerEyePosition(pEntity); // origin + pev->view_ofs
+		Vector LookDir = UTIL_GetForwardVector(pEntity->v.v_angle); // Converts view angles to normalized unit vector
+
+		Vector TraceEnd = TraceStart + (LookDir * 1000.0f);
+
+		TraceResult hit;
+		UTIL_TraceLine(TraceStart, TraceEnd, dont_ignore_monsters, dont_ignore_glass, pEntity, &hit);
+
+		edict_t* TracedEntity = hit.pHit;
+
+		if (!FNullEnt(TracedEntity))
+		{
+			if (FStrEq(STRING(TracedEntity->v.classname), "func_plat"))
+			{
+				UTIL_DrawLine(pEntity, pEntity->v.origin, UTIL_GetCentreOfEntity(TracedEntity), 10.0f);
+			}
+
+			if (FStrEq(STRING(TracedEntity->v.classname), "func_train"))
+			{
+				UTIL_DrawLine(pEntity, pEntity->v.origin, UTIL_GetCentreOfEntity(TracedEntity), 10.0f);
+			}
 		}
 
 		RETURN_META(MRES_SUPERCEDE);
@@ -304,6 +323,8 @@ void ClientCommand(edict_t* pEntity)
 			Vector EntityCentre = UTIL_GetCentreOfEntity(currTrigger);
 
 			Vector ButtonFloor = UTIL_GetButtonFloorLocation(pEntity->v.origin, currTrigger);
+
+			ButtonFloor = FindClosestNavigablePointToDestination(GORGE_REGULAR_NAV_PROFILE, UTIL_GetEntityGroundLocation(pEntity), ButtonFloor, UTIL_MetresToGoldSrcUnits(10.0f));
 
 			UTIL_DrawLine(pEntity, EntityCentre, ButtonFloor, 5.0f);
 			

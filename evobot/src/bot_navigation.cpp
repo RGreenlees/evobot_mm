@@ -2391,6 +2391,8 @@ void CheckAndHandleDoorObstruction(bot_t* pBot, const Vector MoveFrom, const Vec
 
 	if (!FNullEnt(BlockingDoor))
 	{
+		if (BlockingDoor->v.velocity != ZERO_VECTOR || BlockingDoor->v.avelocity != ZERO_VECTOR) { return; }
+
 		const nav_door* Door = UTIL_GetNavDoorByEdict(BlockingDoor);
 
 		if (Door)
@@ -2448,6 +2450,8 @@ void CheckAndHandleDoorObstruction(bot_t* pBot, const Vector MoveFrom, const Vec
 
 		if (!FNullEnt(BlockingDoor))
 		{
+			if (BlockingDoor->v.velocity != ZERO_VECTOR || BlockingDoor->v.avelocity != ZERO_VECTOR) { return; }
+
 			const nav_door* Door = UTIL_GetNavDoorByEdict(BlockingDoor);
 
 			if (Door)
@@ -2502,6 +2506,8 @@ void CheckAndHandleDoorObstruction(bot_t* pBot, const Vector MoveFrom, const Vec
 
 		if (!FNullEnt(BlockingDoor))
 		{
+			if (BlockingDoor->v.velocity != ZERO_VECTOR || BlockingDoor->v.avelocity != ZERO_VECTOR) { return; }
+
 			const nav_door* Door = UTIL_GetNavDoorByEdict(BlockingDoor);
 
 			if (Door)
