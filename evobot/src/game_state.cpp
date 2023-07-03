@@ -1248,21 +1248,17 @@ void EvoBot_ServerCommand(void)
 		return;
 	}
 
-	if (FStrEq(arg1, "debug"))
+	if (FStrEq(arg1, "reloadnav"))
 	{
-		const char* DebugCommand = CMD_ARGV(2);
-
-		if (FStrEq(DebugCommand, "stop"))
+		for (int i = 0; i < MAX_CLIENTS; i++)
 		{
-
-			return;
+			if (bots[i].is_used)
+			{
+				ClearBotMovement(&bots[i]);
+			}
 		}
 
-		if (FStrEq(DebugCommand, "navtest"))
-		{
-
-			return;
-		}
+		ReloadNavMeshes();
 
 		return;
 	}

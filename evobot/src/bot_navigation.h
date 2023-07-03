@@ -173,8 +173,14 @@ static nav_profile NavProfiles[MAX_NAV_PROFILES]; // Array of nav profiles
 bool NavmeshLoaded();
 // Unloads all data, including loaded nav meshes, nav profiles, all the map data such as buildable structure maps and hive locations.
 void UnloadNavigationData();
+// Unloads only the nav meshes, but not map data such as doors, hives and locations
+void UnloadNavMeshes();
 // Searches for the corresponding .nav file for the input map name, and loads/initiatialises the nav meshes and nav profiles.
 bool loadNavigationData(const char* mapname);
+// Loads the nav mesh only. Map data such as hive locations, doors etc are not loaded
+bool LoadNavMesh(const char* mapname);
+// Unloads the nav meshes (UnloadNavMeshes()) and then reloads them (LoadNavMesh). Map data such as doors, hives, locations are not touched.
+void ReloadNavMeshes();
 
 // FUTURE FEATURE: Will eventually link a door to the trigger than opens it
 void UTIL_LinkTriggerToDoor(const edict_t* DoorEdict, nav_door* DoorRef);

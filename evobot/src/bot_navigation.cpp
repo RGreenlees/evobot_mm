@@ -715,7 +715,13 @@ void DEBUG_DrawOffMeshConnections()
 	}
 }
 
-void UnloadNavigationData()
+void ReloadNavMeshes()
+{
+	UnloadNavMeshes();
+	LoadNavMesh(STRING(gpGlobals->mapname));
+}
+
+void UnloadNavMeshes()
 {
 	for (int i = 0; i < MAX_NAV_MESHES; i++)
 	{
@@ -737,21 +743,22 @@ void UnloadNavigationData()
 			NavMeshes[i].tileCache = nullptr;
 		}
 	}
+}
+
+void UnloadNavigationData()
+{
+	UnloadNavMeshes();
 
 	memset(NavProfiles, 0, sizeof(nav_profile));
 	memset(NavDoors, 0, sizeof(NavDoors));
 	NumDoors = 0;
 
-
 	UTIL_ClearMapAIData();
 	UTIL_ClearMapLocations();
 }
 
-bool loadNavigationData(const char* mapname)
+bool LoadNavMesh(const char* mapname)
 {
-
-	UnloadNavigationData();
-
 	char filename[256]; // Full path to BSP file
 
 	GetFullFilePath(filename, mapname);
@@ -1081,6 +1088,19 @@ bool loadNavigationData(const char* mapname)
 		return false;
 	}
 
+	return true;
+}
+
+bool loadNavigationData(const char* mapname)
+{
+
+	UnloadNavigationData();
+
+	if (!LoadNavMesh(mapname))
+	{
+		return false;
+	}
+	
 	NavProfiles[MARINE_REGULAR_NAV_PROFILE].NavMeshIndex = REGULAR_NAV_MESH;
 	NavProfiles[MARINE_REGULAR_NAV_PROFILE].Filters.setIncludeFlags(0xFFFF);
 	NavProfiles[MARINE_REGULAR_NAV_PROFILE].Filters.setExcludeFlags(0);
