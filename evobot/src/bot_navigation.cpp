@@ -39,7 +39,9 @@ extern hive_definition Hives[10];
 extern int NumTotalHives;
 
 nav_door NavDoors[32];
+nav_weldable NavWeldableObstacles[32];
 int NumDoors;
+int NumWeldableObstacles;
 
 extern edict_t* clients[MAX_CLIENTS];
 extern bot_t bots[MAX_CLIENTS];
@@ -1217,6 +1219,7 @@ bool loadNavigationData(const char* mapname)
 	NavProfiles[ALL_NAV_PROFILE].bFlyingProfile = false;
 
 	UTIL_PopulateDoors();
+	UTIL_PopulateWeldableObstacles();
 
 	return true;
 }
@@ -6430,6 +6433,72 @@ void UTIL_LinkTriggerToDoor(const edict_t* DoorEdict, nav_door* DoorRef)
 
 }
 
+void UTIL_PopulateWeldableObstacles()
+{
+	memset(NavWeldableObstacles, 0, sizeof(NavWeldableObstacles));
+	NumWeldableObstacles = 0;
+
+	edict_t* currWeldable = NULL;
+	while (((currWeldable = UTIL_FindEntityByClassname(currWeldable, "avhweldable")) != NULL) && (!FNullEnt(currWeldable)))
+	{
+		if (currWeldable->v.solid == SOLID_BSP)
+		{
+			NavWeldableObstacles[NumWeldableObstacles].WeldableEdict = currWeldable;
+
+			float SizeX = currWeldable->v.size.x;
+			float SizeY = currWeldable->v.size.y;
+			float SizeZ = currWeldable->v.size.z;
+
+			bool bUseXAxis = (SizeX >= SizeY);
+
+			float CylinderRadius = fminf(SizeX, SizeY) * 0.5f;
+
+			CylinderRadius = fmaxf(CylinderRadius, 16.0f);
+
+			float Ratio = (bUseXAxis) ? (SizeX / (CylinderRadius * 2.0f)) : (SizeY / (CylinderRadius * 2.0f));
+
+			int NumObstacles = (int)ceil(Ratio);
+
+			if (NumObstacles > 32) { NumObstacles = 32; }
+
+			Vector Dir = (bUseXAxis) ? RIGHT_VECTOR : FWD_VECTOR;
+
+			Vector StartPoint = UTIL_GetCentreOfEntity(currWeldable);
+
+			if (bUseXAxis)
+			{
+				StartPoint.x = currWeldable->v.absmin.x + CylinderRadius;
+			}
+			else
+			{
+				StartPoint.y = currWeldable->v.absmin.y + CylinderRadius;
+			}
+
+			StartPoint.z -= 2.0f;
+
+			Vector CurrentPoint = StartPoint;
+
+			NavWeldableObstacles[NumWeldableObstacles].NumObstacles = NumObstacles;
+
+			for (int ii = 0; ii < NumObstacles; ii++)
+			{
+				UTIL_AddTemporaryObstacles(CurrentPoint, CylinderRadius, SizeZ, DT_TILECACHE_NULL_AREA, NavWeldableObstacles[NumWeldableObstacles].ObstacleRefs[ii]);
+
+				if (bUseXAxis)
+				{
+					CurrentPoint.x += CylinderRadius * 2.0f;
+				}
+				else
+				{
+					CurrentPoint.y += CylinderRadius * 2.0f;
+				}
+			}
+
+			NumWeldableObstacles++;
+		}
+	}
+}
+
 void UTIL_MarkDoorWeldable(const char* DoorTargetName)
 {
 	for (int i = 0; i < NumDoors; i++)
@@ -6495,6 +6564,26 @@ void UTIL_MarkDoorWeldable(const char* DoorTargetName)
 			}
 
 
+		}
+	}
+}
+
+void UTIL_UpdateWeldableObstacles()
+{
+	for (int i = 0; i < NumWeldableObstacles; i++)
+	{
+		if (NavWeldableObstacles[i].NumObstacles == 0) { continue; }
+
+		edict_t* WeldableEdict = NavWeldableObstacles[i].WeldableEdict;
+
+		if (FNullEnt(WeldableEdict) || WeldableEdict->v.deadflag != DEAD_NO || WeldableEdict->v.solid != SOLID_BSP)
+		{
+			for (int ii = 0; ii < NavWeldableObstacles[i].NumObstacles; ii++)
+			{
+				UTIL_RemoveTemporaryObstacles(NavWeldableObstacles[i].ObstacleRefs[ii]);
+			}
+
+			NavWeldableObstacles[i].NumObstacles = 0;
 		}
 	}
 }
@@ -6646,7 +6735,7 @@ void UTIL_PopulateDoors()
 		NumDoors++;
 	}
 
-	BSP_GetEntityKeyValue(nullptr, NULL);
+	BSP_RegisterWeldables();
 }
 
 const nav_door* UTIL_GetNavDoorByEdict(const edict_t* DoorEdict)

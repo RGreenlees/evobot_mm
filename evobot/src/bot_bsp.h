@@ -59,7 +59,7 @@ typedef struct _BUTTONDEF
 
 
 
-const char* BSP_GetEntityKeyValue(const edict_t* Entity, const char* Key);
+void BSP_RegisterWeldables();
 char* GetEntityDefClassname(BSPENTITYDEF* entity);
 
 #endif

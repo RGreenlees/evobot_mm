@@ -176,10 +176,16 @@ void ClientCommand(edict_t* pEntity)
 		RETURN_META(MRES_SUPERCEDE);
 	}
 
-	if (FStrEq(pcmd, "testbsp"))
+	if (FStrEq(pcmd, "testweldables"))
 	{
-		BSP_GetEntityKeyValue(nullptr, NULL);
-		
+		edict_t* currWeldable = NULL;
+		while (((currWeldable = UTIL_FindEntityByClassname(currWeldable, "avhweldable")) != NULL) && (!FNullEnt(currWeldable)))
+		{
+			if (currWeldable->v.solid == SOLID_BSP && vDist2DSq(UTIL_GetCentreOfEntity(currWeldable), pEntity->v.origin) <= sqrf(100.0f))
+			{
+				UTIL_DrawBox(pEntity, currWeldable->v.absmin, currWeldable->v.absmax, 10.0f);
+			}
+		}
 
 		RETURN_META(MRES_SUPERCEDE);
 	}
@@ -239,11 +245,6 @@ void ClientCommand(edict_t* pEntity)
 		}
 
 		RETURN_META(MRES_SUPERCEDE);
-	}
-
-	if (FStrEq(pcmd, "testvalue"))
-	{
-		
 	}
 	
 
@@ -1020,6 +1021,7 @@ void StartFrame(void)
 			if (timeSinceLastThink >= BOT_MIN_FRAME_TIME)
 			{
 				UTIL_UpdateWeldableDoors();
+				UTIL_UpdateWeldableObstacles();
 
 				UTIL_UpdateTileCache();
 

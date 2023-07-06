@@ -117,6 +117,13 @@ typedef struct _NAV_DOOR
 	float OpenDelay = 0.0f; // How long the door takes to start opening after activation
 } nav_door;
 
+typedef struct _NAV_WELDABLE
+{
+	edict_t* WeldableEdict = nullptr;
+	unsigned int ObstacleRefs[32][8];
+	int NumObstacles = 0;
+} nav_weldable;
+
 // Door reference. Not used, but is a future feature to allow bots to track if a door is open or not, and how to open it etc.
 typedef struct _NAV_HITRESULT
 {
@@ -481,6 +488,9 @@ void UTIL_PopulateDoors();
 void UTIL_MarkDoorWeldable(const char* DoorTargetName);
 
 void UTIL_UpdateWeldableDoors();
+void UTIL_UpdateWeldableObstacles();
+
+void UTIL_PopulateWeldableObstacles();
 
 const nav_door* UTIL_GetNavDoorByEdict(const edict_t* DoorEdict);
 

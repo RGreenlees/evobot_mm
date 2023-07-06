@@ -13,7 +13,7 @@
 #include <extdll.h>
 #include <dllapi.h>
 
-const char* BSP_GetEntityKeyValue(const edict_t* Entity, const char* Key)
+void BSP_RegisterWeldables()
 {
 	char filename[256]; // Full path to BSP file
 
@@ -24,7 +24,7 @@ const char* BSP_GetEntityKeyValue(const edict_t* Entity, const char* Key)
 
 	if (!bspfile)
 	{
-		return false;
+		return;
 	}
 
 	BSPHEADER fileHeader; // The BSP file header
@@ -34,6 +34,9 @@ const char* BSP_GetEntityKeyValue(const edict_t* Entity, const char* Key)
 	int entitiesLength = fileHeader.lump[LUMP_ENTITIES].nLength;
 
 	char* entitiesText = (char*)malloc(entitiesLength);
+
+	if (!entitiesText) { return; }
+
 	memset(entitiesText, 0, entitiesLength);
 
 	fseek(bspfile, fileHeader.lump[LUMP_ENTITIES].nOffset, SEEK_SET);
@@ -59,7 +62,6 @@ const char* BSP_GetEntityKeyValue(const edict_t* Entity, const char* Key)
 	char ThisKey[1024];
 	char ThisValue[1024];
 
-	char CurrTargetName[64];
 	bool bIsWeldable = false;
 
 	while (propPos != NULL)
@@ -93,12 +95,12 @@ const char* BSP_GetEntityKeyValue(const edict_t* Entity, const char* Key)
 				UTIL_MarkDoorWeldable(CurrTargetOnFinish);
 			}
 			bIsWeldable = false;
+
+			CurrTargetOnFinish[0] = '\0';
 		}
 
 		propPos = strchr(propPos + 1, '"');
 	}
-
-	return "";
 
 }
 
