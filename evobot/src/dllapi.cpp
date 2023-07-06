@@ -46,6 +46,7 @@
 #include "general_util.h"
 #include "player_util.h"
 #include "bot_task.h"
+#include "bot_bsp.h"
 
 extern int m_spriteTexture;
 
@@ -118,13 +119,15 @@ void ClientCommand(edict_t* pEntity)
 		RETURN_META(MRES_SUPERCEDE);
 	}
 
-	if (FStrEq(pcmd, "getgamemode"))
+	if (FStrEq(pcmd, "testboxobstacle"))
 	{
-		const char* GameMode = UTIL_GameModeToChar(GAME_GetGameMode());
+		Vector bMin = pEntity->v.absmin;
+		Vector bMax = pEntity->v.absmax;
 
-		char buf[32];
-		sprintf(buf, "%s\n", GameMode);
-		UTIL_SayText(buf, pEntity);
+		bMin.z -= 5.0f;
+		bMax.z -= 5.0f;
+
+		UTIL_AddTemporaryBoxObstacle(bMin, bMax, DT_AREA_NULL);
 
 		RETURN_META(MRES_SUPERCEDE);
 	}
@@ -173,17 +176,10 @@ void ClientCommand(edict_t* pEntity)
 		RETURN_META(MRES_SUPERCEDE);
 	}
 
-	if (FStrEq(pcmd, "hivefloor"))
+	if (FStrEq(pcmd, "testbsp"))
 	{
-		for (int i = 0; i < UTIL_GetNumTotalHives(); i++)
-		{
-			const hive_definition* Hive = UTIL_GetHiveAtIndex(i);
-
-			if (Hive)
-			{
-				UTIL_DrawLine(pEntity, pEntity->v.origin, Hive->FloorLocation, 10.0f);
-			}
-		}
+		BSP_GetEntityKeyValue(nullptr, NULL);
+		
 
 		RETURN_META(MRES_SUPERCEDE);
 	}
@@ -245,6 +241,10 @@ void ClientCommand(edict_t* pEntity)
 		RETURN_META(MRES_SUPERCEDE);
 	}
 
+	if (FStrEq(pcmd, "testvalue"))
+	{
+		
+	}
 	
 
 	if (FStrEq(pcmd, "showconnections"))
@@ -256,7 +256,7 @@ void ClientCommand(edict_t* pEntity)
 
 		RETURN_META(MRES_SUPERCEDE);
 	}
-
+	
 	if (FStrEq(pcmd, "traceplat"))
 	{
 
@@ -308,6 +308,35 @@ void ClientCommand(edict_t* pEntity)
 				{
 					UTIL_DrawLine(pEntity, pEntity->v.origin, UTIL_GetCentreOfEntity(Trigger), 10.0f);
 				}
+
+				char ActType[64];
+
+				switch (Door->ActivationType)
+				{
+					case DOOR_BUTTON:
+						sprintf(ActType, "Button\n");
+						break;
+					case DOOR_SHOOT:
+						sprintf(ActType, "Shoot\n");
+						break;
+					case DOOR_TRIGGER:
+						sprintf(ActType, "Trigger\n");
+						break;
+					case DOOR_USE:
+						sprintf(ActType, "Use\n");
+						break;
+					case DOOR_WELD:
+						sprintf(ActType, "Weld\n");
+						break;
+					default:
+						sprintf(ActType, "None\n");
+						break;
+				}
+
+				UTIL_SayText(ActType, pEntity);
+
+				sprintf(ActType, "%4.2f, %4.2f, %4.2f\n", TracedEntity->v.absmin.x, TracedEntity->v.absmin.y, TracedEntity->v.absmin.z);
+				UTIL_SayText(ActType, pEntity);
 			}
 		}		
 
@@ -990,6 +1019,8 @@ void StartFrame(void)
 
 			if (timeSinceLastThink >= BOT_MIN_FRAME_TIME)
 			{
+				UTIL_UpdateWeldableDoors();
+
 				UTIL_UpdateTileCache();
 
 				for (bot_index = 0; bot_index < gpGlobals->maxClients; bot_index++)

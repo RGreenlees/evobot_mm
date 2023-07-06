@@ -1738,6 +1738,8 @@ const resource_node* UTIL_FindNearestResNodeToLocation(const Vector& Location)
 	return nullptr;
 }
 
+
+
 void UTIL_ClearMapLocations()
 {
 	memset(MapLocations, 0, sizeof(MapLocations));

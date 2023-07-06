@@ -120,6 +120,90 @@ void UTIL_BuildFileName(char* filename, const char* arg1, const char* arg2, cons
 	}
 }
 
+void UTIL_DrawBox(edict_t* pEntity, Vector bMin, Vector bMax)
+{
+	Vector LowerBottomLeftCorner = bMin;
+	Vector LowerTopLeftCorner = Vector(bMin.x, bMax.y, bMin.z);
+	Vector LowerTopRightCorner = Vector(bMax.x, bMax.y, bMin.z);
+	Vector LowerBottomRightCorner = Vector(bMax.x, bMin.y, bMin.z);
+
+	Vector UpperBottomLeftCorner = Vector(bMin.x, bMin.y, bMax.z);
+	Vector UpperTopLeftCorner = Vector(bMin.x, bMax.y, bMax.z);
+	Vector UpperTopRightCorner = Vector(bMax.x, bMax.y, bMax.z);
+	Vector UpperBottomRightCorner = Vector(bMax.x, bMin.y, bMax.z);
+
+
+	UTIL_DrawLine(pEntity, LowerTopLeftCorner, LowerTopRightCorner);
+	UTIL_DrawLine(pEntity, LowerTopRightCorner, LowerBottomRightCorner);
+	UTIL_DrawLine(pEntity, LowerBottomRightCorner, LowerBottomLeftCorner);
+
+	UTIL_DrawLine(pEntity, UpperBottomLeftCorner, UpperTopLeftCorner);
+	UTIL_DrawLine(pEntity, UpperTopLeftCorner, UpperTopRightCorner);
+	UTIL_DrawLine(pEntity, UpperTopRightCorner, UpperBottomRightCorner);
+	UTIL_DrawLine(pEntity, UpperBottomRightCorner, UpperBottomLeftCorner);
+
+	UTIL_DrawLine(pEntity, LowerBottomLeftCorner, UpperBottomLeftCorner);
+	UTIL_DrawLine(pEntity, LowerTopLeftCorner, UpperTopLeftCorner);
+	UTIL_DrawLine(pEntity, LowerTopRightCorner, UpperTopRightCorner);
+	UTIL_DrawLine(pEntity, LowerBottomRightCorner, UpperBottomRightCorner);
+}
+
+void UTIL_DrawBox(edict_t* pEntity, Vector bMin, Vector bMax, float drawTimeSeconds)
+{
+	Vector LowerBottomLeftCorner = bMin;
+	Vector LowerTopLeftCorner = Vector(bMin.x, bMax.y, bMin.z);
+	Vector LowerTopRightCorner = Vector(bMax.x, bMax.y, bMin.z);
+	Vector LowerBottomRightCorner = Vector(bMax.x, bMin.y, bMin.z);
+
+	Vector UpperBottomLeftCorner = Vector(bMin.x, bMin.y, bMax.z);
+	Vector UpperTopLeftCorner = Vector(bMin.x, bMax.y, bMax.z);
+	Vector UpperTopRightCorner = Vector(bMax.x, bMax.y, bMax.z);
+	Vector UpperBottomRightCorner = Vector(bMax.x, bMin.y, bMax.z);
+
+
+	UTIL_DrawLine(pEntity, LowerTopLeftCorner, LowerTopRightCorner, drawTimeSeconds, 255, 255, 255);
+	UTIL_DrawLine(pEntity, LowerTopRightCorner, LowerBottomRightCorner, drawTimeSeconds, 255, 255, 255);
+	UTIL_DrawLine(pEntity, LowerBottomRightCorner, LowerBottomLeftCorner, drawTimeSeconds, 255, 255, 255);
+
+	UTIL_DrawLine(pEntity, UpperBottomLeftCorner, UpperTopLeftCorner, drawTimeSeconds, 255, 255, 255);
+	UTIL_DrawLine(pEntity, UpperTopLeftCorner, UpperTopRightCorner, drawTimeSeconds, 255, 255, 255);
+	UTIL_DrawLine(pEntity, UpperTopRightCorner, UpperBottomRightCorner, drawTimeSeconds, 255, 255, 255);
+	UTIL_DrawLine(pEntity, UpperBottomRightCorner, UpperBottomLeftCorner, drawTimeSeconds, 255, 255, 255);
+
+	UTIL_DrawLine(pEntity, LowerBottomLeftCorner, UpperBottomLeftCorner, drawTimeSeconds, 255, 255, 255);
+	UTIL_DrawLine(pEntity, LowerTopLeftCorner, UpperTopLeftCorner, drawTimeSeconds, 255, 255, 255);
+	UTIL_DrawLine(pEntity, LowerTopRightCorner, UpperTopRightCorner, drawTimeSeconds, 255, 255, 255);
+	UTIL_DrawLine(pEntity, LowerBottomRightCorner, UpperBottomRightCorner, drawTimeSeconds, 255, 255, 255);
+}
+
+void UTIL_DrawBox(edict_t* pEntity, Vector bMin, Vector bMax, float drawTimeSeconds, int r, int g, int b)
+{
+	Vector LowerBottomLeftCorner = bMin;
+	Vector LowerTopLeftCorner = Vector(bMin.x, bMax.y, bMin.z);
+	Vector LowerTopRightCorner = Vector(bMax.x, bMax.y, bMin.z);
+	Vector LowerBottomRightCorner = Vector(bMax.x, bMin.y, bMin.z);
+
+	Vector UpperBottomLeftCorner = Vector(bMin.x, bMin.y, bMax.z);
+	Vector UpperTopLeftCorner = Vector(bMin.x, bMax.y, bMax.z);
+	Vector UpperTopRightCorner = Vector(bMax.x, bMax.y, bMax.z);
+	Vector UpperBottomRightCorner = Vector(bMax.x, bMin.y, bMax.z);
+
+
+	UTIL_DrawLine(pEntity, LowerTopLeftCorner, LowerTopRightCorner, drawTimeSeconds, r, g, b);
+	UTIL_DrawLine(pEntity, LowerTopRightCorner, LowerBottomRightCorner, drawTimeSeconds, r, g, b);
+	UTIL_DrawLine(pEntity, LowerBottomRightCorner, LowerBottomLeftCorner, drawTimeSeconds, r, g, b);
+
+	UTIL_DrawLine(pEntity, UpperBottomLeftCorner, UpperTopLeftCorner, drawTimeSeconds, r, g, b);
+	UTIL_DrawLine(pEntity, UpperTopLeftCorner, UpperTopRightCorner, drawTimeSeconds, r, g, b);
+	UTIL_DrawLine(pEntity, UpperTopRightCorner, UpperBottomRightCorner, drawTimeSeconds, r, g, b);
+	UTIL_DrawLine(pEntity, UpperBottomRightCorner, UpperBottomLeftCorner, drawTimeSeconds, r, g, b);
+
+	UTIL_DrawLine(pEntity, LowerBottomLeftCorner, UpperBottomLeftCorner, drawTimeSeconds, r, g, b);
+	UTIL_DrawLine(pEntity, LowerTopLeftCorner, UpperTopLeftCorner, drawTimeSeconds, r, g, b);
+	UTIL_DrawLine(pEntity, LowerTopRightCorner, UpperTopRightCorner, drawTimeSeconds, r, g, b);
+	UTIL_DrawLine(pEntity, LowerBottomRightCorner, UpperBottomRightCorner, drawTimeSeconds, r, g, b);
+}
+
 void UTIL_DrawLine(edict_t* pEntity, Vector start, Vector end)
 {
 	MESSAGE_BEGIN(MSG_ONE, SVC_TEMPENTITY, NULL, pEntity);

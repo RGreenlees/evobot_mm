@@ -33,6 +33,8 @@
 
 #include "bot_task.h"
 
+#include "bot_bsp.h"
+
 extern hive_definition Hives[10];
 extern int NumTotalHives;
 
@@ -252,27 +254,27 @@ struct MeshProcess : public dtTileCacheMeshProcess
 			switch (OffMeshFlags[i])
 			{
 			case SAMPLE_POLYFLAGS_WALK:
-				UTIL_DrawLine(clients[0], StartLine, EndLine, 30.0f, 255, 255, 255);
+				UTIL_DrawLine(GAME_GetListenServerEdict(), StartLine, EndLine, 30.0f, 255, 255, 255);
 				break;
 			case SAMPLE_POLYFLAGS_JUMP:
 			case SAMPLE_POLYFLAGS_HIGHJUMP:
-				UTIL_DrawLine(clients[0], StartLine, EndLine, 30.0f, 255, 255, 0);
+				UTIL_DrawLine(GAME_GetListenServerEdict(), StartLine, EndLine, 30.0f, 255, 255, 0);
 				break;
 			case SAMPLE_POLYFLAGS_WALLCLIMB:
-				UTIL_DrawLine(clients[0], StartLine, EndLine, 30.0f, 0, 255, 0);
+				UTIL_DrawLine(GAME_GetListenServerEdict(), StartLine, EndLine, 30.0f, 0, 255, 0);
 				break;
 			case SAMPLE_POLYFLAGS_FALL:
 			case SAMPLE_POLYFLAGS_HIGHFALL:
-				UTIL_DrawLine(clients[0], StartLine, EndLine, 30.0f, 255, 0, 0);
+				UTIL_DrawLine(GAME_GetListenServerEdict(), StartLine, EndLine, 30.0f, 255, 0, 0);
 				break;
 			case SAMPLE_POLYFLAGS_LADDER:
-				UTIL_DrawLine(clients[0], StartLine, EndLine, 30.0f, 0, 0, 255);
+				UTIL_DrawLine(GAME_GetListenServerEdict(), StartLine, EndLine, 30.0f, 0, 0, 255);
 				break;
 			case SAMPLE_POLYFLAGS_PHASEGATE:
-				UTIL_DrawLine(clients[0], StartLine, EndLine, 30.0f, 255, 128, 128);
+				UTIL_DrawLine(GAME_GetListenServerEdict(), StartLine, EndLine, 30.0f, 255, 128, 128);
 				break;
 			default:
-				UTIL_DrawLine(clients[0], StartLine, EndLine, 30.0f, 0, 255, 255);
+				UTIL_DrawLine(GAME_GetListenServerEdict(), StartLine, EndLine, 30.0f, 0, 255, 255);
 				break;
 			}
 		}
@@ -359,62 +361,12 @@ void UTIL_DrawTemporaryObstacles()
 
 			if (!ObstacleRef) { continue; }
 
-			if (ObstacleRef->type == ObstacleType::DT_OBSTACLE_ORIENTED_BOX)
+			if (ObstacleRef->type == ObstacleType::DT_OBSTACLE_BOX)
 			{
-				float MinX = ObstacleRef->orientedBox.center[0] - ObstacleRef->orientedBox.halfExtents[0];
-				float MinZ = ObstacleRef->orientedBox.center[2] - ObstacleRef->orientedBox.halfExtents[2];
+				Vector bMin = Vector(ObstacleRef->box.bmin[0], -ObstacleRef->box.bmin[2], ObstacleRef->box.bmin[1]);
+				Vector bMax = Vector(ObstacleRef->box.bmax[0], -ObstacleRef->box.bmax[2], ObstacleRef->box.bmax[1]);
 
-				float MaxX = ObstacleRef->orientedBox.center[0] + ObstacleRef->orientedBox.halfExtents[0];
-				float MaxZ = ObstacleRef->orientedBox.center[2] + ObstacleRef->orientedBox.halfExtents[2];
-
-				float minx2 = 2.0f * (float(MinX) - ObstacleRef->orientedBox.center[0]);
-				float minz2 = 2.0f * (float(MinZ) - ObstacleRef->orientedBox.center[2]);
-				float maxx2 = 2.0f * (float(MaxX) - ObstacleRef->orientedBox.center[0]);
-				float maxz2 = 2.0f * (float(MaxZ) - ObstacleRef->orientedBox.center[2]);
-
-				Vector Centre = Vector(ObstacleRef->orientedBox.center[0], -ObstacleRef->orientedBox.center[2], ObstacleRef->orientedBox.center[1]);
-
-				UTIL_DrawLine(clients[0], Centre - Vector(0.0f, 0.0f, ObstacleRef->orientedBox.halfExtents[1]), Centre + Vector(0.0f, 0.0f, ObstacleRef->orientedBox.halfExtents[1]), 20.0f, 255, 0, 0);
-
-				float xrot = ObstacleRef->orientedBox.rotAux[1] * minx2 + ObstacleRef->orientedBox.rotAux[0] * minz2;
-				float zrot = ObstacleRef->orientedBox.rotAux[1] * minz2 - ObstacleRef->orientedBox.rotAux[0] * minx2;
-
-				Vector LowerBottomLeftCorner = Vector(xrot, -zrot, ObstacleRef->orientedBox.center[1] - ObstacleRef->orientedBox.halfExtents[1]);
-
-				xrot = ObstacleRef->orientedBox.rotAux[1] * minx2 + ObstacleRef->orientedBox.rotAux[0] * maxz2;
-				zrot = ObstacleRef->orientedBox.rotAux[1] * maxz2 - ObstacleRef->orientedBox.rotAux[0] * minx2;
-
-				Vector LowerTopLeftCorner = Vector(xrot, -zrot, ObstacleRef->orientedBox.center[1] - ObstacleRef->orientedBox.halfExtents[1]);
-
-				xrot = ObstacleRef->orientedBox.rotAux[1] * maxx2 + ObstacleRef->orientedBox.rotAux[0] * maxz2;
-				zrot = ObstacleRef->orientedBox.rotAux[1] * maxz2 - ObstacleRef->orientedBox.rotAux[0] * maxx2;
-
-				Vector LowerTopRightCorner = Vector(xrot, -zrot, ObstacleRef->orientedBox.center[1] - ObstacleRef->orientedBox.halfExtents[1]);
-
-				xrot = ObstacleRef->orientedBox.rotAux[1] * maxx2 + ObstacleRef->orientedBox.rotAux[0] * minz2;
-				zrot = ObstacleRef->orientedBox.rotAux[1] * minz2 - ObstacleRef->orientedBox.rotAux[0] * maxx2;
-
-				Vector LowerBottomRightCorner = Vector(xrot, -zrot, ObstacleRef->orientedBox.center[1] - ObstacleRef->orientedBox.halfExtents[1]);
-
-				Vector UpperBottomLeftCorner = LowerBottomLeftCorner + Vector(0.0f, 0.0f, ObstacleRef->orientedBox.halfExtents[1] * 2.0f);
-				Vector UpperTopLeftCorner = LowerTopLeftCorner + Vector(0.0f, 0.0f, ObstacleRef->orientedBox.halfExtents[1] * 2.0f);
-				Vector UpperTopRightCorner = LowerTopRightCorner + Vector(0.0f, 0.0f, ObstacleRef->orientedBox.halfExtents[1] * 2.0f);
-				Vector UpperBottomRightCorner = LowerBottomRightCorner + Vector(0.0f, 0.0f, ObstacleRef->orientedBox.halfExtents[1] * 2.0f);
-
-				UTIL_DrawLine(clients[0], LowerBottomLeftCorner, LowerTopLeftCorner, 20.0f, 255, 255, 255);
-				UTIL_DrawLine(clients[0], LowerTopLeftCorner, LowerTopRightCorner, 20.0f, 255, 255, 255);
-				UTIL_DrawLine(clients[0], LowerTopRightCorner, LowerBottomRightCorner, 20.0f, 255, 255, 255);
-				UTIL_DrawLine(clients[0], LowerBottomRightCorner, LowerBottomLeftCorner, 20.0f, 255, 255, 255);
-
-				UTIL_DrawLine(clients[0], UpperBottomLeftCorner, UpperTopLeftCorner, 20.0f, 255, 255, 255);
-				UTIL_DrawLine(clients[0], UpperTopLeftCorner, UpperTopRightCorner, 20.0f, 255, 255, 255);
-				UTIL_DrawLine(clients[0], UpperTopRightCorner, UpperBottomRightCorner, 20.0f, 255, 255, 255);
-				UTIL_DrawLine(clients[0], UpperBottomRightCorner, UpperBottomLeftCorner, 20.0f, 255, 255, 255);
-
-				UTIL_DrawLine(clients[0], LowerBottomLeftCorner, UpperBottomLeftCorner, 20.0f, 255, 255, 255);
-				UTIL_DrawLine(clients[0], LowerTopLeftCorner, UpperTopLeftCorner, 20.0f, 255, 255, 255);
-				UTIL_DrawLine(clients[0], LowerTopRightCorner, UpperTopRightCorner, 20.0f, 255, 255, 255);
-				UTIL_DrawLine(clients[0], LowerBottomRightCorner, UpperBottomRightCorner, 20.0f, 255, 255, 255);
+				UTIL_DrawBox(GAME_GetListenServerEdict(), bMin, bMax, 10.0f);
 				continue;
 			}
 
@@ -427,32 +379,12 @@ void UTIL_DrawTemporaryObstacles()
 				// The location of obstacles in Recast are at the bottom of the shape, not the centre
 				Vector Centre = Vector(ObstacleRef->cylinder.pos[0], -ObstacleRef->cylinder.pos[2], ObstacleRef->cylinder.pos[1] + (Height * 0.5f));
 
-				if (vDist2DSq(clients[0]->v.origin, Centre) > sqrf(UTIL_MetresToGoldSrcUnits(10.0f))) { continue; }
+				if (vDist2DSq(GAME_GetListenServerEdict()->v.origin, Centre) > sqrf(UTIL_MetresToGoldSrcUnits(10.0f))) { continue; }
 
-				Vector LowerBottomLeftCorner = Centre - Vector(Radius, Radius, Height * 0.5f);
-				Vector LowerTopLeftCorner = Centre - Vector(Radius, -Radius, Height * 0.5f);
-				Vector LowerTopRightCorner = Centre + Vector(Radius, Radius, -(Height * 0.5f));
-				Vector LowerBottomRightCorner = Centre - Vector(-Radius, Radius, Height * 0.5f);
+				Vector bMin = Centre - Vector(Radius, Radius, Height * 0.5f);
+				Vector bMax = Centre + Vector(Radius, Radius, (Height * 0.5f));
 
-				Vector UpperBottomLeftCorner = Centre - Vector(Radius, Radius, -(Height * 0.5f));
-				Vector UpperTopLeftCorner = Centre - Vector(Radius, -Radius, -(Height * 0.5f));
-				Vector UpperTopRightCorner = Centre + Vector(Radius, Radius, (Height * 0.5f));
-				Vector UpperBottomRightCorner = Centre - Vector(-Radius, Radius, -(Height * 0.5f));
-
-				UTIL_DrawLine(clients[0], LowerBottomLeftCorner, LowerTopLeftCorner, 20.0f, 255, 255, 255);
-				UTIL_DrawLine(clients[0], LowerTopLeftCorner, LowerTopRightCorner, 20.0f, 255, 255, 255);
-				UTIL_DrawLine(clients[0], LowerTopRightCorner, LowerBottomRightCorner, 20.0f, 255, 255, 255);
-				UTIL_DrawLine(clients[0], LowerBottomRightCorner, LowerBottomLeftCorner, 20.0f, 255, 255, 255);
-
-				UTIL_DrawLine(clients[0], UpperBottomLeftCorner, UpperTopLeftCorner, 20.0f, 255, 255, 255);
-				UTIL_DrawLine(clients[0], UpperTopLeftCorner, UpperTopRightCorner, 20.0f, 255, 255, 255);
-				UTIL_DrawLine(clients[0], UpperTopRightCorner, UpperBottomRightCorner, 20.0f, 255, 255, 255);
-				UTIL_DrawLine(clients[0], UpperBottomRightCorner, UpperBottomLeftCorner, 20.0f, 255, 255, 255);
-
-				UTIL_DrawLine(clients[0], LowerBottomLeftCorner, UpperBottomLeftCorner, 20.0f, 255, 255, 255);
-				UTIL_DrawLine(clients[0], LowerTopLeftCorner, UpperTopLeftCorner, 20.0f, 255, 255, 255);
-				UTIL_DrawLine(clients[0], LowerTopRightCorner, UpperTopRightCorner, 20.0f, 255, 255, 255);
-				UTIL_DrawLine(clients[0], LowerBottomRightCorner, UpperBottomRightCorner, 20.0f, 255, 255, 255);
+				UTIL_DrawBox(GAME_GetListenServerEdict(), bMin, bMax, 10.0f);
 				continue;
 			}
 
@@ -598,27 +530,22 @@ unsigned int UTIL_AddTemporaryObstacle(const Vector Location, float Radius, floa
 		}
 	}
 
-	if (ObstacleNum > 0)
-	{
-		RecalcAllBotPaths();
-	}
-
 	return ObstacleNum;
 }
 
-unsigned int UTIL_AddTemporaryBoxObstacle(const Vector Location, Vector HalfExtents, float OrientationInRadians, int area)
+unsigned int UTIL_AddTemporaryBoxObstacle(const Vector bMin, const Vector bMax, int area)
 {
 	unsigned int ObstacleNum = 0;
 
-	float Pos[3] = { Location.x, Location.z - HalfExtents.z, -Location.y };
-	float bHalfExtents[3] = { HalfExtents.x, HalfExtents.z, HalfExtents.y };
+	float bMinf[3] = { bMin.x, bMin.z, -bMin.y };
+	float bMaxf[3] = { bMax.x, bMax.z, -bMax.y };
 
 	for (int i = 0; i < MAX_NAV_MESHES; i++)
 	{
 		if (NavMeshes[i].tileCache)
 		{
 			dtObstacleRef ObsRef = 0;
-			NavMeshes[i].tileCache->addBoxObstacle(Pos, bHalfExtents, OrientationInRadians, area, &ObsRef);
+			NavMeshes[i].tileCache->addBoxObstacle(bMinf, bMaxf, area, &ObsRef);
 
 			ObstacleNum = (unsigned int)ObsRef;
 
@@ -627,9 +554,6 @@ unsigned int UTIL_AddTemporaryBoxObstacle(const Vector Location, Vector HalfExte
 
 	return ObstacleNum;
 }
-
-
-
 
 void DEBUG_DrawNavMesh(const Vector DrawCentre, const int NavMeshIndex)
 {
@@ -654,7 +578,7 @@ void DEBUG_DrawNavMesh(const Vector DrawCentre, const int NavMeshIndex)
 		{
 			char buf[64];
 			sprintf(buf, "Failed to find any tiles! %d in total\n", m_tileCache->getTileCount());
-			UTIL_SayText(buf, clients[0]);
+			UTIL_SayText(buf, GAME_GetListenServerEdict());
 		}
 
 		for (int i = 0; i < NumTiles; i++)
@@ -668,15 +592,15 @@ void DEBUG_DrawNavMesh(const Vector DrawCentre, const int NavMeshIndex)
 			Vector MinBox = Vector(bmin[0], -bmin[2], bmin[1]);
 			Vector MaxBox = Vector(bmax[0], -bmax[2], bmax[1]);
 
-			UTIL_DrawLine(clients[0], Vector(MinBox.x, MinBox.y, MinBox.z + 10.0f), Vector(MaxBox.x, MinBox.y, MinBox.z + 10.0f), 5.0f);
-			UTIL_DrawLine(clients[0], Vector(MaxBox.x, MinBox.y, MinBox.z + 10.0f), Vector(MaxBox.x, MaxBox.y, MinBox.z + 10.0f), 5.0f);
-			UTIL_DrawLine(clients[0], Vector(MaxBox.x, MaxBox.y, MinBox.z + 10.0f), Vector(MinBox.x, MaxBox.y, MinBox.z + 10.0f), 5.0f);
-			UTIL_DrawLine(clients[0], Vector(MinBox.x, MaxBox.y, MinBox.z + 10.0f), Vector(MinBox.x, MinBox.y, MinBox.z + 10.0f), 5.0f);
+			UTIL_DrawLine(GAME_GetListenServerEdict(), Vector(MinBox.x, MinBox.y, MinBox.z + 10.0f), Vector(MaxBox.x, MinBox.y, MinBox.z + 10.0f), 5.0f);
+			UTIL_DrawLine(GAME_GetListenServerEdict(), Vector(MaxBox.x, MinBox.y, MinBox.z + 10.0f), Vector(MaxBox.x, MaxBox.y, MinBox.z + 10.0f), 5.0f);
+			UTIL_DrawLine(GAME_GetListenServerEdict(), Vector(MaxBox.x, MaxBox.y, MinBox.z + 10.0f), Vector(MinBox.x, MaxBox.y, MinBox.z + 10.0f), 5.0f);
+			UTIL_DrawLine(GAME_GetListenServerEdict(), Vector(MinBox.x, MaxBox.y, MinBox.z + 10.0f), Vector(MinBox.x, MinBox.y, MinBox.z + 10.0f), 5.0f);
 		}
 	}
 	else
 	{
-		UTIL_SayText("No Tile Cache!\n", clients[0]);
+		UTIL_SayText("No Tile Cache!\n", GAME_GetListenServerEdict());
 	}
 }
 
@@ -688,12 +612,9 @@ void UTIL_RemoveTemporaryObstacle(unsigned int ObstacleRef)
 	{
 		if (NavMeshes[i].tileCache)
 		{
-			dtObstacleRef ObsRef = 0;
 			NavMeshes[i].tileCache->removeObstacle((dtObstacleRef)ObstacleRef);
 		}
 	}
-
-	RecalcAllBotPaths();
 }
 
 void GetFullFilePath(char* buffer, const char* mapname)
@@ -784,14 +705,14 @@ bool LoadNavMesh(const char* mapname)
 	{
 		char buf[64];
 		sprintf(buf, "Header Magic does not match! %d\n", header.magic);
-		ClientPrint(clients[0], HUD_PRINTNOTIFY, buf);
+		ClientPrint(GAME_GetListenServerEdict(), HUD_PRINTNOTIFY, buf);
 		fclose(savedFile);
 		UnloadNavigationData();
 		return false;
 	}
 	if (header.version != TILECACHESET_VERSION)
 	{
-		ClientPrint(clients[0], HUD_PRINTNOTIFY, "Header version does not match!\n");
+		ClientPrint(GAME_GetListenServerEdict(), HUD_PRINTNOTIFY, "Header version does not match!\n");
 		fclose(savedFile);
 		UnloadNavigationData();
 		return false;
@@ -800,7 +721,7 @@ bool LoadNavMesh(const char* mapname)
 	NavMeshes[REGULAR_NAV_MESH].navMesh = dtAllocNavMesh();
 	if (!NavMeshes[REGULAR_NAV_MESH].navMesh)
 	{
-		ClientPrint(clients[0], HUD_PRINTNOTIFY, "Could not allocate navmesh\n");
+		ClientPrint(GAME_GetListenServerEdict(), HUD_PRINTNOTIFY, "Could not allocate navmesh\n");
 		fclose(savedFile);
 		UnloadNavigationData();
 		return false;
@@ -808,7 +729,7 @@ bool LoadNavMesh(const char* mapname)
 	dtStatus status = NavMeshes[REGULAR_NAV_MESH].navMesh->init(&header.regularMeshParams);
 	if (dtStatusFailed(status))
 	{
-		ClientPrint(clients[0], HUD_PRINTNOTIFY, "Could not initialise nav mesh\n");
+		ClientPrint(GAME_GetListenServerEdict(), HUD_PRINTNOTIFY, "Could not initialise nav mesh\n");
 		fclose(savedFile);
 		UnloadNavigationData();
 		return false;
@@ -817,7 +738,7 @@ bool LoadNavMesh(const char* mapname)
 	NavMeshes[REGULAR_NAV_MESH].tileCache = dtAllocTileCache();
 	if (!NavMeshes[REGULAR_NAV_MESH].tileCache)
 	{
-		ClientPrint(clients[0], HUD_PRINTNOTIFY, "Could not allocate tile cache\n");
+		ClientPrint(GAME_GetListenServerEdict(), HUD_PRINTNOTIFY, "Could not allocate tile cache\n");
 		fclose(savedFile);
 		UnloadNavigationData();
 		return false;
@@ -827,7 +748,7 @@ bool LoadNavMesh(const char* mapname)
 	NavMeshes[ONOS_NAV_MESH].navMesh = dtAllocNavMesh();
 	if (!NavMeshes[ONOS_NAV_MESH].navMesh)
 	{
-		ClientPrint(clients[0], HUD_PRINTNOTIFY, "Could not allocate onos navmesh\n");
+		ClientPrint(GAME_GetListenServerEdict(), HUD_PRINTNOTIFY, "Could not allocate onos navmesh\n");
 		fclose(savedFile);
 		UnloadNavigationData();
 		return false;
@@ -835,7 +756,7 @@ bool LoadNavMesh(const char* mapname)
 	status = NavMeshes[ONOS_NAV_MESH].navMesh->init(&header.onosMeshParams);
 	if (dtStatusFailed(status))
 	{
-		ClientPrint(clients[0], HUD_PRINTNOTIFY, "Could not initialise onos nav mesh\n");
+		ClientPrint(GAME_GetListenServerEdict(), HUD_PRINTNOTIFY, "Could not initialise onos nav mesh\n");
 		fclose(savedFile);
 		UnloadNavigationData();
 		return false;
@@ -844,7 +765,7 @@ bool LoadNavMesh(const char* mapname)
 	NavMeshes[ONOS_NAV_MESH].tileCache = dtAllocTileCache();
 	if (!NavMeshes[ONOS_NAV_MESH].tileCache)
 	{
-		ClientPrint(clients[0], HUD_PRINTNOTIFY, "Could not allocate onos tile cache\n");
+		ClientPrint(GAME_GetListenServerEdict(), HUD_PRINTNOTIFY, "Could not allocate onos tile cache\n");
 		fclose(savedFile);
 		UnloadNavigationData();
 		return false;
@@ -854,7 +775,7 @@ bool LoadNavMesh(const char* mapname)
 	NavMeshes[BUILDING_NAV_MESH].navMesh = dtAllocNavMesh();
 	if (!NavMeshes[BUILDING_NAV_MESH].navMesh)
 	{
-		ClientPrint(clients[0], HUD_PRINTNOTIFY, "Could not allocate building navmesh\n");
+		ClientPrint(GAME_GetListenServerEdict(), HUD_PRINTNOTIFY, "Could not allocate building navmesh\n");
 		fclose(savedFile);
 		UnloadNavigationData();
 		return false;
@@ -862,7 +783,7 @@ bool LoadNavMesh(const char* mapname)
 	status = NavMeshes[BUILDING_NAV_MESH].navMesh->init(&header.buildingMeshParams);
 	if (dtStatusFailed(status))
 	{
-		ClientPrint(clients[0], HUD_PRINTNOTIFY, "Could not initialise building nav mesh\n");
+		ClientPrint(GAME_GetListenServerEdict(), HUD_PRINTNOTIFY, "Could not initialise building nav mesh\n");
 		fclose(savedFile);
 		UnloadNavigationData();
 		return false;
@@ -871,7 +792,7 @@ bool LoadNavMesh(const char* mapname)
 	NavMeshes[BUILDING_NAV_MESH].tileCache = dtAllocTileCache();
 	if (!NavMeshes[BUILDING_NAV_MESH].tileCache)
 	{
-		ClientPrint(clients[0], HUD_PRINTNOTIFY, "Could not allocate building tile cache\n");
+		ClientPrint(GAME_GetListenServerEdict(), HUD_PRINTNOTIFY, "Could not allocate building tile cache\n");
 		fclose(savedFile);
 		UnloadNavigationData();
 		return false;
@@ -909,7 +830,7 @@ bool LoadNavMesh(const char* mapname)
 	status = NavMeshes[REGULAR_NAV_MESH].tileCache->init(&header.regularCacheParams, m_talloc, m_tcomp, m_tmproc);
 	if (dtStatusFailed(status))
 	{
-		ClientPrint(clients[0], HUD_PRINTNOTIFY, "Could not initialise tile cache\n");
+		ClientPrint(GAME_GetListenServerEdict(), HUD_PRINTNOTIFY, "Could not initialise tile cache\n");
 		fclose(savedFile);
 		UnloadNavigationData();
 		return false;
@@ -918,7 +839,7 @@ bool LoadNavMesh(const char* mapname)
 	status = NavMeshes[ONOS_NAV_MESH].tileCache->init(&header.onosCacheParams, m_talloc, m_tcomp, m_tmproc);
 	if (dtStatusFailed(status))
 	{
-		ClientPrint(clients[0], HUD_PRINTNOTIFY, "Could not initialise tile cache\n");
+		ClientPrint(GAME_GetListenServerEdict(), HUD_PRINTNOTIFY, "Could not initialise tile cache\n");
 		fclose(savedFile);
 		UnloadNavigationData();
 		return false;
@@ -927,7 +848,7 @@ bool LoadNavMesh(const char* mapname)
 	status = NavMeshes[BUILDING_NAV_MESH].tileCache->init(&header.buildingCacheParams, m_talloc, m_tcomp, m_tmproc);
 	if (dtStatusFailed(status))
 	{
-		ClientPrint(clients[0], HUD_PRINTNOTIFY, "Could not initialise tile cache\n");
+		ClientPrint(GAME_GetListenServerEdict(), HUD_PRINTNOTIFY, "Could not initialise tile cache\n");
 		fclose(savedFile);
 		UnloadNavigationData();
 		return false;
@@ -942,7 +863,7 @@ bool LoadNavMesh(const char* mapname)
 		size_t tileHeaderReadReturnCode = fread(&tileHeader, sizeof(tileHeader), 1, savedFile);
 		if (tileHeaderReadReturnCode != 1)
 		{
-			ClientPrint(clients[0], HUD_PRINTNOTIFY, "Tile header read returned code\n");
+			ClientPrint(GAME_GetListenServerEdict(), HUD_PRINTNOTIFY, "Tile header read returned code\n");
 			fclose(savedFile);
 			UnloadNavigationData();
 			return false;
@@ -956,7 +877,7 @@ bool LoadNavMesh(const char* mapname)
 		size_t tileDataReadReturnCode = fread(data, tileHeader.dataSize, 1, savedFile);
 		if (tileDataReadReturnCode != 1)
 		{
-			ClientPrint(clients[0], HUD_PRINTNOTIFY, "Tile data read returned code\n");
+			ClientPrint(GAME_GetListenServerEdict(), HUD_PRINTNOTIFY, "Tile data read returned code\n");
 			// Error or early EOF
 			dtFree(data);
 			fclose(savedFile);
@@ -981,7 +902,7 @@ bool LoadNavMesh(const char* mapname)
 		size_t tileHeaderReadReturnCode = fread(&tileHeader, sizeof(tileHeader), 1, savedFile);
 		if (tileHeaderReadReturnCode != 1)
 		{
-			ClientPrint(clients[0], HUD_PRINTNOTIFY, "Tile header read returned code\n");
+			ClientPrint(GAME_GetListenServerEdict(), HUD_PRINTNOTIFY, "Tile header read returned code\n");
 			fclose(savedFile);
 			UnloadNavigationData();
 			return false;
@@ -995,7 +916,7 @@ bool LoadNavMesh(const char* mapname)
 		size_t tileDataReadReturnCode = fread(data, tileHeader.dataSize, 1, savedFile);
 		if (tileDataReadReturnCode != 1)
 		{
-			ClientPrint(clients[0], HUD_PRINTNOTIFY, "Tile data read returned code\n");
+			ClientPrint(GAME_GetListenServerEdict(), HUD_PRINTNOTIFY, "Tile data read returned code\n");
 			// Error or early EOF
 			dtFree(data);
 			fclose(savedFile);
@@ -1020,7 +941,7 @@ bool LoadNavMesh(const char* mapname)
 		size_t tileHeaderReadReturnCode = fread(&tileHeader, sizeof(tileHeader), 1, savedFile);
 		if (tileHeaderReadReturnCode != 1)
 		{
-			ClientPrint(clients[0], HUD_PRINTNOTIFY, "Tile header read returned code\n");
+			ClientPrint(GAME_GetListenServerEdict(), HUD_PRINTNOTIFY, "Tile header read returned code\n");
 			fclose(savedFile);
 			UnloadNavigationData();
 			return false;
@@ -1034,7 +955,7 @@ bool LoadNavMesh(const char* mapname)
 		size_t tileDataReadReturnCode = fread(data, tileHeader.dataSize, 1, savedFile);
 		if (tileDataReadReturnCode != 1)
 		{
-			ClientPrint(clients[0], HUD_PRINTNOTIFY, "Tile data read returned code\n");
+			ClientPrint(GAME_GetListenServerEdict(), HUD_PRINTNOTIFY, "Tile data read returned code\n");
 			// Error or early EOF
 			dtFree(data);
 			fclose(savedFile);
@@ -1061,7 +982,7 @@ bool LoadNavMesh(const char* mapname)
 
 	if (dtStatusFailed(initStatus))
 	{
-		ClientPrint(clients[0], HUD_PRINTNOTIFY, "Could not initialise nav query\n");
+		ClientPrint(GAME_GetListenServerEdict(), HUD_PRINTNOTIFY, "Could not initialise nav query\n");
 		UnloadNavigationData();
 		return false;
 	}
@@ -1072,7 +993,7 @@ bool LoadNavMesh(const char* mapname)
 
 	if (dtStatusFailed(initStatus))
 	{
-		ClientPrint(clients[0], HUD_PRINTNOTIFY, "Could not initialise onos nav query\n");
+		ClientPrint(GAME_GetListenServerEdict(), HUD_PRINTNOTIFY, "Could not initialise onos nav query\n");
 		UnloadNavigationData();
 		return false;
 	}
@@ -1083,7 +1004,7 @@ bool LoadNavMesh(const char* mapname)
 
 	if (dtStatusFailed(initStatus))
 	{
-		ClientPrint(clients[0], HUD_PRINTNOTIFY, "Could not initialise building nav query\n");
+		ClientPrint(GAME_GetListenServerEdict(), HUD_PRINTNOTIFY, "Could not initialise building nav query\n");
 		UnloadNavigationData();
 		return false;
 	}
@@ -5009,7 +4930,7 @@ void DEBUG_DrawPath(const bot_path_node* Path, const int PathSize, const float D
 
 	Vector FromDraw = Path[0].Location;
 
-	UTIL_DrawLine(clients[0], Path[0].Location, Path[0].Location + Vector(0.0f, 0.0f, 50.0f), DrawTime, 255, 0, 0);
+	UTIL_DrawLine(GAME_GetListenServerEdict(), Path[0].Location, Path[0].Location + Vector(0.0f, 0.0f, 50.0f), DrawTime, 255, 0, 0);
 
 	unsigned char area = Path[0].area;
 	for (int i = 1; i < PathSize; i++)
@@ -5019,42 +4940,42 @@ void DEBUG_DrawPath(const bot_path_node* Path, const int PathSize, const float D
 
 		if (area == SAMPLE_POLYAREA_GROUND)
 		{
-			UTIL_DrawLine(clients[0], FromDraw, ToDraw, DrawTime);
+			UTIL_DrawLine(GAME_GetListenServerEdict(), FromDraw, ToDraw, DrawTime);
 		}
 		else if (area == SAMPLE_POLYAREA_CROUCH)
 		{
-			UTIL_DrawLine(clients[0], FromDraw, ToDraw, DrawTime, 255, 0, 0);
+			UTIL_DrawLine(GAME_GetListenServerEdict(), FromDraw, ToDraw, DrawTime, 255, 0, 0);
 		}
 		else if (area == SAMPLE_POLYAREA_JUMP || area == SAMPLE_POLYAREA_HIGHJUMP || area == SAMPLE_POLYAREA_BLOCKED)
 		{
-			UTIL_DrawLine(clients[0], FromDraw, ToDraw, DrawTime, 255, 255, 0);
+			UTIL_DrawLine(GAME_GetListenServerEdict(), FromDraw, ToDraw, DrawTime, 255, 255, 0);
 		}
 		else if (area == SAMPLE_POLYAREA_WALLCLIMB)
 		{
-			UTIL_DrawLine(clients[0], FromDraw, ToDraw, DrawTime, 0, 128, 0);
+			UTIL_DrawLine(GAME_GetListenServerEdict(), FromDraw, ToDraw, DrawTime, 0, 128, 0);
 		}
 		else if (area == SAMPLE_POLYAREA_LADDER)
 		{
-			UTIL_DrawLine(clients[0], FromDraw, ToDraw, DrawTime, 0, 0, 255);
+			UTIL_DrawLine(GAME_GetListenServerEdict(), FromDraw, ToDraw, DrawTime, 0, 0, 255);
 		}
 		else if (area == SAMPLE_POLYAREA_FALL || area == SAMPLE_POLYAREA_HIGHFALL)
 		{
-			UTIL_DrawLine(clients[0], FromDraw, ToDraw, DrawTime, 255, 0, 255);
+			UTIL_DrawLine(GAME_GetListenServerEdict(), FromDraw, ToDraw, DrawTime, 255, 0, 255);
 		}
 		else if (area == SAMPLE_POLYAREA_PHASEGATE)
 		{
-			UTIL_DrawLine(clients[0], FromDraw, ToDraw, DrawTime, 64, 0, 0);
+			UTIL_DrawLine(GAME_GetListenServerEdict(), FromDraw, ToDraw, DrawTime, 64, 0, 0);
 		}
 		else
 		{
-			UTIL_DrawLine(clients[0], FromDraw, ToDraw, DrawTime);
+			UTIL_DrawLine(GAME_GetListenServerEdict(), FromDraw, ToDraw, DrawTime);
 		}
 
 		FromDraw = ToDraw;
 
 	}
 
-	UTIL_DrawLine(clients[0], Path[PathSize - 1].Location, Path[PathSize - 1].Location + Vector(0.0f, 0.0f, 50.0f), DrawTime, 0, 0, 255);
+	UTIL_DrawLine(GAME_GetListenServerEdict(), Path[PathSize - 1].Location, Path[PathSize - 1].Location + Vector(0.0f, 0.0f, 50.0f), DrawTime, 0, 0, 255);
 }
 
 Vector DEBUG_FindClosestPointBackOnPath(edict_t* Player)
@@ -6162,28 +6083,28 @@ void DEBUG_DrawBotNextPathPoint(bot_t* pBot, float TimeInSeconds)
 		switch (area)
 		{
 		case SAMPLE_POLYAREA_GROUND:
-			UTIL_DrawLine(clients[0], StartLine, EndLine, DrawTime, 255, 255, 255);
+			UTIL_DrawLine(GAME_GetListenServerEdict(), StartLine, EndLine, DrawTime, 255, 255, 255);
 			break;
 		case SAMPLE_POLYAREA_CROUCH:
-			UTIL_DrawLine(clients[0], StartLine, EndLine, DrawTime, 255, 0, 0);
+			UTIL_DrawLine(GAME_GetListenServerEdict(), StartLine, EndLine, DrawTime, 255, 0, 0);
 			break;
 		case SAMPLE_POLYAREA_LADDER:
-			UTIL_DrawLine(clients[0], StartLine, EndLine, DrawTime, 0, 0, 255);
+			UTIL_DrawLine(GAME_GetListenServerEdict(), StartLine, EndLine, DrawTime, 0, 0, 255);
 			break;
 		case SAMPLE_POLYAREA_WALLCLIMB:
-			UTIL_DrawLine(clients[0], StartLine, EndLine, DrawTime, 0, 128, 0);
+			UTIL_DrawLine(GAME_GetListenServerEdict(), StartLine, EndLine, DrawTime, 0, 128, 0);
 			break;
 		case SAMPLE_POLYAREA_JUMP:
 		case SAMPLE_POLYAREA_HIGHJUMP:
 		case SAMPLE_POLYAREA_BLOCKED:
-			UTIL_DrawLine(clients[0], StartLine, EndLine, DrawTime, 255, 255, 0);
+			UTIL_DrawLine(GAME_GetListenServerEdict(), StartLine, EndLine, DrawTime, 255, 255, 0);
 			break;
 		case SAMPLE_POLYAREA_FALL:
 		case SAMPLE_POLYAREA_HIGHFALL:
-			UTIL_DrawLine(clients[0], StartLine, EndLine, DrawTime, 0, 255, 255);
+			UTIL_DrawLine(GAME_GetListenServerEdict(), StartLine, EndLine, DrawTime, 0, 255, 255);
 			break;
 		default:
-			UTIL_DrawLine(clients[0], StartLine, EndLine, DrawTime, 0, 0, 0);
+			UTIL_DrawLine(GAME_GetListenServerEdict(), StartLine, EndLine, DrawTime, 0, 0, 0);
 			break;
 		}
 	}
@@ -6201,7 +6122,7 @@ void BotDrawPath(bot_t* pBot, float DrawTimeInSeconds, bool bShort)
 
 		Vector FromDraw = pBot->BotNavInfo.CurrentPath[0].Location;
 
-		UTIL_DrawLine(clients[0], pBot->BotNavInfo.CurrentPath[0].Location, pBot->BotNavInfo.CurrentPath[0].Location + Vector(0.0f, 0.0f, 50.0f), DrawTime, 255, 0, 0);
+		UTIL_DrawLine(GAME_GetListenServerEdict(), pBot->BotNavInfo.CurrentPath[0].Location, pBot->BotNavInfo.CurrentPath[0].Location + Vector(0.0f, 0.0f, 50.0f), DrawTime, 255, 0, 0);
 
 		unsigned char area = pBot->BotNavInfo.CurrentPath[0].area;
 		for (int i = 1; i < pBot->BotNavInfo.PathSize; i++)
@@ -6209,42 +6130,42 @@ void BotDrawPath(bot_t* pBot, float DrawTimeInSeconds, bool bShort)
 			area = pBot->BotNavInfo.CurrentPath[i].area;
 			if (area == SAMPLE_POLYAREA_GROUND)
 			{
-				UTIL_DrawLine(clients[0], FromDraw, pBot->BotNavInfo.CurrentPath[i].Location, DrawTime);
+				UTIL_DrawLine(GAME_GetListenServerEdict(), FromDraw, pBot->BotNavInfo.CurrentPath[i].Location, DrawTime);
 			}
 			else if (area == SAMPLE_POLYAREA_CROUCH)
 			{
-				UTIL_DrawLine(clients[0], FromDraw, pBot->BotNavInfo.CurrentPath[i].Location, DrawTime, 255, 0, 0);
+				UTIL_DrawLine(GAME_GetListenServerEdict(), FromDraw, pBot->BotNavInfo.CurrentPath[i].Location, DrawTime, 255, 0, 0);
 			}
 			else if (area == SAMPLE_POLYAREA_JUMP || area == SAMPLE_POLYAREA_HIGHJUMP || area == SAMPLE_POLYAREA_BLOCKED)
 			{
-				UTIL_DrawLine(clients[0], FromDraw, pBot->BotNavInfo.CurrentPath[i].Location, DrawTime, 255, 255, 0);
+				UTIL_DrawLine(GAME_GetListenServerEdict(), FromDraw, pBot->BotNavInfo.CurrentPath[i].Location, DrawTime, 255, 255, 0);
 			}
 			else if (area == SAMPLE_POLYAREA_WALLCLIMB)
 			{
-				UTIL_DrawLine(clients[0], FromDraw, pBot->BotNavInfo.CurrentPath[i].Location, DrawTime, 0, 128, 0);
+				UTIL_DrawLine(GAME_GetListenServerEdict(), FromDraw, pBot->BotNavInfo.CurrentPath[i].Location, DrawTime, 0, 128, 0);
 			}
 			else if (area == SAMPLE_POLYAREA_LADDER)
 			{
-				UTIL_DrawLine(clients[0], FromDraw, pBot->BotNavInfo.CurrentPath[i].Location, DrawTime, 0, 0, 255);
+				UTIL_DrawLine(GAME_GetListenServerEdict(), FromDraw, pBot->BotNavInfo.CurrentPath[i].Location, DrawTime, 0, 0, 255);
 			}
 			else if (area == SAMPLE_POLYAREA_FALL || area == SAMPLE_POLYAREA_HIGHFALL)
 			{
-				UTIL_DrawLine(clients[0], FromDraw, pBot->BotNavInfo.CurrentPath[i].Location, DrawTime, 255, 0, 255);
+				UTIL_DrawLine(GAME_GetListenServerEdict(), FromDraw, pBot->BotNavInfo.CurrentPath[i].Location, DrawTime, 255, 0, 255);
 			}
 			else if (area == SAMPLE_POLYAREA_PHASEGATE)
 			{
-				UTIL_DrawLine(clients[0], FromDraw, pBot->BotNavInfo.CurrentPath[i].Location, DrawTime, 64, 0, 0);
+				UTIL_DrawLine(GAME_GetListenServerEdict(), FromDraw, pBot->BotNavInfo.CurrentPath[i].Location, DrawTime, 64, 0, 0);
 			}
 			else
 			{
-				UTIL_DrawLine(clients[0], FromDraw, pBot->BotNavInfo.CurrentPath[i].Location, DrawTime);
+				UTIL_DrawLine(GAME_GetListenServerEdict(), FromDraw, pBot->BotNavInfo.CurrentPath[i].Location, DrawTime);
 			}
 
 			FromDraw = pBot->BotNavInfo.CurrentPath[i].Location;
 
 		}
 
-		UTIL_DrawLine(clients[0], pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.PathSize - 1].Location, pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.PathSize - 1].Location + Vector(0.0f, 0.0f, 50.0f), DrawTime, 0, 0, 255);
+		UTIL_DrawLine(GAME_GetListenServerEdict(), pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.PathSize - 1].Location, pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.PathSize - 1].Location + Vector(0.0f, 0.0f, 50.0f), DrawTime, 0, 0, 255);
 	}
 
 }
@@ -6475,6 +6396,164 @@ void UTIL_LinkTriggerToDoor(const edict_t* DoorEdict, nav_door* DoorRef)
 
 }
 
+void UTIL_MarkDoorWeldable(const char* DoorTargetName)
+{
+	for (int i = 0; i < NumDoors; i++)
+	{
+		if (FStrEq(STRING(NavDoors[i].DoorEdict->v.targetname), DoorTargetName))
+		{
+			NavDoors[i].ActivationType = DOOR_WELD;
+
+			if (NavDoors[i].NumObstacles > 0)
+			{
+				for (int i = 0; i < NavDoors[i].NumObstacles; i++)
+				{
+					UTIL_RemoveTemporaryObstacle(NavDoors[i].ObstacleRefs[i]);
+				}
+				
+			}
+
+			//NavDoors[i].ObstacleRef = UTIL_AddTemporaryObstacle(UTIL_GetCentreOfEntity(NavDoors[i].DoorEdict), 100.0f, 200.0f, DT_TILECACHE_NULL_AREA);
+
+			Vector bMin = NavDoors[i].DoorEdict->v.absmin - Vector(0.0f, 0.0f, 10.0f);
+			Vector bMax = NavDoors[i].DoorEdict->v.absmax - Vector(0.0f, 0.0f, 10.0f);
+
+			//NavDoors[i].ObstacleRef = UTIL_AddTemporaryBoxObstacle(bMin, bMax, DT_TILECACHE_NULL_AREA);
+
+			float SizeX = NavDoors[i].DoorEdict->v.size.x;
+			float SizeY = NavDoors[i].DoorEdict->v.size.y;
+			float SizeZ = NavDoors[i].DoorEdict->v.size.z;
+
+			bool bUseXAxis = (SizeX >= SizeY);
+
+			float CylinderRadius = fminf(SizeX, SizeY) * 0.5f;
+
+			float Ratio = (bUseXAxis) ? (SizeX / (CylinderRadius * 2.0f)) : (SizeY / (CylinderRadius * 2.0f));
+
+			int NumObstacles = (int)ceil(Ratio);
+
+			if (NumObstacles > 32) { NumObstacles = 32; }
+
+			Vector Dir = (bUseXAxis) ? RIGHT_VECTOR : FWD_VECTOR;
+
+			Vector StartPoint = UTIL_GetCentreOfEntity(NavDoors[i].DoorEdict);
+
+			if (bUseXAxis)
+			{
+				StartPoint.x = NavDoors[i].DoorEdict->v.absmin.x + CylinderRadius;
+			}
+			else
+			{
+				StartPoint.y = NavDoors[i].DoorEdict->v.absmin.y + CylinderRadius;
+			}
+
+			StartPoint.z -= 5.0f;
+
+			Vector CurrentPoint = StartPoint;
+
+			NavDoors[i].NumObstacles = 0;
+
+			for (int i = 0; i < NumObstacles; i++)
+			{
+				NavDoors[i].ObstacleRefs[NavDoors[i].NumObstacles] = UTIL_AddTemporaryObstacle(CurrentPoint, CylinderRadius, SizeZ, DT_TILECACHE_NULL_AREA);
+
+				NavDoors[i].NumObstacles++;
+
+				if (bUseXAxis)
+				{
+					CurrentPoint.x += CylinderRadius * 2.0f;
+				}
+				else
+				{
+					CurrentPoint.y += CylinderRadius * 2.0f;
+				}
+			}
+
+
+		}
+	}
+}
+
+void UTIL_UpdateWeldableDoors()
+{
+	for (int i = 0; i < NumDoors; i++)
+	{
+		if (NavDoors[i].ActivationType == DOOR_WELD)
+		{
+			if (NavDoors[i].DoorEdict->v.velocity != ZERO_VECTOR || NavDoors[i].DoorEdict->v.avelocity != ZERO_VECTOR)
+			{
+				if (NavDoors[i].NumObstacles > 0)
+				{
+					for (int i = 0; i < NavDoors[i].NumObstacles; i++)
+					{
+						UTIL_RemoveTemporaryObstacle(NavDoors[i].ObstacleRefs[i]);
+					}
+
+					NavDoors[i].NumObstacles = 0;
+
+				}
+				continue;
+			}
+
+			Vector ThisLocation = UTIL_GetCentreOfEntity(NavDoors[i].DoorEdict);
+
+			if (ThisLocation != NavDoors[i].CurrentPosition)
+			{
+				float SizeX = NavDoors[i].DoorEdict->v.size.x;
+				float SizeY = NavDoors[i].DoorEdict->v.size.y;
+				float SizeZ = NavDoors[i].DoorEdict->v.size.z;
+
+				bool bUseXAxis = (SizeX >= SizeY);
+
+				float CylinderRadius = fminf(SizeX, SizeY) * 0.5f;
+
+				float Ratio = (bUseXAxis) ? (SizeX / (CylinderRadius * 2.0f)) : (SizeY / (CylinderRadius * 2.0f));
+
+				int NumObstacles = (int)ceil(Ratio);
+
+				if (NumObstacles > 32) { NumObstacles = 32; }
+
+				Vector Dir = (bUseXAxis) ? RIGHT_VECTOR : FWD_VECTOR;
+
+				Vector StartPoint = UTIL_GetCentreOfEntity(NavDoors[i].DoorEdict);
+
+				if (bUseXAxis)
+				{
+					StartPoint.x = NavDoors[i].DoorEdict->v.absmin.x + CylinderRadius;
+				}
+				else
+				{
+					StartPoint.y = NavDoors[i].DoorEdict->v.absmin.y + CylinderRadius;
+				}
+
+				StartPoint.z -= 5.0f;
+
+				Vector CurrentPoint = StartPoint;
+
+				NavDoors[i].NumObstacles = 0;
+
+				for (int i = 0; i < NumObstacles; i++)
+				{
+					NavDoors[i].ObstacleRefs[NavDoors[i].NumObstacles] = UTIL_AddTemporaryObstacle(CurrentPoint, CylinderRadius, SizeZ, DT_TILECACHE_NULL_AREA);
+
+					NavDoors[i].NumObstacles++;
+
+					if (bUseXAxis)
+					{
+						CurrentPoint.x += CylinderRadius * 2.0f;
+					}
+					else
+					{
+						CurrentPoint.y += CylinderRadius * 2.0f;
+					}
+				}
+
+				NavDoors[i].CurrentPosition = ThisLocation;
+			}
+		}
+	}
+}
+
 // TODO: Need to add orientated box obstacle for door
 void UTIL_PopulateDoors()
 {
@@ -6543,6 +6622,8 @@ void UTIL_PopulateDoors()
 
 		NumDoors++;
 	}
+
+	BSP_GetEntityKeyValue(nullptr, NULL);
 }
 
 const nav_door* UTIL_GetNavDoorByEdict(const edict_t* DoorEdict)

@@ -105,7 +105,8 @@ enum DoorActivationType
 typedef struct _NAV_DOOR
 {
 	edict_t* DoorEdict = nullptr; // Reference to the func_door
-	unsigned int ObstacleRef = 0; // Dynamic obstacle ref. Used to add/remove the obstacle as the door is opened/closed
+	unsigned int ObstacleRefs[32]; // Dynamic obstacle ref. Used to add/remove the obstacle as the door is opened/closed
+	int NumObstacles = 0;
 	edict_t* TriggerEdicts[8] = { nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr }; // Reference to the trigger edicts (e.g. func_trigger, func_button etc.)
 	int NumTriggers = 0; // How many triggers can activate the door (bot will pick best one)
 	DoorActivationType ActivationType = DOOR_NONE; // How the door should be opened
@@ -291,7 +292,7 @@ Vector UTIL_GetNearestPointOnNavWall(const int NavProfileIndex, const Vector Loc
 	Using DT_AREA_NULL will effectively cut a hole in the nav mesh, meaning it's no longer considered a valid mesh position.
 */
 unsigned int UTIL_AddTemporaryObstacle(const Vector Location, float Radius, float Height, int area);
-unsigned int UTIL_AddTemporaryBoxObstacle(const Vector Location, Vector HalfExtents, float OrientationInRadians, int area);
+unsigned int UTIL_AddTemporaryBoxObstacle(Vector bMin, Vector bMax, int area);
 
 /*	Removes the temporary obstacle from the mesh. The area will return to its default type (either walk or crouch).
 	Removing a DT_AREA_NULL obstacle will "fill in" the hole again, making it traversable and considered a valid mesh position.
@@ -468,8 +469,13 @@ void OnBotStartLadder(bot_t* pBot);
 // Event called when a bot leaves a ladder
 void OnBotEndLadder(bot_t* pBot);
 
-// Not in use yet, will track all doors and their current status
+// Tracks all doors and their current status
 void UTIL_PopulateDoors();
+
+// Mark the door with the matching target name as weldable. Weld-activated doors leave permanent markers on the nav mesh to block movement since they can only be triggered once
+void UTIL_MarkDoorWeldable(const char* DoorTargetName);
+
+void UTIL_UpdateWeldableDoors();
 
 const nav_door* UTIL_GetNavDoorByEdict(const edict_t* DoorEdict);
 

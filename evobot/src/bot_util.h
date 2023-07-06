@@ -43,6 +43,8 @@ static const float min_request_spam_time = 10.0f;
 static const double BOT_MIN_FRAME_TIME = (1.0 / 60.0);
 
 
+
+
 void BotLookAt(bot_t* pBot, edict_t* target);
 void BotLookAt(bot_t* pBot, const Vector target);
 void BotMoveLookAt(bot_t* pBot, const Vector target);
@@ -167,7 +169,7 @@ bot_t* UTIL_GetSpectatedBot(const edict_t* Observer);
 
 bool BotHasTaskOfType(bot_t* pBot, BotTaskType TaskType);
 
-const char* BSP_GetEntityKeyValue(const edict_t* Entity, const char* Key);
+
 
 Vector UTIL_GetClosestPointOnEntityToLocation(const Vector UserLocation, edict_t* ButtonEdict);
 
