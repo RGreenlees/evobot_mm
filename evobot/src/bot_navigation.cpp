@@ -359,7 +359,7 @@ void UTIL_DrawTemporaryObstacles()
 		{
 			const dtTileCacheObstacle* ObstacleRef = m_tileCache->getObstacle(i);
 
-			if (!ObstacleRef) { continue; }
+			if (!ObstacleRef || ObstacleRef->state != DT_OBSTACLE_PROCESSED) { continue; }
 
 			if (ObstacleRef->type == ObstacleType::DT_OBSTACLE_BOX)
 			{
@@ -533,6 +533,26 @@ unsigned int UTIL_AddTemporaryObstacle(const Vector Location, float Radius, floa
 	return ObstacleNum;
 }
 
+void UTIL_AddTemporaryObstacles(const Vector Location, float Radius, float Height, int area, unsigned int* ObstacleRefArray)
+{
+	unsigned int ObstacleNum = 0;
+
+	float Pos[3] = { Location.x, Location.z - (Height * 0.5f), -Location.y };
+
+	for (int i = 0; i < MAX_NAV_MESHES; i++)
+	{
+		ObstacleRefArray[i] = 0;
+
+		if (NavMeshes[i].tileCache)
+		{
+			dtObstacleRef ObsRef = 0;
+			NavMeshes[i].tileCache->addObstacle(Pos, Radius, Height, area, &ObsRef);
+
+			ObstacleRefArray[i] = (unsigned int)ObsRef;
+		}
+	}
+}
+
 unsigned int UTIL_AddTemporaryBoxObstacle(const Vector bMin, const Vector bMax, int area)
 {
 	unsigned int ObstacleNum = 0;
@@ -614,6 +634,20 @@ void UTIL_RemoveTemporaryObstacle(unsigned int ObstacleRef)
 		{
 			NavMeshes[i].tileCache->removeObstacle((dtObstacleRef)ObstacleRef);
 		}
+	}
+}
+
+void UTIL_RemoveTemporaryObstacles(unsigned int* ObstacleRefs)
+{
+	for (int i = 0; i < MAX_NAV_MESHES; i++)
+	{
+		if (NavMeshes[i].tileCache)
+		{
+			NavMeshes[i].tileCache->removeObstacle(ObstacleRefs[i]);
+
+		}
+
+		ObstacleRefs[i] = 0;
 	}
 }
 
@@ -6406,19 +6440,12 @@ void UTIL_MarkDoorWeldable(const char* DoorTargetName)
 
 			if (NavDoors[i].NumObstacles > 0)
 			{
-				for (int i = 0; i < NavDoors[i].NumObstacles; i++)
+				for (int ii = 0; ii < NavDoors[i].NumObstacles; ii++)
 				{
-					UTIL_RemoveTemporaryObstacle(NavDoors[i].ObstacleRefs[i]);
+					UTIL_RemoveTemporaryObstacles(NavDoors[i].ObstacleRefs[ii]);
 				}
-				
+				NavDoors[i].NumObstacles = 0;
 			}
-
-			//NavDoors[i].ObstacleRef = UTIL_AddTemporaryObstacle(UTIL_GetCentreOfEntity(NavDoors[i].DoorEdict), 100.0f, 200.0f, DT_TILECACHE_NULL_AREA);
-
-			Vector bMin = NavDoors[i].DoorEdict->v.absmin - Vector(0.0f, 0.0f, 10.0f);
-			Vector bMax = NavDoors[i].DoorEdict->v.absmax - Vector(0.0f, 0.0f, 10.0f);
-
-			//NavDoors[i].ObstacleRef = UTIL_AddTemporaryBoxObstacle(bMin, bMax, DT_TILECACHE_NULL_AREA);
 
 			float SizeX = NavDoors[i].DoorEdict->v.size.x;
 			float SizeY = NavDoors[i].DoorEdict->v.size.y;
@@ -6447,17 +6474,15 @@ void UTIL_MarkDoorWeldable(const char* DoorTargetName)
 				StartPoint.y = NavDoors[i].DoorEdict->v.absmin.y + CylinderRadius;
 			}
 
-			StartPoint.z -= 5.0f;
+			StartPoint.z -= 25.0f;
 
 			Vector CurrentPoint = StartPoint;
 
-			NavDoors[i].NumObstacles = 0;
+			NavDoors[i].NumObstacles = NumObstacles;
 
-			for (int i = 0; i < NumObstacles; i++)
+			for (int ii = 0; ii < NumObstacles; ii++)
 			{
-				NavDoors[i].ObstacleRefs[NavDoors[i].NumObstacles] = UTIL_AddTemporaryObstacle(CurrentPoint, CylinderRadius, SizeZ, DT_TILECACHE_NULL_AREA);
-
-				NavDoors[i].NumObstacles++;
+				UTIL_AddTemporaryObstacles(CurrentPoint, CylinderRadius, SizeZ, DT_TILECACHE_NULL_AREA, NavDoors[i].ObstacleRefs[ii]);
 
 				if (bUseXAxis)
 				{
@@ -6484,9 +6509,9 @@ void UTIL_UpdateWeldableDoors()
 			{
 				if (NavDoors[i].NumObstacles > 0)
 				{
-					for (int i = 0; i < NavDoors[i].NumObstacles; i++)
+					for (int ii = 0; ii < NavDoors[i].NumObstacles; ii++)
 					{
-						UTIL_RemoveTemporaryObstacle(NavDoors[i].ObstacleRefs[i]);
+						UTIL_RemoveTemporaryObstacles(NavDoors[i].ObstacleRefs[ii]);
 					}
 
 					NavDoors[i].NumObstacles = 0;
@@ -6526,17 +6551,15 @@ void UTIL_UpdateWeldableDoors()
 					StartPoint.y = NavDoors[i].DoorEdict->v.absmin.y + CylinderRadius;
 				}
 
-				StartPoint.z -= 5.0f;
+				StartPoint.z -= 25.0f;
 
 				Vector CurrentPoint = StartPoint;
 
-				NavDoors[i].NumObstacles = 0;
+				NavDoors[i].NumObstacles = NumObstacles;
 
-				for (int i = 0; i < NumObstacles; i++)
+				for (int ii = 0; ii < NumObstacles; ii++)
 				{
-					NavDoors[i].ObstacleRefs[NavDoors[i].NumObstacles] = UTIL_AddTemporaryObstacle(CurrentPoint, CylinderRadius, SizeZ, DT_TILECACHE_NULL_AREA);
-
-					NavDoors[i].NumObstacles++;
+					UTIL_AddTemporaryObstacles(CurrentPoint, CylinderRadius, SizeZ, DT_TILECACHE_NULL_AREA, NavDoors[i].ObstacleRefs[ii]);
 
 					if (bUseXAxis)
 					{

@@ -105,7 +105,7 @@ enum DoorActivationType
 typedef struct _NAV_DOOR
 {
 	edict_t* DoorEdict = nullptr; // Reference to the func_door
-	unsigned int ObstacleRefs[32]; // Dynamic obstacle ref. Used to add/remove the obstacle as the door is opened/closed
+	unsigned int ObstacleRefs[32][8]; // Dynamic obstacle ref. Used to add/remove the obstacle as the door is opened/closed
 	int NumObstacles = 0;
 	edict_t* TriggerEdicts[8] = { nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr }; // Reference to the trigger edicts (e.g. func_trigger, func_button etc.)
 	int NumTriggers = 0; // How many triggers can activate the door (bot will pick best one)
@@ -292,12 +292,17 @@ Vector UTIL_GetNearestPointOnNavWall(const int NavProfileIndex, const Vector Loc
 	Using DT_AREA_NULL will effectively cut a hole in the nav mesh, meaning it's no longer considered a valid mesh position.
 */
 unsigned int UTIL_AddTemporaryObstacle(const Vector Location, float Radius, float Height, int area);
+void UTIL_AddTemporaryObstacles(const Vector Location, float Radius, float Height, int area, unsigned int* ObstacleRefArray);
+
+
 unsigned int UTIL_AddTemporaryBoxObstacle(Vector bMin, Vector bMax, int area);
 
 /*	Removes the temporary obstacle from the mesh. The area will return to its default type (either walk or crouch).
 	Removing a DT_AREA_NULL obstacle will "fill in" the hole again, making it traversable and considered a valid mesh position.
 */
 void UTIL_RemoveTemporaryObstacle(unsigned int ObstacleRef);
+
+void UTIL_RemoveTemporaryObstacles(unsigned int* ObstacleRefs);
 
 // Not currently working. Intended to draw the nav mesh polys within a radius of the player, colour coded by area. Does nothing right now.
 void DEBUG_DrawNavMesh(const Vector DrawCentre, const int NavMeshIndex);

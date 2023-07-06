@@ -166,10 +166,9 @@ void SetHiveStatus(int HiveIndex, int NewStatus)
 	default: break;
 	}
 
-	if (Hives[HiveIndex].Status != HIVE_STATUS_UNBUILT && Hives[HiveIndex].ObstacleRef == 0)
+	if (Hives[HiveIndex].Status != HIVE_STATUS_UNBUILT && Hives[HiveIndex].ObstacleRefs[REGULAR_NAV_MESH] == 0)
 	{
-		Hives[HiveIndex].ObstacleRef = UTIL_AddTemporaryObstacle(UTIL_GetCentreOfEntity(Hives[HiveIndex].edict) - Vector(0.0f, 0.0f, 25.0f), 125.0f, 300.0f, DT_AREA_NULL);
-		UTIL_UpdateTileCache();
+		UTIL_AddTemporaryObstacles(UTIL_GetCentreOfEntity(Hives[HiveIndex].edict) - Vector(0.0f, 0.0f, 25.0f), 125.0f, 300.0f, DT_AREA_NULL, Hives[HiveIndex].ObstacleRefs);
 
 		Hives[HiveIndex].FloorLocation = ZERO_VECTOR;
 		Hives[HiveIndex].NextFloorLocationCheck = gpGlobals->time + 1.0f;
@@ -177,11 +176,7 @@ void SetHiveStatus(int HiveIndex, int NewStatus)
 
 	if (Hives[HiveIndex].Status == HIVE_STATUS_UNBUILT)
 	{
-		if (Hives[HiveIndex].ObstacleRef > 0)
-		{
-			UTIL_RemoveTemporaryObstacle(Hives[HiveIndex].ObstacleRef);
-			Hives[HiveIndex].ObstacleRef = 0;
-		}
+		UTIL_RemoveTemporaryObstacles(Hives[HiveIndex].ObstacleRefs);
 		
 		Hives[HiveIndex].FloorLocation = UTIL_GetFloorUnderEntity(Hives[HiveIndex].edict);
 	}
@@ -661,7 +656,7 @@ void UTIL_RefreshBuildableStructures()
 			}
 
 			UTIL_OnStructureDestroyed(it->second.StructureType, it->second.Location);
-			UTIL_RemoveTemporaryObstacle(it->second.ObstacleRef);
+			UTIL_RemoveTemporaryObstacles(it->second.ObstacleRefs);
 			it = MarineBuildableStructureMap.erase(it);
 		}
 		else
@@ -688,7 +683,7 @@ void UTIL_RefreshBuildableStructures()
 			}
 
 			UTIL_OnStructureDestroyed(it->second.StructureType, it->second.Location);
-			UTIL_RemoveTemporaryObstacle(it->second.ObstacleRef);
+			UTIL_RemoveTemporaryObstacles(it->second.ObstacleRefs);
 			it = AlienBuildableStructureMap.erase(it);
 		}
 		else
@@ -3256,11 +3251,11 @@ void UTIL_UpdateBuildableStructure(edict_t* Structure)
 			{
 				unsigned int area = UTIL_GetAreaForObstruction(StructureType);
 				float Radius = UTIL_GetStructureRadiusForObstruction(StructureType);
-				MarineBuildableStructureMap[EntIndex].ObstacleRef = UTIL_AddTemporaryObstacle(UTIL_GetCentreOfEntity(MarineBuildableStructureMap[EntIndex].edict), Radius, 100.0f, area);
+				UTIL_AddTemporaryObstacles(UTIL_GetCentreOfEntity(MarineBuildableStructureMap[EntIndex].edict), Radius, 100.0f, area, MarineBuildableStructureMap[EntIndex].ObstacleRefs);
 			}
 			else
 			{
-				MarineBuildableStructureMap[EntIndex].ObstacleRef = 0;
+				memset(MarineBuildableStructureMap[EntIndex].ObstacleRefs, 0, sizeof(unsigned int) * MAX_NAV_MESHES);
 			}
 
 			UTIL_OnStructureCreated(&MarineBuildableStructureMap[EntIndex]);
@@ -3326,11 +3321,11 @@ void UTIL_UpdateBuildableStructure(edict_t* Structure)
 			{
 				unsigned int area = UTIL_GetAreaForObstruction(StructureType);
 				float Radius = UTIL_GetStructureRadiusForObstruction(StructureType);
-				AlienBuildableStructureMap[EntIndex].ObstacleRef = UTIL_AddTemporaryObstacle(UTIL_GetCentreOfEntity(AlienBuildableStructureMap[EntIndex].edict), Radius, 100.0f, area);
+				UTIL_AddTemporaryObstacles(UTIL_GetCentreOfEntity(AlienBuildableStructureMap[EntIndex].edict), Radius, 100.0f, area, AlienBuildableStructureMap[EntIndex].ObstacleRefs);
 			}
 			else
 			{
-				AlienBuildableStructureMap[EntIndex].ObstacleRef = 0;
+				memset(AlienBuildableStructureMap[EntIndex].ObstacleRefs, 0, sizeof(unsigned int) * MAX_NAV_MESHES);
 			}
 
 			UTIL_OnStructureCreated(&AlienBuildableStructureMap[EntIndex]);
