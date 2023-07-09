@@ -192,7 +192,7 @@ void BotAlienSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 			if (FNullEnt(OtherBuilder) || GetPlayerResources(OtherBuilder) < GetPlayerResources(pBot->pEdict))
 			{
-				Vector BuildLoc = FindClosestNavigablePointToDestination(GORGE_BUILD_NAV_PROFILE, pBot->pEdict->v.origin, UnbuiltHiveIndex->FloorLocation, UTIL_MetresToGoldSrcUnits(15.0f));
+				Vector BuildLoc = FindClosestNavigablePointToDestination(GORGE_BUILD_NAV_PROFILE, pBot->pEdict->v.origin, UnbuiltHiveIndex->FloorLocation, UTIL_MetresToGoldSrcUnits(8.0f));
 
 				if (BuildLoc == ZERO_VECTOR)
 				{
@@ -571,9 +571,6 @@ void AlienBuilderSetPrimaryTask(bot_t* pBot, bot_task* Task)
 {
 	edict_t* pEdict = pBot->pEdict;
 
-	// If we already have a build task then do nothing
-	if (Task->TaskType == TASK_BUILD) { return; }
-
 	int MoveProfile = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
 
 	NSStructureType TechChamberToBuild = STRUCTURE_NONE;
@@ -586,42 +583,47 @@ void AlienBuilderSetPrimaryTask(bot_t* pBot, bot_task* Task)
 	if (UTIL_ActiveHiveWithTechExists(HiveTechOne) && UTIL_GetStructureCountOfType(UTIL_GetChamberTypeForHiveTech(HiveTechOne)) < 3)
 	{
 		TechChamberToBuild = UTIL_GetChamberTypeForHiveTech(HiveTechOne);
-		HiveIndex = UTIL_GetHiveWithTech(HiveTechOne);
 	}
 	else if (UTIL_ActiveHiveWithTechExists(HiveTechTwo) && UTIL_GetStructureCountOfType(UTIL_GetChamberTypeForHiveTech(HiveTechTwo)) < 3)
 	{
 		TechChamberToBuild = UTIL_GetChamberTypeForHiveTech(HiveTechTwo);
-		HiveIndex = UTIL_GetHiveWithTech(HiveTechTwo);
 	}
 	else if (UTIL_ActiveHiveWithTechExists(HiveTechThree) && UTIL_GetStructureCountOfType(UTIL_GetChamberTypeForHiveTech(HiveTechThree)) < 3)
 	{
 		TechChamberToBuild = UTIL_GetChamberTypeForHiveTech(HiveTechThree);
-		HiveIndex = UTIL_GetHiveWithTech(HiveTechThree);
 	}
 
-	if (HiveIndex && TechChamberToBuild != STRUCTURE_NONE)
+	if (TechChamberToBuild != STRUCTURE_NONE)
 	{
-		Vector NearestPointToHive = FindClosestNavigablePointToDestination(GORGE_BUILD_NAV_PROFILE, pBot->pEdict->v.origin, HiveIndex->FloorLocation, UTIL_MetresToGoldSrcUnits(50.0f));
+		if (Task->TaskType == TASK_BUILD && Task->StructureType == TechChamberToBuild) { return; }
 
-		if (NearestPointToHive == ZERO_VECTOR)
+
+		HiveIndex = UTIL_GetNearestBuiltHiveToLocation(pBot->pEdict->v.origin);
+
+		if (HiveIndex)
 		{
-			NearestPointToHive = pBot->pEdict->v.origin;
-		}
+			Vector NearestPointToHive = FindClosestNavigablePointToDestination(GORGE_BUILD_NAV_PROFILE, pBot->pEdict->v.origin, HiveIndex->FloorLocation, UTIL_MetresToGoldSrcUnits(50.0f));
 
-		Vector BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(GORGE_BUILD_NAV_PROFILE, NearestPointToHive, UTIL_MetresToGoldSrcUnits(5.0f));
+			if (NearestPointToHive == ZERO_VECTOR)
+			{
+				NearestPointToHive = pBot->pEdict->v.origin;
+			}
 
-		if (BuildLocation == ZERO_VECTOR)
-		{
-			BuildLocation = pBot->pEdict->v.origin;
-		}
+			Vector BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(GORGE_BUILD_NAV_PROFILE, NearestPointToHive, UTIL_MetresToGoldSrcUnits(5.0f));
 
-		if (BuildLocation != ZERO_VECTOR)
-		{
-			TASK_SetBuildTask(pBot, Task, TechChamberToBuild, BuildLocation, true);
+			if (BuildLocation == ZERO_VECTOR)
+			{
+				BuildLocation = pBot->pEdict->v.origin;
+			}
+
+			if (BuildLocation != ZERO_VECTOR)
+			{
+				TASK_SetBuildTask(pBot, Task, TechChamberToBuild, BuildLocation, true);
+				return;
+			}
+
 			return;
 		}
-
-		return;
 	}
 
 	HiveIndex = UTIL_GetFirstHiveWithoutTech();
@@ -642,25 +644,64 @@ void AlienBuilderSetPrimaryTask(bot_t* pBot, bot_task* Task)
 			TechChamberToBuild = UTIL_GetChamberTypeForHiveTech(HiveTechThree);
 		}
 
-		Vector NearestPointToHive = FindClosestNavigablePointToDestination(GORGE_BUILD_NAV_PROFILE, pBot->pEdict->v.origin, HiveIndex->FloorLocation, UTIL_MetresToGoldSrcUnits(50.0f));
+		if (Task->TaskType == TASK_BUILD && Task->StructureType == TechChamberToBuild) { return; }
 
-		if (NearestPointToHive == ZERO_VECTOR)
+		const hive_definition* NearestHive = UTIL_GetNearestBuiltHiveToLocation(pBot->pEdict->v.origin);
+		edict_t* NearestResTower = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_ALIEN_RESTOWER, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(50.0f), false, false);
+
+		Vector HiveOrTowerPoint = ZERO_VECTOR;
+
+		bool bBuildAtHive = false;
+
+		if (!FNullEnt(NearestResTower))
 		{
-			NearestPointToHive = pBot->pEdict->v.origin;
+			HiveOrTowerPoint = NearestResTower->v.origin;
 		}
 
-		Vector BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(GORGE_BUILD_NAV_PROFILE, NearestPointToHive, UTIL_MetresToGoldSrcUnits(5.0f));
-
-		if (BuildLocation == ZERO_VECTOR)
+		if (NearestHive)
 		{
-			BuildLocation = pBot->pEdict->v.origin;
+			if (HiveOrTowerPoint == ZERO_VECTOR)
+			{
+				HiveOrTowerPoint = NearestHive->FloorLocation;
+				bBuildAtHive = true;
+			}
+			else
+			{
+				float DistToHive = vDist2DSq(pBot->pEdict->v.origin, NearestHive->FloorLocation);
+				float DistToResTower = vDist2DSq(pBot->pEdict->v.origin, NearestResTower->v.origin);
+
+				bBuildAtHive = (DistToHive <= DistToResTower);
+
+				HiveOrTowerPoint = (bBuildAtHive) ? NearestHive->FloorLocation : NearestResTower->v.origin;
+			}
 		}
 
-		if (BuildLocation != ZERO_VECTOR)
+		if (HiveOrTowerPoint != ZERO_VECTOR)
 		{
-			TASK_SetBuildTask(pBot, Task, TechChamberToBuild, BuildLocation, true);
-			return;
+
+			Vector NearestPointToBuildPoint = FindClosestNavigablePointToDestination(GORGE_BUILD_NAV_PROFILE, pBot->pEdict->v.origin, HiveOrTowerPoint, UTIL_MetresToGoldSrcUnits(50.0f));
+
+			if (NearestPointToBuildPoint == ZERO_VECTOR)
+			{
+				NearestPointToBuildPoint = pBot->pEdict->v.origin;
+			}
+
+			float BuildDist = (bBuildAtHive) ? UTIL_MetresToGoldSrcUnits(5.0f) : UTIL_MetresToGoldSrcUnits(3.0f);
+
+			Vector BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(GORGE_BUILD_NAV_PROFILE, NearestPointToBuildPoint, BuildDist);
+
+			if (BuildLocation == ZERO_VECTOR)
+			{
+				BuildLocation = pBot->pEdict->v.origin;
+			}
+
+			if (BuildLocation != ZERO_VECTOR)
+			{
+				TASK_SetBuildTask(pBot, Task, TechChamberToBuild, BuildLocation, true);
+				return;
+			}
 		}
+		
 	}
 
 	// Build 2 defence chambers under every hive
@@ -670,6 +711,8 @@ void AlienBuilderSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 		if (HiveNeedsSupporting)
 		{
+			if (Task->TaskType == TASK_BUILD && Task->StructureType == STRUCTURE_ALIEN_DEFENCECHAMBER) { return; }
+
 			Vector NearestPointToHive = FindClosestNavigablePointToDestination(MoveProfile, pBot->pEdict->v.origin, HiveNeedsSupporting->FloorLocation, UTIL_MetresToGoldSrcUnits(10.0f));
 
 			if (NearestPointToHive != ZERO_VECTOR)
@@ -692,6 +735,8 @@ void AlienBuilderSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 		if (HiveNeedsSupporting)
 		{
+			if (Task->TaskType == TASK_BUILD && Task->StructureType == STRUCTURE_ALIEN_MOVEMENTCHAMBER) { return; }
+
 			Vector NearestPointToHive = FindClosestNavigablePointToDestination(MoveProfile, pBot->pEdict->v.origin, HiveNeedsSupporting->FloorLocation, UTIL_MetresToGoldSrcUnits(10.0f));
 
 			if (NearestPointToHive != ZERO_VECTOR)
@@ -714,6 +759,8 @@ void AlienBuilderSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 		if (HiveNeedsSupporting)
 		{
+			if (Task->TaskType == TASK_BUILD && Task->StructureType == STRUCTURE_ALIEN_SENSORYCHAMBER) { return; }
+
 			Vector NearestPointToHive = FindClosestNavigablePointToDestination(MoveProfile, pBot->pEdict->v.origin, HiveNeedsSupporting->FloorLocation, UTIL_MetresToGoldSrcUnits(10.0f));
 
 			if (NearestPointToHive != ZERO_VECTOR)
@@ -729,6 +776,8 @@ void AlienBuilderSetPrimaryTask(bot_t* pBot, bot_task* Task)
 			}
 		}
 	}
+
+	if (Task->TaskType == TASK_BUILD) { return; }
 
 	// Reinforce resource nodes which are closest to the marine base to start boxing them in and denying them access to the rest of the map
 	const resource_node* NearestUnprotectedResNode = UTIL_GetNearestUnprotectedResNode(UTIL_GetCommChairLocation());
@@ -746,6 +795,7 @@ void AlienBuilderSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 		if (NumOffenceChambers < 2)
 		{
+
 			TASK_SetBuildTask(pBot, Task, STRUCTURE_ALIEN_OFFENCECHAMBER, BuildLocation, false);
 			return;
 		}

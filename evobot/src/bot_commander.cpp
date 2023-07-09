@@ -446,19 +446,19 @@ bool CommanderProgressOrderAction(bot_t* CommanderBot, int ActionIndex, int Prio
 		{
 			if (FreeResNodeIndex->bIsOccupied)
 			{
-				char buf[128];
+				char buf[512];
 				sprintf(buf, "Destroy the alien tower %s so I can put down one", STRING(PlayerEdict->v.netname));
 				BotTeamSay(CommanderBot, 2.0f, buf);
 			}
 			else if (CommanderBot->resources < kResourceTowerCost)
 			{
-				char buf[128];
+				char buf[512];
 				sprintf(buf, "Hold on %s, just waiting on resources", STRING(PlayerEdict->v.netname));
 				BotTeamSay(CommanderBot, 2.0f, buf);
 			}
 			else
 			{
-				char buf[128];
+				char buf[512];
 				sprintf(buf, "Hold on %s, will drop a tower for you in a moment", STRING(PlayerEdict->v.netname));
 				BotTeamSay(CommanderBot, 2.0f, buf);
 			}
@@ -468,7 +468,7 @@ bool CommanderProgressOrderAction(bot_t* CommanderBot, int ActionIndex, int Prio
 	}
 	else
 	{
-		char buf[128];
+		char buf[512];
 		sprintf(buf, "Hold on %s, I'll find something for you to do", STRING(PlayerEdict->v.netname));
 		BotTeamSay(CommanderBot, buf);
 	}
@@ -663,7 +663,7 @@ void CommanderReceiveAmmoRequest(bot_t* pBot, edict_t* Requestor)
 
 	if (UTIL_StructureOfTypeExistsInLocation(STRUCTURE_MARINE_ANYARMOURY, Requestor->v.origin, UTIL_MetresToGoldSrcUnits(15.0f)))
 	{
-		char buf[64];
+		char buf[512];
 		sprintf(buf, "Can you use the armoury please, %s?", STRING(Requestor->v.netname));
 		BotTeamSay(pBot, 2.0f, buf);
 		return;
@@ -671,7 +671,7 @@ void CommanderReceiveAmmoRequest(bot_t* pBot, edict_t* Requestor)
 
 	if (UTIL_GetItemCountOfTypeInArea(ITEM_MARINE_AMMO, Requestor->v.origin, UTIL_MetresToGoldSrcUnits(10.0f)) > 0)
 	{
-		char buf[64];
+		char buf[512];
 		sprintf(buf, "I've already dropped ammo there, %s", STRING(Requestor->v.netname));
 		BotTeamSay(pBot, 2.0f, buf);
 		return;

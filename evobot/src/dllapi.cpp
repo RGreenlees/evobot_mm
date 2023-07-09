@@ -1000,7 +1000,7 @@ void StartFrame(void)
 					last_item_refresh_time = gpGlobals->time;
 				}
 
-				edict_t* SpectatorTarget = INDEXENT(GAME_GetListenServerEdict()->v.iuser2);
+				/*edict_t* SpectatorTarget = INDEXENT(GAME_GetListenServerEdict()->v.iuser2);
 
 				if (!FNullEnt(SpectatorTarget))
 				{
@@ -1012,7 +1012,7 @@ void StartFrame(void)
 
 						UTIL_DisplayBotInfo(pBot);
 					}
-				}
+				}*/
 
 			}
 

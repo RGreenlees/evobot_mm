@@ -532,7 +532,7 @@ bool UTIL_IsAlienBuildTaskStillValid(bot_t* pBot, bot_task* Task)
 
 		if (!FNullEnt(OtherGorge) && GetPlayerResources(OtherGorge) > pBot->resources)
 		{
-			char buf[128];
+			char buf[512];
 			sprintf(buf, "I won't drop hive, %s can do it", STRING(OtherGorge->v.netname));
 			BotTeamSay(pBot, 1.0f, buf);
 			return false;
@@ -540,7 +540,7 @@ bool UTIL_IsAlienBuildTaskStillValid(bot_t* pBot, bot_task* Task)
 
 		if (UTIL_StructureOfTypeExistsInLocation(STRUCTURE_MARINE_PHASEGATE, HiveIndex->Location, UTIL_MetresToGoldSrcUnits(15.0f)))
 		{
-			char buf[128];
+			char buf[512];
 			sprintf(buf, "We need to clear %s before I can build the hive", UTIL_GetClosestMapLocationToPoint(HiveIndex->Location));
 			BotTeamSay(pBot, 1.0f, buf);
 			return false;
@@ -548,7 +548,7 @@ bool UTIL_IsAlienBuildTaskStillValid(bot_t* pBot, bot_task* Task)
 
 		if (UTIL_StructureOfTypeExistsInLocation(STRUCTURE_MARINE_TURRETFACTORY, HiveIndex->Location, UTIL_MetresToGoldSrcUnits(15.0f)))
 		{
-			char buf[128];
+			char buf[512];
 			sprintf(buf, "We need to clear %s before I can build the hive", UTIL_GetClosestMapLocationToPoint(HiveIndex->Location));
 			BotTeamSay(pBot, 1.0f, buf);
 			return false;
@@ -1212,6 +1212,17 @@ void AlienProgressHealTask(bot_t* pBot, bot_task* Task)
 
 void AlienProgressBuildTask(bot_t* pBot, bot_task* Task)
 {
+	if (gpGlobals->time - Task->LastBuildAttemptTime < 1.0f)
+	{ 
+		// Keep moving towards the hive if trying to build one
+		if (Task->StructureType == STRUCTURE_ALIEN_HIVE)
+		{
+			MoveTo(pBot, Task->TaskLocation, MOVESTYLE_NORMAL);
+		}
+
+		return;
+	}
+
 	if (!FNullEnt(Task->TaskTarget))
 	{
 
@@ -1250,10 +1261,11 @@ void AlienProgressBuildTask(bot_t* pBot, bot_task* Task)
 
 		float DistFromHiveLocation = vDist3DSq(pBot->pEdict->v.origin, HiveToBuild->edict->v.origin);
 
-		if (DistFromHiveLocation < sqrf(UTIL_MetresToGoldSrcUnits(10.0f)) && UTIL_QuickTrace(pBot->pEdict, pBot->pEdict->v.origin, HiveToBuild->edict->v.origin))
+		if (DistFromHiveLocation < sqrf(UTIL_MetresToGoldSrcUnits(8.0f)) && UTIL_QuickTrace(pBot->pEdict, pBot->pEdict->v.origin, HiveToBuild->edict->v.origin))
 		{
 			if (!IsPlayerGorge(pBot->pEdict))
 			{
+				MoveTo(pBot, Task->TaskLocation, MOVESTYLE_NORMAL);
 				BotEvolveLifeform(pBot, CLASS_GORGE);
 				return;
 			}
@@ -1339,8 +1351,6 @@ void AlienProgressBuildTask(bot_t* pBot, bot_task* Task)
 		Vector LookLocation = Task->TaskLocation;
 		LookLocation.z = Task->TaskLocation.z + GetPlayerHeight(pBot->pEdict, false);
 		BotLookAt(pBot, LookLocation);
-
-		if (gpGlobals->time - Task->LastBuildAttemptTime < 1.0f) { return; }
 
 		float LookDot = UTIL_GetDotProduct2D(UTIL_GetForwardVector2D(pBot->pEdict->v.v_angle), UTIL_GetVectorNormal2D(Task->TaskLocation - pBot->pEdict->v.origin));
 
@@ -1969,7 +1979,7 @@ void TASK_SetBuildTask(bot_t* pBot, bot_task* Task, const NSStructureType Struct
 
 	if (!Location) { return; }
 
-	float MaxDist = (StructureType == STRUCTURE_ALIEN_HIVE) ? UTIL_MetresToGoldSrcUnits(5.0f) : UTIL_MetresToGoldSrcUnits(1.0f);
+	float MaxDist = (StructureType == STRUCTURE_ALIEN_HIVE) ? UTIL_MetresToGoldSrcUnits(5.0f) : UTIL_MetresToGoldSrcUnits(10.0f);
 
 	if (Task->TaskType == TASK_BUILD && Task->StructureType == StructureType && vDist2DSq(Task->TaskLocation, Location) < sqrf(MaxDist)) { return; }
 
@@ -1987,7 +1997,7 @@ void TASK_SetBuildTask(bot_t* pBot, bot_task* Task, const NSStructureType Struct
 
 		if (StructureType == STRUCTURE_ALIEN_HIVE)
 		{
-			char buf[64];
+			char buf[512];
 			sprintf(buf, "I'll drop hive at %s", UTIL_GetClosestMapLocationToPoint(Task->TaskLocation));
 
 			BotTeamSay(pBot, 1.0f, buf);
