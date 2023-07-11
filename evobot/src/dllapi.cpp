@@ -119,15 +119,37 @@ void ClientCommand(edict_t* pEntity)
 		RETURN_META(MRES_SUPERCEDE);
 	}
 
-	if (FStrEq(pcmd, "testboxobstacle"))
+	if (FStrEq(pcmd, "testbuildchamber"))
 	{
-		Vector bMin = pEntity->v.absmin;
-		Vector bMax = pEntity->v.absmax;
+		for (int i = 0; i < MAX_CLIENTS; i++)
+		{
+			if (bots[i].is_used && !FNullEnt(bots[i].pEdict) && IsPlayerAlien(bots[i].pEdict))
+			{
+				TASK_SetBuildTask(&bots[i], &bots[i].PrimaryBotTask, STRUCTURE_ALIEN_OFFENCECHAMBER, pEntity->v.origin, true);
+			}
 
-		bMin.z -= 5.0f;
-		bMax.z -= 5.0f;
+		}
 
-		UTIL_AddTemporaryBoxObstacle(bMin, bMax, DT_AREA_NULL);
+		RETURN_META(MRES_SUPERCEDE);
+	}
+
+	if (FStrEq(pcmd, "testbuildhive"))
+	{
+		for (int i = 0; i < MAX_CLIENTS; i++)
+		{
+			if (bots[i].is_used && !FNullEnt(bots[i].pEdict) && IsPlayerAlien(bots[i].pEdict))
+			{
+				const hive_definition* hive = UTIL_GetNearestHiveOfStatus(pEntity->v.origin, HIVE_STATUS_UNBUILT);
+
+				if (hive)
+				{
+					TASK_SetBuildTask(&bots[i], &bots[i].PrimaryBotTask, STRUCTURE_ALIEN_HIVE, hive->FloorLocation, true);
+				}
+
+				
+			}
+
+		}
 
 		RETURN_META(MRES_SUPERCEDE);
 	}

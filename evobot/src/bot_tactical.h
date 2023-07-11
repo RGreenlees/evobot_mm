@@ -278,6 +278,8 @@ HiveStatusType UTIL_GetHiveStatus(const edict_t* Hive);
 
 edict_t* UTIL_FindSafePlayerInArea(const int Team, const Vector SearchLocation, float MinRadius, float MaxRadius);
 
+const resource_node* UTIL_GetResourceNodeAtIndex(int Index);
+
 const hive_definition* UTIL_GetHiveAtIndex(int Index);
 const hive_definition* UTIL_GetHiveFromEdict(edict_t* HiveEdict);
 int UTIL_GetNumTotalHives();

@@ -67,10 +67,7 @@ void PopulateEmptyHiveList()
 		Hives[NumTotalHives].Location = currStructure->v.origin;
 		Hives[NumTotalHives].FloorLocation = UTIL_GetFloorUnderEntity(currStructure);
 
-		if (Hives[NumTotalHives].HiveResNodeIndex < 0)
-		{
-			Hives[NumTotalHives].HiveResNodeIndex = UTIL_FindNearestResNodeIndexToLocation(currStructure->v.origin);
-		}
+		Hives[NumTotalHives].HiveResNodeIndex = UTIL_FindNearestResNodeIndexToLocation(currStructure->v.origin);
 
 		NumTotalHives++;
 	}
@@ -138,10 +135,7 @@ void SetHiveLocation(int HiveIndex, const Vector NewLocation)
 	Hives[HiveIndex].edict = ClosestHive;
 	Hives[HiveIndex].FloorLocation = UTIL_GetFloorUnderEntity(ClosestHive);
 
-	if (Hives[HiveIndex].HiveResNodeIndex < 0)
-	{
-		Hives[HiveIndex].HiveResNodeIndex = UTIL_FindNearestResNodeIndexToLocation(NewLocation);
-	}
+	Hives[HiveIndex].HiveResNodeIndex = UTIL_FindNearestResNodeIndexToLocation(NewLocation);
 
 }
 
@@ -846,7 +840,7 @@ void UTIL_OnStructureDestroyed(const NSStructureType Structure, const Vector Loc
 
 bool UTIL_AlienResNodeNeedsReinforcing(int ResNodeIndex)
 {
-	if (ResNodeIndex < 0 || ResNodeIndex > NumTotalResNodes - 1) { return false; }
+	if (ResNodeIndex < 0 || ResNodeIndex >= NumTotalResNodes) { return false; }
 
 	int NumOffenceChambers = UTIL_GetNumPlacedStructuresOfTypeInRadius(STRUCTURE_ALIEN_OFFENCECHAMBER, ResourceNodes[ResNodeIndex].origin, UTIL_MetresToGoldSrcUnits(5.0f));
 
@@ -3449,6 +3443,16 @@ const hive_definition* UTIL_GetNearestHiveAtLocation(const Vector Location)
 	if (Result > -1)
 	{
 		return &Hives[Result];
+	}
+
+	return nullptr;
+}
+
+const resource_node* UTIL_GetResourceNodeAtIndex(int Index)
+{
+	if (Index >= 0 && Index < NumTotalResNodes)
+	{
+		return &ResourceNodes[Index];
 	}
 
 	return nullptr;

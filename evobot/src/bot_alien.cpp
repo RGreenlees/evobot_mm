@@ -580,17 +580,47 @@ void AlienBuilderSetPrimaryTask(bot_t* pBot, bot_task* Task)
 	HiveTechStatus HiveTechTwo = (HiveTechStatus)CONFIG_GetHiveTechAtIndex(1);
 	HiveTechStatus HiveTechThree = (HiveTechStatus)CONFIG_GetHiveTechAtIndex(2);
 
-	if (UTIL_ActiveHiveWithTechExists(HiveTechOne) && UTIL_GetStructureCountOfType(UTIL_GetChamberTypeForHiveTech(HiveTechOne)) < 3)
+	if (UTIL_ActiveHiveWithTechExists(HiveTechOne))
 	{
-		TechChamberToBuild = UTIL_GetChamberTypeForHiveTech(HiveTechOne);
+		NSStructureType ChamberType = UTIL_GetChamberTypeForHiveTech(HiveTechOne);
+
+		int NumChambers = UTIL_GetStructureCountOfType(ChamberType);
+
+		if (NumChambers < 3)
+		{
+			if (NumChambers < 2 || FNullEnt(GetFirstBotWithBuildTask(ChamberType, pEdict)))
+			{
+				TechChamberToBuild = ChamberType;
+			}
+		}
 	}
-	else if (UTIL_ActiveHiveWithTechExists(HiveTechTwo) && UTIL_GetStructureCountOfType(UTIL_GetChamberTypeForHiveTech(HiveTechTwo)) < 3)
+	else if (UTIL_ActiveHiveWithTechExists(HiveTechTwo))
 	{
-		TechChamberToBuild = UTIL_GetChamberTypeForHiveTech(HiveTechTwo);
+		NSStructureType ChamberType = UTIL_GetChamberTypeForHiveTech(HiveTechTwo);
+
+		int NumChambers = UTIL_GetStructureCountOfType(ChamberType);
+
+		if (NumChambers < 3)
+		{
+			if (NumChambers < 2 || FNullEnt(GetFirstBotWithBuildTask(ChamberType, pEdict)))
+			{
+				TechChamberToBuild = ChamberType;
+			}
+		}
 	}
-	else if (UTIL_ActiveHiveWithTechExists(HiveTechThree) && UTIL_GetStructureCountOfType(UTIL_GetChamberTypeForHiveTech(HiveTechThree)) < 3)
+	else if (UTIL_ActiveHiveWithTechExists(HiveTechThree))
 	{
-		TechChamberToBuild = UTIL_GetChamberTypeForHiveTech(HiveTechThree);
+		NSStructureType ChamberType = UTIL_GetChamberTypeForHiveTech(HiveTechThree);
+
+		int NumChambers = UTIL_GetStructureCountOfType(ChamberType);
+
+		if (NumChambers < 3)
+		{
+			if (NumChambers < 2 || FNullEnt(GetFirstBotWithBuildTask(ChamberType, pEdict)))
+			{
+				TechChamberToBuild = ChamberType;
+			}
+		}
 	}
 
 	if (TechChamberToBuild != STRUCTURE_NONE)
@@ -701,7 +731,7 @@ void AlienBuilderSetPrimaryTask(bot_t* pBot, bot_task* Task)
 				return;
 			}
 		}
-		
+
 	}
 
 	// Build 2 defence chambers under every hive
@@ -711,7 +741,7 @@ void AlienBuilderSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 		if (HiveNeedsSupporting)
 		{
-			if (Task->TaskType == TASK_BUILD && Task->StructureType == STRUCTURE_ALIEN_DEFENCECHAMBER) { return; }
+			if (Task->TaskType == TASK_BUILD && Task->StructureType == STRUCTURE_ALIEN_DEFENCECHAMBER && vDist2DSq(Task->TaskLocation, HiveNeedsSupporting->FloorLocation) < sqrf(UTIL_MetresToGoldSrcUnits(10.0f))) { return; }
 
 			Vector NearestPointToHive = FindClosestNavigablePointToDestination(MoveProfile, pBot->pEdict->v.origin, HiveNeedsSupporting->FloorLocation, UTIL_MetresToGoldSrcUnits(10.0f));
 
@@ -735,7 +765,7 @@ void AlienBuilderSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 		if (HiveNeedsSupporting)
 		{
-			if (Task->TaskType == TASK_BUILD && Task->StructureType == STRUCTURE_ALIEN_MOVEMENTCHAMBER) { return; }
+			if (Task->TaskType == TASK_BUILD && Task->StructureType == STRUCTURE_ALIEN_MOVEMENTCHAMBER && vDist2DSq(Task->TaskLocation, HiveNeedsSupporting->FloorLocation) < sqrf(UTIL_MetresToGoldSrcUnits(10.0f))) { return; }
 
 			Vector NearestPointToHive = FindClosestNavigablePointToDestination(MoveProfile, pBot->pEdict->v.origin, HiveNeedsSupporting->FloorLocation, UTIL_MetresToGoldSrcUnits(10.0f));
 
@@ -759,7 +789,7 @@ void AlienBuilderSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 		if (HiveNeedsSupporting)
 		{
-			if (Task->TaskType == TASK_BUILD && Task->StructureType == STRUCTURE_ALIEN_SENSORYCHAMBER) { return; }
+			if (Task->TaskType == TASK_BUILD && Task->StructureType == STRUCTURE_ALIEN_SENSORYCHAMBER && vDist2DSq(Task->TaskLocation, HiveNeedsSupporting->FloorLocation) < sqrf(UTIL_MetresToGoldSrcUnits(10.0f))) { return; }
 
 			Vector NearestPointToHive = FindClosestNavigablePointToDestination(MoveProfile, pBot->pEdict->v.origin, HiveNeedsSupporting->FloorLocation, UTIL_MetresToGoldSrcUnits(10.0f));
 
@@ -772,15 +802,32 @@ void AlienBuilderSetPrimaryTask(bot_t* pBot, bot_task* Task)
 					TASK_SetBuildTask(pBot, Task, STRUCTURE_ALIEN_SENSORYCHAMBER, BuildLocation, false);
 					return;
 				}
-				
+
 			}
 		}
 	}
 
-	if (Task->TaskType == TASK_BUILD) { return; }
-
 	// Reinforce resource nodes which are closest to the marine base to start boxing them in and denying them access to the rest of the map
-	const resource_node* NearestUnprotectedResNode = UTIL_GetNearestUnprotectedResNode(UTIL_GetCommChairLocation());
+	const resource_node* NearestUnprotectedResNode = nullptr;
+
+	const hive_definition* NearestUnbuiltHive = UTIL_GetClosestViableUnbuiltHive(pBot->pEdict->v.origin);
+
+	if (NearestUnbuiltHive)
+	{
+		if (NearestUnbuiltHive->HiveResNodeIndex > -1)
+		{
+			if (UTIL_AlienResNodeNeedsReinforcing(NearestUnbuiltHive->HiveResNodeIndex))
+			{
+				NearestUnprotectedResNode = UTIL_GetResourceNodeAtIndex(NearestUnbuiltHive->HiveResNodeIndex);
+			}
+		}
+	}
+	
+	if (!NearestUnprotectedResNode)
+	{
+		NearestUnprotectedResNode = UTIL_GetNearestUnprotectedResNode(UTIL_GetCommChairLocation());
+	}
+	
 
 	if (NearestUnprotectedResNode)
 	{
@@ -1007,6 +1054,31 @@ void AlienDestroyerSetPrimaryTask(bot_t* pBot, bot_task* Task)
 		TASK_SetAttackTask(pBot, Task, BlockingStructure, false);
 		return;
 	}
+
+	/*
+	if (Task->TaskType != TASK_NONE) { return; }
+
+	// If we only have 1 hive, check to see if we should swing by and check in, to avoid marines sneaking in and securing it
+	if (UTIL_GetNumActiveHives() < 2 && !IsPlayerOnos(pBot->pEdict))
+	{
+		const hive_definition* HiveToGuard = UTIL_GetNearestHiveOfStatus(pBot->pEdict->v.origin, HIVE_STATUS_BUILDING);
+
+		if (!HiveToGuard)
+		{
+			HiveToGuard = UTIL_GetNearestHiveOfStatus(pBot->pEdict->v.origin, HIVE_STATUS_UNBUILT);
+		}
+
+		if (HiveToGuard && vDist2DSq(pBot->pEdict->v.origin, HiveToGuard->FloorLocation) > sqrf(UTIL_MetresToGoldSrcUnits(10.0f)))
+		{
+			if (Task->TaskType == TASK_GUARD) { return; }
+
+			if (UTIL_GetNumPlayersOfTeamInArea(HiveToGuard->FloorLocation, UTIL_MetresToGoldSrcUnits(20.0f), ALIEN_TEAM, pBot->pEdict, CLASS_GORGE, false) < 1)
+			{
+				Task->TaskType = TASK_GUARD;
+				Task->TaskLocation
+			}
+		}
+	}*/
 
 	// Focus on taking out phase gates to prevent reinforcements
 	edict_t* PhaseGate = UTIL_GetFirstCompletedStructureOfType(STRUCTURE_MARINE_PHASEGATE);
@@ -2215,33 +2287,9 @@ int GetDesiredAlienUpgrade(const bot_t* pBot, const HiveTechStatus TechType)
 		{
 		case CLASS_SKULK:
 		case CLASS_LERK:
+		case CLASS_GORGE: // Gorges can heal themselves so regen not worth it. Redemption probably not worth it at 10 res cost to evolve
 			return IMPULSE_ALIEN_UPGRADE_CARAPACE; // Lerks are fragile so best get carapace while the bot is still not great at staying alive with them...
-		case CLASS_GORGE:
 		case CLASS_FADE:
-		{
-			if (randbool())
-			{
-				return IMPULSE_ALIEN_UPGRADE_CARAPACE;
-			}
-			else
-			{
-				if (PlayerHasWeapon(pBot->pEdict, WEAPON_FADE_METABOLIZE))
-				{
-					return IMPULSE_ALIEN_UPGRADE_REDEMPTION;
-				}
-				else
-				{
-					if (randbool())
-					{
-						return IMPULSE_ALIEN_UPGRADE_REGENERATION;
-					}
-					else
-					{
-						return IMPULSE_ALIEN_UPGRADE_REDEMPTION;
-					}
-				}
-			}
-		}
 		case CLASS_ONOS:
 		{
 			if (randbool())
@@ -2283,8 +2331,8 @@ int GetDesiredAlienUpgrade(const bot_t* pBot, const HiveTechStatus TechType)
 			}
 		}
 		case CLASS_LERK:
-			return IMPULSE_ALIEN_UPGRADE_ADRENALINE;
 		case CLASS_GORGE:
+			return IMPULSE_ALIEN_UPGRADE_ADRENALINE;
 		case CLASS_FADE:
 		case CLASS_ONOS:
 		{
@@ -2310,10 +2358,6 @@ int GetDesiredAlienUpgrade(const bot_t* pBot, const HiveTechStatus TechType)
 		case CLASS_GORGE:
 			return IMPULSE_ALIEN_UPGRADE_CLOAK;
 		case CLASS_SKULK:
-		case CLASS_FADE:
-		case CLASS_LERK:
-			return IMPULSE_ALIEN_UPGRADE_FOCUS;
-		case CLASS_ONOS:
 		{
 			if (randbool())
 			{
@@ -2324,6 +2368,10 @@ int GetDesiredAlienUpgrade(const bot_t* pBot, const HiveTechStatus TechType)
 				return IMPULSE_ALIEN_UPGRADE_FOCUS;
 			}
 		}
+		case CLASS_FADE:
+		case CLASS_LERK:
+		case CLASS_ONOS:
+			return IMPULSE_ALIEN_UPGRADE_FOCUS;
 		default:
 			return 0;
 		}

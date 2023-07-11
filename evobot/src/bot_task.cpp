@@ -969,7 +969,7 @@ void MarineProgressBuildTask(bot_t* pBot, bot_task* Task)
 		}
 	}
 
-	if (UTIL_PlayerHasLOSToEntity(pBot->pEdict, Task->TaskTarget, max_player_use_reach, false))
+	if (IsPlayerInUseRange(pBot->pEdict, Task->TaskTarget))
 	{
 		// If we were ducking before then keep ducking
 		if (pBot->pEdict->v.oldbuttons & IN_DUCK)
@@ -1001,7 +1001,15 @@ void MarineProgressBuildTask(bot_t* pBot, bot_task* Task)
 		// Might need to duck if it's an infantry portal
 		if (vDist2DSq(pBot->pEdict->v.origin, Task->TaskTarget->v.origin) < sqrf(max_player_use_reach))
 		{
-			pBot->pEdict->v.button |= IN_DUCK;
+			if (Task->TaskTarget->v.origin > pEdict->v.origin)
+			{
+				BotJump(pBot);
+			}
+			else
+			{
+				pBot->pEdict->v.button |= IN_DUCK;
+			}
+			
 		}
 	}
 
@@ -1075,6 +1083,20 @@ void BotProgressAttackTask(bot_t* pBot, bot_task* Task)
 void BotProgressDefendTask(bot_t* pBot, bot_task* Task)
 {
 	BotProgressGuardTask(pBot, Task);
+
+	if (!FNullEnt(Task->TaskTarget))
+	{
+		buildable_structure* StructureRef = UTIL_GetBuildableStructureRefFromEdict(Task->TaskTarget);
+
+		// If the structure we're defending was damaged just now, look at it so we can see who is attacking
+		if (gpGlobals->time - StructureRef->lastDamagedTime < 5.0f)
+		{
+			if (UTIL_QuickTrace(pBot->pEdict, pBot->CurrentEyePosition, UTIL_GetCentreOfEntity(Task->TaskTarget)))
+			{
+				BotLookAt(pBot, Task->TaskTarget);
+			}
+		}
+	}
 }
 
 void BotProgressTakeCommandTask(bot_t* pBot)
@@ -1212,17 +1234,6 @@ void AlienProgressHealTask(bot_t* pBot, bot_task* Task)
 
 void AlienProgressBuildTask(bot_t* pBot, bot_task* Task)
 {
-	if (gpGlobals->time - Task->LastBuildAttemptTime < 1.0f)
-	{ 
-		// Keep moving towards the hive if trying to build one
-		if (Task->StructureType == STRUCTURE_ALIEN_HIVE)
-		{
-			MoveTo(pBot, Task->TaskLocation, MOVESTYLE_NORMAL);
-		}
-
-		return;
-	}
-
 	if (!FNullEnt(Task->TaskTarget))
 	{
 
@@ -1255,43 +1266,15 @@ void AlienProgressBuildTask(bot_t* pBot, bot_task* Task)
 		}
 	}
 
-	if (Task->StructureType == STRUCTURE_ALIEN_HIVE)
+	if (gpGlobals->time - Task->LastBuildAttemptTime < 1.0f)
 	{
-		const hive_definition* HiveToBuild = UTIL_GetNearestHiveAtLocation(Task->TaskLocation);
+		return;
+	}
 
-		float DistFromHiveLocation = vDist3DSq(pBot->pEdict->v.origin, HiveToBuild->edict->v.origin);
-
-		if (DistFromHiveLocation < sqrf(UTIL_MetresToGoldSrcUnits(8.0f)) && UTIL_QuickTrace(pBot->pEdict, pBot->pEdict->v.origin, HiveToBuild->edict->v.origin))
-		{
-			if (!IsPlayerGorge(pBot->pEdict))
-			{
-				MoveTo(pBot, Task->TaskLocation, MOVESTYLE_NORMAL);
-				BotEvolveLifeform(pBot, CLASS_GORGE);
-				return;
-			}
-			
-			Vector LookLocation = HiveToBuild->edict->v.origin;
-
-			BotLookAt(pBot, LookLocation);
-
-			float LookDot = UTIL_GetDotProduct2D(UTIL_GetForwardVector2D(pBot->pEdict->v.v_angle), UTIL_GetVectorNormal2D(Task->TaskLocation - pBot->pEdict->v.origin));
-
-			if (LookDot > 0.9f)
-			{
-				pBot->pEdict->v.impulse = UTIL_StructureTypeToImpulseCommand(Task->StructureType);
-				Task->LastBuildAttemptTime = gpGlobals->time;
-				Task->BuildAttempts++;
-				Task->bIsWaitingForBuildLink = true;
-				Task->bTaskIsUrgent = true;
-			}
-
-			return;
-		}
-		else
-		{
-			MoveTo(pBot, Task->TaskLocation, MOVESTYLE_NORMAL);
-			return;
-		}
+	if (Task->bIsWaitingForBuildLink)
+	{
+		Task->TaskLocation = UTIL_GetRandomPointOnNavmeshInRadius(GORGE_BUILD_NAV_PROFILE, Task->TaskLocation, UTIL_MetresToGoldSrcUnits(2.0f));
+		Task->bIsWaitingForBuildLink = false;
 	}
 
 	// If we are building a chamber
@@ -1318,58 +1301,85 @@ void AlienProgressBuildTask(bot_t* pBot, bot_task* Task)
 		ResRequired += kGorgeEvolutionCost;
 	}
 
-	if (pBot->resources >= ResRequired)
-	{
-		float DistFromBuildLocation = vDist2DSq(pBot->pEdict->v.origin, Task->TaskLocation);
-
-
-		float DesiredDist = (Task->StructureType == STRUCTURE_ALIEN_RESTOWER) ? UTIL_MetresToGoldSrcUnits(2.0f) : UTIL_MetresToGoldSrcUnits(1.1f);
-
-		
-
-		if (DistFromBuildLocation > sqrf(DesiredDist) || !UTIL_QuickTrace(pBot->pEdict, pBot->CurrentEyePosition, (Task->TaskLocation + Vector(0.0f, 0.0f, 50.0f))))
-		{
-			MoveTo(pBot, Task->TaskLocation, MOVESTYLE_NORMAL);
-			return;
-		}
-
-		if (!IsPlayerGorge(pBot->pEdict))
-		{
-			BotEvolveLifeform(pBot, CLASS_GORGE);
-			return;
-		}
-
-		if (DistFromBuildLocation < sqrf(UTIL_MetresToGoldSrcUnits(1.0f)))
-		{
-			Vector MoveDir = UTIL_GetVectorNormal2D(pBot->pEdict->v.origin - Task->TaskLocation);
-			Vector NewLocation = Task->TaskLocation + (MoveDir * UTIL_MetresToGoldSrcUnits(1.1f));
-			BotLookAt(pBot, Task->TaskLocation);
-			MoveDirectlyTo(pBot, NewLocation);
-			return;
-		}
-
-		Vector LookLocation = Task->TaskLocation;
-		LookLocation.z = Task->TaskLocation.z + GetPlayerHeight(pBot->pEdict, false);
-		BotLookAt(pBot, LookLocation);
-
-		float LookDot = UTIL_GetDotProduct2D(UTIL_GetForwardVector2D(pBot->pEdict->v.v_angle), UTIL_GetVectorNormal2D(Task->TaskLocation - pBot->pEdict->v.origin));
-
-		if (LookDot > 0.9f)
-		{
-			pBot->pEdict->v.impulse = UTIL_StructureTypeToImpulseCommand(Task->StructureType);
-			Task->LastBuildAttemptTime = gpGlobals->time;
-			Task->BuildAttempts++;
-			Task->bIsWaitingForBuildLink = true;
-			Task->bTaskIsUrgent = true;
-		}
-
-	}
-	else
+	if (pBot->resources < ResRequired)
 	{
 		BotGuardLocation(pBot, Task->TaskLocation);
+		return;
 	}
 
+	if (vDist2DSq(pBot->pEdict->v.origin, Task->TaskLocation) > sqrf(max_player_use_reach))
+	{
+		MoveTo(pBot, Task->TaskLocation, MOVESTYLE_NORMAL);
+		return;
+	}
 
+	if (!IsPlayerGorge(pBot->pEdict))
+	{
+		if (pBot->WantsAndNeedsTask.TaskType != TASK_EVOLVE || pBot->WantsAndNeedsTask.Evolution != IMPULSE_ALIEN_EVOLVE_GORGE)
+		{
+			TASK_SetEvolveTask(pBot, &pBot->WantsAndNeedsTask, pBot->pEdict->v.origin, IMPULSE_ALIEN_EVOLVE_GORGE, true);
+		}
+		
+		return;
+	}
+
+	// If we don't have LOS to the hive from where we're trying to build it, find a better location
+	if (Task->StructureType == STRUCTURE_ALIEN_HIVE)
+	{
+		const hive_definition* HiveToBuild = UTIL_GetNearestHiveAtLocation(Task->TaskLocation);
+
+		float DistFromHiveLocation = vDist3DSq(pBot->pEdict->v.origin, HiveToBuild->edict->v.origin);
+
+		if (DistFromHiveLocation > sqrf(UTIL_MetresToGoldSrcUnits(8.0f)) || !UTIL_QuickTrace(pBot->pEdict, pBot->pEdict->v.origin, HiveToBuild->edict->v.origin) || !UTIL_QuickTrace(pBot->pEdict, pBot->pEdict->v.origin, UTIL_GetCentreOfEntity(HiveToBuild->edict)))
+		{
+			Vector NewBuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(GORGE_BUILD_NAV_PROFILE, Task->TaskLocation, UTIL_MetresToGoldSrcUnits(5.0f));
+
+			if (NewBuildLocation != ZERO_VECTOR && UTIL_QuickTrace(pBot->pEdict, Task->TaskLocation + Vector(0.0f, 0.0f, 18.0f), HiveToBuild->edict->v.origin))
+			{
+				Task->TaskLocation = NewBuildLocation;
+			}
+
+			return;
+		}
+	}
+
+	Vector LookLocation = Task->TaskLocation;
+	LookLocation.z += 10.0f;
+
+	if (Task->StructureType == STRUCTURE_ALIEN_HIVE)
+	{
+		const hive_definition* HiveToBuild = UTIL_GetNearestHiveAtLocation(Task->TaskLocation);
+
+		if (HiveToBuild)
+		{
+			LookLocation = HiveToBuild->edict->v.origin;
+		}
+	}
+
+	if (Task->StructureType == STRUCTURE_ALIEN_RESTOWER)
+	{
+		const resource_node* ResNode = UTIL_FindNearestResNodeToLocation(Task->TaskLocation);
+
+		if (ResNode)
+		{
+			LookLocation = ResNode->origin;
+		}
+	}
+
+	BotLookAt(pBot, LookLocation);
+
+	float LookDot = UTIL_GetDotProduct2D(UTIL_GetForwardVector2D(pBot->pEdict->v.v_angle), UTIL_GetVectorNormal2D(LookLocation - pBot->pEdict->v.origin));
+
+	if (LookDot > 0.9f)
+	{
+		pBot->pEdict->v.impulse = UTIL_StructureTypeToImpulseCommand(Task->StructureType);
+		Task->LastBuildAttemptTime = gpGlobals->time;
+		Task->BuildAttempts++;
+		Task->bIsWaitingForBuildLink = true;
+		Task->bTaskIsUrgent = true;
+	}
+
+	return;
 }
 
 void AlienProgressCapResNodeTask(bot_t* pBot, bot_task* Task)
@@ -1975,18 +1985,16 @@ void TASK_SetMoveTask(bot_t* pBot, bot_task* Task, const Vector Location, bool b
 
 void TASK_SetBuildTask(bot_t* pBot, bot_task* Task, const NSStructureType StructureType, const Vector Location, const bool bIsUrgent)
 {
+	float MaxDist = (StructureType == STRUCTURE_ALIEN_HIVE) ? UTIL_MetresToGoldSrcUnits(5.0f) : UTIL_MetresToGoldSrcUnits(10.0f);
+
+	if (Task->TaskType == TASK_BUILD && Task->StructureType == StructureType && vDist2DSq(Task->TaskLocation, Location) < sqrf(MaxDist)) { return; }
+	
 	UTIL_ClearBotTask(pBot, Task);
 
 	if (!Location) { return; }
 
-	float MaxDist = (StructureType == STRUCTURE_ALIEN_HIVE) ? UTIL_MetresToGoldSrcUnits(5.0f) : UTIL_MetresToGoldSrcUnits(10.0f);
-
-	if (Task->TaskType == TASK_BUILD && Task->StructureType == StructureType && vDist2DSq(Task->TaskLocation, Location) < sqrf(MaxDist)) { return; }
-
-	int BotProfile = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
-
 	// Get as close as possible to desired location
-	Vector BuildLocation = FindClosestNavigablePointToDestination(BotProfile, pBot->CurrentFloorPosition, Location, MaxDist);
+	Vector BuildLocation = FindClosestNavigablePointToDestination(UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL), pBot->CurrentFloorPosition, Location, MaxDist);
 
 	if (BuildLocation != ZERO_VECTOR)
 	{
