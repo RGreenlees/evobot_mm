@@ -1774,6 +1774,7 @@ void BotThink(bot_t* pBot)
 	if (IsPlayerInReadyRoom(pBot->pEdict))
 	{
 		ReadyRoomThink(pBot);
+		
 		return;
 	}
 
@@ -2118,7 +2119,6 @@ void TestNavThink(bot_t* pBot)
 	}
 	else
 	{
-
 		int MoveProfile = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
 
 		Vector RandomPoint = UTIL_GetRandomPointOfInterest();

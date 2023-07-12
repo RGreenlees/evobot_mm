@@ -346,6 +346,9 @@ void BotFollowFlightPath(bot_t* pBot);
 
 int GetNextDirectFlightPath(bot_t* pBot);
 
+// If the bot has been unable to move more than 32 units in the last MaxStuckTime seconds (must be trying to move somewhere) then returns true
+bool IsBotPermaStuck(bot_t* pBot);
+
 // Walks directly towards the destination. No path finding, just raw movement input. Will detect obstacles and try to jump/duck under them.
 void MoveDirectlyTo(bot_t* pBot, const Vector Destination);
 

@@ -613,6 +613,40 @@ void ClientCommand(edict_t* pEntity)
 		RETURN_META(MRES_SUPERCEDE);
 	}
 
+	if (FStrEq(pcmd, "botstucktime"))
+	{
+		if (!NavmeshLoaded())
+		{
+			UTIL_SayText("Navmesh is not loaded", pEntity);
+			RETURN_META(MRES_SUPERCEDE);
+		}
+
+		edict_t* SpectatorTarget = INDEXENT(pEntity->v.iuser2);
+
+		if (FNullEnt(SpectatorTarget))
+		{
+			UTIL_SayText("No Spectator Target\n", listenserver_edict);
+			RETURN_META(MRES_SUPERCEDE);
+		}
+
+		int BotIndex = GetBotIndex(SpectatorTarget);
+
+		if (BotIndex < 0)
+		{
+			UTIL_SayText("Not spectating a bot\n", listenserver_edict);
+			RETURN_META(MRES_SUPERCEDE);
+		}
+
+		bot_t* pBot = &bots[BotIndex];
+
+		char buf[32];
+		sprintf(buf, "%3.2f\n", pBot->BotNavInfo.TotalStuckTime);
+
+		UTIL_SayText(buf, pEntity);
+
+		RETURN_META(MRES_SUPERCEDE);
+	}
+
 	if (FStrEq(pcmd, "botgivepoints"))
 	{
 		if (!NavmeshLoaded())
@@ -633,7 +667,7 @@ void ClientCommand(edict_t* pEntity)
 		RETURN_META(MRES_SUPERCEDE);
 	}
 
-	if (FStrEq(pcmd, "botkill"))
+	if (FStrEq(pcmd, "killbots"))
 	{
 		if (!NavmeshLoaded())
 		{
@@ -1042,6 +1076,8 @@ void StartFrame(void)
 
 			if (timeSinceLastThink >= BOT_MIN_FRAME_TIME)
 			{
+				GAME_SetBotDeltaTime(timeSinceLastThink);
+
 				UTIL_UpdateWeldableDoors();
 				UTIL_UpdateWeldableObstacles();
 

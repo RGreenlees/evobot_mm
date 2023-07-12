@@ -438,6 +438,10 @@ typedef struct _BOT_T
 	// Which combat mode upgrade does the bot want to get next? Will save if necessary for it
 	int BotNextCombatUpgrade = 0;
 
+	float TimeSinceLastMovement = 0.0f; // When did the bot last successfully manage to move somewhere? Used to identify perma-stuck bots and kill them
+
+	Vector LastPosition = ZERO_VECTOR;
+
 } bot_t;
 
 

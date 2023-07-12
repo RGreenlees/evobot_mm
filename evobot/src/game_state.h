@@ -35,6 +35,9 @@ int GAME_GetNumHumansOnTeam(const int Team);
 int GAME_GetNumDeadPlayersOnTeam(const int Team);
 int GAME_GetNumActivePlayersOnTeam(const int Team);
 
+void GAME_SetBotDeltaTime(float NewDelta);
+float GAME_GetBotDeltaTime();
+
 bool GAME_IsAnyHumanOnTeam(const int Team);
 
 int GAME_GetBotsWithRoleType(BotRole RoleType, const int Team, const edict_t* IgnorePlayer);

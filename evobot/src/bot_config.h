@@ -48,6 +48,9 @@ float CONFIG_GetCommanderWaitTime();
 // Returns the current commander mode (see CommanderMode enum)
 CommanderMode CONFIG_GetCommanderMode();
 
+// Returns the max time a bot is allowed to be stuck before suiciding (0 means forever)
+float CONFIG_GetMaxStuckTime();
+
 // Returns the desired marine team size for the given map, indexes into TeamSizeMap
 int CONFIG_GetMarineTeamSizeForMap(const char* MapName);
 // Returns the desired alien team size for the given map, indexes into TeamSizeMap

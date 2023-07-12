@@ -1985,16 +1985,14 @@ void TASK_SetMoveTask(bot_t* pBot, bot_task* Task, const Vector Location, bool b
 
 void TASK_SetBuildTask(bot_t* pBot, bot_task* Task, const NSStructureType StructureType, const Vector Location, const bool bIsUrgent)
 {
-	float MaxDist = (StructureType == STRUCTURE_ALIEN_HIVE) ? UTIL_MetresToGoldSrcUnits(5.0f) : UTIL_MetresToGoldSrcUnits(10.0f);
-
-	if (Task->TaskType == TASK_BUILD && Task->StructureType == StructureType && vDist2DSq(Task->TaskLocation, Location) < sqrf(MaxDist)) { return; }
+	if (Task->TaskType == TASK_BUILD && Task->StructureType == StructureType && vDist2DSq(Task->TaskLocation, Location) < sqrf(UTIL_MetresToGoldSrcUnits(5.0f))) { return; }
 	
 	UTIL_ClearBotTask(pBot, Task);
 
 	if (!Location) { return; }
 
 	// Get as close as possible to desired location
-	Vector BuildLocation = FindClosestNavigablePointToDestination(UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL), pBot->CurrentFloorPosition, Location, MaxDist);
+	Vector BuildLocation = FindClosestNavigablePointToDestination(GORGE_BUILD_NAV_PROFILE, pBot->CurrentFloorPosition, Location, UTIL_MetresToGoldSrcUnits(10.0f));
 
 	if (BuildLocation != ZERO_VECTOR)
 	{

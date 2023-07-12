@@ -38,6 +38,8 @@ CommanderMode eCommanderMode = COMMANDERMODE_ALWAYS;
 int NSVersion = 33; // 32 for 3.2, 33 for 3.3 (including betas)
 char BotPrefix[32] = "";
 
+float MaxStuckTime = 0.0f;
+
 HiveTechStatus ChamberSequence[3];
 
 std::unordered_map<std::string, TeamSizeDefinitions> TeamSizeMap;
@@ -249,6 +251,17 @@ void ParseConfigFile(bool bOverride)
                 if (isNumber(value.c_str()))
                 {
                     fCommanderWaitTime = (float)atoi(value.c_str());
+                    fCommanderWaitTime = fmaxf(0.0f, fCommanderWaitTime);
+                }
+                continue;
+            }
+
+            if (key.compare("MaxStuckTime") == 0)
+            {
+                if (isNumber(value.c_str()))
+                {
+                    MaxStuckTime = (float)atoi(value.c_str());
+                    MaxStuckTime = fmaxf(0.0f, MaxStuckTime);
                 }
                 continue;
             }
@@ -595,7 +608,11 @@ void CONFIG_RegenerateConfigFile()
 
     fprintf(NewConfigFile, "# If commander is enabled then after match start, how long should the bot wait to allow a human to take command (in seconds)\n");
     fprintf(NewConfigFile, "# Note that the bot will ignore this if no humans are present at the base\n");
-    fprintf(NewConfigFile, "CommanderWaitTime=10\n\n\n\n");
+    fprintf(NewConfigFile, "CommanderWaitTime=10\n\n");
+
+    fprintf(NewConfigFile, "# If the bot is stuck trying to move for this long(in seconds), it will suicide to start again.\n");
+    fprintf(NewConfigFile, "# 0 = Will not suicide\n");
+    fprintf(NewConfigFile, "MaxStuckTime=30\n\n\n\n");
 
     fprintf(NewConfigFile, "### NB: BELOW SETTINGS NOT OPERATIONAL IN 0.2a! ###\n");
     fprintf(NewConfigFile, "### Alien Settings ###\n\n");
@@ -639,6 +656,11 @@ BotFillMode CONFIG_GetBotFillMode()
 float CONFIG_GetCommanderWaitTime()
 {
     return fCommanderWaitTime;
+}
+
+float CONFIG_GetMaxStuckTime()
+{
+    return MaxStuckTime;
 }
 
 CommanderMode CONFIG_GetCommanderMode()

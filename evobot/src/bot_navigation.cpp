@@ -26,14 +26,11 @@
 #include "bot_tactical.h"
 #include "general_util.h"
 #include "bot_util.h"
-
 #include "bot_weapons.h"
-
 #include "game_state.h"
-
 #include "bot_task.h"
-
 #include "bot_bsp.h"
+#include "bot_config.h"
 
 extern hive_definition Hives[10];
 extern int NumTotalHives;
@@ -708,6 +705,7 @@ void UnloadNavigationData()
 
 	memset(NavProfiles, 0, sizeof(nav_profile));
 	memset(NavDoors, 0, sizeof(NavDoors));
+	memset(NavWeldableObstacles, 0, sizeof(NavWeldableObstacles));
 	NumDoors = 0;
 
 	UTIL_ClearMapAIData();
@@ -4752,12 +4750,29 @@ bool AbortCurrentMove(bot_t* pBot, const Vector NewDestination)
 	return false;
 }
 
+bool IsBotPermaStuck(bot_t* pBot)
+{
+	if (CONFIG_GetMaxStuckTime() <= 0.1f) { return false; }
+
+	if (pBot->LastPosition == ZERO_VECTOR || vDist3DSq(pBot->pEdict->v.origin, pBot->LastPosition) > sqrf(32.0f))
+	{
+		pBot->TimeSinceLastMovement = 0.0f;
+		pBot->LastPosition = pBot->pEdict->v.origin;
+		return false;
+	}
+
+	pBot->TimeSinceLastMovement += GAME_GetBotDeltaTime();
+
+	return (pBot->TimeSinceLastMovement >= 30.0f);
+}
+
 bool MoveTo(bot_t* pBot, const Vector Destination, const BotMoveStyle MoveStyle, const float MaxAcceptableDist)
 {
 	// Invalid destination, or we're already there
 	if (!Destination || BotIsAtLocation(pBot, Destination))
 	{
 		ClearBotMovement(pBot);
+		
 		return true;
 	}
 
@@ -4768,6 +4783,12 @@ bool MoveTo(bot_t* pBot, const Vector Destination, const BotMoveStyle MoveStyle,
 	// If we are currently in the process of getting back on the navmesh, don't interrupt
 	if (BotNavInfo->UnstuckMoveLocation != ZERO_VECTOR)
 	{
+		if (IsBotPermaStuck(pBot))
+		{
+			BotSuicide(pBot);
+			return false;
+		}
+
 		Vector MoveTarget = BotNavInfo->UnstuckMoveStartLocation + (UTIL_GetVectorNormal2D(BotNavInfo->UnstuckMoveLocation - BotNavInfo->UnstuckMoveStartLocation) * 100.0f);
 
 		MoveDirectlyTo(pBot, MoveTarget);
@@ -4912,6 +4933,12 @@ bool MoveTo(bot_t* pBot, const Vector Destination, const BotMoveStyle MoveStyle,
 
 	if (BotNavInfo->PathSize > 0)
 	{
+		if (IsBotPermaStuck(pBot))
+		{
+			BotSuicide(pBot);
+			return false;
+		}
+
 		if (bIsFlyingProfile)
 		{
 			BotFollowFlightPath(pBot);
@@ -5404,19 +5431,18 @@ void BotFollowPath(bot_t* pBot)
 	// If we've reached our current path point
 	if (HasBotReachedPathPoint(pBot))
 	{
+		ClearBotStuck(pBot);
+
 		// End of the whole path, stop all movement
 		if (pBot->BotNavInfo.CurrentPathPoint == (pBot->BotNavInfo.PathSize - 1))
 		{
 			ClearBotPath(pBot);
-			ClearBotStuck(pBot);
 			return;
 		}
 		else
 		{
 			// Pick the next point in the path
 			pBot->BotNavInfo.CurrentPathPoint++;
-
-			ClearBotStuck(pBot);
 		}
 	}
 
@@ -5834,6 +5860,9 @@ void ClearBotMovement(bot_t* pBot)
 	ClearBotPath(pBot);
 	ClearBotStuck(pBot);
 	ClearBotStuckMovement(pBot);
+
+	pBot->LastPosition = pBot->pEdict->v.origin;
+	pBot->TimeSinceLastMovement = 0.0f;
 }
 
 void ClearBotStuck(bot_t* pBot)
