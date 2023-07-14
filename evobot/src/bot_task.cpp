@@ -37,7 +37,8 @@ void UTIL_ClearBotTask(bot_t* pBot, bot_task* Task)
 
 	Task->TaskType = TASK_NONE;
 	Task->TaskLocation = ZERO_VECTOR;
-	Task->TaskTarget = NULL;
+	Task->TaskTarget = nullptr;
+	Task->TaskSecondaryTarget = nullptr;
 	Task->TaskStartedTime = 0.0f;
 	Task->TaskLength = 0.0f;
 	Task->bIssuedByCommander = false;
@@ -332,6 +333,8 @@ bool UTIL_IsTaskStillValid(bot_t* pBot, bot_task* Task)
 			return UTIL_IsAlienCapResNodeTaskStillValid(pBot, Task);
 		}
 	}
+	case TASK_REINFORCE_STRUCTURE:
+		return UTIL_IsReinforceStructureTaskStillValid(pBot, Task);
 	case TASK_DEFEND:
 		return UTIL_IsDefendTaskStillValid(pBot, Task);
 	case TASK_WELD:
@@ -524,7 +527,13 @@ bool UTIL_IsAlienBuildTaskStillValid(bot_t* pBot, bot_task* Task)
 
 		if (HiveIndex->Status != HIVE_STATUS_UNBUILT) { return false; }
 
-		edict_t* OtherHiveBuilder = GetFirstBotWithBuildTask(STRUCTURE_ALIEN_HIVE, pBot->pEdict);
+		edict_t* OtherHiveBuilder = nullptr;
+		bot_t* OtherHiveBuilderBot = GetFirstBotWithBuildTask(STRUCTURE_ALIEN_HIVE, pBot->pEdict);
+
+		if (OtherHiveBuilderBot)
+		{
+			OtherHiveBuilder = OtherHiveBuilderBot->pEdict;
+		}
 
 		if (!FNullEnt(OtherHiveBuilder) && GetPlayerResources(OtherHiveBuilder) > GetPlayerResources(pBot->pEdict)) { return false; }
 
@@ -729,6 +738,97 @@ bool UTIL_IsDefendTaskStillValid(bot_t* pBot, bot_task* Task)
 	return true;
 }
 
+bool UTIL_IsReinforceStructureTaskStillValid(bot_t* pBot, bot_task* Task)
+{
+	if (FNullEnt(Task->TaskTarget) || Task->TaskTarget->v.deadflag != DEAD_NO) { return false; }
+
+	if (!FNullEnt(Task->TaskSecondaryTarget) && !UTIL_StructureIsFullyBuilt(Task->TaskSecondaryTarget)) { return true; }
+
+	bool bActiveHiveWithoutTechExists = UTIL_ActiveHiveWithoutTechExists();
+
+	if (bActiveHiveWithoutTechExists) { return true; }
+
+	// At least 2 offence chambers
+	int NumOffenceChambers = UTIL_GetNumPlacedStructuresOfTypeInRadius(STRUCTURE_ALIEN_OFFENCECHAMBER, Task->TaskTarget->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
+
+	if (NumOffenceChambers < 2) { return true; }
+
+
+
+	// At least 2 defence chambers, if the hive exists for it
+	if (UTIL_ActiveHiveWithTechExists(HIVE_TECH_DEFENCE))
+	{
+		int NumDefenceChambers = UTIL_GetNumPlacedStructuresOfTypeInRadius(STRUCTURE_ALIEN_DEFENCECHAMBER, Task->TaskTarget->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
+		int NumTotalDefenceChambers = UTIL_GetNumPlacedStructuresOfType(STRUCTURE_ALIEN_DEFENCECHAMBER);
+
+		if (NumDefenceChambers < 2 || NumTotalDefenceChambers < 3) { return true; }
+	}
+
+	// At least 1 movement and sensory chamber, if the hive exists for them
+	if (UTIL_ActiveHiveWithTechExists(HIVE_TECH_MOVEMENT))
+	{
+		bool bHasMoveChamber = UTIL_StructureOfTypeExistsInLocation(STRUCTURE_ALIEN_MOVEMENTCHAMBER, Task->TaskTarget->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
+		int NumTotalMoveChambers = UTIL_GetNumPlacedStructuresOfType(STRUCTURE_ALIEN_MOVEMENTCHAMBER);
+
+		if (!bHasMoveChamber || NumTotalMoveChambers < 3) { return true; }
+	}
+
+	if (UTIL_ActiveHiveWithTechExists(HIVE_TECH_SENSORY))
+	{
+		bool bHasSensoryChamber = UTIL_StructureOfTypeExistsInLocation(STRUCTURE_ALIEN_SENSORYCHAMBER, Task->TaskTarget->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
+		int NumTotalSensoryChambers = UTIL_GetNumPlacedStructuresOfType(STRUCTURE_ALIEN_SENSORYCHAMBER);
+
+		if (!bHasSensoryChamber || NumTotalSensoryChambers < 3) { return true; }
+	}
+
+	// We have all available chambers set up
+	return false;
+}
+
+bool UTIL_IsReinforceHiveTaskStillValid(bot_t* pBot, bot_task* Task)
+{
+	if (FNullEnt(Task->TaskTarget)) { return false; }
+
+	if (!FNullEnt(Task->TaskSecondaryTarget) && !UTIL_StructureIsFullyBuilt(Task->TaskSecondaryTarget)) { return true; }
+
+	const hive_definition* Hive = UTIL_GetNearestHiveAtLocation(Task->TaskTarget->v.origin);
+
+	if (!Hive || Hive->Status == HIVE_STATUS_UNBUILT) { return false; }
+
+	bool bActiveHiveWithoutTechExists = UTIL_ActiveHiveWithoutTechExists();
+
+	if (bActiveHiveWithoutTechExists) { return true; }
+
+	// At least 2 defence chambers, if the hive exists for it
+	if (UTIL_ActiveHiveWithTechExists(HIVE_TECH_DEFENCE))
+	{
+		int NumTotalChambers = UTIL_GetNumPlacedStructuresOfType(STRUCTURE_ALIEN_DEFENCECHAMBER);
+		int NumDefenceChambers = UTIL_GetNumPlacedStructuresOfTypeInRadius(STRUCTURE_ALIEN_DEFENCECHAMBER, Task->TaskTarget->v.origin, UTIL_MetresToGoldSrcUnits(8.0f));
+
+		if (NumTotalChambers < 3 || NumDefenceChambers < 2) { return true; }
+	}
+
+	// At least 1 movement and sensory chamber, if the hive exists for them
+	if (UTIL_ActiveHiveWithTechExists(HIVE_TECH_MOVEMENT))
+	{
+		int NumTotalChambers = UTIL_GetNumPlacedStructuresOfType(STRUCTURE_ALIEN_MOVEMENTCHAMBER);
+		bool bHasMoveChamber = UTIL_StructureOfTypeExistsInLocation(STRUCTURE_ALIEN_MOVEMENTCHAMBER, Task->TaskTarget->v.origin, UTIL_MetresToGoldSrcUnits(8.0f));
+
+		if (!bHasMoveChamber || NumTotalChambers < 3) { return true; }
+	}
+
+	if (UTIL_ActiveHiveWithTechExists(HIVE_TECH_SENSORY))
+	{
+		int NumTotalChambers = UTIL_GetNumPlacedStructuresOfType(STRUCTURE_ALIEN_SENSORYCHAMBER);
+		bool bHasSensoryChamber = UTIL_StructureOfTypeExistsInLocation(STRUCTURE_ALIEN_SENSORYCHAMBER, Task->TaskTarget->v.origin, UTIL_MetresToGoldSrcUnits(8.0f));
+
+		if (!bHasSensoryChamber || NumTotalChambers < 3) { return true; }
+	}
+
+	// We have all available chambers set up
+	return false;
+}
+
 bool UTIL_IsEvolveTaskStillValid(bot_t* pBot, bot_task* Task)
 {
 	if (!Task || !Task->Evolution || !IsPlayerAlien(pBot->pEdict)) { return false; }
@@ -904,6 +1004,267 @@ void BotProgressPickupTask(bot_t* pBot, bot_task* Task)
 			}
 		}
 	}
+}
+
+void BotProgressReinforceStructureTask(bot_t* pBot, bot_task* Task)
+{
+	if (FNullEnt(Task->TaskTarget)) { return; }
+
+	if (!FNullEnt(Task->TaskSecondaryTarget))
+	{
+
+		if (UTIL_StructureIsFullyBuilt(Task->TaskSecondaryTarget))
+		{
+			Task->TaskSecondaryTarget = nullptr;
+			Task->BuildAttempts = 0;
+			Task->bIsWaitingForBuildLink = false;
+			Task->TaskLocation = ZERO_VECTOR;
+		}
+		else
+		{
+			if (IsPlayerInUseRange(pBot->pEdict, Task->TaskSecondaryTarget))
+			{
+				BotUseObject(pBot, Task->TaskSecondaryTarget, true);
+				if (vDist2DSq(pBot->pEdict->v.origin, Task->TaskSecondaryTarget->v.origin) > sqrf(60.0f))
+				{
+					MoveDirectlyTo(pBot, Task->TaskSecondaryTarget->v.origin);
+				}
+				return;
+			}
+
+			MoveTo(pBot, Task->TaskSecondaryTarget->v.origin, MOVESTYLE_NORMAL);
+
+			return;
+		}		
+	}
+
+	if (gpGlobals->time - Task->LastBuildAttemptTime < 1.0f)
+	{
+		return;
+	}
+
+	if (Task->bIsWaitingForBuildLink)
+	{
+		Task->TaskLocation = ZERO_VECTOR;
+		Task->bIsWaitingForBuildLink = false;
+	}
+
+	HiveTechStatus HiveTechOne = (HiveTechStatus)CONFIG_GetHiveTechAtIndex(0);
+	HiveTechStatus HiveTechTwo = (HiveTechStatus)CONFIG_GetHiveTechAtIndex(1);
+	HiveTechStatus HiveTechThree = (HiveTechStatus)CONFIG_GetHiveTechAtIndex(2);
+
+	NSStructureType ChamberTypeOne = UTIL_GetChamberTypeForHiveTech(HiveTechOne);
+	NSStructureType ChamberTypeTwo = UTIL_GetChamberTypeForHiveTech(HiveTechTwo);
+	NSStructureType ChamberTypeThree = UTIL_GetChamberTypeForHiveTech(HiveTechThree);
+
+	bool bActiveHiveWithoutTechExists = UTIL_ActiveHiveWithoutTechExists();
+
+	int NumHiveTechOne = UTIL_GetNumPlacedStructuresOfType(ChamberTypeOne);
+	int NumHiveTechTwo = UTIL_GetNumPlacedStructuresOfType(ChamberTypeTwo);
+	int NumHiveTechThree = UTIL_GetNumPlacedStructuresOfType(ChamberTypeThree);
+
+	if (Task->StructureType == STRUCTURE_NONE)
+	{
+		if (bActiveHiveWithoutTechExists)
+		{
+			if (!UTIL_ActiveHiveWithTechExists(HiveTechOne))
+			{
+				Task->StructureType = ChamberTypeOne;
+			}
+			else if (!UTIL_ActiveHiveWithTechExists(HiveTechTwo))
+			{
+				Task->StructureType = ChamberTypeTwo;
+			}
+			else if (!UTIL_ActiveHiveWithTechExists(HiveTechThree))
+			{
+				Task->StructureType = ChamberTypeThree;
+			}
+		}
+		else
+		{
+			if (UTIL_ActiveHiveWithTechExists(HiveTechOne) && NumHiveTechOne < 3)
+			{
+				Task->StructureType = ChamberTypeOne;
+			}
+			else if (UTIL_ActiveHiveWithTechExists(HiveTechTwo) && NumHiveTechTwo < 3)
+			{
+				Task->StructureType = ChamberTypeTwo;
+			}
+			else if (UTIL_ActiveHiveWithTechExists(HiveTechThree) && NumHiveTechThree < 3)
+			{
+				Task->StructureType = ChamberTypeThree;
+			}
+			else
+			{
+				Task->StructureType = STRUCTURE_ALIEN_OFFENCECHAMBER;
+			}			
+		}
+
+	}
+
+	bool bCanBuildChamberTypeOne = bActiveHiveWithoutTechExists || UTIL_ActiveHiveWithTechExists(HiveTechOne);
+	bool bCanBuildChamberTypeTwo = bActiveHiveWithoutTechExists || UTIL_ActiveHiveWithTechExists(HiveTechTwo);
+	bool bCanBuildChamberTypeThree = bActiveHiveWithoutTechExists || UTIL_ActiveHiveWithTechExists(HiveTechThree);
+
+	int NumChambers = UTIL_GetNumPlacedStructuresOfTypeInRadius(Task->StructureType, Task->TaskTarget->v.origin, UTIL_MetresToGoldSrcUnits(10.0f));
+	int NumDesiredChambers = (Task->StructureType == STRUCTURE_ALIEN_OFFENCECHAMBER || Task->StructureType == STRUCTURE_ALIEN_DEFENCECHAMBER) ? 2 : 1;
+
+	if (Task->StructureType == STRUCTURE_ALIEN_OFFENCECHAMBER)
+	{
+		NumDesiredChambers = 2;
+	}
+	else
+	{
+
+		// The idea here is the gorge builds however many chambers at this hive/RT are needed to meet the minimum
+		// reinforce requirements, or ensure 3 of each upgrade chamber are built, whichever is more.
+		// e.g. normally they only build 1 MC/SC per hive/RT, but will build 3 if needed to ensure a min 3 of each chamber
+		
+		int Deficit = 0;
+
+		if (Task->StructureType == ChamberTypeOne)
+		{
+			Deficit = clampi((3 - NumHiveTechOne), 0, 3);
+		}
+
+		if (Task->StructureType == ChamberTypeTwo)
+		{
+			Deficit = clampi((3 - NumHiveTechTwo), 0, 3);
+		}
+
+		if (Task->StructureType == ChamberTypeThree)
+		{
+			Deficit = clampi((3 - NumHiveTechThree), 0, 3);
+		}
+
+		Deficit += NumChambers;
+
+		NumDesiredChambers = imaxi(Deficit, NumDesiredChambers);
+
+	}
+
+	if (NumChambers >= NumDesiredChambers)
+	{
+		bool bChosenNextChamber = false;
+
+		if (!bActiveHiveWithoutTechExists)
+		{
+			int NumOffenceChambers = UTIL_GetNumPlacedStructuresOfTypeInRadius(STRUCTURE_ALIEN_OFFENCECHAMBER, Task->TaskTarget->v.origin, UTIL_MetresToGoldSrcUnits(10.0f));
+
+			if (NumOffenceChambers < 2)
+			{
+				Task->StructureType = STRUCTURE_ALIEN_OFFENCECHAMBER;
+				bChosenNextChamber = true;
+			}
+		}
+
+		if (!bChosenNextChamber && bCanBuildChamberTypeOne)
+		{
+			int NumDefenceChambers = UTIL_GetNumPlacedStructuresOfTypeInRadius(ChamberTypeOne, Task->TaskTarget->v.origin, UTIL_MetresToGoldSrcUnits(10.0f));
+
+			if (NumDefenceChambers < 2)
+			{
+				Task->StructureType = ChamberTypeOne;
+				bChosenNextChamber = true;
+			}
+		}
+
+		if (!bChosenNextChamber && bCanBuildChamberTypeTwo)
+		{
+			int NumMoveChambers = UTIL_GetNumPlacedStructuresOfTypeInRadius(ChamberTypeTwo, Task->TaskTarget->v.origin, UTIL_MetresToGoldSrcUnits(10.0f));
+
+			if (NumMoveChambers < 1)
+			{
+				Task->StructureType = ChamberTypeTwo;
+				bChosenNextChamber = true;
+			}
+		}
+
+		if (!bChosenNextChamber && bCanBuildChamberTypeThree)
+		{
+			int NumSensoryChambers = UTIL_GetNumPlacedStructuresOfTypeInRadius(ChamberTypeThree, Task->TaskTarget->v.origin, UTIL_MetresToGoldSrcUnits(10.0f));
+
+			if (NumSensoryChambers < 1)
+			{
+				Task->StructureType = ChamberTypeThree;
+				bChosenNextChamber = true;
+			}
+		}
+		if (!bChosenNextChamber) { return; }
+	}
+
+	if (Task->TaskLocation != ZERO_VECTOR)
+	{
+		dtPolyRef Poly = UTIL_GetNavAreaAtLocation(BUILDING_REGULAR_NAV_PROFILE, Task->TaskLocation);
+
+		if (Poly != SAMPLE_POLYAREA_GROUND)
+		{
+			Task->TaskLocation = ZERO_VECTOR;
+		}
+	}
+
+	if (Task->TaskLocation == ZERO_VECTOR)
+	{
+		NSStructureType ReinforcedStructure = GetStructureTypeFromEdict(Task->TaskTarget);
+
+		Vector TargetLocation = (ReinforcedStructure == STRUCTURE_ALIEN_HIVE) ? UTIL_GetFloorUnderEntity(Task->TaskTarget) : Task->TaskTarget->v.origin;
+
+		Vector BuildLocation = FindClosestNavigablePointToDestination(MARINE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), TargetLocation, UTIL_MetresToGoldSrcUnits(50.0f));
+
+		if (BuildLocation != ZERO_VECTOR)
+		{
+			float currDist = vDist2D(BuildLocation, TargetLocation);
+
+			Task->TaskLocation = UTIL_GetRandomPointOnNavmeshInRadius(GORGE_BUILD_NAV_PROFILE, BuildLocation, (UTIL_MetresToGoldSrcUnits(5.0f) - currDist));
+		}
+
+		if (Task->TaskLocation == ZERO_VECTOR) { return; }
+	}
+
+	int ResRequired = UTIL_GetCostOfStructureType(Task->StructureType);
+
+	if (!IsPlayerGorge(pBot->pEdict))
+	{
+		ResRequired += kGorgeEvolutionCost;
+	}
+
+	if (pBot->resources < ResRequired)
+	{
+		BotGuardLocation(pBot, Task->TaskLocation);
+		return;
+	}
+
+	if (vDist2DSq(pBot->pEdict->v.origin, Task->TaskLocation) > sqrf(max_player_use_reach))
+	{
+		MoveTo(pBot, Task->TaskLocation, MOVESTYLE_NORMAL);
+		return;
+	}
+
+	if (!IsPlayerGorge(pBot->pEdict))
+	{
+		if (pBot->WantsAndNeedsTask.TaskType != TASK_EVOLVE || pBot->WantsAndNeedsTask.Evolution != IMPULSE_ALIEN_EVOLVE_GORGE)
+		{
+			TASK_SetEvolveTask(pBot, &pBot->WantsAndNeedsTask, pBot->pEdict->v.origin, IMPULSE_ALIEN_EVOLVE_GORGE, true);
+		}
+
+		return;
+	}
+
+	Vector LookLocation = Task->TaskLocation;
+	LookLocation.z += 10.0f;
+
+	BotLookAt(pBot, LookLocation);
+
+	float LookDot = UTIL_GetDotProduct2D(UTIL_GetForwardVector2D(pBot->pEdict->v.v_angle), UTIL_GetVectorNormal2D(LookLocation - pBot->pEdict->v.origin));
+
+	if (LookDot > 0.9f)
+	{
+		pBot->pEdict->v.impulse = UTIL_StructureTypeToImpulseCommand(Task->StructureType);
+		Task->LastBuildAttemptTime = gpGlobals->time;
+		Task->BuildAttempts++;
+		Task->bIsWaitingForBuildLink = true;
+	}
+
 }
 
 void BotProgressResupplyTask(bot_t* pBot, bot_task* Task)
@@ -1150,7 +1511,7 @@ void BotProgressEvolveTask(bot_t* pBot, bot_task* Task)
 	{
 		if ((gpGlobals->time - Task->TaskStartedTime) > 1.0f)
 		{
-			Task->TaskLocation = UTIL_GetRandomPointOnNavmeshInRadius(BUILDING_REGULAR_NAV_PROFILE, pBot->CurrentFloorPosition, UTIL_MetresToGoldSrcUnits(3.0f));
+			Task->TaskLocation = FindClosestNavigablePointToDestination(BUILDING_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(50.0f));
 			Task->TaskStartedTime = 0.0f;
 		}
 		return;
@@ -1172,7 +1533,7 @@ void BotProgressEvolveTask(bot_t* pBot, bot_task* Task)
 	}
 	else
 	{
-		Task->TaskLocation = UTIL_GetRandomPointOnNavmeshInRadius(BUILDING_REGULAR_NAV_PROFILE, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(3.0f));
+		Task->TaskLocation = FindClosestNavigablePointToDestination(BUILDING_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(50.0f));
 	}
 }
 
@@ -1538,6 +1899,9 @@ void BotProgressTask(bot_t* pBot, bot_task* Task)
 		}
 	}
 	break;
+	case TASK_REINFORCE_STRUCTURE:
+		BotProgressReinforceStructureTask(pBot, Task);
+		break;
 	case TASK_GUARD:
 		BotProgressGuardTask(pBot, Task);
 		break;
@@ -1864,15 +2228,33 @@ bool BotWithBuildTaskExists(NSStructureType StructureType)
 	return false;
 }
 
-edict_t* GetFirstBotWithBuildTask(NSStructureType StructureType, edict_t* IgnorePlayer)
+bot_t* GetFirstBotWithBuildTask(NSStructureType StructureType, edict_t* IgnorePlayer)
 {
 	for (int i = 0; i < 32; i++)
 	{
-		if (!bots[i].is_used || FNullEnt(bots[i].pEdict || bots[i].pEdict == IgnorePlayer)) { continue; }
+		if (!bots[i].is_used || FNullEnt(bots[i].pEdict) || bots[i].pEdict == IgnorePlayer) { continue; }
 
-		if ((bots[i].PrimaryBotTask.TaskType == TASK_BUILD && bots[i].PrimaryBotTask.StructureType == StructureType) || (bots[i].SecondaryBotTask.TaskType == TASK_BUILD && bots[i].SecondaryBotTask.StructureType == StructureType))
+		bool bPrimaryIsBuildTask = (bots[i].PrimaryBotTask.TaskType == TASK_BUILD || bots[i].PrimaryBotTask.TaskType == TASK_REINFORCE_STRUCTURE);
+		bool bSecondaryIsBuildTask = (bots[i].SecondaryBotTask.TaskType == TASK_BUILD || bots[i].SecondaryBotTask.TaskType == TASK_REINFORCE_STRUCTURE);
+
+		if ((bPrimaryIsBuildTask && bots[i].PrimaryBotTask.StructureType == StructureType) || (bSecondaryIsBuildTask && bots[i].SecondaryBotTask.StructureType == StructureType))
 		{
-			return bots[i].pEdict;
+			return &bots[i];
+		}
+	}
+
+	return nullptr;
+}
+
+bot_t* GetFirstBotWithReinforceTask(edict_t* ReinforceStructure, edict_t* IgnorePlayer)
+{
+	for (int i = 0; i < 32; i++)
+	{
+		if (!bots[i].is_used || FNullEnt(bots[i].pEdict) || bots[i].pEdict == IgnorePlayer) { continue; }
+
+		if ((bots[i].PrimaryBotTask.TaskType == TASK_REINFORCE_STRUCTURE && bots[i].PrimaryBotTask.TaskTarget == ReinforceStructure) || (bots[i].SecondaryBotTask.TaskType == TASK_REINFORCE_STRUCTURE && bots[i].SecondaryBotTask.TaskTarget == ReinforceStructure))
+		{
+			return &bots[i];
 		}
 	}
 
@@ -1913,6 +2295,8 @@ char* UTIL_TaskTypeToChar(const BotTaskType TaskType)
 		return "Defend";
 	case TASK_EVOLVE:
 		return "Evolve";
+	case TASK_REINFORCE_STRUCTURE:
+		return "Reinforce Structure";
 	default:
 		return "INVALID";
 	}
@@ -1992,10 +2376,16 @@ void TASK_SetBuildTask(bot_t* pBot, bot_task* Task, const NSStructureType Struct
 	if (!Location) { return; }
 
 	// Get as close as possible to desired location
-	Vector BuildLocation = FindClosestNavigablePointToDestination(GORGE_BUILD_NAV_PROFILE, pBot->CurrentFloorPosition, Location, UTIL_MetresToGoldSrcUnits(10.0f));
+	Vector BuildLocation = FindClosestNavigablePointToDestination(GORGE_BUILD_NAV_PROFILE, UTIL_GetCommChairLocation(), Location, UTIL_MetresToGoldSrcUnits(10.0f));
+
+	if (BuildLocation == ZERO_VECTOR)
+	{
+		BuildLocation = FindClosestNavigablePointToDestination(UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL), pBot->CurrentFloorPosition, Location, UTIL_MetresToGoldSrcUnits(10.0f));
+	}
 
 	if (BuildLocation != ZERO_VECTOR)
 	{
+
 		Task->TaskType = TASK_BUILD;
 		Task->TaskLocation = BuildLocation;
 		Task->StructureType = StructureType;
@@ -2008,6 +2398,10 @@ void TASK_SetBuildTask(bot_t* pBot, bot_task* Task, const NSStructureType Struct
 
 			BotTeamSay(pBot, 1.0f, buf);
 		}
+	}
+	else
+	{
+		UTIL_DrawLine(GAME_GetListenServerEdict(), pBot->pEdict->v.origin, Location, 1.0f, 255, 0, 0);
 	}
 }
 
@@ -2036,11 +2430,18 @@ void TASK_SetBuildTask(bot_t* pBot, bot_task* Task, edict_t* StructureToBuild, c
 
 void TASK_SetCapResNodeTask(bot_t* pBot, bot_task* Task, const resource_node* NodeRef, const bool bIsUrgent)
 {
-	UTIL_ClearBotTask(pBot, Task);
-
 	if (!NodeRef) { return; }
 
 	NSStructureType NodeStructureType = (IsPlayerMarine(pBot->pEdict)) ? STRUCTURE_MARINE_RESTOWER : STRUCTURE_ALIEN_RESTOWER;
+
+	if (Task->TaskType == TASK_CAP_RESNODE && Task->TaskLocation == NodeRef->origin)
+	{
+		Task->bTaskIsUrgent = bIsUrgent;
+		Task->TaskTarget = NodeRef->TowerEdict;
+		return;
+	}
+
+	UTIL_ClearBotTask(pBot, Task);
 
 	Task->TaskType = TASK_CAP_RESNODE;
 	Task->StructureType = NodeStructureType;
@@ -2150,4 +2551,36 @@ void TASK_SetTouchTask(bot_t* pBot, bot_task* Task, edict_t* Target, bool bIsUrg
 	Task->TaskTarget = Target;
 	Task->TaskLocation = FindClosestNavigablePointToDestination(MoveProfile, pBot->CurrentFloorPosition, UTIL_ProjectPointToNavmesh(UTIL_GetCentreOfEntity(Target)), UTIL_MetresToGoldSrcUnits(10.0f));
 	Task->bTaskIsUrgent = bIsUrgent;
+}
+
+void TASK_SetReinforceStructureTask(bot_t* pBot, bot_task* Task, edict_t* Target, bool bIsUrgent)
+{
+	if (Task->TaskType == TASK_REINFORCE_STRUCTURE && Target == Task->TaskTarget)
+	{
+		Task->bTaskIsUrgent = bIsUrgent;
+		return;
+	}
+
+	UTIL_ClearBotTask(pBot, Task);
+
+	Task->TaskType = TASK_REINFORCE_STRUCTURE;
+	Task->TaskTarget = Target;
+	Task->bTaskIsUrgent = bIsUrgent;
+}
+
+void TASK_SetReinforceStructureTask(bot_t* pBot, bot_task* Task, edict_t* Target, const NSStructureType FirstStructureType, bool bIsUrgent)
+{
+	if (Task->TaskType == TASK_REINFORCE_STRUCTURE && Target == Task->TaskTarget)
+	{
+		Task->bTaskIsUrgent = bIsUrgent;
+		Task->StructureType = FirstStructureType;
+		return;
+	}
+
+	UTIL_ClearBotTask(pBot, Task);
+
+	Task->TaskType = TASK_REINFORCE_STRUCTURE;
+	Task->TaskTarget = Target;
+	Task->bTaskIsUrgent = bIsUrgent;
+	Task->StructureType = FirstStructureType;
 }

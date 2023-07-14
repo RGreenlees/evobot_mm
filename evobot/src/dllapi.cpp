@@ -133,17 +133,20 @@ void ClientCommand(edict_t* pEntity)
 		RETURN_META(MRES_SUPERCEDE);
 	}
 
-	if (FStrEq(pcmd, "testbuildhive"))
+	if (FStrEq(pcmd, "testreinforcehive"))
 	{
 		for (int i = 0; i < MAX_CLIENTS; i++)
 		{
 			if (bots[i].is_used && !FNullEnt(bots[i].pEdict) && IsPlayerAlien(bots[i].pEdict))
 			{
-				const hive_definition* hive = UTIL_GetNearestHiveOfStatus(pEntity->v.origin, HIVE_STATUS_UNBUILT);
+				const hive_definition* NearestUnclaimedHive = UTIL_GetNearestUnbuiltHiveNeedsReinforcing(&bots[i]);
 
-				if (hive)
+				if (NearestUnclaimedHive != nullptr)
 				{
-					TASK_SetBuildTask(&bots[i], &bots[i].PrimaryBotTask, STRUCTURE_ALIEN_HIVE, hive->FloorLocation, true);
+					edict_t* HiveEdict = NearestUnclaimedHive->edict;
+
+					TASK_SetReinforceStructureTask(&bots[i], &bots[i].PrimaryBotTask, HiveEdict, STRUCTURE_ALIEN_OFFENCECHAMBER, false);
+					return;
 				}
 
 				
@@ -805,47 +808,6 @@ void ClientCommand(edict_t* pEntity)
 		RETURN_META(MRES_SUPERCEDE);
 	}
 
-	if (FStrEq(pcmd, "gamestatus"))
-	{
-		if (!NavmeshLoaded())
-		{
-			UTIL_SayText("Navmesh is not loaded", pEntity);
-			RETURN_META(MRES_SUPERCEDE);
-		}
-
-		switch (GameStatus)
-		{
-			case kGameStatusReset:
-				UTIL_SayText("Game Status: RESET\n", pEntity);
-				break;
-			case kGameStatusResetNewMap:
-				UTIL_SayText("Game Status: RESET MAP\n", pEntity);
-				break;
-			case kGameStatusEnded:
-				UTIL_SayText("Game Status: ENDED\n", pEntity);
-				break;
-			case kGameStatusGameTime:
-				UTIL_SayText("Game Status: TIME\n", pEntity);
-				break;
-			case kGameStatusUnspentLevels:
-				UTIL_SayText("Game Status: UNSPENT\n", pEntity);
-				break;
-			default:
-				UTIL_SayText("Game Status: OTHER\n", pEntity);
-				break;
-		}
-
-		RETURN_META(MRES_SUPERCEDE);
-	}
-
-	if (FStrEq(pcmd, "breakpoint"))
-	{
-		UTIL_SayText("BREAK\n", pEntity);
-
-		RETURN_META(MRES_SUPERCEDE);
-	}
-
-
 	if (FStrEq(pcmd, "evolvegorge"))
 	{
 		if (!NavmeshLoaded())
@@ -1056,20 +1018,22 @@ void StartFrame(void)
 					last_item_refresh_time = gpGlobals->time;
 				}
 
-				/*edict_t* SpectatorTarget = INDEXENT(GAME_GetListenServerEdict()->v.iuser2);
-
-				if (!FNullEnt(SpectatorTarget))
+				if (!FNullEnt(GAME_GetListenServerEdict()))
 				{
-					int BotIndex = GetBotIndex(SpectatorTarget);
+					edict_t* SpectatorTarget = INDEXENT(GAME_GetListenServerEdict()->v.iuser2);
 
-					if (BotIndex >= 0)
+					if (!FNullEnt(SpectatorTarget))
 					{
-						bot_t* pBot = &bots[BotIndex];
+						int BotIndex = GetBotIndex(SpectatorTarget);
 
-						UTIL_DisplayBotInfo(pBot);
+						if (BotIndex >= 0)
+						{
+							bot_t* pBot = &bots[BotIndex];
+
+							UTIL_DisplayBotInfo(pBot);
+						}
 					}
-				}*/
-
+				}
 			}
 
 			float timeSinceLastThink = ((currTime - last_think_time) / CLOCKS_PER_SEC);

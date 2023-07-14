@@ -2027,29 +2027,46 @@ void CustomThink(bot_t* pBot)
 {
 	if (!IsPlayerAlien(pBot->pEdict)) { return; }
 
-	pBot->CurrentEnemy = BotGetNextEnemyTarget(pBot);
+	pBot->CurrentRole = BOT_ROLE_BUILDER;
 
-	if (pBot->CurrentEnemy > -1)
+	if (!pBot->CurrentTask) { pBot->CurrentTask = &pBot->PrimaryBotTask; }
+
+	BotUpdateAndClearTasks(pBot);
+
+	if (pBot->PrimaryBotTask.TaskType == TASK_NONE || !pBot->PrimaryBotTask.bTaskIsUrgent)
 	{
-		AlienCombatThink(pBot);
+		BotAlienSetPrimaryTask(pBot, &pBot->PrimaryBotTask);
 	}
-	else
+
+	if (pBot->SecondaryBotTask.TaskType == TASK_NONE || !pBot->SecondaryBotTask.bTaskIsUrgent)
 	{
-		edict_t* Enemy = UTIL_GetNearestPlayerOfTeamInArea(pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(500.0f), MARINE_TEAM, nullptr, CLASS_NONE);
+		BotAlienSetSecondaryTask(pBot, &pBot->SecondaryBotTask);
+	}
 
-		if (!FNullEnt(Enemy))
+	AlienCheckWantsAndNeeds(pBot);
+
+	pBot->CurrentTask = BotGetNextTask(pBot);
+
+	if (!IsPlayerGorge(pBot->pEdict) || PlayerHasWeapon(pBot->pEdict, WEAPON_GORGE_BILEBOMB))
+	{
+		edict_t* DangerTurret = BotGetNearestDangerTurret(pBot, UTIL_MetresToGoldSrcUnits(10.0f));
+
+		if (!FNullEnt(DangerTurret))
 		{
-			if (UTIL_ShouldBotBeCautious(pBot))
-			{
-				MoveTo(pBot, Enemy->v.origin, MOVESTYLE_HIDE, 100.0f);
-			}
-			else
-			{
-				MoveTo(pBot, Enemy->v.origin, MOVESTYLE_NORMAL, 100.0f);
-			}
+			Vector TaskLocation = (!FNullEnt(pBot->CurrentTask->TaskTarget)) ? pBot->CurrentTask->TaskTarget->v.origin : pBot->CurrentTask->TaskLocation;
+			float DistToTurret = vDist2DSq(TaskLocation, DangerTurret->v.origin);
 
-			
+			if (pBot->CurrentTask->TaskType != TASK_ATTACK && DistToTurret < sqrf(UTIL_MetresToGoldSrcUnits(10.0f)))
+			{
+				BotAttackTarget(pBot, DangerTurret);
+				return;
+			}
 		}
+	}
+
+	if (pBot->CurrentTask && pBot->CurrentTask->TaskType != TASK_NONE)
+	{
+		BotProgressTask(pBot, pBot->CurrentTask);
 	}
 
 }

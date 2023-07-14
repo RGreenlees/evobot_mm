@@ -393,6 +393,11 @@ float clampf(float input, float inMin, float inMax)
 	return fmaxf(fminf(input, inMax), inMin);
 }
 
+float clampi(int input, int inMin, int inMax)
+{
+	return imaxi(imini(input, inMax), inMin);
+}
+
 Vector GetPitchForProjectile(Vector LaunchPoint, Vector TargetPoint, const float ProjectileSpeed, const float Gravity)
 {
 	const Vector FlightDelta = TargetPoint - LaunchPoint;

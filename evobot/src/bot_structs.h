@@ -104,7 +104,8 @@ typedef enum
 	TASK_EVOLVE,
 	TASK_COMMAND,
 	TASK_USE,
-	TASK_TOUCH
+	TASK_TOUCH,
+	TASK_REINFORCE_STRUCTURE
 }
 BotTaskType;
 
@@ -260,7 +261,8 @@ typedef struct _BOT_TASK
 {
 	BotTaskType TaskType = TASK_NONE; // Task Type (e.g. build, attack, defend, heal etc)
 	Vector TaskLocation = ZERO_VECTOR; // Task location, if task needs one (e.g. where to place structure for TASK_BUILD)
-	edict_t* TaskTarget = NULL; // Reference to a target, if task needs one (e.g. TASK_ATTACK)
+	edict_t* TaskTarget = nullptr; // Reference to a target, if task needs one (e.g. TASK_ATTACK)
+	edict_t* TaskSecondaryTarget = nullptr; // Secondary target, if task needs one (e.g. TASK_REINFORCE)
 	NSStructureType StructureType = STRUCTURE_NONE; // For Gorges, what structure to build (if TASK_BUILD)
 	float TaskStartedTime = 0.0f; // When the bot started this task. Helps time-out if the bot gets stuck trying to complete it
 	bool bIssuedByCommander = false; // Was this task issued by the commander? Top priority if so

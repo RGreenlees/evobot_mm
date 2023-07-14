@@ -17,6 +17,7 @@
 #include "bot_config.h"
 #include "bot_util.h"
 #include "game_state.h"
+#include "bot_task.h"
 
 #include "DetourTileCacheBuilder.h"
 
@@ -838,33 +839,73 @@ void UTIL_OnStructureDestroyed(const NSStructureType Structure, const Vector Loc
 	}
 }
 
-bool UTIL_AlienResNodeNeedsReinforcing(int ResNodeIndex)
+bool UTIL_AlienHiveNeedsReinforcing(int HiveIndex)
 {
-	if (ResNodeIndex < 0 || ResNodeIndex >= NumTotalResNodes) { return false; }
+	if (HiveIndex < 0 || HiveIndex >= NumTotalHives) { return false; }
 
-	int NumOffenceChambers = UTIL_GetNumPlacedStructuresOfTypeInRadius(STRUCTURE_ALIEN_OFFENCECHAMBER, ResourceNodes[ResNodeIndex].origin, UTIL_MetresToGoldSrcUnits(5.0f));
+	const hive_definition* Hive = UTIL_GetHiveAtIndex(HiveIndex);
+
+	if (!Hive) { return false; }
+
+	int NumOffenceChambers = UTIL_GetNumPlacedStructuresOfTypeInRadius(STRUCTURE_ALIEN_OFFENCECHAMBER, Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(10.0f));
 
 	if (NumOffenceChambers < 2) { return true; }
 
 	if (UTIL_ActiveHiveWithTechExists(HIVE_TECH_DEFENCE))
 	{
-		int NumDefenceChambers = UTIL_GetNumPlacedStructuresOfTypeInRadius(STRUCTURE_ALIEN_DEFENCECHAMBER, ResourceNodes[ResNodeIndex].origin, UTIL_MetresToGoldSrcUnits(5.0f));
+		int NumDefenceChambers = UTIL_GetNumPlacedStructuresOfTypeInRadius(STRUCTURE_ALIEN_DEFENCECHAMBER, Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(10.0f));
 
 		if (NumDefenceChambers < 2) { return true; }
 	}
 
 	if (UTIL_ActiveHiveWithTechExists(HIVE_TECH_MOVEMENT))
 	{
-		int NumMovementChambers = UTIL_GetNumPlacedStructuresOfTypeInRadius(STRUCTURE_ALIEN_MOVEMENTCHAMBER, ResourceNodes[ResNodeIndex].origin, UTIL_MetresToGoldSrcUnits(5.0f));
 
-		if (NumMovementChambers < 1) { return true; }
+		bool bHasMoveChamber = UTIL_StructureOfTypeExistsInLocation(STRUCTURE_ALIEN_MOVEMENTCHAMBER, Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(10.0f));
+
+		if (!bHasMoveChamber) { return true; }
 	}
 
 	if (UTIL_ActiveHiveWithTechExists(HIVE_TECH_SENSORY))
 	{
-		int NumSensoryChambers = UTIL_GetNumPlacedStructuresOfTypeInRadius(STRUCTURE_ALIEN_SENSORYCHAMBER, ResourceNodes[ResNodeIndex].origin, UTIL_MetresToGoldSrcUnits(5.0f));
+		bool bHasSensoryChamber = UTIL_StructureOfTypeExistsInLocation(STRUCTURE_ALIEN_SENSORYCHAMBER, Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(10.0f));
 
-		if (NumSensoryChambers < 1) { return true; }
+		if (!bHasSensoryChamber) { return true; }
+	}
+
+	return false;
+
+}
+bool UTIL_AlienResNodeNeedsReinforcing(int ResNodeIndex)
+{
+	if (ResNodeIndex < 0 || ResNodeIndex >= NumTotalResNodes) { return false; }
+
+	if (FNullEnt(ResourceNodes[ResNodeIndex].TowerEdict) || ResourceNodes[ResNodeIndex].bIsOwnedByMarines) { return false; }
+
+	int NumOffenceChambers = UTIL_GetNumPlacedStructuresOfTypeInRadius(STRUCTURE_ALIEN_OFFENCECHAMBER, ResourceNodes[ResNodeIndex].origin, UTIL_MetresToGoldSrcUnits(10.0f));
+
+	if (NumOffenceChambers < 2) { return true; }
+
+	if (UTIL_ActiveHiveWithTechExists(HIVE_TECH_DEFENCE))
+	{
+		int NumDefenceChambers = UTIL_GetNumPlacedStructuresOfTypeInRadius(STRUCTURE_ALIEN_DEFENCECHAMBER, ResourceNodes[ResNodeIndex].origin, UTIL_MetresToGoldSrcUnits(10.0f));
+
+		if (NumDefenceChambers < 2) { return true; }
+	}
+
+	if (UTIL_ActiveHiveWithTechExists(HIVE_TECH_MOVEMENT))
+	{
+
+		bool bHasMoveChamber = UTIL_StructureOfTypeExistsInLocation(STRUCTURE_ALIEN_MOVEMENTCHAMBER, ResourceNodes[ResNodeIndex].origin, UTIL_MetresToGoldSrcUnits(10.0f));
+
+		if (!bHasMoveChamber) { return true; }
+	}
+
+	if (UTIL_ActiveHiveWithTechExists(HIVE_TECH_SENSORY))
+	{
+		bool bHasSensoryChamber = UTIL_StructureOfTypeExistsInLocation(STRUCTURE_ALIEN_SENSORYCHAMBER, ResourceNodes[ResNodeIndex].origin, UTIL_MetresToGoldSrcUnits(10.0f));
+
+		if (!bHasSensoryChamber) { return true; }
 	}
 
 	return false;
@@ -897,6 +938,73 @@ const resource_node* UTIL_GetNearestUnprotectedResNode(const Vector Location)
 	}
 
 	return nullptr;
+}
+
+const hive_definition* UTIL_GetNearestUnbuiltHiveNeedsReinforcing(bot_t* pBot)
+{
+	const hive_definition* UnbuiltHive = nullptr;
+
+	float MinDist = 0.0f;
+
+	for (int i = 0; i < UTIL_GetNumTotalHives(); i++)
+	{
+		const hive_definition* HiveDef = UTIL_GetHiveAtIndex(i);
+
+		if (HiveDef->Status != HIVE_STATUS_UNBUILT) { continue; }
+
+		if (!UTIL_AlienHiveNeedsReinforcing(i)) { continue; }
+
+		bot_t* OtherBot = GetFirstBotWithReinforceTask(HiveDef->edict, pBot->pEdict);
+
+		if (OtherBot != nullptr && vDist2DSq(OtherBot->pEdict->v.origin, HiveDef->FloorLocation) < vDist2DSq(pBot->pEdict->v.origin, HiveDef->FloorLocation)) { continue; }
+
+		if (UTIL_StructureOfTypeExistsInLocation(STRUCTURE_MARINE_ANYTURRETFACTORY, HiveDef->FloorLocation, UTIL_MetresToGoldSrcUnits(15.0f))) { continue; }
+
+		float ThisDist = vDist2DSq(pBot->pEdict->v.origin, HiveDef->FloorLocation);
+
+		if (!UnbuiltHive || ThisDist < MinDist)
+		{
+			UnbuiltHive = HiveDef;
+			MinDist = ThisDist;
+		}
+	}
+
+	return UnbuiltHive;
+}
+
+const resource_node* UTIL_GetNearestResNodeNeedsReinforcing(bot_t* pBot, const Vector SearchLocation)
+{
+	
+	const resource_node* NearestNode = nullptr;
+
+	float MinDist = 0.0f;
+
+	Vector CommChairLoc = UTIL_GetCommChairLocation();
+
+	for (int i = 0; i < UTIL_GetNumResNodes(); i++)
+	{
+		const resource_node* ResNode = UTIL_GetResourceNodeAtIndex(i);
+
+		if (!ResNode || ResNode->bIsOwnedByMarines || FNullEnt(ResNode->TowerEdict)) { continue; }
+
+		if (!UTIL_AlienResNodeNeedsReinforcing(i)) { continue; }
+
+		bot_t* OtherBot = GetFirstBotWithReinforceTask(ResNode->TowerEdict, pBot->pEdict);
+
+		if (OtherBot != nullptr && vDist2DSq(OtherBot->pEdict->v.origin, ResNode->origin) < vDist2DSq(pBot->pEdict->v.origin, ResNode->origin)) { continue; }
+
+		if (UTIL_StructureOfTypeExistsInLocation(STRUCTURE_MARINE_ANYTURRETFACTORY, ResNode->origin, UTIL_MetresToGoldSrcUnits(15.0f))) { continue; }
+
+		float ThisDist = vDist2DSq(SearchLocation, ResNode->TowerEdict->v.origin);
+
+		if (!NearestNode || ThisDist < MinDist)
+		{
+			NearestNode = ResNode;
+			MinDist = ThisDist;
+		}
+	}
+
+	return NearestNode;
 }
 
 const hive_definition* UTIL_GetClosestViableUnbuiltHive(const Vector SearchLocation)
@@ -1032,6 +1140,16 @@ const hive_definition* UTIL_GetActiveHiveWithoutChambers(HiveTechStatus ChamberT
 	}
 
 	return nullptr;
+}
+
+bool UTIL_ActiveHiveWithoutTechExists()
+{
+	for (int i = 0; i < NumTotalHives; i++)
+	{
+		if (Hives[i].Status == HIVE_STATUS_BUILT && Hives[i].TechStatus == HIVE_TECH_NONE) { return true; }
+	}
+
+	return false;
 }
 
 bool UTIL_ActiveHiveWithTechExists(HiveTechStatus Tech)
@@ -2226,7 +2344,7 @@ const resource_node* UTIL_GetNearestCappedResNodeToLocation(const Vector Locatio
 
 	for (int i = 0; i < NumTotalResNodes; i++)
 	{
-		if (ResourceNodes[i].bIsOccupied && ResourceNodes[i].TowerEdict->v.team == Team && (bIgnoreElectrified || !UTIL_IsStructureElectrified(ResourceNodes[i].edict)))
+		if (!FNullEnt(ResourceNodes[i].TowerEdict) && ResourceNodes[i].TowerEdict->v.team == Team && (bIgnoreElectrified || !UTIL_IsStructureElectrified(ResourceNodes[i].edict)))
 		{
 			if (ResourceNodes[i].bIsMarineBaseNode) { continue; }
 
@@ -3597,7 +3715,7 @@ edict_t* BotGetNearestDangerTurret(bot_t* pBot, float MaxDistance)
 	{
 		for (auto& it : MarineBuildableStructureMap)
 		{
-			if (!it.second.bOnNavmesh) { continue; }
+			if (!it.second.bOnNavmesh || !it.second.bIsReachableAlien) { continue; }
 
 			if (!UTIL_StructureTypesMatch(it.second.StructureType, STRUCTURE_MARINE_TURRET)) { continue; }
 
@@ -3619,7 +3737,7 @@ edict_t* BotGetNearestDangerTurret(bot_t* pBot, float MaxDistance)
 	{
 		for (auto& it : AlienBuildableStructureMap)
 		{
-			if (!it.second.bOnNavmesh) { continue; }
+			if (!it.second.bOnNavmesh || !it.second.bIsReachableMarine) { continue; }
 
 			if (it.second.StructureType != STRUCTURE_ALIEN_OFFENCECHAMBER) { continue; }
 
@@ -3726,27 +3844,42 @@ void UTIL_LinkAlienStructureToTask(bot_t* pBot, edict_t* NewStructure)
 
 	if (StructureType == STRUCTURE_NONE) { return; }
 
-	if ((pBot->PrimaryBotTask.TaskType == TASK_BUILD || pBot->PrimaryBotTask.TaskType == TASK_CAP_RESNODE) && pBot->PrimaryBotTask.bIsWaitingForBuildLink)
+	if ((pBot->PrimaryBotTask.TaskType == TASK_BUILD || pBot->PrimaryBotTask.TaskType == TASK_CAP_RESNODE || pBot->PrimaryBotTask.TaskType == TASK_REINFORCE_STRUCTURE) && pBot->PrimaryBotTask.bIsWaitingForBuildLink)
 	{
 		if (pBot->PrimaryBotTask.StructureType == StructureType)
 		{
 
 			if (vDist2DSq(NewStructure->v.origin, pBot->PrimaryBotTask.TaskLocation) < sqrf(UTIL_MetresToGoldSrcUnits(2.0f)))
 			{
-				pBot->PrimaryBotTask.TaskTarget = NewStructure;
+				if (pBot->PrimaryBotTask.TaskType == TASK_BUILD || pBot->PrimaryBotTask.TaskType == TASK_CAP_RESNODE)
+				{
+					pBot->PrimaryBotTask.TaskTarget = NewStructure;
+				}
+				else
+				{
+					pBot->PrimaryBotTask.TaskSecondaryTarget = NewStructure;
+				}
+				
 				pBot->PrimaryBotTask.bIsWaitingForBuildLink = false;
 			}
 		}
 	}
 
-	if ((pBot->SecondaryBotTask.TaskType == TASK_BUILD || pBot->SecondaryBotTask.TaskType == TASK_CAP_RESNODE) && pBot->SecondaryBotTask.bIsWaitingForBuildLink)
+	if ((pBot->SecondaryBotTask.TaskType == TASK_BUILD || pBot->SecondaryBotTask.TaskType == TASK_CAP_RESNODE || pBot->PrimaryBotTask.TaskType == TASK_REINFORCE_STRUCTURE) && pBot->SecondaryBotTask.bIsWaitingForBuildLink)
 	{
 		if (pBot->SecondaryBotTask.StructureType == StructureType)
 		{
 
 			if (vDist2DSq(NewStructure->v.origin, pBot->SecondaryBotTask.TaskLocation) < sqrf(UTIL_MetresToGoldSrcUnits(2.0f)))
 			{
-				pBot->SecondaryBotTask.TaskTarget = NewStructure;
+				if (pBot->SecondaryBotTask.TaskType == TASK_BUILD || pBot->SecondaryBotTask.TaskType == TASK_CAP_RESNODE)
+				{
+					pBot->SecondaryBotTask.TaskTarget = NewStructure;
+				}
+				else
+				{
+					pBot->SecondaryBotTask.TaskSecondaryTarget = NewStructure;
+				}
 				pBot->SecondaryBotTask.bIsWaitingForBuildLink = false;
 			}
 		}

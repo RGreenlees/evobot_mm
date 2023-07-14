@@ -142,6 +142,8 @@ void UTIL_LinkDroppedItemToAction(bot_t* CommanderBot, const dropped_marine_item
 // Is there a hive with the alien tech (Defence, Sensory, Movement) assigned to it?
 bool UTIL_ActiveHiveWithTechExists(HiveTechStatus Tech);
 
+bool UTIL_ActiveHiveWithoutTechExists();
+
 char* UTIL_BotRoleToChar(const BotRole Role);
 const char* UTIL_StructTypeToChar(const NSStructureType StructureType);
 const char* UTIL_DroppableItemTypeToChar(const NSDeployableItem ItemType);
@@ -195,6 +197,9 @@ edict_t* UTIL_GetNearestSpecialPrimaryWeapon(const Vector Location, const NSDepl
 edict_t* UTIL_GetNearestEquipment(const Vector Location, const float SearchDist, bool bUsePhaseDist);
 
 edict_t* UTIL_GetNearestUnbuiltStructureWithLOS(bot_t* pBot, const Vector Location, const float SearchDist, const int Team);
+
+const resource_node* UTIL_GetNearestResNodeNeedsReinforcing(bot_t* pBot, const Vector SearchLocation);
+const hive_definition* UTIL_GetNearestUnbuiltHiveNeedsReinforcing(bot_t* pBot);
 
 edict_t* UTIL_GetNearestPlayerOfTeamInArea(const Vector Location, const float SearchRadius, const int Team, edict_t* IgnorePlayer, NSPlayerClass IgnoreClass);
 int UTIL_GetNumPlayersOfTeamInArea(const Vector Location, const float SearchRadius, const int Team, edict_t* IgnorePlayer, NSPlayerClass IgnoreClass, bool bUsePhaseDist);
@@ -297,6 +302,8 @@ edict_t* UTIL_AlienFindNearestHealingSpot(bot_t* pBot, const Vector SearchLocati
 	3) Movement chambers are available and it doesn't have one near it
 */
 bool UTIL_AlienResNodeNeedsReinforcing(int ResNodeIndex);
+
+bool UTIL_AlienHiveNeedsReinforcing(int HiveIndex);
 
 // Returns the nearest alien resource node that needs reinforcing (see UTIL_AlienResNodeNeedsReinforcing())
 const resource_node* UTIL_GetNearestUnprotectedResNode(const Vector Location);

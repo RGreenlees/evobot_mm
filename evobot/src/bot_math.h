@@ -42,8 +42,10 @@ bool isFloat(const char* line);
 float sqrf(float input);
 // Return the sign (-1 if number is negative, 1 if positive, 0 if 0)
 float signf(float input);
-// Clamp value between min and max
+// Clamp float value between min and max
 float clampf(float input, float inMin, float inMax);
+// Clamp int value between min and max
+float clampi(int input, int inMin, int inMax);
 // Clamp the angle to a valid GoldSrc angle (-180 to 180)
 void ClampAngle(float& angle);
 // Spherical linear interpolation of float from start to end at interp speed
