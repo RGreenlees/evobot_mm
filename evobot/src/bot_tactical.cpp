@@ -712,7 +712,7 @@ void UTIL_OnStructureCreated(buildable_structure* NewStructure)
 		{
 			for (int i = 0; i < 32; i++)
 			{
-				if (clients[i] && IsPlayerBot(clients[i]) && IsPlayerCommander(clients[i]))
+				if (clients[i] && IsPlayerCommander(clients[i]))
 				{
 					bot_t* BotRef = GetBotPointer(clients[i]);
 
@@ -762,22 +762,44 @@ void UTIL_LinkPlacedStructureToAction(bot_t* CommanderBot, buildable_structure* 
 
 	NSStructureType StructureType = GetStructureTypeFromEdict(NewStructure->edict);
 
-	for (int Priority = 0; Priority < MAX_ACTION_PRIORITIES; Priority++)
+	if (CommanderBot->BuildBaseAction.bIsAwaitingBuildLink)
 	{
-		for (int ActionIndex = 0; ActionIndex < MAX_PRIORITY_ACTIONS; ActionIndex++)
+		if (CommanderBot->BuildBaseAction.StructureToBuild == StructureType && vDist2DSq(NewStructure->edict->v.origin, CommanderBot->BuildBaseAction.BuildLocation) < sqrf(UTIL_MetresToGoldSrcUnits(10.0f)))
 		{
-			commander_action* action = &CommanderBot->CurrentCommanderActions[Priority][ActionIndex];
-			if (!action->bIsActive || action->ActionType != ACTION_BUILD || !action->bHasAttemptedAction || !FNullEnt(action->StructureOrItem) || !UTIL_StructureTypesMatch(StructureType, action->StructureToBuild)) { continue; }
-
-			if (vDist2DSq(NewStructure->edict->v.origin, action->BuildLocation) < sqrf(UTIL_MetresToGoldSrcUnits(10.0f)))
-			{
-				action->StructureOrItem = NewStructure->edict;
-				NewStructure->LastSuccessfulCommanderLocation = action->LastAttemptedCommanderLocation;
-				NewStructure->LastSuccessfulCommanderAngle = action->LastAttemptedCommanderAngle;
-
-			}
+			CommanderBot->BuildBaseAction.StructureOrItem = NewStructure->edict;
+			CommanderBot->BuildBaseAction.bIsAwaitingBuildLink = false;
+			CommanderBot->next_commander_action_time = gpGlobals->time + 1.0f;
 		}
+	}
 
+	if (CommanderBot->SecureHiveAction.bIsAwaitingBuildLink)
+	{
+		if (CommanderBot->SecureHiveAction.StructureToBuild == StructureType && vDist2DSq(NewStructure->edict->v.origin, CommanderBot->SecureHiveAction.BuildLocation) < sqrf(UTIL_MetresToGoldSrcUnits(10.0f)))
+		{
+			CommanderBot->SecureHiveAction.StructureOrItem = NewStructure->edict;
+			CommanderBot->SecureHiveAction.bIsAwaitingBuildLink = false;
+			CommanderBot->next_commander_action_time = gpGlobals->time + 1.0f;
+		}
+	}
+
+	if (CommanderBot->SiegeHiveAction.bIsAwaitingBuildLink)
+	{
+		if (CommanderBot->SiegeHiveAction.StructureToBuild == StructureType && vDist2DSq(NewStructure->edict->v.origin, CommanderBot->SiegeHiveAction.BuildLocation) < sqrf(UTIL_MetresToGoldSrcUnits(10.0f)))
+		{
+			CommanderBot->SiegeHiveAction.StructureOrItem = NewStructure->edict;
+			CommanderBot->SiegeHiveAction.bIsAwaitingBuildLink = false;
+			CommanderBot->next_commander_action_time = gpGlobals->time + 1.0f;
+		}
+	}
+
+	if (CommanderBot->SupportMarinesAction.bIsAwaitingBuildLink)
+	{
+		if (CommanderBot->SiegeHiveAction.StructureToBuild == StructureType && vDist2DSq(NewStructure->edict->v.origin, CommanderBot->SiegeHiveAction.BuildLocation) < sqrf(UTIL_MetresToGoldSrcUnits(10.0f)))
+		{
+			CommanderBot->SiegeHiveAction.StructureOrItem = NewStructure->edict;
+			CommanderBot->SiegeHiveAction.bIsAwaitingBuildLink = false;
+			CommanderBot->next_commander_action_time = gpGlobals->time + 1.0f;
+		}
 	}
 }
 
@@ -952,13 +974,16 @@ const hive_definition* UTIL_GetNearestUnbuiltHiveNeedsReinforcing(bot_t* pBot)
 
 		if (HiveDef->Status != HIVE_STATUS_UNBUILT) { continue; }
 
+		// Ignore this hive if it's already fully reinforced
 		if (!UTIL_AlienHiveNeedsReinforcing(i)) { continue; }
 
 		bot_t* OtherBot = GetFirstBotWithReinforceTask(HiveDef->edict, pBot->pEdict);
 
+		// If another bot is already reinforcing this hive and is closer than us, then don't interfere
 		if (OtherBot != nullptr && vDist2DSq(OtherBot->pEdict->v.origin, HiveDef->FloorLocation) < vDist2DSq(pBot->pEdict->v.origin, HiveDef->FloorLocation)) { continue; }
 
-		if (UTIL_StructureOfTypeExistsInLocation(STRUCTURE_MARINE_ANYTURRETFACTORY, HiveDef->FloorLocation, UTIL_MetresToGoldSrcUnits(15.0f))) { continue; }
+		// Don't reinforce a hive with a marine turret factory in it, for obvious reasons...
+		if (UTIL_StructureOfTypeExistsInLocation(STRUCTURE_MARINE_ANYTURRETFACTORY, HiveDef->FloorLocation, UTIL_MetresToGoldSrcUnits(15.0f), true)) { continue; }
 
 		float ThisDist = vDist2DSq(pBot->pEdict->v.origin, HiveDef->FloorLocation);
 
@@ -987,13 +1012,16 @@ const resource_node* UTIL_GetNearestResNodeNeedsReinforcing(bot_t* pBot, const V
 
 		if (!ResNode || ResNode->bIsOwnedByMarines || FNullEnt(ResNode->TowerEdict)) { continue; }
 
+		// Ignore this node if it's fully reinforced
 		if (!UTIL_AlienResNodeNeedsReinforcing(i)) { continue; }
 
 		bot_t* OtherBot = GetFirstBotWithReinforceTask(ResNode->TowerEdict, pBot->pEdict);
 
+		// Ignore if another bot is already reinforcing this node and is closer than us
 		if (OtherBot != nullptr && vDist2DSq(OtherBot->pEdict->v.origin, ResNode->origin) < vDist2DSq(pBot->pEdict->v.origin, ResNode->origin)) { continue; }
 
-		if (UTIL_StructureOfTypeExistsInLocation(STRUCTURE_MARINE_ANYTURRETFACTORY, ResNode->origin, UTIL_MetresToGoldSrcUnits(15.0f))) { continue; }
+		// Don't reinforce nodes which have a marine turret factory next to them
+		if (UTIL_StructureOfTypeExistsInLocation(STRUCTURE_MARINE_ANYTURRETFACTORY, ResNode->origin, UTIL_MetresToGoldSrcUnits(15.0f), true)) { continue; }
 
 		float ThisDist = vDist2DSq(SearchLocation, ResNode->TowerEdict->v.origin);
 
@@ -1017,6 +1045,7 @@ const hive_definition* UTIL_GetClosestViableUnbuiltHive(const Vector SearchLocat
 	{
 		if (Hives[i].bIsValid && Hives[i].Status == HIVE_STATUS_UNBUILT)
 		{
+			// Hives aren't viable if marines are camped outside them
 			if (UTIL_StructureOfTypeExistsInLocation(STRUCTURE_MARINE_PHASEGATE, Hives[i].Location, UTIL_MetresToGoldSrcUnits(25.0f))) { continue; }
 
 			if (UTIL_StructureOfTypeExistsInLocation(STRUCTURE_MARINE_TURRETFACTORY, Hives[i].Location, UTIL_MetresToGoldSrcUnits(25.0f))) { continue; }
@@ -1547,7 +1576,7 @@ int UTIL_GetNumPlacedStructuresOfTypeInRadius(const NSStructureType StructureTyp
 	{
 		for (auto& it : MarineBuildableStructureMap)
 		{
-			if (!it.second.bOnNavmesh) { continue; }
+			if (!it.second.bOnNavmesh || !it.second.bIsReachableMarine) { continue; }
 			if (UTIL_StructureTypesMatch(it.second.StructureType, StructureType))
 			{
 				if (vDist2DSq(it.second.Location, Location) <= MaxDist)
@@ -1562,7 +1591,7 @@ int UTIL_GetNumPlacedStructuresOfTypeInRadius(const NSStructureType StructureTyp
 	{
 		for (auto& it : AlienBuildableStructureMap)
 		{
-			if (!it.second.bOnNavmesh) { continue; }
+			if (!it.second.bOnNavmesh || !it.second.bIsReachableMarine) { continue; }
 			if (UTIL_StructureTypesMatch(it.second.StructureType, StructureType))
 			{
 				if (vDist2DSq(it.second.Location, Location) <= MaxDist)
@@ -2314,8 +2343,44 @@ bool UTIL_StructureOfTypeExistsInLocation(const NSStructureType StructureType, c
 
 		for (auto& it : MarineBuildableStructureMap)
 		{
+			if (!it.second.bOnNavmesh || !it.second.bIsReachableMarine) { continue; }
+			if (!UTIL_StructureTypesMatch(StructureType, it.second.StructureType)) { continue; }
+
+			if (vDist2DSq(it.second.Location, Location) <= DistSq) { return true; }
+
+		}
+
+	}
+	else
+	{
+		for (auto& it : AlienBuildableStructureMap)
+		{
+			if (!it.second.bOnNavmesh || !it.second.bIsReachableMarine) { continue; }
+			if (!UTIL_StructureTypesMatch(StructureType, it.second.StructureType)) { continue; }
+
+			if (vDist2DSq(it.second.Location, Location) <= DistSq) { return true; }
+
+		}
+	}
+
+	return false;
+}
+
+bool UTIL_StructureOfTypeExistsInLocation(const NSStructureType StructureType, const Vector& Location, const float SearchRadius, const bool bFullyConstructedOnly)
+{
+	float DistSq = sqrf(SearchRadius);
+
+	bool bMarineStructure = UTIL_IsMarineStructure(StructureType);
+
+	if (bMarineStructure)
+	{
+
+		for (auto& it : MarineBuildableStructureMap)
+		{
 			if (!it.second.bOnNavmesh) { continue; }
 			if (!UTIL_StructureTypesMatch(StructureType, it.second.StructureType)) { continue; }
+
+			if (bFullyConstructedOnly && !it.second.bFullyConstructed) { continue; }
 
 			if (vDist2DSq(it.second.Location, Location) <= DistSq) { return true; }
 
@@ -2328,6 +2393,8 @@ bool UTIL_StructureOfTypeExistsInLocation(const NSStructureType StructureType, c
 		{
 			if (!it.second.bOnNavmesh) { continue; }
 			if (!UTIL_StructureTypesMatch(StructureType, it.second.StructureType)) { continue; }
+
+			if (bFullyConstructedOnly && !it.second.bFullyConstructed) { continue; }
 
 			if (vDist2DSq(it.second.Location, Location) <= DistSq) { return true; }
 
@@ -2448,11 +2515,17 @@ Vector UTIL_GetCommChairLocation()
 {
 	if (MarineBuildableStructureMap.size() > 0)
 	{
+		edict_t* ChairEdict = nullptr;
 		for (auto& it : MarineBuildableStructureMap)
 		{
 			if (!it.second.bOnNavmesh) { continue; }
-			if (UTIL_StructureTypesMatch(STRUCTURE_MARINE_COMMCHAIR, it.second.StructureType)) { return it.second.Location; }
+			if (UTIL_StructureTypesMatch(STRUCTURE_MARINE_COMMCHAIR, it.second.StructureType))
+			{
+				return it.second.Location;
+			}
 		}
+
+		return (!FNullEnt(ChairEdict) ? ChairEdict->v.origin : ZERO_VECTOR);
 	}
 	else
 	{
@@ -2777,7 +2850,34 @@ edict_t* UTIL_GetClosestPlayerOnTeamWithLOS(const Vector& Location, const int Te
 		{
 			float ThisDist = vDist2DSq(clients[i]->v.origin, Location);
 
-			if (ThisDist <= distSq && UTIL_PointIsDirectlyReachable(clients[i]->v.origin, Location))
+			if (ThisDist <= distSq && UTIL_QuickTrace(clients[i], GetPlayerEyePosition(clients[i]), Location))
+			{
+				if (FNullEnt(Result) || ThisDist < MinDist)
+				{
+					Result = clients[i];
+					MinDist = ThisDist;
+				}
+
+			}
+		}
+	}
+
+	return Result;
+}
+
+edict_t* UTIL_GetClosestPlayerOnTeamWithoutLOS(const Vector& Location, const int Team, float SearchRadius, edict_t* IgnorePlayer)
+{
+	float distSq = sqrf(SearchRadius);
+	float MinDist = 0.0f;
+	edict_t* Result = nullptr;
+
+	for (int i = 0; i < 32; i++)
+	{
+		if (!FNullEnt(clients[i]) && clients[i] != IgnorePlayer && clients[i]->v.team == Team && IsPlayerActiveInGame(clients[i]))
+		{
+			float ThisDist = vDist2DSq(clients[i]->v.origin, Location);
+
+			if (ThisDist <= distSq && !UTIL_QuickTrace(clients[i], GetPlayerEyePosition(clients[i]), Location))
 			{
 				if (FNullEnt(Result) || ThisDist < MinDist)
 				{
@@ -2837,7 +2937,7 @@ bool UTIL_AnyPlayerOnTeamWithLOS(const Vector& Location, const int Team, float S
 	{
 		if (!FNullEnt(clients[i]) && clients[i]->v.team == Team && IsPlayerActiveInGame(clients[i]))
 		{
-			if (vDist2DSq(clients[i]->v.origin, Location) <= distSq && UTIL_PointIsDirectlyReachable(clients[i]->v.origin, Location))
+			if (vDist2DSq(clients[i]->v.origin, Location) <= distSq && UTIL_QuickTrace(clients[i], GetPlayerEyePosition(clients[i]), Location))
 			{
 				return true;
 			}
@@ -4818,4 +4918,46 @@ Vector UTIL_GetAmbushPositionForTarget2(bot_t* pBot, edict_t* Target)
 	if (WinningIndex > -1) { return TestPoints[WinningIndex]; }
 
 	return ZERO_VECTOR;
+}
+
+bool UTIL_IsHiveFullySecuredByMarines(const hive_definition* Hive)
+{
+	bool bPhaseGatesAvailable = UTIL_ResearchIsComplete(RESEARCH_OBSERVATORY_PHASETECH);
+
+	bool bHasPhaseGate = false;
+	bool bHasTurretFactory = false;
+	bool bTurretFactoryElectrified = false;
+	int NumTurrets = 0;
+
+	for (auto& it : MarineBuildableStructureMap)
+	{
+		if (!it.second.bOnNavmesh || !it.second.bIsReachableMarine) { continue; }
+
+		if (	!UTIL_StructureTypesMatch(it.second.StructureType, STRUCTURE_MARINE_PHASEGATE)
+			&& !UTIL_StructureTypesMatch(it.second.StructureType, STRUCTURE_MARINE_ANYTURRETFACTORY))
+		{
+			continue;
+		}
+
+		float Dist = vDist2DSq(it.second.Location, Hive->FloorLocation);
+
+		if (Dist > sqrf(UTIL_MetresToGoldSrcUnits(15.0f))) { continue; }
+
+		if (UTIL_StructureTypesMatch(it.second.StructureType, STRUCTURE_MARINE_PHASEGATE)) { bHasPhaseGate = true; }
+
+		if (UTIL_StructureTypesMatch(it.second.StructureType, STRUCTURE_MARINE_ANYTURRETFACTORY))
+		{
+			bHasTurretFactory = true;		
+
+			if (it.second.bIsElectrified)
+			{
+				bTurretFactoryElectrified = true; 
+			}
+#
+			NumTurrets = UTIL_GetNumPlacedStructuresOfTypeInRadius(STRUCTURE_MARINE_TURRET, it.second.Location, UTIL_MetresToGoldSrcUnits(8.0f));
+		}
+
+	}
+
+	return ((!bPhaseGatesAvailable || bHasPhaseGate) && bHasTurretFactory && bTurretFactoryElectrified && NumTurrets >= 5);
 }

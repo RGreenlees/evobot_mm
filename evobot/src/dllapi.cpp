@@ -47,6 +47,7 @@
 #include "player_util.h"
 #include "bot_task.h"
 #include "bot_bsp.h"
+#include "bot_commander.h"
 
 extern int m_spriteTexture;
 
@@ -133,25 +134,19 @@ void ClientCommand(edict_t* pEntity)
 		RETURN_META(MRES_SUPERCEDE);
 	}
 
-	if (FStrEq(pcmd, "testreinforcehive"))
+	if (FStrEq(pcmd, "testturretbuild"))
 	{
-		for (int i = 0; i < MAX_CLIENTS; i++)
+		edict_t* TF = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ANYTURRETFACTORY, pEntity->v.origin, UTIL_MetresToGoldSrcUnits(10.0f), true, false);
+
+		if (!FNullEnt(TF))
 		{
-			if (bots[i].is_used && !FNullEnt(bots[i].pEdict) && IsPlayerAlien(bots[i].pEdict))
-			{
-				const hive_definition* NearestUnclaimedHive = UTIL_GetNearestUnbuiltHiveNeedsReinforcing(&bots[i]);
+			Vector NewBuildLoc = UTIL_GetNextTurretPosition(TF);
 
-				if (NearestUnclaimedHive != nullptr)
-				{
-					edict_t* HiveEdict = NearestUnclaimedHive->edict;
+			UTIL_DrawLine(pEntity, TF->v.origin, NewBuildLoc, 10.0f, 255, 255, 0);
 
-					TASK_SetReinforceStructureTask(&bots[i], &bots[i].PrimaryBotTask, HiveEdict, STRUCTURE_ALIEN_OFFENCECHAMBER, false);
-					return;
-				}
+			Vector FwdVector = UTIL_GetForwardVector2D(TF->v.angles);
 
-				
-			}
-
+			UTIL_DrawLine(pEntity, TF->v.origin, TF->v.origin + (FwdVector * 100.0f), 10.0f);
 		}
 
 		RETURN_META(MRES_SUPERCEDE);

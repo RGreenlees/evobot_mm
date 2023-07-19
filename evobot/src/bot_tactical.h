@@ -13,16 +13,7 @@
 
 #include "bot_structs.h"
 
-// Data structure used to track resource nodes in the map
-typedef struct _RESOURCE_NODE
-{
-	edict_t* edict = nullptr; // The func_resource edict reference
-	Vector origin = ZERO_VECTOR; // origin of the func_resource edict (not the tower itself)
-	bool bIsOccupied = false; // True if there is any resource tower on it
-	bool bIsOwnedByMarines = false; // True if capped and has a marine res tower on it
-	edict_t* TowerEdict = nullptr; // Reference to the resource tower edict (if capped)
-	bool bIsMarineBaseNode = false; // Is this the pre-capped node that appears in the marine base?
-} resource_node;
+
 
 // Defines a named location on the map. Used by the bot to communicate with humans (e.g. "I want to place hive at X")
 typedef struct _MAP_LOCATION
@@ -68,22 +59,7 @@ typedef struct _DROPPED_MARINE_ITEM
 	int LastSeen = 0; // Which refresh cycle was this last seen on? Used to determine if the item has been removed from play
 } dropped_marine_item;
 
-// Data structure to hold information about each hive in the map
-typedef struct _HIVE_DEFINITION_T
-{
-	bool bIsValid = false; // Doesn't exist. Array holds up to 10 hives even though usually only 3 exist
-	edict_t* edict = NULL; // Refers to the hive edict. Always exists even if not built yet
-	Vector Location = ZERO_VECTOR; // Origin of the hive
-	Vector FloorLocation = ZERO_VECTOR; // Some hives are suspended in the air, this is the floor location directly beneath it
-	HiveStatusType Status = HIVE_STATUS_UNBUILT; // Can be unbuilt, in progress, or fully built
-	HiveTechStatus TechStatus = HIVE_TECH_NONE; // What tech (if any) is assigned to this hive right now
-	int HealthPercent = 0; // How much health it has
-	bool bIsUnderAttack = false; // Is the hive currently under attack? Becomes false if not taken damage for more than 10 seconds
-	int HiveResNodeIndex = -1; // Which resource node (indexes into ResourceNodes array) belongs to this hive?
-	unsigned int ObstacleRefs[8]; // When in progress or built, will place an obstacle so bots don't try to walk through it
-	float NextFloorLocationCheck = 0.0f; // When should the closest navigable point to the hive be calculated? Used to delay the check after a hive is built
 
-} hive_definition;
 
 // How frequently to update the global list of built structures (in seconds)
 static const float structure_inventory_refresh_rate = 0.2f;
@@ -234,6 +210,7 @@ edict_t* UTIL_GetNearestUndefendedStructureOfTypeUnderAttack(bot_t* pBot, const 
 edict_t* UTIL_GetNearestStructureOfTypeInLocation(const NSStructureType StructureType, const Vector& Location, const float SearchRadius, bool bAllowElectrified, bool bUsePhaseDistance);
 edict_t* UTIL_GetNearestUnbuiltStructureOfTypeInLocation(const NSStructureType StructureType, const Vector& Location, const float SearchRadius);
 bool UTIL_StructureOfTypeExistsInLocation(const NSStructureType StructureType, const Vector& Location, const float SearchRadius);
+bool UTIL_StructureOfTypeExistsInLocation(const NSStructureType StructureType, const Vector& Location, const float SearchRadius, const bool bFullyConstructedOnly);
 
 edict_t* UTIL_GetNearestUnattackedStructureOfTeamInLocation(const Vector Location, edict_t* IgnoreStructure, const int Team, const float SearchRadius);
 
@@ -272,6 +249,7 @@ int UTIL_GetNumPlayersOnTeamWithLOS(const Vector& Location, const int Team, floa
 bool UTIL_AnyPlayerOnTeamHasLOSToLocation(const int Team, const Vector Target, const float MaxRange);
 
 edict_t* UTIL_GetClosestPlayerOnTeamWithLOS(const Vector& Location, const int Team, float SearchRadius, edict_t* IgnorePlayer);
+edict_t* UTIL_GetClosestPlayerOnTeamWithoutLOS(const Vector& Location, const int Team, float SearchRadius, edict_t* IgnorePlayer);
 
 edict_t* UTIL_FindClosestMarineStructureUnbuilt(const Vector& SearchLocation, float SearchRadius, bool bUsePhaseDistance);
 edict_t* UTIL_FindClosestMarineStructureUnbuiltWithoutBuilders(bot_t* pBot, const int MaxBuilders, const Vector& SearchLocation, float SearchRadius, bool bUsePhaseDistance);
@@ -393,5 +371,8 @@ bool UTIL_IsAreaAffectedByUmbra(const Vector Location);
 
 Vector UTIL_GetAmbushPositionForTarget(bot_t* pBot, edict_t* Target);
 Vector UTIL_GetAmbushPositionForTarget2(bot_t* pBot, edict_t* Target);
+
+bool UTIL_IsHiveFullySecuredByMarines(const hive_definition* Hive);
+
 
 #endif

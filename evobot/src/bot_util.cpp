@@ -398,8 +398,6 @@ void BotKilledPlayer(bot_t* pBot, edict_t* victim)
 
 bot_t* GetBotPointer(const edict_t* pEdict)
 {
-	// If we aren't flagged as a fake client, then we can't be a bot
-	if (!(pEdict->v.flags & FL_FAKECLIENT)) { return nullptr; }
 
 	for (int index = 0; index < MAX_CLIENTS; index++)
 	{

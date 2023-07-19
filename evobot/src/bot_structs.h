@@ -253,6 +253,7 @@ typedef struct _COMMANDER_ACTION
 	int NumActionAttempts = 0; // Commander will give up after a certain number of attempts to place structure/item
 	NSResearch ResearchId = RESEARCH_NONE; // What research to perform if research action
 	NSDeployableItem ItemToDeploy = ITEM_NONE; // What item to drop if drop item action
+	bool bIsAwaitingBuildLink = false; // The AI has tried placing a structure or item and is waiting to confirm it worked or not
 
 } commander_action;
 
@@ -274,7 +275,6 @@ typedef struct _BOT_TASK
 	int Evolution = 0; // Used by TASK_EVOLVE to determine what to evolve into
 	float TaskLength = 0.0f; // If a task has gone on longer than this time, it will be considered completed
 } bot_task;
-
 
 // Tracks what orders have been given to which players
 typedef struct _COMMANDER_ORDER
@@ -376,6 +376,11 @@ typedef struct _BOT_T
 	commander_action CurrentCommanderActions[MAX_ACTION_PRIORITIES][MAX_PRIORITY_ACTIONS]; // All the current actions a commander can queue. Their "to-do" list
 	commander_order LastPlayerOrders[32]; // All the orders the commander has issued to players
 
+	commander_action SecureHiveAction;
+	commander_action SiegeHiveAction;
+	commander_action BuildBaseAction;
+	commander_action SupportMarinesAction;
+
 	bot_task* CurrentTask = nullptr; // Bot's current task they're performing
 	bot_task PrimaryBotTask;
 	bot_task SecondaryBotTask;
@@ -446,7 +451,32 @@ typedef struct _BOT_T
 
 } bot_t;
 
+// Data structure used to track resource nodes in the map
+typedef struct _RESOURCE_NODE
+{
+	edict_t* edict = nullptr; // The func_resource edict reference
+	Vector origin = ZERO_VECTOR; // origin of the func_resource edict (not the tower itself)
+	bool bIsOccupied = false; // True if there is any resource tower on it
+	bool bIsOwnedByMarines = false; // True if capped and has a marine res tower on it
+	edict_t* TowerEdict = nullptr; // Reference to the resource tower edict (if capped)
+	bool bIsMarineBaseNode = false; // Is this the pre-capped node that appears in the marine base?
+} resource_node;
 
+// Data structure to hold information about each hive in the map
+typedef struct _HIVE_DEFINITION_T
+{
+	bool bIsValid = false; // Doesn't exist. Array holds up to 10 hives even though usually only 3 exist
+	edict_t* edict = NULL; // Refers to the hive edict. Always exists even if not built yet
+	Vector Location = ZERO_VECTOR; // Origin of the hive
+	Vector FloorLocation = ZERO_VECTOR; // Some hives are suspended in the air, this is the floor location directly beneath it
+	HiveStatusType Status = HIVE_STATUS_UNBUILT; // Can be unbuilt, in progress, or fully built
+	HiveTechStatus TechStatus = HIVE_TECH_NONE; // What tech (if any) is assigned to this hive right now
+	int HealthPercent = 0; // How much health it has
+	bool bIsUnderAttack = false; // Is the hive currently under attack? Becomes false if not taken damage for more than 10 seconds
+	int HiveResNodeIndex = -1; // Which resource node (indexes into ResourceNodes array) belongs to this hive?
+	unsigned int ObstacleRefs[8]; // When in progress or built, will place an obstacle so bots don't try to walk through it
+	float NextFloorLocationCheck = 0.0f; // When should the closest navigable point to the hive be calculated? Used to delay the check after a hive is built
 
+} hive_definition;
 
 #endif
