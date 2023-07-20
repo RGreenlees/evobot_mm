@@ -984,7 +984,7 @@ void BotProgressPickupTask(bot_t* pBot, bot_task* Task)
 
 		if (Task->TaskType == TASK_GET_WEAPON)
 		{
-			NSDeployableItem ItemType = UTIL_GetItemTypeFromEdict(Task->TaskTarget);
+			NSStructureType ItemType = UTIL_GetItemTypeFromEdict(Task->TaskTarget);
 
 			if (UTIL_DroppedItemIsPrimaryWeapon(ItemType))
 			{

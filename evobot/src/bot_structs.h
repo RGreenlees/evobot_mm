@@ -66,12 +66,12 @@ typedef enum _EVODEBUGMODE
 typedef enum _COMMANDERACTIONTYPE
 {
 	ACTION_NONE = 0,
-	ACTION_BUILD,
 	ACTION_UPGRADE,
 	ACTION_RESEARCH,
 	ACTION_RECYCLE,
 	ACTION_DROPITEM,
-	ACTION_GIVEORDER
+	ACTION_GIVEORDER,
+	ACTION_DEPLOY // Deploy a structure or item into the map
 
 } CommanderActionType;
 
@@ -373,13 +373,14 @@ typedef struct _BOT_T
 
 	int NumActionLinkedItems = 0;
 
-	commander_action CurrentCommanderActions[MAX_ACTION_PRIORITIES][MAX_PRIORITY_ACTIONS]; // All the current actions a commander can queue. Their "to-do" list
 	commander_order LastPlayerOrders[32]; // All the orders the commander has issued to players
 
 	commander_action SecureHiveAction;
 	commander_action SiegeHiveAction;
 	commander_action BuildBaseAction;
-	commander_action SupportMarinesAction;
+	commander_action ResearchAction;
+	commander_action SupportAction;
+	commander_action RecycleAction;
 
 	bot_task* CurrentTask = nullptr; // Bot's current task they're performing
 	bot_task PrimaryBotTask;

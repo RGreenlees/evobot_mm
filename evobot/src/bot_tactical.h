@@ -53,7 +53,7 @@ typedef struct _DROPPED_MARINE_ITEM
 {
 	edict_t* edict = nullptr; // Reference to the item edict
 	Vector Location = ZERO_VECTOR; // Origin of the entity
-	NSDeployableItem ItemType = ITEM_NONE; // Is it a weapon, health pack, ammo pack etc?
+	NSStructureType ItemType = STRUCTURE_NONE; // Is it a weapon, health pack, ammo pack etc?
 	bool bOnNavMesh = false; // Is it on the nav mesh? Important to prevent bots trying to grab stuff that's inaccessible
 	bool bIsReachableMarine = false; // Is the item reachable by marines? Checks from the comm chair location
 	int LastSeen = 0; // Which refresh cycle was this last seen on? Used to determine if the item has been removed from play
@@ -90,7 +90,7 @@ unsigned char UTIL_GetAreaForObstruction(NSStructureType StructureType);
 float UTIL_GetStructureRadiusForObstruction(NSStructureType StructureType);
 bool UTIL_ShouldStructureCollide(NSStructureType StructureType);
 void UTIL_UpdateBuildableStructure(edict_t* Structure);
-void UTIL_UpdateMarineItem(edict_t* Item, NSDeployableItem ItemType);
+void UTIL_UpdateMarineItem(edict_t* Item, NSStructureType ItemType);
 
 // Will cycle through all structures in the map and update the marine and alien buildable structure maps
 void UTIL_RefreshBuildableStructures();
@@ -105,15 +105,14 @@ bool UTIL_StructureIsFullyBuilt(const edict_t* Structure);
 
 int UTIL_GetItemCountOfTypeInArea(const NSDeployableItem ItemType, const Vector& SearchLocation, const float Radius);
 
-NSDeployableItem UTIL_GetItemTypeFromEdict(const edict_t* ItemEdict);
+NSStructureType UTIL_GetItemTypeFromEdict(const edict_t* ItemEdict);
 NSWeapon UTIL_GetWeaponTypeFromEdict(const edict_t* ItemEdict);
 
 void UTIL_OnStructureCreated(buildable_structure* NewStructure);
 void UTIL_OnStructureDestroyed(const NSStructureType Structure, const Vector Location);
 void UTIL_OnItemDropped(const dropped_marine_item* NewItem);
 
-void UTIL_LinkPlacedStructureToAction(bot_t* CommanderBot, buildable_structure* NewStructure);
-void UTIL_LinkDroppedItemToAction(bot_t* CommanderBot, const dropped_marine_item* NewItem);
+void UTIL_LinkDeployedObjectToAction(bot_t* CommanderBot, edict_t* NewObject, NSStructureType ObjectType);
 
 // Is there a hive with the alien tech (Defence, Sensory, Movement) assigned to it?
 bool UTIL_ActiveHiveWithTechExists(HiveTechStatus Tech);
@@ -306,7 +305,7 @@ edict_t* BotGetNearestDangerTurret(bot_t* pBot, float MaxDistance);
 edict_t* PlayerGetNearestDangerTurret(const edict_t* Player, float MaxDistance);
 
 // Checks if the item lying on the floor is a primary weapon (MG, HMG, GL, Shotgun)
-bool UTIL_DroppedItemIsPrimaryWeapon(NSDeployableItem ItemType);
+bool UTIL_DroppedItemIsPrimaryWeapon(NSStructureType ItemType);
 
 // Is the input edict a valid marine structure?
 bool UTIL_IsMarineStructure(const edict_t* Structure);

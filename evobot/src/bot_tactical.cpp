@@ -18,6 +18,7 @@
 #include "bot_util.h"
 #include "game_state.h"
 #include "bot_task.h"
+#include "bot_commander.h"
 
 #include "DetourTileCacheBuilder.h"
 
@@ -76,7 +77,27 @@ void PopulateEmptyHiveList()
 
 bool UTIL_StructureExistsOfType(const NSStructureType StructureType)
 {
-	return (UTIL_GetStructureCountOfType(StructureType) > 0);
+	bool bIsMarineStructure = UTIL_IsMarineStructure(StructureType);
+
+	if (bIsMarineStructure)
+	{
+		for (auto& it : MarineBuildableStructureMap)
+		{
+			if (!it.second.bOnNavmesh) { continue; }
+			if (UTIL_StructureTypesMatch(StructureType, it.second.StructureType)) { return true; }
+
+		}
+	}
+	else
+	{
+		for (auto& it : AlienBuildableStructureMap)
+		{
+			if (!it.second.bOnNavmesh) { continue; }
+			if (UTIL_StructureTypesMatch(StructureType, it.second.StructureType)) { return true; }
+		}
+	}
+
+	return false;
 }
 
 edict_t* UTIL_GetNearestEquipment(const Vector Location, const float SearchDist, bool bUsePhaseDist)
@@ -718,7 +739,7 @@ void UTIL_OnStructureCreated(buildable_structure* NewStructure)
 
 					if (BotRef)
 					{
-						UTIL_LinkPlacedStructureToAction(BotRef, NewStructure);
+						UTIL_LinkDeployedObjectToAction(BotRef, NewStructure->edict, StructureType);
 					}
 				}
 			}
@@ -756,95 +777,43 @@ void UTIL_OnStructureCreated(buildable_structure* NewStructure)
 
 }
 
-void UTIL_LinkPlacedStructureToAction(bot_t* CommanderBot, buildable_structure* NewStructure)
+void UTIL_LinkDeployedObjectToAction(bot_t* CommanderBot, edict_t* NewObject, NSStructureType ObjectType)
 {
-	if (FNullEnt(NewStructure->edict)) { return; }
-
-	NSStructureType StructureType = GetStructureTypeFromEdict(NewStructure->edict);
+	if (FNullEnt(NewObject) || ObjectType == STRUCTURE_NONE) { return; }
 
 	if (CommanderBot->BuildBaseAction.bIsAwaitingBuildLink)
 	{
-		if (CommanderBot->BuildBaseAction.StructureToBuild == StructureType && vDist2DSq(NewStructure->edict->v.origin, CommanderBot->BuildBaseAction.BuildLocation) < sqrf(UTIL_MetresToGoldSrcUnits(10.0f)))
+		if (CommanderBot->BuildBaseAction.StructureToBuild == ObjectType)
 		{
-			CommanderBot->BuildBaseAction.StructureOrItem = NewStructure->edict;
-			CommanderBot->BuildBaseAction.bIsAwaitingBuildLink = false;
-			CommanderBot->next_commander_action_time = gpGlobals->time + 1.0f;
+			COMM_ConfirmObjectDeployed(CommanderBot, &CommanderBot->BuildBaseAction, NewObject);
 		}
 	}
 
 	if (CommanderBot->SecureHiveAction.bIsAwaitingBuildLink)
 	{
-		if (CommanderBot->SecureHiveAction.StructureToBuild == StructureType && vDist2DSq(NewStructure->edict->v.origin, CommanderBot->SecureHiveAction.BuildLocation) < sqrf(UTIL_MetresToGoldSrcUnits(10.0f)))
+		if (CommanderBot->SecureHiveAction.StructureToBuild == ObjectType)
 		{
-			CommanderBot->SecureHiveAction.StructureOrItem = NewStructure->edict;
-			CommanderBot->SecureHiveAction.bIsAwaitingBuildLink = false;
-			CommanderBot->next_commander_action_time = gpGlobals->time + 1.0f;
+			COMM_ConfirmObjectDeployed(CommanderBot, &CommanderBot->SecureHiveAction, NewObject);
 		}
 	}
 
 	if (CommanderBot->SiegeHiveAction.bIsAwaitingBuildLink)
 	{
-		if (CommanderBot->SiegeHiveAction.StructureToBuild == StructureType && vDist2DSq(NewStructure->edict->v.origin, CommanderBot->SiegeHiveAction.BuildLocation) < sqrf(UTIL_MetresToGoldSrcUnits(10.0f)))
+		if (CommanderBot->SiegeHiveAction.StructureToBuild == ObjectType)
 		{
-			CommanderBot->SiegeHiveAction.StructureOrItem = NewStructure->edict;
-			CommanderBot->SiegeHiveAction.bIsAwaitingBuildLink = false;
-			CommanderBot->next_commander_action_time = gpGlobals->time + 1.0f;
+			COMM_ConfirmObjectDeployed(CommanderBot, &CommanderBot->SiegeHiveAction, NewObject);
 		}
 	}
 
-	if (CommanderBot->SupportMarinesAction.bIsAwaitingBuildLink)
+	if (CommanderBot->SupportAction.bIsAwaitingBuildLink)
 	{
-		if (CommanderBot->SiegeHiveAction.StructureToBuild == StructureType && vDist2DSq(NewStructure->edict->v.origin, CommanderBot->SiegeHiveAction.BuildLocation) < sqrf(UTIL_MetresToGoldSrcUnits(10.0f)))
+		if (CommanderBot->SupportAction.StructureToBuild == ObjectType)
 		{
-			CommanderBot->SiegeHiveAction.StructureOrItem = NewStructure->edict;
-			CommanderBot->SiegeHiveAction.bIsAwaitingBuildLink = false;
-			CommanderBot->next_commander_action_time = gpGlobals->time + 1.0f;
+			COMM_ConfirmObjectDeployed(CommanderBot, &CommanderBot->SupportAction, NewObject);
 		}
 	}
 }
 
-void UTIL_LinkDroppedItemToAction(bot_t* CommanderBot, const dropped_marine_item* NewItem)
-{
-	if (FNullEnt(NewItem->edict)) { return; }
-
-	NSStructureType StructureType = GetStructureTypeFromEdict(NewItem->edict);
-
-	for (int Priority = 0; Priority < MAX_ACTION_PRIORITIES; Priority++)
-	{
-		for (int ActionIndex = 0; ActionIndex < MAX_PRIORITY_ACTIONS; ActionIndex++)
-		{
-			commander_action* action = &CommanderBot->CurrentCommanderActions[Priority][ActionIndex];
-			if (!action->bIsActive || action->ActionType != ACTION_DROPITEM) { continue; }
-			if (FNullEnt(action->StructureOrItem) && vDist2DSq(NewItem->edict->v.origin, action->BuildLocation) < sqrf(UTIL_MetresToGoldSrcUnits(2.0f)))
-			{
-				action->StructureOrItem = NewItem->edict;
-				return;
-
-			}
-		}
-	}
-}
-
-/*void UTIL_OnStructureDestroyed(const buildable_structure* DestroyedStructure)
-{
-	if (DestroyedStructure->StructureType == STRUCTURE_MARINE_RESTOWER || DestroyedStructure->StructureType == STRUCTURE_ALIEN_RESTOWER)
-	{
-		int NearestResNodeIndex = UTIL_FindNearestResNodeIndexToLocation(DestroyedStructure->Location);
-
-		if (NearestResNodeIndex > -1)
-		{
-			ResourceNodes[NearestResNodeIndex].bIsOccupied = false;
-			ResourceNodes[NearestResNodeIndex].bIsOwnedByMarines = false;
-			ResourceNodes[NearestResNodeIndex].TowerEdict = nullptr;
-		}
-	}
-
-	if (DestroyedStructure->ObstacleRef > 0)
-	{
-		UTIL_RemoveTemporaryObstacle(DestroyedStructure->ObstacleRef);
-	}
-
-}*/
 
 void UTIL_OnStructureDestroyed(const NSStructureType Structure, const Vector Location)
 {
@@ -3195,67 +3164,67 @@ void UTIL_RefreshMarineItems()
 	edict_t* currItem = NULL;
 	while (((currItem = UTIL_FindEntityByClassname(currItem, "item_health")) != NULL) && (!FNullEnt(currItem)))
 	{
-		UTIL_UpdateMarineItem(currItem, ITEM_MARINE_HEALTHPACK);
+		UTIL_UpdateMarineItem(currItem, DEPLOYABLE_ITEM_MARINE_HEALTHPACK);
 	}
 
 	currItem = NULL;
 	while (((currItem = UTIL_FindEntityByClassname(currItem, "item_genericammo")) != NULL) && (!FNullEnt(currItem)))
 	{
-		UTIL_UpdateMarineItem(currItem, ITEM_MARINE_AMMO);
+		UTIL_UpdateMarineItem(currItem, DEPLOYABLE_ITEM_MARINE_AMMO);
 	}
 
 	currItem = NULL;
 	while (((currItem = UTIL_FindEntityByClassname(currItem, "item_heavyarmor")) != NULL) && (!FNullEnt(currItem)))
 	{
-		UTIL_UpdateMarineItem(currItem, ITEM_MARINE_HEAVYARMOUR);
+		UTIL_UpdateMarineItem(currItem, DEPLOYABLE_ITEM_MARINE_HEAVYARMOUR);
 	}
 
 	currItem = NULL;
 	while (((currItem = UTIL_FindEntityByClassname(currItem, "item_jetpack")) != NULL) && (!FNullEnt(currItem)))
 	{
-		UTIL_UpdateMarineItem(currItem, ITEM_MARINE_JETPACK);
+		UTIL_UpdateMarineItem(currItem, DEPLOYABLE_ITEM_MARINE_JETPACK);
 	}
 
 	currItem = NULL;
 	while (((currItem = UTIL_FindEntityByClassname(currItem, "item_catalyst")) != NULL) && (!FNullEnt(currItem)))
 	{
-		UTIL_UpdateMarineItem(currItem, ITEM_MARINE_CATALYSTS);
+		UTIL_UpdateMarineItem(currItem, DEPLOYABLE_ITEM_MARINE_CATALYSTS);
 	}
 
 	currItem = NULL;
 	while (((currItem = UTIL_FindEntityByClassname(currItem, "weapon_mine")) != NULL) && (!FNullEnt(currItem)))
 	{
-		UTIL_UpdateMarineItem(currItem, ITEM_MARINE_MINES);
+		UTIL_UpdateMarineItem(currItem, DEPLOYABLE_ITEM_MARINE_MINES);
 	}
 
 	currItem = NULL;
 	while (((currItem = UTIL_FindEntityByClassname(currItem, "weapon_shotgun")) != NULL) && (!FNullEnt(currItem)))
 	{
-		UTIL_UpdateMarineItem(currItem, ITEM_MARINE_SHOTGUN);
+		UTIL_UpdateMarineItem(currItem, DEPLOYABLE_ITEM_MARINE_SHOTGUN);
 	}
 
 	currItem = NULL;
 	while (((currItem = UTIL_FindEntityByClassname(currItem, "weapon_heavymachinegun")) != NULL) && (!FNullEnt(currItem)))
 	{
-		UTIL_UpdateMarineItem(currItem, ITEM_MARINE_HMG);
+		UTIL_UpdateMarineItem(currItem, DEPLOYABLE_ITEM_MARINE_HMG);
 	}
 
 	currItem = NULL;
 	while (((currItem = UTIL_FindEntityByClassname(currItem, "weapon_grenadegun")) != NULL) && (!FNullEnt(currItem)))
 	{
-		UTIL_UpdateMarineItem(currItem, ITEM_MARINE_GRENADELAUNCHER);
+		UTIL_UpdateMarineItem(currItem, DEPLOYABLE_ITEM_MARINE_GRENADELAUNCHER);
 	}
 
 	currItem = NULL;
 	while (((currItem = UTIL_FindEntityByClassname(currItem, "weapon_welder")) != NULL) && (!FNullEnt(currItem)))
 	{
-		UTIL_UpdateMarineItem(currItem, ITEM_MARINE_WELDER);
+		UTIL_UpdateMarineItem(currItem, DEPLOYABLE_ITEM_MARINE_WELDER);
 	}
 
 	currItem = NULL;
 	while (((currItem = UTIL_FindEntityByClassname(currItem, "scan")) != NULL) && (!FNullEnt(currItem)))
 	{
-		UTIL_UpdateMarineItem(currItem, ITEM_MARINE_SCAN);
+		UTIL_UpdateMarineItem(currItem, DEPLOYABLE_ITEM_MARINE_SCAN);
 	}
 
 	for (auto it = MarineDroppedItemMap.begin(); it != MarineDroppedItemMap.end();)
@@ -3274,9 +3243,9 @@ void UTIL_RefreshMarineItems()
 
 }
 
-NSDeployableItem UTIL_GetItemTypeFromEdict(const edict_t* ItemEdict)
+NSStructureType UTIL_GetItemTypeFromEdict(const edict_t* ItemEdict)
 {
-	if (!ItemEdict) { return ITEM_NONE; }
+	if (!ItemEdict) { return STRUCTURE_NONE; }
 
 	for (auto& it : MarineDroppedItemMap)
 	{
@@ -3286,7 +3255,7 @@ NSDeployableItem UTIL_GetItemTypeFromEdict(const edict_t* ItemEdict)
 		}
 	}
 
-	return ITEM_NONE;
+	return STRUCTURE_NONE;
 }
 
 bool IsAlienTraitCategoryAvailable(HiveTechStatus TraitCategory)
@@ -3360,19 +3329,19 @@ void UTIL_OnItemDropped(const dropped_marine_item* NewItem)
 {
 	for (int i = 0; i < 32; i++)
 	{
-		if (clients[i] && IsPlayerBot(clients[i]) && IsPlayerCommander(clients[i]))
+		if (clients[i] && IsPlayerCommander(clients[i]))
 		{
 			bot_t* BotRef = GetBotPointer(clients[i]);
 
 			if (BotRef)
 			{
-				UTIL_LinkDroppedItemToAction(BotRef, NewItem);
+				UTIL_LinkDeployedObjectToAction(BotRef, NewItem->edict, NewItem->ItemType);
 			}
 		}
 	}
 }
 
-void UTIL_UpdateMarineItem(edict_t* Item, NSDeployableItem ItemType)
+void UTIL_UpdateMarineItem(edict_t* Item, NSStructureType ItemType)
 {
 	if (FNullEnt(Item)) { return; }
 
@@ -3859,13 +3828,13 @@ edict_t* BotGetNearestDangerTurret(bot_t* pBot, float MaxDistance)
 	return Result;
 }
 
-bool UTIL_DroppedItemIsPrimaryWeapon(NSDeployableItem ItemType)
+bool UTIL_DroppedItemIsPrimaryWeapon(NSStructureType ItemType)
 {
 	switch (ItemType)
 	{
-	case ITEM_MARINE_GRENADELAUNCHER:
-	case ITEM_MARINE_HMG:
-	case ITEM_MARINE_SHOTGUN:
+	case DEPLOYABLE_ITEM_MARINE_GRENADELAUNCHER:
+	case DEPLOYABLE_ITEM_MARINE_HMG:
+	case DEPLOYABLE_ITEM_MARINE_SHOTGUN:
 		return true;
 	default:
 		return false;
@@ -4421,53 +4390,57 @@ int UTIL_GetCostOfStructureType(NSStructureType StructureType)
 	{
 	case STRUCTURE_MARINE_ARMOURY:
 		return kArmoryCost;
-		break;
 	case STRUCTURE_MARINE_ARMSLAB:
 		return kArmsLabCost;
-		break;
 	case STRUCTURE_MARINE_COMMCHAIR:
 		return kCommandStationCost;
-		break;
 	case STRUCTURE_MARINE_INFANTRYPORTAL:
 		return kInfantryPortalCost;
-		break;
 	case STRUCTURE_MARINE_OBSERVATORY:
 		return kObservatoryCost;
-		break;
 	case STRUCTURE_MARINE_PHASEGATE:
 		return kPhaseGateCost;
-		break;
 	case STRUCTURE_MARINE_PROTOTYPELAB:
 		return kPrototypeLabCost;
-		break;
 	case STRUCTURE_MARINE_RESTOWER:
 	case STRUCTURE_ALIEN_RESTOWER:
 		return kResourceTowerCost;
-		break;
 	case STRUCTURE_MARINE_SIEGETURRET:
 		return kSiegeCost;
-		break;
 	case STRUCTURE_MARINE_TURRET:
 		return kSentryCost;
-		break;
 	case STRUCTURE_MARINE_TURRETFACTORY:
 		return kTurretFactoryCost;
-		break;
 	case STRUCTURE_ALIEN_HIVE:
 		return kHiveCost;
-		break;
 	case STRUCTURE_ALIEN_OFFENCECHAMBER:
 		return kOffenseChamberCost;
-		break;
 	case STRUCTURE_ALIEN_DEFENCECHAMBER:
 		return kDefenseChamberCost;
-		break;
 	case STRUCTURE_ALIEN_MOVEMENTCHAMBER:
 		return kMovementChamberCost;
-		break;
 	case STRUCTURE_ALIEN_SENSORYCHAMBER:
 		return kSensoryChamberCost;
-		break;
+	case DEPLOYABLE_ITEM_MARINE_AMMO:
+		return kAmmoCost;
+	case DEPLOYABLE_ITEM_MARINE_CATALYSTS:
+		return kCatalystCost;
+	case DEPLOYABLE_ITEM_MARINE_GRENADELAUNCHER:
+		return kGrenadeLauncherCost;
+	case DEPLOYABLE_ITEM_MARINE_HEALTHPACK:
+		return kHealthCost;
+	case DEPLOYABLE_ITEM_MARINE_HEAVYARMOUR:
+		return kHeavyArmorCost;
+	case DEPLOYABLE_ITEM_MARINE_HMG:
+		return kHMGCost;
+	case DEPLOYABLE_ITEM_MARINE_JETPACK:
+		return kJetpackCost;
+	case DEPLOYABLE_ITEM_MARINE_MINES:
+		return kMineCost;
+	case DEPLOYABLE_ITEM_MARINE_SHOTGUN:
+		return kShotgunCost;
+	case DEPLOYABLE_ITEM_MARINE_WELDER:
+		return kWelderCost;
 	default:
 		return 0;
 
