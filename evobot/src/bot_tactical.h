@@ -171,6 +171,7 @@ edict_t* UTIL_GetNearestItemIndexOfType(const NSDeployableItem ItemType, const V
 edict_t* UTIL_GetNearestSpecialPrimaryWeapon(const Vector Location, const NSDeployableItem ExcludeItem, const float SearchDist, bool bUsePhaseDist);
 edict_t* UTIL_GetNearestEquipment(const Vector Location, const float SearchDist, bool bUsePhaseDist);
 
+edict_t* UTIL_GetNearestUnbuiltStructureOfTeamInArea(const Vector Location, const float SearchDist, const int Team);
 edict_t* UTIL_GetNearestUnbuiltStructureWithLOS(bot_t* pBot, const Vector Location, const float SearchDist, const int Team);
 
 const resource_node* UTIL_GetNearestResNodeNeedsReinforcing(bot_t* pBot, const Vector SearchLocation);

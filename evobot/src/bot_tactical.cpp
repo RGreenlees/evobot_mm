@@ -316,6 +316,50 @@ edict_t* UTIL_GetNearestItemOfType(const NSDeployableItem ItemType, const Vector
 	return Result;
 }
 
+edict_t* UTIL_GetNearestUnbuiltStructureOfTeamInArea(const Vector Location, const float SearchDist, const int Team)
+{
+	edict_t* Result = nullptr;
+	float MaxDist = sqrf(SearchDist);
+	float MinDist = 0.0f;
+
+	if (Team == MARINE_TEAM)
+	{
+		for (auto& it : MarineBuildableStructureMap)
+		{
+			if (!it.second.bOnNavmesh || !it.second.bIsReachableMarine) { continue; }
+
+			if (it.second.bFullyConstructed) { continue; }
+
+			float thisDist = vDist2DSq(Location, it.second.Location);
+
+			if (thisDist < MaxDist && (!Result || thisDist < MinDist))
+			{
+				Result = it.second.edict;
+				MinDist = thisDist;
+			}
+		}
+	}
+	else
+	{
+		for (auto& it : AlienBuildableStructureMap)
+		{
+			if (!it.second.bOnNavmesh || !it.second.bIsReachableAlien) { continue; }
+
+			if (it.second.bFullyConstructed) { continue; }
+
+			float thisDist = vDist2DSq(Location, it.second.Location);
+
+			if (thisDist < MaxDist && (!Result || thisDist < MinDist))
+			{
+				Result = it.second.edict;
+				MinDist = thisDist;
+			}
+		}
+	}
+
+	return Result;
+}
+
 edict_t* UTIL_GetNearestUnbuiltStructureWithLOS(bot_t* pBot, const Vector Location, const float SearchDist, const int Team)
 {
 	edict_t* Result = nullptr;

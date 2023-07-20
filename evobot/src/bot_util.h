@@ -131,6 +131,8 @@ void CombatModeThink(bot_t* pBot);
 // Called if there isn't a valid game mode in play (e.g. user has loaded non-NS map). Bots will randomly roam and attack enemies but nothing else
 void InvalidModeThink(bot_t* pBot);
 
+bool ShouldBotTakeCommand(bot_t* pBot);
+
 void TestNavThink(bot_t* pBot);
 void TestGuardThink(bot_t* pBot);
 void TestAimThink(bot_t* pBot);

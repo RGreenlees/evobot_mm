@@ -17,6 +17,7 @@
 #include "bot_marine.h"
 #include "bot_alien.h"
 #include "bot_commander.h"
+#include "bot_config.h"
 
 extern bot_t bots[MAX_CLIENTS];
 extern edict_t* clients[MAX_CLIENTS];
@@ -79,7 +80,8 @@ void BotLookAt(bot_t* pBot, edict_t* target)
 
 	pBot->LookTarget = target;
 
-	if (!IsEdictPlayer(target))
+	// For team mates we don't track enemy refs, so just look at the friendly player
+	if (!IsEdictPlayer(target) || target->v.team == pBot->pEdict->v.team)
 	{
 		pBot->LookTargetLocation = UTIL_GetCentreOfEntity(pBot->LookTarget);
 		pBot->LastTargetTrackUpdate = gpGlobals->time;
@@ -1715,6 +1717,7 @@ void StartNewBotFrame(bot_t* pBot)
 	else
 	{
 		pEdict->v.flags &= ~FL_FAKECLIENT;
+		pEdict->v.flags |= FL_THIRDPARTYBOT;
 	}
 	
 	pEdict->v.button = 0;
@@ -1838,11 +1841,22 @@ void BotThink(bot_t* pBot)
 
 void RegularModeThink(bot_t* pBot)
 {
-
-	if (IsPlayerCommander(pBot->pEdict))
+	if (IsPlayerOnMarineTeam(pBot->pEdict))
 	{
-		CommanderThink(pBot);
-		return;
+		if (ShouldBotTakeCommand(pBot))
+		{
+			pBot->CurrentRole = BOT_ROLE_COMMAND;
+			CommanderThink(pBot);
+			return;
+		}
+		else
+		{
+			if (IsPlayerCommander(pBot->pEdict))
+			{
+				BotStopCommanderMode(pBot);
+				return;
+			}
+		}
 	}
 
 	pBot->CurrentEnemy = BotGetNextEnemyTarget(pBot);
@@ -1860,6 +1874,31 @@ void RegularModeThink(bot_t* pBot)
 	{
 		AlienThink(pBot);
 	}
+}
+
+bool ShouldBotTakeCommand(bot_t* pBot)
+{
+	if (!IsPlayerOnMarineTeam(pBot->pEdict)) { return false; }
+
+	CommanderMode BotCommanderMode = CONFIG_GetCommanderMode();
+
+	if (BotCommanderMode == COMMANDERMODE_NEVER) { return false; }
+
+	if (BotCommanderMode == COMMANDERMODE_IFNOHUMAN)
+	{
+		if (GAME_IsAnyHumanOnTeam(MARINE_TEAM))
+		{
+			return false;
+		}
+	}
+
+	if (UTIL_IsThereACommander())
+	{
+		return IsPlayerCommander(pBot->pEdict);
+	}
+
+	return (GAME_GetBotsWithRoleType(BOT_ROLE_COMMAND, MARINE_TEAM, pBot->pEdict) < 1);
+
 }
 
 void CombatModeThink(bot_t* pBot)

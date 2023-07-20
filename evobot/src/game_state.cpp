@@ -1042,6 +1042,7 @@ void EvoBot_ServerCommand(void)
 		{
 			CONFIG_SetConfigOverride(true);
 			CONFIG_SetCommanderMode(COMMANDERMODE_NEVER);
+			LOG_CONSOLE(PLID, "Commander mode set to 'never' until server restart\n");
 
 			return;
 		}
@@ -1050,7 +1051,7 @@ void EvoBot_ServerCommand(void)
 		{
 			CONFIG_SetConfigOverride(true);
 			CONFIG_SetCommanderMode(COMMANDERMODE_IFNOHUMAN);
-
+			LOG_CONSOLE(PLID, "Commander mode set to 'if no human' until server restart\n");
 			return;
 		}
 
@@ -1058,11 +1059,20 @@ void EvoBot_ServerCommand(void)
 		{
 			CONFIG_SetConfigOverride(true);
 			CONFIG_SetCommanderMode(COMMANDERMODE_ALWAYS);
+			LOG_CONSOLE(PLID, "Commander mode set to 'always' until server restart\n");
 
 			return;
 		}
 
 		LOG_CONSOLE(PLID, "Invalid mode specified. Valid arguments are 'never', 'ifnohuman' or 'always'\n");
+
+		return;
+	}
+
+	if (FStrEq(arg1, "stopcommander"))
+	{
+		CONFIG_SetCommanderMode(COMMANDERMODE_NEVER);
+		LOG_CONSOLE(PLID, "Bot will not command until next map change\n");
 
 		return;
 	}

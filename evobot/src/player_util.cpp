@@ -85,7 +85,7 @@ bool IsPlayerHuman(const edict_t* Player)
 bool IsPlayerBot(const edict_t* Player)
 {
 	if (FNullEnt(Player)) { return false; }
-	return Player && ((Player->v.flags & FL_FAKECLIENT) || (Player->v.flags & FL_THIRDPARTYBOT));
+	return ((Player->v.flags & FL_FAKECLIENT) || (Player->v.flags & FL_THIRDPARTYBOT));
 }
 
 bool IsPlayerDead(const edict_t* Player)

@@ -50,6 +50,15 @@ void CommanderThink(bot_t* CommanderBot);
 void CommanderGetPrimaryTask(bot_t* pBot, bot_task* Task);
 
 void COMM_UpdateAndClearCommanderActions(bot_t* CommanderBot);
+void COMM_UpdateAndClearCommanderOrders(bot_t* CommanderBot);
+
+bool COMM_ClearCompletedOrders(bot_t* CommanderBot);
+
+int COMM_GetNumMoveOrdersNearLocation(bot_t* CommanderBot, const Vector Location, const float MaxDistance);
+
+int COMM_GetNumMarinesAndOrdersInLocation(bot_t* CommanderBot, const Vector Location, const float SearchDist);
+
+edict_t* COMM_GetNearestMarineWithoutOrder(bot_t* CommanderBot, const Vector SearchLocation, float MinDistance, float MaxDistance);
 
 bool COMM_IsWaitingOnBuildLink(bot_t* CommanderBot);
 
@@ -98,6 +107,7 @@ void COMM_ConfirmObjectDeployed(bot_t* pBot, commander_action* Action, edict_t* 
 
 const resource_node* COMM_GetResNodeCapOpportunityNearestLocation(const Vector SearchLocation);
 const hive_definition* COMM_GetEmptyHiveOpportunityNearestLocation(const Vector SearchLocation);
+const hive_definition* COMM_GetUnsecuredEmptyHiveNearestLocation(const Vector SearchLocation);
 const hive_definition* COMM_GetHiveSiegeOpportunityNearestLocation(const Vector SearchLocation);
 
 void COMM_SetInfantryPortalBuildAction(edict_t* CommChair, commander_action* Action);
@@ -113,6 +123,7 @@ void COMM_SetNextSiegeHiveAction(const hive_definition* Hive, commander_action* 
 void COMM_SetNextResearchAction(commander_action* Action);
 
 void COMM_SetNextBuildBaseAction(commander_action* Action);
+void COMM_SetNextSupportAction(commander_action* Action);
 
 commander_action* COMM_GetNextAction(bot_t* CommanderBot);
 

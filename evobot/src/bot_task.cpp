@@ -1489,7 +1489,7 @@ void BotProgressTakeCommandTask(bot_t* pBot)
 		{
 			edict_t* NearestHuman = UTIL_GetNearestHumanAtLocation(CommChair->v.origin, UTIL_MetresToGoldSrcUnits(15.0f));
 
-			if (!NearestHuman)
+			if (FNullEnt(NearestHuman))
 			{
 				BotUseObject(pBot, CommChair, false);
 			}

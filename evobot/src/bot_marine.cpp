@@ -27,7 +27,7 @@ void MarineThink(bot_t* pBot)
 	edict_t* pEdict = pBot->pEdict;
 
 	// Don't engage enemies if attempting to take command
-	if (pBot->CurrentRole != BOT_ROLE_COMMAND && pBot->CurrentEnemy > -1)
+	if (pBot->CurrentEnemy > -1)
 	{
 		if (MarineCombatThink(pBot))
 		{
@@ -48,11 +48,6 @@ void MarineThink(bot_t* pBot)
 
 		if (pBot->CurrentRole != RequiredRole)
 		{
-			if (IsPlayerCommander(pBot->pEdict) && RequiredRole != BOT_ROLE_COMMAND)
-			{
-				BotStopCommanderMode(pBot);
-			}
-
 			UTIL_ClearBotTask(pBot, &pBot->PrimaryBotTask);
 			UTIL_ClearBotTask(pBot, &pBot->SecondaryBotTask);
 
