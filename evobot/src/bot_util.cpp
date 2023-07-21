@@ -1204,9 +1204,7 @@ void UTIL_ClearAllBotData(bot_t* pBot)
 
 	pBot->CurrentTask = nullptr;
 
-	UTIL_ClearCommanderAction(&pBot->BuildBaseAction);
-	UTIL_ClearCommanderAction(&pBot->SecureHiveAction);
-	UTIL_ClearCommanderAction(&pBot->SiegeHiveAction);
+	UTIL_ClearCommanderAction(&pBot->BuildAction);
 	UTIL_ClearCommanderAction(&pBot->SupportAction);
 	UTIL_ClearCommanderAction(&pBot->RecycleAction);
 	UTIL_ClearCommanderAction(&pBot->ResearchAction);

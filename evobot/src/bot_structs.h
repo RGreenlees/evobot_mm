@@ -120,6 +120,17 @@ typedef enum
 }
 BotAttackResult;
 
+typedef enum
+{
+	ORDERPURPOSE_NONE,
+	ORDERPURPOSE_SECURE_HIVE,
+	ORDERPURPOSE_SIEGE_HIVE,
+	ORDERPURPOSE_DEFEND,
+	ORDERPURPOSE_SECURE_RESNODE,
+	ORDERPURPOSE_BUILD,
+	ORDERPURPOSE_MOVE
+} CommanderOrderPurpose;
+
 typedef struct
 {
 	char szClassname[64];
@@ -281,6 +292,7 @@ typedef struct _COMMANDER_ORDER
 {
 	bool bIsActive = false;
 	AvHOrderType OrderType = ORDERTYPE_UNDEFINED;
+	CommanderOrderPurpose OrderPurpose = ORDERPURPOSE_NONE;
 	Vector MoveLocation = ZERO_VECTOR;
 	edict_t* Target = nullptr;
 	float LastReminderTime = 0.0f;
@@ -377,10 +389,11 @@ typedef struct _BOT_T
 
 	commander_action SecureHiveAction;
 	commander_action SiegeHiveAction;
-	commander_action BuildBaseAction;
+	commander_action BuildAction;
 	commander_action ResearchAction;
 	commander_action SupportAction;
 	commander_action RecycleAction;
+	commander_action* CurrentAction;
 
 	bot_task* CurrentTask = nullptr; // Bot's current task they're performing
 	bot_task PrimaryBotTask;

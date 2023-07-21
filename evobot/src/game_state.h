@@ -22,6 +22,8 @@ NSGameMode GAME_GetGameMode();
 void GAME_AddClient(edict_t* NewClient);
 void GAME_RemoveClient(edict_t* DisconnectedClient);
 
+int GAME_GetClientIndex(edict_t* Client);
+
 void GAME_Reset();
 
 void GAME_SetListenServerEdict(edict_t* ListenEdict);

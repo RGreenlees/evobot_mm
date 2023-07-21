@@ -31,7 +31,7 @@ extern bool bGameIsActive;
 
 void COMM_CommanderProgressAction(bot_t* CommanderBot, commander_action* Action)
 {
-	if (!Action) { return; }
+	if (!Action || Action->ActionType == ACTION_NONE) { return; }
 
 	switch (Action->ActionType)
 	{
@@ -138,9 +138,100 @@ void UTIL_IssueMarineMoveToOrder(bot_t* CommanderBot, edict_t* Recipient, const 
 	}
 }
 
+void COMM_IssueMarineSiegeHiveOrder(bot_t* CommanderBot, edict_t* Recipient, const hive_definition* HiveToSiege, const Vector SiegePosition)
+{
+	if (!HiveToSiege || FNullEnt(Recipient) || !IsPlayerActiveInGame(Recipient)) { return; }
+
+	int ClientIndex = GAME_GetClientIndex(Recipient);
+
+	if (ClientIndex < 0) { return; }
+
+	CommanderBot->LastPlayerOrders[ClientIndex].bIsActive = true;
+	CommanderBot->LastPlayerOrders[ClientIndex].MoveLocation = SiegePosition;
+	CommanderBot->LastPlayerOrders[ClientIndex].OrderPurpose = ORDERPURPOSE_SIEGE_HIVE;
+	CommanderBot->LastPlayerOrders[ClientIndex].Target = HiveToSiege->edict;
+	CommanderBot->LastPlayerOrders[ClientIndex].OrderType = ORDERTYPEL_MOVE;
+
+	MESSAGE_BEGIN(MSG_ONE, REG_USER_MSG("SetOrder", -1), NULL, Recipient);
+	WRITE_BYTE(ENTINDEX(Recipient));
+	WRITE_BYTE(ORDERTYPEL_MOVE);
+
+	WRITE_COORD(SiegePosition.x);
+	WRITE_COORD(SiegePosition.y);
+	WRITE_COORD(SiegePosition.z);
+
+	WRITE_BYTE(AVH_USER3_NONE);
+	WRITE_BYTE(false);
+	WRITE_BYTE(kOrderStatusActive);
+
+	MESSAGE_END();
+
+	if (IsPlayerBot(Recipient))
+	{
+		bot_t* BotRef = GetBotPointer(Recipient);
+
+		if (BotRef)
+		{
+			BotReceiveCommanderOrder(BotRef, ORDERTYPEL_MOVE, AVH_USER3_NONE, SiegePosition);
+		}
+	}
+}
+
+
+void COMM_IssueMarineSecureHiveOrder(bot_t* CommanderBot, edict_t* Recipient, const hive_definition* HiveToSecure)
+{
+	if (!HiveToSecure || FNullEnt(Recipient) || !IsPlayerActiveInGame(Recipient)) { return; }
+
+	int ClientIndex = GAME_GetClientIndex(Recipient);
+
+	if (ClientIndex < 0) { return; }
+
+	Vector NearestPoint = FindClosestNavigablePointToDestination(MARINE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), HiveToSecure->FloorLocation, UTIL_MetresToGoldSrcUnits(10.0f));
+
+	if (NearestPoint == ZERO_VECTOR || vDist2DSq(NearestPoint, HiveToSecure->FloorLocation) > sqrf(UTIL_MetresToGoldSrcUnits(10.0f)))
+	{
+		NearestPoint = HiveToSecure->FloorLocation;
+	}
+
+	float MaxDist = UTIL_MetresToGoldSrcUnits(10.0f) - vDist2D(NearestPoint, HiveToSecure->FloorLocation);
+
+	Vector OrderLocation = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, NearestPoint, MaxDist);
+
+	CommanderBot->LastPlayerOrders[ClientIndex].bIsActive = true;
+	CommanderBot->LastPlayerOrders[ClientIndex].MoveLocation = OrderLocation;
+	CommanderBot->LastPlayerOrders[ClientIndex].OrderPurpose = ORDERPURPOSE_SECURE_HIVE;
+	CommanderBot->LastPlayerOrders[ClientIndex].Target = HiveToSecure->edict;
+	CommanderBot->LastPlayerOrders[ClientIndex].OrderType = ORDERTYPEL_MOVE;
+
+	MESSAGE_BEGIN(MSG_ONE, REG_USER_MSG("SetOrder", -1), NULL, Recipient);
+	WRITE_BYTE(ENTINDEX(Recipient));
+	WRITE_BYTE(ORDERTYPEL_MOVE);
+
+	WRITE_COORD(OrderLocation.x);
+	WRITE_COORD(OrderLocation.y);
+	WRITE_COORD(OrderLocation.z);
+
+	WRITE_BYTE(AVH_USER3_NONE);
+	WRITE_BYTE(false);
+	WRITE_BYTE(kOrderStatusActive);
+
+	MESSAGE_END();
+
+	if (IsPlayerBot(Recipient))
+	{
+		bot_t* BotRef = GetBotPointer(Recipient);
+
+		if (BotRef)
+		{
+			BotReceiveCommanderOrder(BotRef, ORDERTYPEL_MOVE, AVH_USER3_NONE, OrderLocation);
+		}
+	}
+
+}
+
 void UTIL_IssueMarineBuildOrder(bot_t* CommanderBot, edict_t* Recipient, edict_t* StructureToBuild)
 {
-	if (FNullEnt(StructureToBuild) || StructureToBuild->v.deadflag == DEAD_DEAD) { return; }
+	if (FNullEnt(StructureToBuild) || StructureToBuild->v.deadflag != DEAD_NO) { return; }
 
 
 	if (IsPlayerDead(Recipient) || !IsPlayerOnMarineTeam(Recipient) || IsPlayerCommander(Recipient) || IsPlayerBeingDigested(Recipient)) { return; }
@@ -176,7 +267,7 @@ void UTIL_IssueMarineBuildOrder(bot_t* CommanderBot, edict_t* Recipient, edict_t
 			float dist = UTIL_GetPathCostBetweenLocations(MARINE_REGULAR_NAV_PROFILE, Recipient->v.origin, StructureToBuild->v.origin);
 			CommanderBot->LastPlayerOrders[i].bIsActive = true;
 			CommanderBot->LastPlayerOrders[i].OrderType = ORDERTYPET_BUILD;
-			CommanderBot->LastPlayerOrders[i].MoveLocation = ZERO_VECTOR;
+			CommanderBot->LastPlayerOrders[i].MoveLocation = StructureToBuild->v.origin;
 			CommanderBot->LastPlayerOrders[i].Target = StructureToBuild;
 			CommanderBot->LastPlayerOrders[i].LastReminderTime = gpGlobals->time;
 			CommanderBot->LastPlayerOrders[i].LastPlayerDistance = dist;
@@ -294,24 +385,126 @@ void COMM_UpdateAndClearCommanderOrders(bot_t* CommanderBot)
 
 	if (EmptyHive != nullptr)
 	{
-		int NumMarines = COMM_GetNumMarinesAndOrdersInLocation(CommanderBot, EmptyHive->FloorLocation, UTIL_MetresToGoldSrcUnits(15.0f));
+		int NumMarines = COMM_GetNumMarinesSecuringHive(CommanderBot, EmptyHive, UTIL_MetresToGoldSrcUnits(15.0f));
 
 		int MarineDeficit = 2 - NumMarines;
 
 		if (MarineDeficit > 0)
 		{
-			
 			edict_t* NearestMarine = COMM_GetNearestMarineWithoutOrder(CommanderBot, EmptyHive->FloorLocation, UTIL_MetresToGoldSrcUnits(15.0f), UTIL_MetresToGoldSrcUnits(500.0f));
 
 			if (!FNullEnt(NearestMarine))
 			{
-				Vector RandomPoint = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, EmptyHive->FloorLocation, UTIL_MetresToGoldSrcUnits(5.0f));
-				UTIL_IssueMarineMoveToOrder(CommanderBot, NearestMarine, RandomPoint);
+				COMM_IssueMarineSecureHiveOrder(CommanderBot, NearestMarine, EmptyHive);
 				return;
 			}
 		}		
 	}
 
+	if (UTIL_ResearchIsComplete(RESEARCH_OBSERVATORY_PHASETECH))
+	{
+		const hive_definition* SiegeHive = COMM_GetHiveSiegeOpportunityNearestLocation(UTIL_GetCommChairLocation());
+
+		if (SiegeHive)
+		{
+			int NumMarines = COMM_GetNumMarinesSiegingHive(CommanderBot, SiegeHive, UTIL_MetresToGoldSrcUnits(25.0f));
+
+			int MarineDeficit = 2 - NumMarines;
+
+			if (MarineDeficit > 0)
+			{
+				edict_t* NearestMarine = COMM_GetNearestMarineWithoutOrder(CommanderBot, SiegeHive->FloorLocation, UTIL_MetresToGoldSrcUnits(25.0f), UTIL_MetresToGoldSrcUnits(500.0f));
+
+				if (!FNullEnt(NearestMarine))
+				{
+					Vector SiegePosition = COMM_GetGoodSiegeLocation(SiegeHive);
+					COMM_IssueMarineSiegeHiveOrder(CommanderBot, NearestMarine, SiegeHive, SiegePosition);
+					return;
+				}
+			}
+		}
+
+	}
+
+}
+
+Vector COMM_GetGoodSiegeLocation(const hive_definition* HiveToSiege)
+{
+	edict_t* ExistingPG = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_PHASEGATE, HiveToSiege->FloorLocation, UTIL_MetresToGoldSrcUnits(25.0f), true, false);
+
+	if (!FNullEnt(ExistingPG))
+	{
+		return ExistingPG->v.origin;
+	}
+
+	Vector Point = UTIL_GetRandomPointOnNavmeshInDonut(MARINE_REGULAR_NAV_PROFILE, HiveToSiege->FloorLocation, UTIL_MetresToGoldSrcUnits(15.0f), UTIL_MetresToGoldSrcUnits(20.0f));
+
+	if (Point != ZERO_VECTOR && !UTIL_QuickTrace(nullptr, Point + Vector(0.0f, 0.0f, 32.0f), HiveToSiege->Location))
+	{
+		return Point;
+	}
+
+	return ZERO_VECTOR;
+}
+
+int COMM_GetNumMarinesSiegingHive(bot_t* CommanderBot, const hive_definition* Hive, float MaxDistance)
+{
+	int Result = 0;
+
+	float MaxDistSq = sqrf(MaxDistance);
+
+	for (int i = 0; i < MAX_CLIENTS; i++)
+	{
+		if (IsPlayerMarine(clients[i]) && IsPlayerActiveInGame(clients[i]))
+		{
+			if (vDist2DSq(clients[i]->v.origin, Hive->FloorLocation) < MaxDistSq)
+			{
+				Result++;
+			}
+			else
+			{
+				if (CommanderBot->LastPlayerOrders[i].bIsActive)
+				{
+					if (CommanderBot->LastPlayerOrders[i].OrderPurpose == ORDERPURPOSE_SIEGE_HIVE && CommanderBot->LastPlayerOrders[i].Target == Hive->edict)
+					{
+						Result++;
+					}
+				}
+			}
+		}
+	}
+
+	return Result;
+}
+
+int COMM_GetNumMarinesSecuringHive(bot_t* CommanderBot, const hive_definition* Hive, float MaxDistance)
+{
+	int Result = 0;
+
+	float MaxDistSq = sqrf(MaxDistance);
+
+	for (int i = 0; i < MAX_CLIENTS; i++)
+	{
+		if (IsPlayerMarine(clients[i]) && IsPlayerActiveInGame(clients[i]))
+		{
+			if (vDist2DSq(clients[i]->v.origin, Hive->FloorLocation) < MaxDistSq)
+			{
+				Result++;
+			}
+			else
+			{
+				if (CommanderBot->LastPlayerOrders[i].bIsActive)
+				{
+					if (vDist2DSq(CommanderBot->LastPlayerOrders[i].MoveLocation, Hive->FloorLocation) <= MaxDistSq)
+					{
+						Result++;
+					}
+				}
+			}
+		}
+	}
+
+	return Result;
 }
 
 edict_t* COMM_GetNearestMarineWithoutOrder(bot_t* CommanderBot, const Vector SearchLocation, float MinDistance, float MaxDistance)
@@ -323,7 +516,7 @@ edict_t* COMM_GetNearestMarineWithoutOrder(bot_t* CommanderBot, const Vector Sea
 
 	for (int i = 0; i < MAX_CLIENTS; i++)
 	{
-		if (FNullEnt(clients[i]) || !IsPlayerActiveInGame(clients[i])) { continue; }
+		if (FNullEnt(clients[i]) || !IsPlayerMarine(clients[i]) || !IsPlayerActiveInGame(clients[i])) { continue; }
 
 		if (CommanderBot->LastPlayerOrders[i].bIsActive)
 		{
@@ -408,7 +601,7 @@ bool COMM_ClearCompletedOrders(bot_t* CommanderBot)
 	{
 		if (CommanderBot->LastPlayerOrders[i].bIsActive)
 		{
-			if (FNullEnt(clients[i]) || !IsPlayerMarine(clients[i]))
+			if (FNullEnt(clients[i]))
 			{
 				UTIL_ClearCommanderOrder(CommanderBot, i);
 				continue;
@@ -508,75 +701,35 @@ void CommanderThink(bot_t* pBot)
 		return;
 	}
 
-	COMM_UpdateAndClearCommanderActions(pBot);
-	COMM_UpdateAndClearCommanderOrders(pBot);
-
 	bool bCommanderOnCooldown = (gpGlobals->time < pBot->next_commander_action_time);
 
 	if (bCommanderOnCooldown || COMM_IsWaitingOnBuildLink(pBot)) { return; }
 
-	const hive_definition* HiveToSecure = COMM_GetEmptyHiveOpportunityNearestLocation(UTIL_GetCommChairLocation());
+	COMM_UpdateAndClearCommanderActions(pBot);
+	COMM_UpdateAndClearCommanderOrders(pBot);
 
-	if (HiveToSecure)
-	{
-		COMM_SetNextSecureHiveAction(HiveToSecure, &pBot->SecureHiveAction);
-	}
-
-	const hive_definition* HiveToSiege = COMM_GetHiveSiegeOpportunityNearestLocation(UTIL_GetCommChairLocation());
-
-	if (HiveToSiege)
-	{
-		COMM_SetNextSiegeHiveAction(HiveToSiege, &pBot->SiegeHiveAction);
-	}
-
-	COMM_SetNextBuildBaseAction(&pBot->BuildBaseAction);
+	COMM_SetNextBuildAction(&pBot->BuildAction);
 
 	COMM_SetNextSupportAction(&pBot->SupportAction);
 
 	COMM_SetNextResearchAction(&pBot->ResearchAction);
 
-	commander_action* NextAction = COMM_GetNextAction(pBot);
+	pBot->CurrentAction = COMM_GetNextAction(pBot);
 
-	COMM_CommanderProgressAction(pBot, NextAction);
+	COMM_CommanderProgressAction(pBot, pBot->CurrentAction);
 
 
 }
 
 bool COMM_IsWaitingOnBuildLink(bot_t* CommanderBot)
 {
-	if (CommanderBot->BuildBaseAction.bIsAwaitingBuildLink)
+	if (CommanderBot->BuildAction.bIsAwaitingBuildLink)
 	{
-		float TimeElapsed = gpGlobals->time - CommanderBot->BuildBaseAction.StructureBuildAttemptTime;
+		float TimeElapsed = gpGlobals->time - CommanderBot->BuildAction.StructureBuildAttemptTime;
 
 		if (TimeElapsed > 0.5f)
 		{
-			CommanderBot->BuildBaseAction.bIsAwaitingBuildLink = false;
-			return false;
-		}
-
-		return true;
-	}
-
-	if (CommanderBot->SecureHiveAction.bIsAwaitingBuildLink)
-	{
-		float TimeElapsed = gpGlobals->time - CommanderBot->SecureHiveAction.StructureBuildAttemptTime;
-
-		if (TimeElapsed > 0.5f)
-		{
-			CommanderBot->SecureHiveAction.bIsAwaitingBuildLink = false;
-			return false;
-		}
-
-		return true;
-	}
-
-	if (CommanderBot->SiegeHiveAction.bIsAwaitingBuildLink)
-	{
-		float TimeElapsed = gpGlobals->time - CommanderBot->SiegeHiveAction.StructureBuildAttemptTime;
-
-		if (TimeElapsed > 0.5f)
-		{
-			CommanderBot->SiegeHiveAction.bIsAwaitingBuildLink = false;
+			CommanderBot->BuildAction.bIsAwaitingBuildLink = false;
 			return false;
 		}
 
@@ -601,15 +754,12 @@ bool COMM_IsWaitingOnBuildLink(bot_t* CommanderBot)
 
 commander_action* COMM_GetNextAction(bot_t* CommanderBot)
 {
-	if (CommanderBot->SiegeHiveAction.ActionType != ACTION_NONE) { return &CommanderBot->SiegeHiveAction; }
-
-	if (CommanderBot->SecureHiveAction.ActionType != ACTION_NONE) { return &CommanderBot->SecureHiveAction; }
 
 	if (CommanderBot->SupportAction.ActionType != ACTION_NONE) { return &CommanderBot->SupportAction; }
 
 	if (CommanderBot->RecycleAction.ActionType != ACTION_NONE) { return &CommanderBot->RecycleAction; }
 
-	if (CommanderBot->BuildBaseAction.ActionType != ACTION_NONE) { return &CommanderBot->BuildBaseAction; }
+	if (CommanderBot->BuildAction.ActionType != ACTION_NONE) { return &CommanderBot->BuildAction; }
 	
 	if (CommanderBot->ResearchAction.ActionType != ACTION_NONE) { return &CommanderBot->ResearchAction; }
 	
@@ -618,9 +768,9 @@ commander_action* COMM_GetNextAction(bot_t* CommanderBot)
 
 void COMM_UpdateAndClearCommanderActions(bot_t* CommanderBot)
 {
-	if (!UTIL_IsCommanderActionValid(CommanderBot, &CommanderBot->BuildBaseAction))
+	if (!UTIL_IsCommanderActionValid(CommanderBot, &CommanderBot->BuildAction))
 	{
-		UTIL_ClearCommanderAction(&CommanderBot->BuildBaseAction);
+		UTIL_ClearCommanderAction(&CommanderBot->BuildAction);
 	}
 
 	if (!UTIL_IsCommanderActionValid(CommanderBot, &CommanderBot->SecureHiveAction))
@@ -1055,6 +1205,8 @@ void BotCommanderSelectStructure(bot_t* pBot, const edict_t* Structure, commande
 
 		Action->ActionStep = ACTION_STEP_NONE;
 
+		pBot->next_commander_action_time = gpGlobals->time + 0.1f;
+
 		return;
 	}
 
@@ -1310,6 +1462,8 @@ void BotCommanderDeploy(bot_t* pBot, commander_action* Action)
 
 		pBot->impulse = IMPULSE_COMMANDER_MOVETO;
 
+		pBot->next_commander_action_time = gpGlobals->time + 0.1f;
+
 		return;
 	}
 
@@ -1443,20 +1597,55 @@ bool UTIL_IsMarineOrderComplete(bot_t* CommanderBot, int PlayerIndex)
 
 	if (FNullEnt(Player) || !IsPlayerActiveInGame(Player)) { return true; }
 
-	switch (CommanderBot->LastPlayerOrders[PlayerIndex].OrderType)
+	bool bOrderComplete = false;
+	AvHOrderType OrderType = CommanderBot->LastPlayerOrders[PlayerIndex].OrderType;
+	CommanderOrderPurpose OrderPurpose = CommanderBot->LastPlayerOrders[PlayerIndex].OrderPurpose;
+
+	switch (OrderType)
 	{
 	case ORDERTYPEL_MOVE:
-		return (CommanderBot->LastPlayerOrders[PlayerIndex].MoveLocation == ZERO_VECTOR || vDist3DSq(Player->v.origin, CommanderBot->LastPlayerOrders[PlayerIndex].MoveLocation) < sqrf(UTIL_MetresToGoldSrcUnits(move_order_success_dist_metres)));
+		bOrderComplete = (CommanderBot->LastPlayerOrders[PlayerIndex].MoveLocation == ZERO_VECTOR || vDist3DSq(Player->v.origin, CommanderBot->LastPlayerOrders[PlayerIndex].MoveLocation) < sqrf(UTIL_MetresToGoldSrcUnits(move_order_success_dist_metres)));
 		break;
 	case ORDERTYPET_BUILD:
-		return (FNullEnt(CommanderBot->LastPlayerOrders[PlayerIndex].Target) || UTIL_StructureIsFullyBuilt(CommanderBot->LastPlayerOrders[PlayerIndex].Target));
+		bOrderComplete = (FNullEnt(CommanderBot->LastPlayerOrders[PlayerIndex].Target) || UTIL_StructureIsFullyBuilt(CommanderBot->LastPlayerOrders[PlayerIndex].Target));
 		break;
 	default:
-		return true;
+		bOrderComplete = false;
 		break;
 	}
 
+	if (bOrderComplete) { return true; }
+
+	switch (OrderPurpose)
+	{
+		case ORDERPURPOSE_SECURE_HIVE:
+			return COMM_IsSecureHiveOrderComplete(&CommanderBot->LastPlayerOrders[PlayerIndex]);
+		case ORDERPURPOSE_SIEGE_HIVE:
+			return COMM_IsSiegeHiveOrderComplete(&CommanderBot->LastPlayerOrders[PlayerIndex]);
+		default:
+			return false;
+
+	}
+
 	return true;
+}
+
+bool COMM_IsSecureHiveOrderComplete(commander_order* Order)
+{
+	const hive_definition* HiveToSecure = UTIL_GetNearestHiveAtLocation(Order->Target->v.origin);
+
+	if (!HiveToSecure) { return true; }
+
+	return UTIL_IsHiveFullySecuredByMarines(HiveToSecure);
+}
+
+bool COMM_IsSiegeHiveOrderComplete(commander_order* Order)
+{
+	const hive_definition* HiveToSiege = UTIL_GetNearestHiveAtLocation(Order->Target->v.origin);
+
+	if (!HiveToSiege) { return true; }
+
+	return HiveToSiege->Status == HIVE_STATUS_UNBUILT;
 }
 
 bool UTIL_ConfirmMarineOrderComplete(bot_t* CommanderBot, int CommanderOrderIndex)
@@ -2459,7 +2648,7 @@ void COMM_SetNextSupportAction(commander_action* Action)
 
 }
 
-void COMM_SetNextBuildBaseAction(commander_action* Action)
+void COMM_SetNextBuildAction(commander_action* Action)
 {
 	edict_t* CommChair = UTIL_GetCommChair();
 
@@ -2540,6 +2729,14 @@ void COMM_SetNextBuildBaseAction(commander_action* Action)
 		return;
 	}
 
+	const hive_definition* HiveToSecure = COMM_GetEmptyHiveOpportunityNearestLocation(UTIL_GetCommChairLocation());
+
+	if (HiveToSecure)
+	{
+		COMM_SetNextSecureHiveAction(HiveToSecure, Action);
+		return;
+	}
+
 	bool bHasObservatory = UTIL_StructureExistsOfType(STRUCTURE_MARINE_OBSERVATORY);
 
 	if (!bHasObservatory)
@@ -2563,6 +2760,14 @@ void COMM_SetNextBuildBaseAction(commander_action* Action)
 	if (!UTIL_ResearchIsComplete(RESEARCH_OBSERVATORY_PHASETECH) || !UTIL_ResearchIsComplete(RESEARCH_ARMSLAB_ARMOUR2) || !UTIL_ResearchIsComplete(RESEARCH_ARMSLAB_WEAPONS2))
 	{
 		UTIL_ClearCommanderAction(Action);
+		return;
+	}
+
+	const hive_definition* HiveToSiege = COMM_GetHiveSiegeOpportunityNearestLocation(UTIL_GetCommChairLocation());
+
+	if (HiveToSiege)
+	{
+		COMM_SetNextSiegeHiveAction(HiveToSiege, Action);
 		return;
 	}
 

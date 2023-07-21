@@ -34,6 +34,8 @@ void BotCommanderSelectStructure(bot_t* pBot, const edict_t* Structure, commande
 
 void UTIL_IssueMarineMoveToOrder(bot_t* CommanderBot, edict_t* Recipient, const Vector Destination);
 void UTIL_IssueMarineBuildOrder(bot_t* CommanderBot, edict_t* Recipient, edict_t* StructureToBuild);
+void COMM_IssueMarineSecureHiveOrder(bot_t* CommanderBot, edict_t* Recipient, const hive_definition* HiveToSecure);
+void COMM_IssueMarineSiegeHiveOrder(bot_t* CommanderBot, edict_t* Recipient, const hive_definition* HiveToSiege, const Vector SiegePosition);
 
 void CommanderReceiveAlert(bot_t* pBot, const Vector Location, const PlayerAlertType AlertType);
 void CommanderReceiveHealthRequest(bot_t* pBot, edict_t* Requestor);
@@ -59,6 +61,10 @@ int COMM_GetNumMoveOrdersNearLocation(bot_t* CommanderBot, const Vector Location
 int COMM_GetNumMarinesAndOrdersInLocation(bot_t* CommanderBot, const Vector Location, const float SearchDist);
 
 edict_t* COMM_GetNearestMarineWithoutOrder(bot_t* CommanderBot, const Vector SearchLocation, float MinDistance, float MaxDistance);
+
+int COMM_GetNumMarinesSecuringHive(bot_t* CommanderBot, const hive_definition* Hive, float MaxDistance);
+int COMM_GetNumMarinesSiegingHive(bot_t* CommanderBot, const hive_definition* Hive, float MaxDistance);
+Vector COMM_GetGoodSiegeLocation(const hive_definition* HiveToSiege);
 
 bool COMM_IsWaitingOnBuildLink(bot_t* CommanderBot);
 
@@ -97,6 +103,9 @@ bool UTIL_CancelMarineOrder(bot_t* CommanderBot, int CommanderOrderIndex);
 bool UTIL_IsMarineOrderComplete(bot_t* CommanderBot, int CommanderOrderIndex);
 bool UTIL_ConfirmMarineOrderComplete(bot_t* CommanderBot, int CommanderOrderIndex);
 
+bool COMM_IsSecureHiveOrderComplete(commander_order* Order);
+bool COMM_IsSiegeHiveOrderComplete(commander_order* Order);
+
 int UTIL_FindClosestAvailableMarinePlayer(bot_t* CommanderBot, const Vector Location);
 
 int UTIL_GetNumArmouriesUpgrading();
@@ -122,7 +131,7 @@ void COMM_SetNextSecureHiveAction(const hive_definition* Hive, commander_action*
 void COMM_SetNextSiegeHiveAction(const hive_definition* Hive, commander_action* Action);
 void COMM_SetNextResearchAction(commander_action* Action);
 
-void COMM_SetNextBuildBaseAction(commander_action* Action);
+void COMM_SetNextBuildAction(commander_action* Action);
 void COMM_SetNextSupportAction(commander_action* Action);
 
 commander_action* COMM_GetNextAction(bot_t* CommanderBot);

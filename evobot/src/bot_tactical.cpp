@@ -71,6 +71,8 @@ void PopulateEmptyHiveList()
 
 		Hives[NumTotalHives].HiveResNodeIndex = UTIL_FindNearestResNodeIndexToLocation(currStructure->v.origin);
 
+		Hives[NumTotalHives].bIsValid = true;
+
 		NumTotalHives++;
 	}
 }
@@ -825,27 +827,11 @@ void UTIL_LinkDeployedObjectToAction(bot_t* CommanderBot, edict_t* NewObject, NS
 {
 	if (FNullEnt(NewObject) || ObjectType == STRUCTURE_NONE) { return; }
 
-	if (CommanderBot->BuildBaseAction.bIsAwaitingBuildLink)
+	if (CommanderBot->BuildAction.bIsAwaitingBuildLink)
 	{
-		if (CommanderBot->BuildBaseAction.StructureToBuild == ObjectType)
+		if (CommanderBot->BuildAction.StructureToBuild == ObjectType)
 		{
-			COMM_ConfirmObjectDeployed(CommanderBot, &CommanderBot->BuildBaseAction, NewObject);
-		}
-	}
-
-	if (CommanderBot->SecureHiveAction.bIsAwaitingBuildLink)
-	{
-		if (CommanderBot->SecureHiveAction.StructureToBuild == ObjectType)
-		{
-			COMM_ConfirmObjectDeployed(CommanderBot, &CommanderBot->SecureHiveAction, NewObject);
-		}
-	}
-
-	if (CommanderBot->SiegeHiveAction.bIsAwaitingBuildLink)
-	{
-		if (CommanderBot->SiegeHiveAction.StructureToBuild == ObjectType)
-		{
-			COMM_ConfirmObjectDeployed(CommanderBot, &CommanderBot->SiegeHiveAction, NewObject);
+			COMM_ConfirmObjectDeployed(CommanderBot, &CommanderBot->BuildAction, NewObject);
 		}
 	}
 

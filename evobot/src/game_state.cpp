@@ -148,6 +148,19 @@ void GAME_RemoveClient(edict_t* DisconnectedClient)
 	}
 }
 
+int GAME_GetClientIndex(edict_t* Client)
+{
+	for (int i = 0; i < MAX_CLIENTS; i++)
+	{
+		if (clients[i] == Client)
+		{
+			return i;
+		}
+	}
+
+	return -1;
+}
+
 void GAME_Reset()
 {
 	memset(&bots, 0, sizeof(bots));
