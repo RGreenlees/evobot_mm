@@ -1511,7 +1511,13 @@ void BotProgressEvolveTask(bot_t* pBot, bot_task* Task)
 	{
 		if ((gpGlobals->time - Task->TaskStartedTime) > 1.0f)
 		{
-			Task->TaskLocation = FindClosestNavigablePointToDestination(BUILDING_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(50.0f));
+			Task->TaskLocation = UTIL_GetRandomPointOnNavmeshInRadius(BUILDING_REGULAR_NAV_PROFILE, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
+
+			if (Task->TaskLocation == ZERO_VECTOR)
+			{
+				Task->TaskLocation = UTIL_GetRandomPointOnNavmeshInRadius(GORGE_REGULAR_NAV_PROFILE, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
+			}
+
 			Task->TaskStartedTime = 0.0f;
 		}
 		return;
@@ -1533,7 +1539,8 @@ void BotProgressEvolveTask(bot_t* pBot, bot_task* Task)
 	}
 	else
 	{
-		Task->TaskLocation = FindClosestNavigablePointToDestination(BUILDING_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(50.0f));
+		Task->TaskLocation = FindClosestNavigablePointToDestination(GORGE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(50.0f));
+		Task->TaskLocation = UTIL_GetRandomPointOnNavmeshInRadius(BUILDING_REGULAR_NAV_PROFILE, Task->TaskLocation, UTIL_MetresToGoldSrcUnits(3.0f));
 	}
 }
 
@@ -2376,7 +2383,8 @@ void TASK_SetBuildTask(bot_t* pBot, bot_task* Task, const NSStructureType Struct
 	if (!Location) { return; }
 
 	// Get as close as possible to desired location
-	Vector BuildLocation = FindClosestNavigablePointToDestination(GORGE_BUILD_NAV_PROFILE, UTIL_GetCommChairLocation(), Location, UTIL_MetresToGoldSrcUnits(10.0f));
+	Vector BuildLocation = FindClosestNavigablePointToDestination(GORGE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), Location, UTIL_MetresToGoldSrcUnits(10.0f));
+	BuildLocation = UTIL_ProjectPointToNavmesh(BuildLocation, BUILDING_REGULAR_NAV_PROFILE);
 
 	if (BuildLocation == ZERO_VECTOR)
 	{

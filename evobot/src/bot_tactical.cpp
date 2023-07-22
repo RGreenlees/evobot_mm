@@ -4014,7 +4014,7 @@ int UTIL_GetNumEquipmentInPlay()
 
 	for (int i = 0; i < 32; i++)
 	{
-		if (!FNullEnt(clients[i]) && IsPlayerOnMarineTeam(clients[i]) && !IsPlayerDead(clients[i]) && !IsPlayerBeingDigested(clients[i]) && !IsPlayerCommander(clients[i]))
+		if (!FNullEnt(clients[i]) && IsPlayerOnMarineTeam(clients[i]) && !IsPlayerActiveInGame(clients[i]))
 		{
 			if (PlayerHasEquipment(clients[i]))
 			{

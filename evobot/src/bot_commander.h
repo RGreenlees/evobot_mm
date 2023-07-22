@@ -132,7 +132,7 @@ void COMM_SetNextSiegeHiveAction(const hive_definition* Hive, commander_action* 
 void COMM_SetNextResearchAction(commander_action* Action);
 
 void COMM_SetNextBuildAction(commander_action* Action);
-void COMM_SetNextSupportAction(commander_action* Action);
+void COMM_SetNextSupportAction(bot_t* CommanderBot, commander_action* Action);
 
 commander_action* COMM_GetNextAction(bot_t* CommanderBot);
 

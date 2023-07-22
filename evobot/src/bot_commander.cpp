@@ -710,7 +710,7 @@ void CommanderThink(bot_t* pBot)
 
 	COMM_SetNextBuildAction(&pBot->BuildAction);
 
-	COMM_SetNextSupportAction(&pBot->SupportAction);
+	COMM_SetNextSupportAction(pBot, &pBot->SupportAction);
 
 	COMM_SetNextResearchAction(&pBot->ResearchAction);
 
@@ -754,6 +754,7 @@ bool COMM_IsWaitingOnBuildLink(bot_t* CommanderBot)
 
 commander_action* COMM_GetNextAction(bot_t* CommanderBot)
 {
+	if (CommanderBot->BuildAction.StructureToBuild == STRUCTURE_MARINE_RESTOWER) { return &CommanderBot->BuildAction; }
 
 	if (CommanderBot->SupportAction.ActionType != ACTION_NONE) { return &CommanderBot->SupportAction; }
 
@@ -2595,7 +2596,7 @@ void COMM_SetElectrifyStructureAction(edict_t* Structure, commander_action* Acti
 
 }
 
-void COMM_SetNextSupportAction(commander_action* Action)
+void COMM_SetNextSupportAction(bot_t* CommanderBot, commander_action* Action)
 {
 	edict_t* Armoury = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ANYARMOURY, UTIL_GetCommChairLocation(), UTIL_MetresToGoldSrcUnits(15.0f), true, false);
 
@@ -2605,7 +2606,117 @@ void COMM_SetNextSupportAction(commander_action* Action)
 		return;
 	}
 
-	int DesiredNumWelders = (int)ceil((GAME_GetNumPlayersOnTeam(MARINE_TEAM) - 1) * 0.5f);
+	if (CommanderBot->resources < 20)
+	{
+		UTIL_ClearCommanderAction(Action);
+		return;
+	}
+
+	int NumMarines = GAME_GetNumPlayersOnTeam(MARINE_TEAM) - 1;
+
+	edict_t* AdvArmoury = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ADVARMOURY, UTIL_GetCommChairLocation(), UTIL_MetresToGoldSrcUnits(15.0f), true, false);
+
+	if (UTIL_ResearchIsComplete(RESEARCH_PROTOTYPELAB_HEAVYARMOUR) && !FNullEnt(AdvArmoury))
+	{
+		edict_t* PrototypeLab = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_PROTOTYPELAB, UTIL_GetCommChairLocation(), UTIL_MetresToGoldSrcUnits(15.0f), true, false);
+
+
+		edict_t* MarineNeedingLoadout = UTIL_GetNearestMarineWithoutFullLoadout(AdvArmoury->v.origin, UTIL_MetresToGoldSrcUnits(10.0f));
+
+		if (!FNullEnt(MarineNeedingLoadout))
+		{
+			if (!PlayerHasEquipment(MarineNeedingLoadout) && UTIL_GetItemCountOfTypeInArea(ITEM_MARINE_HEAVYARMOUR, PrototypeLab->v.origin, UTIL_MetresToGoldSrcUnits(10.0f)) == 0)
+			{
+				if (Action->ActionType == ACTION_DEPLOY && Action->StructureToBuild == DEPLOYABLE_ITEM_MARINE_HEAVYARMOUR) { return; }
+
+				Vector PlaceLocation = ZERO_VECTOR;
+
+				float Dist = vDist2D(MarineNeedingLoadout->v.origin, PrototypeLab->v.origin);
+
+				if (Dist < UTIL_MetresToGoldSrcUnits(5.0f))
+				{
+					float MaxDist = UTIL_MetresToGoldSrcUnits(5.0f) - Dist;
+					PlaceLocation = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, MarineNeedingLoadout->v.origin, MaxDist);
+				}
+				else
+				{
+					PlaceLocation = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, PrototypeLab->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
+				}
+
+				if (PlaceLocation != ZERO_VECTOR)
+				{
+					Action->ActionType = ACTION_DEPLOY;
+					Action->StructureToBuild = DEPLOYABLE_ITEM_MARINE_HEAVYARMOUR;
+					Action->BuildLocation = PlaceLocation;
+					return;
+				}
+			}
+
+			int NumGLs = UTIL_GetItemCountOfTypeInArea(ITEM_MARINE_GRENADELAUNCHER, AdvArmoury->v.origin, UTIL_MetresToGoldSrcUnits(10.0f));
+			int NumHMGs = UTIL_GetItemCountOfTypeInArea(ITEM_MARINE_HMG, AdvArmoury->v.origin, UTIL_MetresToGoldSrcUnits(10.0f));
+
+			if (!PlayerHasSpecialWeapon(MarineNeedingLoadout) && (NumGLs == 0 && NumHMGs == 0))
+			{
+				if (Action->ActionType == ACTION_DEPLOY && (Action->StructureToBuild == DEPLOYABLE_ITEM_MARINE_GRENADELAUNCHER || Action->StructureToBuild == DEPLOYABLE_ITEM_MARINE_HMG)) { return; }
+
+				NSStructureType ObjectToDeploy = (UTIL_GetNumWeaponsOfTypeInPlay(WEAPON_MARINE_GL) == 0) ? DEPLOYABLE_ITEM_MARINE_GRENADELAUNCHER : DEPLOYABLE_ITEM_MARINE_HMG;
+
+				Vector PlaceLocation = ZERO_VECTOR;
+
+				float Dist = vDist2D(MarineNeedingLoadout->v.origin, AdvArmoury->v.origin);
+
+				if (Dist < UTIL_MetresToGoldSrcUnits(5.0f))
+				{
+					float MaxDist = UTIL_MetresToGoldSrcUnits(5.0f) - Dist;
+					PlaceLocation = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, MarineNeedingLoadout->v.origin, MaxDist);
+				}
+				else
+				{
+					PlaceLocation = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, AdvArmoury->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
+				}
+
+				if (PlaceLocation != ZERO_VECTOR)
+				{
+					Action->ActionType = ACTION_DEPLOY;
+					Action->StructureToBuild = ObjectToDeploy;
+					Action->BuildLocation = PlaceLocation;
+					return;
+				}
+			}
+
+			int NumWelders = UTIL_GetItemCountOfTypeInArea(ITEM_MARINE_WELDER, AdvArmoury->v.origin, UTIL_MetresToGoldSrcUnits(10.0f));
+
+			if (!PlayerHasWeapon(MarineNeedingLoadout, WEAPON_MARINE_WELDER) && NumWelders == 0)
+			{
+				if (Action->ActionType == ACTION_DEPLOY && Action->StructureToBuild == DEPLOYABLE_ITEM_MARINE_WELDER) { return; }
+
+				Vector PlaceLocation = ZERO_VECTOR;
+
+				float Dist = vDist2D(MarineNeedingLoadout->v.origin, AdvArmoury->v.origin);
+
+				if (Dist < UTIL_MetresToGoldSrcUnits(5.0f))
+				{
+					float MaxDist = UTIL_MetresToGoldSrcUnits(5.0f) - Dist;
+					PlaceLocation = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, MarineNeedingLoadout->v.origin, MaxDist);
+				}
+				else
+				{
+					PlaceLocation = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, AdvArmoury->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
+				}
+
+				if (PlaceLocation != ZERO_VECTOR)
+				{
+					Action->ActionType = ACTION_DEPLOY;
+					Action->StructureToBuild = DEPLOYABLE_ITEM_MARINE_WELDER;
+					Action->BuildLocation = PlaceLocation;
+					return;
+				}
+			}
+		}
+	}
+	
+
+	int DesiredNumWelders = (NumMarines / 2);
 
 	int NumWeldersInPlay = UTIL_GetNumWeaponsOfTypeInPlay(WEAPON_MARINE_WELDER);
 
@@ -2625,7 +2736,7 @@ void COMM_SetNextSupportAction(commander_action* Action)
 		return;
 	}
 
-	int DesiredNumShotguns = (int)ceil((GAME_GetNumPlayersOnTeam(MARINE_TEAM) - 1) * 0.5f);
+	int DesiredNumShotguns = (NumMarines / 2);
 
 	int NumShotgunsInPlay = UTIL_GetNumWeaponsOfTypeInPlay(WEAPON_MARINE_SHOTGUN);
 

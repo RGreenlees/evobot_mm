@@ -223,7 +223,7 @@ void BotAlienSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 			if (FNullEnt(OtherBuilder) || GetPlayerResources(OtherBuilder) < GetPlayerResources(pBot->pEdict))
 			{
-				Vector BuildLoc = FindClosestNavigablePointToDestination(GORGE_BUILD_NAV_PROFILE, pBot->pEdict->v.origin, UnbuiltHiveIndex->FloorLocation, UTIL_MetresToGoldSrcUnits(8.0f));
+				Vector BuildLoc = FindClosestNavigablePointToDestination(GORGE_REGULAR_NAV_PROFILE, pBot->pEdict->v.origin, UnbuiltHiveIndex->FloorLocation, UTIL_MetresToGoldSrcUnits(8.0f));
 
 				if (BuildLoc == ZERO_VECTOR)
 				{
@@ -300,7 +300,7 @@ void AlienSetCombatModeSecondaryTask(bot_t* pBot, bot_task* Task)
 	{
 		if (Task->TaskType == TASK_EVOLVE) { return; }
 
-		Vector EvolvePosition = FindClosestNavigablePointToDestination(BUILDING_REGULAR_NAV_PROFILE, pBot->pEdict->v.origin, Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(50.0f));
+		Vector EvolvePosition = FindClosestNavigablePointToDestination(GORGE_REGULAR_NAV_PROFILE, pBot->pEdict->v.origin, Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(50.0f));
 
 		if (EvolvePosition == ZERO_VECTOR)
 		{
@@ -324,11 +324,11 @@ void AlienSetCombatModeSecondaryTask(bot_t* pBot, bot_task* Task)
 	{
 		if (Task->TaskType == TASK_EVOLVE) { return; }
 
-		Vector EvolvePosition = FindClosestNavigablePointToDestination(BUILDING_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(5.0f));
+		Vector EvolvePosition = FindClosestNavigablePointToDestination(GORGE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(5.0f));
 
 		if (EvolvePosition == ZERO_VECTOR)
 		{
-			EvolvePosition = FindClosestNavigablePointToDestination(MARINE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(5.0f));
+			EvolvePosition = pBot->pEdict->v.origin;
 		}
 		
 		// Don't evolve right underneath the hive even if we can reach it...
@@ -401,12 +401,7 @@ void AlienHarasserSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 			if (NearestHive)
 			{
-				EvolveLocation = FindClosestNavigablePointToDestination(BUILDING_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), NearestHive->FloorLocation, UTIL_MetresToGoldSrcUnits(50.0f));
-
-				if (EvolveLocation == ZERO_VECTOR)
-				{
-					EvolveLocation = FindClosestNavigablePointToDestination(MARINE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), NearestHive->FloorLocation, UTIL_MetresToGoldSrcUnits(50.0f));
-				}
+				EvolveLocation = FindClosestNavigablePointToDestination(GORGE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), NearestHive->FloorLocation, UTIL_MetresToGoldSrcUnits(50.0f));
 			}
 
 			if (EvolveLocation == ZERO_VECTOR)
@@ -829,17 +824,12 @@ void AlienDestroyerSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 			if (NearestHive)
 			{
-				EvolveLocation = FindClosestNavigablePointToDestination(BUILDING_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), NearestHive->FloorLocation, UTIL_MetresToGoldSrcUnits(50.0f));
+				EvolveLocation = FindClosestNavigablePointToDestination(GORGE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), NearestHive->FloorLocation, UTIL_MetresToGoldSrcUnits(50.0f));
 			}
 
 			if (EvolveLocation == ZERO_VECTOR)
 			{
-				EvolveLocation = FindClosestNavigablePointToDestination(MARINE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), NearestHive->FloorLocation, UTIL_MetresToGoldSrcUnits(50.0f));
-
-				if (EvolveLocation == ZERO_VECTOR)
-				{
-					EvolveLocation = pBot->pEdict->v.origin;
-				}
+				EvolveLocation = pBot->pEdict->v.origin;
 			}
 
 			Vector FinalEvolveLocation = UTIL_GetRandomPointOnNavmeshInRadius(BUILDING_REGULAR_NAV_PROFILE, EvolveLocation, UTIL_MetresToGoldSrcUnits(5.0f));
