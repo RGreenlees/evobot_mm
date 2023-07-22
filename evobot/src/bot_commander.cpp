@@ -787,13 +787,13 @@ commander_action* COMM_GetNextAction(bot_t* CommanderBot)
 {
 	if (CommanderBot->BuildAction.bIsActionUrgent) { return &CommanderBot->BuildAction; }
 
-	if (CommanderBot->SupportAction.ActionType != ACTION_NONE) { return &CommanderBot->SupportAction; }
-
 	if (CommanderBot->RecycleAction.ActionType != ACTION_NONE) { return &CommanderBot->RecycleAction; }
-
-	if (CommanderBot->BuildAction.ActionType != ACTION_NONE) { return &CommanderBot->BuildAction; }
 	
 	if (CommanderBot->ResearchAction.ActionType != ACTION_NONE) { return &CommanderBot->ResearchAction; }
+
+	if (CommanderBot->SupportAction.ActionType != ACTION_NONE) { return &CommanderBot->SupportAction; }
+
+	if (CommanderBot->BuildAction.ActionType != ACTION_NONE) { return &CommanderBot->BuildAction; }
 	
 	return nullptr;
 }
@@ -2300,6 +2300,26 @@ void COMM_SetNextSecureHiveAction(const hive_definition* Hive, commander_action*
 		return;
 	}
 
+	if (Hive->HiveResNodeIndex > -1)
+	{
+		const resource_node* HiveNode = UTIL_GetResourceNodeAtIndex(Hive->HiveResNodeIndex);
+
+		if (HiveNode && !HiveNode->bIsOccupied)
+		{
+			if (Action->ActionType == ACTION_DEPLOY && Action->StructureToBuild == STRUCTURE_MARINE_RESTOWER && Action->ActionTarget == HiveNode->edict)
+			{
+				return;
+			}
+
+			Action->ActionType = ACTION_DEPLOY;
+			Action->ActionTarget = HiveNode->edict;
+			Action->StructureToBuild = STRUCTURE_MARINE_RESTOWER;
+			Action->BuildLocation = HiveNode->origin;
+
+			return;
+		}
+	}
+
 	UTIL_ClearCommanderAction(Action);
 }
 
@@ -2606,6 +2626,21 @@ void COMM_SetNextSiegeHiveAction(const hive_definition* Hive, commander_action* 
 
 	int NumSiegeTurrets = UTIL_GetNumPlacedStructuresOfTypeInRadius(STRUCTURE_MARINE_SIEGETURRET, TF->v.origin, UTIL_MetresToGoldSrcUnits(10.0f));
 
+	if (NumSiegeTurrets > 0)
+	{
+		if (UTIL_GetItemCountOfTypeInArea(ITEM_MARINE_SCAN, Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(10.0f)) == 0)
+		{
+			if (Action->ActionType == ACTION_DEPLOY && Action->StructureToBuild == DEPLOYABLE_ITEM_MARINE_SCAN) { return; }
+
+			Action->ActionType = ACTION_DEPLOY;
+			Action->ActionTarget = Hive->edict;
+			Action->StructureToBuild = DEPLOYABLE_ITEM_MARINE_SCAN;
+			Action->BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(5.0f));
+			Action->bIsActionUrgent = true;
+			return;
+		}
+	}
+
 	if (NumSiegeTurrets < 3)
 	{
 		COMM_SetSiegeTurretBuildAction(TF, Action, Hive->edict->v.origin);
@@ -2846,8 +2881,45 @@ void COMM_SetNextBuildAction(commander_action* Action)
 			Action->ActionType = ACTION_DEPLOY;
 			Action->StructureToBuild = STRUCTURE_MARINE_ARMOURY;
 			Action->BuildLocation = BuildLocation;
+			Action->bIsActionUrgent = true;
 		}	
 		return;
+	}
+
+	if (UTIL_ResearchIsComplete(RESEARCH_OBSERVATORY_PHASETECH))
+	{
+		bool bHasPhaseGate = UTIL_StructureOfTypeExistsInLocation(STRUCTURE_MARINE_PHASEGATE, CommChair->v.origin, UTIL_MetresToGoldSrcUnits(15.0f), false);
+
+		if (!bHasPhaseGate)
+		{
+			if (Action->ActionType == ACTION_DEPLOY && Action->StructureToBuild == STRUCTURE_MARINE_PHASEGATE) { return; }
+
+			UTIL_ClearCommanderAction(Action);
+
+			edict_t* Armoury = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ARMOURY, CommChair->v.origin, UTIL_MetresToGoldSrcUnits(15.0f), true, false);
+
+			Vector BuildLocation = ZERO_VECTOR;
+
+			if (!FNullEnt(Armoury))
+			{
+				BuildLocation = UTIL_GetRandomPointOnNavmeshInDonut(GORGE_BUILD_NAV_PROFILE, Armoury->v.origin, UTIL_MetresToGoldSrcUnits(3.0f), UTIL_MetresToGoldSrcUnits(5.0f));
+			}
+
+			if (BuildLocation == ZERO_VECTOR)
+			{
+				BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(GORGE_BUILD_NAV_PROFILE, CommChair->v.origin, UTIL_MetresToGoldSrcUnits(10.0f));
+			}
+
+			if (BuildLocation != ZERO_VECTOR)
+			{
+				Action->ActionType = ACTION_DEPLOY;
+				Action->StructureToBuild = STRUCTURE_MARINE_PHASEGATE;
+				Action->BuildLocation = BuildLocation;
+				Action->bIsActionUrgent = true;
+			}
+
+			return;
+		}
 	}
 
 	const resource_node* CappableNode = COMM_GetResNodeCapOpportunityNearestLocation(UTIL_GetCommChairLocation());
@@ -2922,39 +2994,6 @@ void COMM_SetNextBuildAction(commander_action* Action)
 	if (!UTIL_ResearchIsComplete(RESEARCH_OBSERVATORY_PHASETECH) || !UTIL_ResearchIsComplete(RESEARCH_ARMSLAB_ARMOUR2) || !UTIL_ResearchIsComplete(RESEARCH_ARMSLAB_WEAPONS2))
 	{
 		UTIL_ClearCommanderAction(Action);
-		return;
-	}
-
-	bool bHasPhaseGate = UTIL_StructureOfTypeExistsInLocation(STRUCTURE_MARINE_PHASEGATE, CommChair->v.origin, UTIL_MetresToGoldSrcUnits(15.0f), false);
-
-	if (!bHasPhaseGate)
-	{
-		if (Action->ActionType == ACTION_DEPLOY && Action->StructureToBuild == STRUCTURE_MARINE_PHASEGATE) { return; }
-
-		UTIL_ClearCommanderAction(Action);
-
-		edict_t* Armoury = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ARMOURY, CommChair->v.origin, UTIL_MetresToGoldSrcUnits(15.0f), true, false);
-
-		Vector BuildLocation = ZERO_VECTOR;
-
-		if (!FNullEnt(Armoury))
-		{
-			BuildLocation = UTIL_GetRandomPointOnNavmeshInDonut(GORGE_BUILD_NAV_PROFILE, Armoury->v.origin, UTIL_MetresToGoldSrcUnits(3.0f), UTIL_MetresToGoldSrcUnits(5.0f));
-		}
-
-		if (BuildLocation == ZERO_VECTOR)
-		{
-			BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(GORGE_BUILD_NAV_PROFILE, CommChair->v.origin, UTIL_MetresToGoldSrcUnits(10.0f));
-		}
-
-		if (BuildLocation != ZERO_VECTOR)
-		{
-			Action->ActionType = ACTION_DEPLOY;
-			Action->StructureToBuild = STRUCTURE_MARINE_PHASEGATE;
-			Action->BuildLocation = BuildLocation;
-			Action->bIsActionUrgent = true;
-		}
-
 		return;
 	}
 
