@@ -117,6 +117,7 @@ void COMM_ConfirmObjectDeployed(bot_t* pBot, commander_action* Action, edict_t* 
 const resource_node* COMM_GetResNodeCapOpportunityNearestLocation(const Vector SearchLocation);
 const hive_definition* COMM_GetEmptyHiveOpportunityNearestLocation(const Vector SearchLocation);
 const hive_definition* COMM_GetUnsecuredEmptyHiveNearestLocation(const Vector SearchLocation);
+const hive_definition* COMM_GetUnsecuredEmptyHiveFurthestToLocation(const Vector SearchLocation);
 const hive_definition* COMM_GetHiveSiegeOpportunityNearestLocation(const Vector SearchLocation);
 
 void COMM_SetInfantryPortalBuildAction(edict_t* CommChair, commander_action* Action);

@@ -381,24 +381,44 @@ void COMM_UpdateAndClearCommanderOrders(bot_t* CommanderBot)
 
 	int MaxMarines = GAME_GetNumActivePlayersOnTeam(MARINE_TEAM);
 
-	const hive_definition* EmptyHive = COMM_GetUnsecuredEmptyHiveNearestLocation(UTIL_GetCommChairLocation());
+	const hive_definition* NearestEmptyHive = COMM_GetUnsecuredEmptyHiveNearestLocation(UTIL_GetCommChairLocation());
 
-	if (EmptyHive != nullptr)
+	if (NearestEmptyHive != nullptr)
 	{
-		int NumMarines = COMM_GetNumMarinesSecuringHive(CommanderBot, EmptyHive, UTIL_MetresToGoldSrcUnits(15.0f));
+		int NumMarines = COMM_GetNumMarinesSecuringHive(CommanderBot, NearestEmptyHive, UTIL_MetresToGoldSrcUnits(15.0f));
 
 		int MarineDeficit = 2 - NumMarines;
 
 		if (MarineDeficit > 0)
 		{
-			edict_t* NearestMarine = COMM_GetNearestMarineWithoutOrder(CommanderBot, EmptyHive->FloorLocation, UTIL_MetresToGoldSrcUnits(15.0f), UTIL_MetresToGoldSrcUnits(500.0f));
+			edict_t* NearestMarine = COMM_GetNearestMarineWithoutOrder(CommanderBot, NearestEmptyHive->FloorLocation, UTIL_MetresToGoldSrcUnits(15.0f), UTIL_MetresToGoldSrcUnits(500.0f));
 
 			if (!FNullEnt(NearestMarine))
 			{
-				COMM_IssueMarineSecureHiveOrder(CommanderBot, NearestMarine, EmptyHive);
+				COMM_IssueMarineSecureHiveOrder(CommanderBot, NearestMarine, NearestEmptyHive);
 				return;
 			}
 		}		
+	}
+
+	const hive_definition* FurthestEmptyHive = COMM_GetUnsecuredEmptyHiveFurthestToLocation(UTIL_GetCommChairLocation());
+
+	if (FurthestEmptyHive != nullptr)
+	{
+		int NumMarines = COMM_GetNumMarinesSecuringHive(CommanderBot, FurthestEmptyHive, UTIL_MetresToGoldSrcUnits(15.0f));
+
+		int MarineDeficit = 2 - NumMarines;
+
+		if (MarineDeficit > 0)
+		{
+			edict_t* NearestMarine = COMM_GetNearestMarineWithoutOrder(CommanderBot, FurthestEmptyHive->FloorLocation, UTIL_MetresToGoldSrcUnits(15.0f), UTIL_MetresToGoldSrcUnits(500.0f));
+
+			if (!FNullEnt(NearestMarine))
+			{
+				COMM_IssueMarineSecureHiveOrder(CommanderBot, NearestMarine, FurthestEmptyHive);
+				return;
+			}
+		}
 	}
 
 	if (UTIL_ResearchIsComplete(RESEARCH_OBSERVATORY_PHASETECH))
@@ -521,6 +541,17 @@ edict_t* COMM_GetNearestMarineWithoutOrder(bot_t* CommanderBot, const Vector Sea
 		if (CommanderBot->LastPlayerOrders[i].bIsActive)
 		{
 			continue;
+		}
+
+		// Don't issue commands to bots acting as a sweeper, we want them to stay at base and build/guard
+		if (IsPlayerBot(clients[i]))
+		{
+			bot_t* BotRef = GetBotPointer(clients[i]);
+
+			if (BotRef)
+			{
+				if (BotRef->CurrentRole == BOT_ROLE_SWEEPER) { continue; }
+			}
 		}
 
 		float ThisDist = vDist2DSq(clients[i]->v.origin, SearchLocation);
@@ -754,7 +785,7 @@ bool COMM_IsWaitingOnBuildLink(bot_t* CommanderBot)
 
 commander_action* COMM_GetNextAction(bot_t* CommanderBot)
 {
-	if (CommanderBot->BuildAction.StructureToBuild == STRUCTURE_MARINE_RESTOWER) { return &CommanderBot->BuildAction; }
+	if (CommanderBot->BuildAction.bIsActionUrgent) { return &CommanderBot->BuildAction; }
 
 	if (CommanderBot->SupportAction.ActionType != ACTION_NONE) { return &CommanderBot->SupportAction; }
 
@@ -1807,6 +1838,32 @@ const resource_node* COMM_GetResNodeCapOpportunityNearestLocation(const Vector S
 	return Result;
 }
 
+const hive_definition* COMM_GetUnsecuredEmptyHiveFurthestToLocation(const Vector SearchLocation)
+{
+	const hive_definition* Result = nullptr;
+	float MaxDist = 0.0f;
+
+	for (int i = 0; i < UTIL_GetNumTotalHives(); i++)
+	{
+		const hive_definition* Hive = UTIL_GetHiveAtIndex(i);
+
+		if (Hive->Status != HIVE_STATUS_UNBUILT) { continue; }
+
+		if (UTIL_IsHiveFullySecuredByMarines(Hive)) { continue; }
+
+		float ThisDist = vDist2DSq(Hive->FloorLocation, SearchLocation);
+
+		if (!Result || ThisDist > MaxDist)
+		{
+			Result = Hive;
+			MaxDist = ThisDist;
+		}
+
+	}
+
+	return Result;
+}
+
 const hive_definition* COMM_GetUnsecuredEmptyHiveNearestLocation(const Vector SearchLocation)
 {
 	const hive_definition* Result = nullptr;
@@ -1929,6 +1986,7 @@ void COMM_SetTurretBuildAction(edict_t* TurretFactory, commander_action* Action)
 	Action->ActionTarget = TurretFactory;
 	Action->BuildLocation = BuildLocation;
 	Action->StructureToBuild = STRUCTURE_MARINE_TURRET;
+	Action->bIsActionUrgent = true;
 
 }
 
@@ -2006,6 +2064,7 @@ void COMM_SetInfantryPortalBuildAction(edict_t* CommChair, commander_action* Act
 	Action->ActionTarget = CommChair;
 	Action->BuildLocation = BuildLocation;
 	Action->StructureToBuild = STRUCTURE_MARINE_INFANTRYPORTAL;
+	Action->bIsActionUrgent = true;
 
 }
 
@@ -2156,14 +2215,7 @@ void COMM_SetNextSecureHiveAction(const hive_definition* Hive, commander_action*
 		}
 		else
 		{
-			if (!FNullEnt(NearestPlayer))
-			{
-				BuildLocation = UTIL_GetEntityGroundLocation(NearestPlayer);
-			}
-			else
-			{
-				BuildLocation = FindClosestNavigablePointToDestination(MARINE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(10.0f));
-			}
+			BuildLocation = FindClosestNavigablePointToDestination(MARINE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(10.0f));
 		}
 
 		Vector FinalBuildLocation = ZERO_VECTOR;
@@ -2187,7 +2239,7 @@ void COMM_SetNextSecureHiveAction(const hive_definition* Hive, commander_action*
 			Action->ActionTarget = Hive->edict;
 			Action->StructureToBuild = STRUCTURE_MARINE_PHASEGATE;
 			Action->BuildLocation = FinalBuildLocation;
-
+			Action->bIsActionUrgent = true;
 			return;
 		}
 	}
@@ -2207,19 +2259,12 @@ void COMM_SetNextSecureHiveAction(const hive_definition* Hive, commander_action*
 		}
 		else
 		{
-			if (!FNullEnt(NearestPlayer))
-			{
-				BuildLocation = UTIL_GetEntityGroundLocation(NearestPlayer);
-			}
-			else
-			{
-				BuildLocation = FindClosestNavigablePointToDestination(MARINE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(10.0f));
-			}
+			BuildLocation = FindClosestNavigablePointToDestination(MARINE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(10.0f));
 		}
 
 		if (BuildLocation != ZERO_VECTOR)
 		{
-			Vector NewBuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(GORGE_BUILD_NAV_PROFILE, BuildLocation, UTIL_MetresToGoldSrcUnits(2.0f));
+			Vector NewBuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(GORGE_BUILD_NAV_PROFILE, BuildLocation, UTIL_MetresToGoldSrcUnits(5.0f));
 
 			Vector FinalBuildLocation = (NewBuildLocation != ZERO_VECTOR) ? NewBuildLocation : BuildLocation;
 
@@ -2231,6 +2276,7 @@ void COMM_SetNextSecureHiveAction(const hive_definition* Hive, commander_action*
 			Action->ActionTarget = Hive->edict;
 			Action->StructureToBuild = STRUCTURE_MARINE_TURRETFACTORY;
 			Action->BuildLocation = FinalBuildLocation;
+			Action->bIsActionUrgent = true;
 
 		}
 
@@ -2810,13 +2856,25 @@ void COMM_SetNextBuildAction(commander_action* Action)
 	{
 		if (Action->ActionType != ACTION_DEPLOY || Action->ActionTarget != CappableNode->edict)
 		{
+			int NumMarineRTs = UTIL_GetNumPlacedStructuresOfType(STRUCTURE_MARINE_RESTOWER);
+
 			UTIL_ClearCommanderAction(Action);
+
 			Action->ActionType = ACTION_DEPLOY;
 			Action->ActionTarget = CappableNode->edict;
 			Action->StructureToBuild = STRUCTURE_MARINE_RESTOWER;
 			Action->BuildLocation = CappableNode->origin;
+			Action->bIsActionUrgent = (NumMarineRTs < 4);
 		}
 
+		return;
+	}
+
+	const hive_definition* HiveToSecure = COMM_GetEmptyHiveOpportunityNearestLocation(UTIL_GetCommChairLocation());
+
+	if (HiveToSecure)
+	{
+		COMM_SetNextSecureHiveAction(HiveToSecure, Action);
 		return;
 	}
 
@@ -2835,16 +2893,9 @@ void COMM_SetNextBuildAction(commander_action* Action)
 			Action->ActionType = ACTION_DEPLOY;
 			Action->StructureToBuild = STRUCTURE_MARINE_ARMSLAB;
 			Action->BuildLocation = BuildLocation;
+			Action->bIsActionUrgent = true;
 		}
 
-		return;
-	}
-
-	const hive_definition* HiveToSecure = COMM_GetEmptyHiveOpportunityNearestLocation(UTIL_GetCommChairLocation());
-
-	if (HiveToSecure)
-	{
-		COMM_SetNextSecureHiveAction(HiveToSecure, Action);
 		return;
 	}
 
@@ -2871,14 +2922,6 @@ void COMM_SetNextBuildAction(commander_action* Action)
 	if (!UTIL_ResearchIsComplete(RESEARCH_OBSERVATORY_PHASETECH) || !UTIL_ResearchIsComplete(RESEARCH_ARMSLAB_ARMOUR2) || !UTIL_ResearchIsComplete(RESEARCH_ARMSLAB_WEAPONS2))
 	{
 		UTIL_ClearCommanderAction(Action);
-		return;
-	}
-
-	const hive_definition* HiveToSiege = COMM_GetHiveSiegeOpportunityNearestLocation(UTIL_GetCommChairLocation());
-
-	if (HiveToSiege)
-	{
-		COMM_SetNextSiegeHiveAction(HiveToSiege, Action);
 		return;
 	}
 
@@ -2909,8 +2952,17 @@ void COMM_SetNextBuildAction(commander_action* Action)
 			Action->ActionType = ACTION_DEPLOY;
 			Action->StructureToBuild = STRUCTURE_MARINE_PHASEGATE;
 			Action->BuildLocation = BuildLocation;
+			Action->bIsActionUrgent = true;
 		}
 
+		return;
+	}
+
+	const hive_definition* HiveToSiege = COMM_GetHiveSiegeOpportunityNearestLocation(UTIL_GetCommChairLocation());
+
+	if (HiveToSiege)
+	{
+		COMM_SetNextSiegeHiveAction(HiveToSiege, Action);
 		return;
 	}
 

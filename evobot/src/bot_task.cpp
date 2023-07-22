@@ -481,16 +481,16 @@ bool UTIL_IsMarineBuildTaskStillValid(bot_t* pBot, bot_task* Task)
 {
 	if (FNullEnt(Task->TaskTarget) || (Task->TaskTarget->v.effects & EF_NODRAW) || (Task->TaskTarget->v.deadflag != DEAD_NO)) { return false; }
 
-	if (!UTIL_IsBuildableStructureStillReachable(pBot, Task->TaskTarget)) { return false; }
-
-	if (UTIL_StructureIsRecycling(Task->TaskTarget) == true)
-	{
-		return false;
-	}
-
 	NSStructureType StructureType = GetStructureTypeFromEdict(Task->TaskTarget);
 
 	if (StructureType == STRUCTURE_NONE) { return false; }
+
+	if (!UTIL_IsBuildableStructureStillReachable(pBot, Task->TaskTarget)) { return false; }
+
+	if (UTIL_StructureIsRecycling(Task->TaskTarget))
+	{
+		return false;
+	}
 
 	if (!Task->bIssuedByCommander)
 	{

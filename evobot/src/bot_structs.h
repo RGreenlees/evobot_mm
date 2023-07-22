@@ -265,6 +265,7 @@ typedef struct _COMMANDER_ACTION
 	NSResearch ResearchId = RESEARCH_NONE; // What research to perform if research action
 	NSDeployableItem ItemToDeploy = ITEM_NONE; // What item to drop if drop item action
 	bool bIsAwaitingBuildLink = false; // The AI has tried placing a structure or item and is waiting to confirm it worked or not
+	bool bIsActionUrgent = false;
 
 } commander_action;
 
