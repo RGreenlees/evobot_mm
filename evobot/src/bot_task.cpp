@@ -723,6 +723,8 @@ bool UTIL_IsDefendTaskStillValid(bot_t* pBot, bot_task* Task)
 {
 	if (FNullEnt(Task->TaskTarget) || Task->TaskTarget->v.deadflag != DEAD_NO) { return false; }
 
+	if (GetStructureTypeFromEdict(Task->TaskTarget) == STRUCTURE_NONE) { return false; }
+
 	if (!UTIL_IsBuildableStructureStillReachable(pBot, Task->TaskTarget)) { return false; }
 
 	if (Task->TaskTarget->v.team != pBot->pEdict->v.team) { return false; }
@@ -1448,6 +1450,8 @@ void BotProgressDefendTask(bot_t* pBot, bot_task* Task)
 	if (!FNullEnt(Task->TaskTarget))
 	{
 		buildable_structure* StructureRef = UTIL_GetBuildableStructureRefFromEdict(Task->TaskTarget);
+
+		if (!StructureRef) { return; }
 
 		// If the structure we're defending was damaged just now, look at it so we can see who is attacking
 		if (gpGlobals->time - StructureRef->lastDamagedTime < 5.0f)
@@ -2424,7 +2428,7 @@ void TASK_SetBuildTask(bot_t* pBot, bot_task* Task, edict_t* StructureToBuild, c
 	int BotProfile = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
 
 	// Get as close as possible to desired location
-	Vector BuildLocation = FindClosestNavigablePointToDestination(BotProfile, pBot->CurrentFloorPosition, UTIL_GetFloorUnderEntity(StructureToBuild), max_player_use_reach);
+	Vector BuildLocation = FindClosestNavigablePointToDestination(BotProfile, pBot->CurrentFloorPosition, UTIL_GetEntityGroundLocation(StructureToBuild), 80.0f);
 
 	if (BuildLocation != ZERO_VECTOR)
 	{

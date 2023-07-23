@@ -3526,10 +3526,10 @@ bool IsBotOffPath(const bot_t* pBot)
 	if (pBot->BotNavInfo.PathSize == 0) { return false; }
 	
 
-	// Wall climbing and phase gates will cause all sorts of fuckery, don't even try and figure out if we're off-path...
+	// If we're trying to use a phase gate, then we're fine as long as there is a phase gate within reach
 	if (pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].area == SAMPLE_POLYAREA_PHASEGATE)
 	{
-		return false;
+		return !UTIL_StructureOfTypeExistsInLocation(STRUCTURE_MARINE_PHASEGATE, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(2.0f));
 	}
 
 	edict_t* pEdict = pBot->pEdict;
@@ -4627,6 +4627,12 @@ bool AbortCurrentMove(bot_t* pBot, const Vector NewDestination)
 {
 	if (pBot->BotNavInfo.PathSize == 0 || pBot->BotNavInfo.CurrentPathPoint == 0 || pBot->BotNavInfo.CurrentPathPoint == pBot->BotNavInfo.PathSize - 1) { return true; }
 
+	if (IsBotPermaStuck(pBot))
+	{
+		BotSuicide(pBot);
+		return false;
+	}
+
 	Vector MoveFrom = pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint - 1].Location;
 	Vector MoveTo = pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].Location;
 	unsigned char area = pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].area;
@@ -5454,7 +5460,9 @@ void BotFollowPath(bot_t* pBot)
 
 	Vector TargetMoveLocation = BotNavInfo->CurrentPath[BotNavInfo->CurrentPathPoint].Location;
 
-	if (IsBotStuck(pBot, TargetMoveLocation))
+	bool bIsUsingPhaseGate = (BotNavInfo->CurrentPath[BotNavInfo->CurrentPathPoint].area == SAMPLE_POLYAREA_PHASEGATE);
+
+	if (!bIsUsingPhaseGate && IsBotStuck(pBot, TargetMoveLocation))
 	{
 		if (BotNavInfo->TotalStuckTime > 3.0f)
 		{

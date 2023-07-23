@@ -575,7 +575,10 @@ Vector UTIL_GetEntityGroundLocation(const edict_t* pEntity)
 		return UTIL_GetFloorUnderEntity(pEntity);
 	}
 
-	return GetPlayerBottomOfCollisionHull(pEntity);
+	Vector Centre = UTIL_GetCentreOfEntity(pEntity);
+	Centre.z = pEntity->v.absmin.z + 1.0f;
+
+	return Centre;
 }
 
 Vector UTIL_GetCentreOfEntity(const edict_t* Entity)
@@ -589,7 +592,10 @@ Vector UTIL_GetFloorUnderEntity(const edict_t* Edict)
 	if (FNullEnt(Edict)) { return ZERO_VECTOR; }
 
 	TraceResult hit;
-	UTIL_TraceHull(Edict->v.origin, (Edict->v.origin - Vector(0.0f, 0.0f, 1000.0f)), ignore_monsters, GetPlayerHullIndex(Edict), Edict->v.pContainingEntity, &hit);
+
+	Vector EntityCentre = UTIL_GetCentreOfEntity(Edict);
+
+	UTIL_TraceHull(EntityCentre, (EntityCentre - Vector(0.0f, 0.0f, 1000.0f)), ignore_monsters, GetPlayerHullIndex(Edict), Edict->v.pContainingEntity, &hit);
 	
 	if (hit.flFraction < 1.0f)
 	{
