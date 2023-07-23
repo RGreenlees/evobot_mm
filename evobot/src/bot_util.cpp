@@ -2718,6 +2718,8 @@ bool UTIL_ShouldBotBeCautious(bot_t* pBot)
 
 	int EnemyTeam = (pBot->bot_team == MARINE_TEAM) ? ALIEN_TEAM : MARINE_TEAM;
 
+	if (UTIL_AnyPlayerOnTeamHasLOSToLocation(MARINE_TEAM, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(50.0f))) { return false; }
+
 	int NumEnemiesAtDestination = UTIL_GetNumPlayersOnTeamWithLOS(pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].Location, EnemyTeam, UTIL_MetresToGoldSrcUnits(50.0f), pBot->pEdict);
 
 	if (NumEnemiesAtDestination > 1)
