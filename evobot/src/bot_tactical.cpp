@@ -2284,6 +2284,52 @@ edict_t* UTIL_FindSafePlayerInArea(const int Team, const Vector SearchLocation, 
 	return nullptr;
 }
 
+edict_t* UTIL_GetFurthestStructureOfTypeFromLocation(const NSStructureType StructureType, const Vector& Location, bool bAllowElectrified)
+{
+	edict_t* Result = nullptr;
+	float MaxDist = 0.0f;
+
+	bool bMarineStructure = UTIL_IsMarineStructure(StructureType);
+
+	if (bMarineStructure)
+	{
+
+		for (auto& it : MarineBuildableStructureMap)
+		{
+			if (!it.second.bOnNavmesh || !it.second.bIsReachableAlien) { continue; }
+			if (!UTIL_StructureTypesMatch(StructureType, it.second.StructureType) || (!bAllowElectrified && it.second.bIsElectrified)) { continue; }
+
+			float ThisDist = vDist2DSq(it.second.Location, Location);
+
+			if (FNullEnt(Result) || ThisDist > MaxDist)
+			{
+				Result = it.second.edict;
+				MaxDist = ThisDist;
+			}
+
+		}
+
+	}
+	else
+	{
+		for (auto& it : AlienBuildableStructureMap)
+		{
+			if (!it.second.bOnNavmesh || !it.second.bIsReachableAlien) { continue; }
+			if (!UTIL_StructureTypesMatch(StructureType, it.second.StructureType)) { continue; }
+
+			float ThisDist = vDist2DSq(it.second.Location, Location);
+
+			if (FNullEnt(Result) || ThisDist > MaxDist)
+			{
+				Result = it.second.edict;
+				MaxDist = ThisDist;
+			}
+		}
+	}
+
+	return Result;
+}
+
 edict_t* UTIL_GetNearestStructureOfTypeInLocation(const NSStructureType StructureType, const Vector& Location, const float SearchRadius, bool bAllowElectrified, bool bUsePhaseDistance)
 {
 	edict_t* Result = nullptr;

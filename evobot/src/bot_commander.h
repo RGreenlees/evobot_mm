@@ -128,11 +128,11 @@ void COMM_SetElectrifyStructureAction(edict_t* Structure, commander_action* Acti
 
 Vector UTIL_GetNextTurretPosition(edict_t* TurretFactory);
 
-void COMM_SetNextSecureHiveAction(const hive_definition* Hive, commander_action* Action);
+void COMM_SetNextSecureHiveAction(bot_t* CommanderBot, const hive_definition* Hive, commander_action* Action);
 void COMM_SetNextSiegeHiveAction(const hive_definition* Hive, commander_action* Action);
 void COMM_SetNextResearchAction(commander_action* Action);
 
-void COMM_SetNextBuildAction(commander_action* Action);
+void COMM_SetNextBuildAction(bot_t* CommanderBot, commander_action* Action);
 void COMM_SetNextSupportAction(bot_t* CommanderBot, commander_action* Action);
 
 commander_action* COMM_GetNextAction(bot_t* CommanderBot);

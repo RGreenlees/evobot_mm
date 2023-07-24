@@ -739,7 +739,7 @@ void CommanderThink(bot_t* pBot)
 	COMM_UpdateAndClearCommanderActions(pBot);
 	COMM_UpdateAndClearCommanderOrders(pBot);
 
-	COMM_SetNextBuildAction(&pBot->BuildAction);
+	COMM_SetNextBuildAction(pBot, &pBot->BuildAction);
 
 	COMM_SetNextSupportAction(pBot, &pBot->SupportAction);
 
@@ -1424,6 +1424,8 @@ bool UTIL_ElectricalResearchIsAvailable(const edict_t* Structure)
 	NSStructureType StructureTypeToElectrify = GetStructureTypeFromEdict(Structure);
 
 	if (!UTIL_StructureTypesMatch(StructureTypeToElectrify, STRUCTURE_MARINE_ANYTURRETFACTORY) && !UTIL_StructureTypesMatch(StructureTypeToElectrify, STRUCTURE_MARINE_RESTOWER)) { return false; }
+
+	if (UTIL_GetNumBuiltStructuresOfType(STRUCTURE_MARINE_TURRETFACTORY) == 0) { return false; }
 
 	return (Structure->v.iuser4 & MASK_UPGRADE_1);
 }
@@ -2170,7 +2172,7 @@ Vector UTIL_GetNextTurretPosition(edict_t* TurretFactory)
 	return BuildLocation;
 }
 
-void COMM_SetNextSecureHiveAction(const hive_definition* Hive, commander_action* Action)
+void COMM_SetNextSecureHiveAction(bot_t* CommanderBot, const hive_definition* Hive, commander_action* Action)
 {	
 
 	edict_t* TF = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ANYTURRETFACTORY, Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(15.0f), true, false);
@@ -2304,19 +2306,39 @@ void COMM_SetNextSecureHiveAction(const hive_definition* Hive, commander_action*
 	{
 		const resource_node* HiveNode = UTIL_GetResourceNodeAtIndex(Hive->HiveResNodeIndex);
 
-		if (HiveNode && !HiveNode->bIsOccupied)
+		if (HiveNode)
 		{
-			if (Action->ActionType == ACTION_DEPLOY && Action->StructureToBuild == STRUCTURE_MARINE_RESTOWER && Action->ActionTarget == HiveNode->edict)
+			if (!HiveNode->bIsOccupied)
 			{
+				if (Action->ActionType == ACTION_DEPLOY && Action->StructureToBuild == STRUCTURE_MARINE_RESTOWER && Action->ActionTarget == HiveNode->edict)
+				{
+					return;
+				}
+
+				Action->ActionType = ACTION_DEPLOY;
+				Action->ActionTarget = HiveNode->edict;
+				Action->StructureToBuild = STRUCTURE_MARINE_RESTOWER;
+				Action->BuildLocation = HiveNode->origin;
+
 				return;
 			}
 
-			Action->ActionType = ACTION_DEPLOY;
-			Action->ActionTarget = HiveNode->edict;
-			Action->StructureToBuild = STRUCTURE_MARINE_RESTOWER;
-			Action->BuildLocation = HiveNode->origin;
+			if (HiveNode->bIsOwnedByMarines)
+			{
+				edict_t* ResTowerEdict = HiveNode->TowerEdict;
 
-			return;
+				if (UTIL_ElectricalResearchIsAvailable(ResTowerEdict))
+				{
+					int Resources = CommanderBot->resources;
+
+					if (Resources > 100)
+					{
+						COMM_SetElectrifyStructureAction(ResTowerEdict, Action);
+						return;
+					}					
+				}
+			}
+			
 		}
 	}
 
@@ -2701,107 +2723,77 @@ void COMM_SetNextSupportAction(bot_t* CommanderBot, commander_action* Action)
 	{
 		edict_t* PrototypeLab = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_PROTOTYPELAB, UTIL_GetCommChairLocation(), UTIL_MetresToGoldSrcUnits(15.0f), true, false);
 
+		bool bShouldDropHeavyArmour = false;
+		bool bShouldDropHMG = false;
+		bool bShouldDropWelder = false;
 
-		edict_t* MarineNeedingLoadout = UTIL_GetNearestMarineWithoutFullLoadout(AdvArmoury->v.origin, UTIL_MetresToGoldSrcUnits(10.0f));
-
-		if (!FNullEnt(MarineNeedingLoadout))
+		if (CommanderBot->resources > 100)
 		{
-			if (!PlayerHasEquipment(MarineNeedingLoadout) && UTIL_GetItemCountOfTypeInArea(ITEM_MARINE_HEAVYARMOUR, PrototypeLab->v.origin, UTIL_MetresToGoldSrcUnits(10.0f)) == 0)
-			{
-				if (Action->ActionType == ACTION_DEPLOY && Action->StructureToBuild == DEPLOYABLE_ITEM_MARINE_HEAVYARMOUR) { return; }
-
-				Vector PlaceLocation = ZERO_VECTOR;
-
-				float Dist = vDist2D(MarineNeedingLoadout->v.origin, PrototypeLab->v.origin);
-
-				if (Dist < UTIL_MetresToGoldSrcUnits(5.0f))
-				{
-					float MaxDist = UTIL_MetresToGoldSrcUnits(5.0f) - Dist;
-					PlaceLocation = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, MarineNeedingLoadout->v.origin, MaxDist);
-				}
-				else
-				{
-					PlaceLocation = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, PrototypeLab->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
-				}
-
-				if (PlaceLocation != ZERO_VECTOR)
-				{
-					Action->ActionType = ACTION_DEPLOY;
-					Action->StructureToBuild = DEPLOYABLE_ITEM_MARINE_HEAVYARMOUR;
-					Action->BuildLocation = PlaceLocation;
-					return;
-				}
-			}
-
-			int NumGLs = UTIL_GetItemCountOfTypeInArea(ITEM_MARINE_GRENADELAUNCHER, AdvArmoury->v.origin, UTIL_MetresToGoldSrcUnits(10.0f));
-			int NumHMGs = UTIL_GetItemCountOfTypeInArea(ITEM_MARINE_HMG, AdvArmoury->v.origin, UTIL_MetresToGoldSrcUnits(10.0f));
-
-			if (!PlayerHasSpecialWeapon(MarineNeedingLoadout) && (NumGLs == 0 && NumHMGs == 0))
-			{
-				if (Action->ActionType == ACTION_DEPLOY && (Action->StructureToBuild == DEPLOYABLE_ITEM_MARINE_GRENADELAUNCHER || Action->StructureToBuild == DEPLOYABLE_ITEM_MARINE_HMG)) { return; }
-
-				NSStructureType ObjectToDeploy = (UTIL_GetNumWeaponsOfTypeInPlay(WEAPON_MARINE_GL) == 0) ? DEPLOYABLE_ITEM_MARINE_GRENADELAUNCHER : DEPLOYABLE_ITEM_MARINE_HMG;
-
-				Vector PlaceLocation = ZERO_VECTOR;
-
-				float Dist = vDist2D(MarineNeedingLoadout->v.origin, AdvArmoury->v.origin);
-
-				if (Dist < UTIL_MetresToGoldSrcUnits(5.0f))
-				{
-					float MaxDist = UTIL_MetresToGoldSrcUnits(5.0f) - Dist;
-					PlaceLocation = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, MarineNeedingLoadout->v.origin, MaxDist);
-				}
-				else
-				{
-					PlaceLocation = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, AdvArmoury->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
-				}
-
-				if (PlaceLocation != ZERO_VECTOR)
-				{
-					Action->ActionType = ACTION_DEPLOY;
-					Action->StructureToBuild = ObjectToDeploy;
-					Action->BuildLocation = PlaceLocation;
-					return;
-				}
-			}
-
-			int NumWelders = UTIL_GetItemCountOfTypeInArea(ITEM_MARINE_WELDER, AdvArmoury->v.origin, UTIL_MetresToGoldSrcUnits(10.0f));
-
-			if (!PlayerHasWeapon(MarineNeedingLoadout, WEAPON_MARINE_WELDER) && NumWelders == 0)
-			{
-				if (Action->ActionType == ACTION_DEPLOY && Action->StructureToBuild == DEPLOYABLE_ITEM_MARINE_WELDER) { return; }
-
-				Vector PlaceLocation = ZERO_VECTOR;
-
-				float Dist = vDist2D(MarineNeedingLoadout->v.origin, AdvArmoury->v.origin);
-
-				if (Dist < UTIL_MetresToGoldSrcUnits(5.0f))
-				{
-					float MaxDist = UTIL_MetresToGoldSrcUnits(5.0f) - Dist;
-					PlaceLocation = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, MarineNeedingLoadout->v.origin, MaxDist);
-				}
-				else
-				{
-					PlaceLocation = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, AdvArmoury->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
-				}
-
-				if (PlaceLocation != ZERO_VECTOR)
-				{
-					Action->ActionType = ACTION_DEPLOY;
-					Action->StructureToBuild = DEPLOYABLE_ITEM_MARINE_WELDER;
-					Action->BuildLocation = PlaceLocation;
-					return;
-				}
-			}
+			bShouldDropHeavyArmour = UTIL_GetItemCountOfTypeInArea(ITEM_MARINE_HEAVYARMOUR, PrototypeLab->v.origin, UTIL_MetresToGoldSrcUnits(5.0f)) < 3;
+			bShouldDropHMG = UTIL_GetItemCountOfTypeInArea(ITEM_MARINE_HMG, AdvArmoury->v.origin, UTIL_MetresToGoldSrcUnits(5.0f)) < 3;
+			bShouldDropWelder = UTIL_GetItemCountOfTypeInArea(ITEM_MARINE_WELDER, AdvArmoury->v.origin, UTIL_MetresToGoldSrcUnits(5.0f)) < 3;
 		}
+		else
+		{
+			edict_t* MarineNeedingLoadout = UTIL_GetNearestMarineWithoutFullLoadout(AdvArmoury->v.origin, UTIL_MetresToGoldSrcUnits(10.0f));
+
+			int NumHeavyArmour = UTIL_GetItemCountOfTypeInArea(ITEM_MARINE_HEAVYARMOUR, PrototypeLab->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
+			int NumHMG = UTIL_GetItemCountOfTypeInArea(ITEM_MARINE_HMG, AdvArmoury->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
+			int NumWelder = UTIL_GetItemCountOfTypeInArea(ITEM_MARINE_WELDER, AdvArmoury->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
+
+			bShouldDropHeavyArmour = (!FNullEnt(MarineNeedingLoadout) && !PlayerHasEquipment(MarineNeedingLoadout) && NumHeavyArmour == 0);
+			bShouldDropHMG = (!FNullEnt(MarineNeedingLoadout) && !PlayerHasSpecialWeapon(MarineNeedingLoadout) && NumHMG == 0);
+			bShouldDropWelder = (!FNullEnt(MarineNeedingLoadout) && !PlayerHasWeapon(MarineNeedingLoadout, WEAPON_MARINE_WELDER) && NumWelder == 0);
+		}		
+
+		if (bShouldDropHeavyArmour)
+		{
+			if (Action->ActionType == ACTION_DEPLOY && Action->StructureToBuild == DEPLOYABLE_ITEM_MARINE_HEAVYARMOUR) { return; }
+
+			Action->ActionType = ACTION_DEPLOY;
+			Action->StructureToBuild = DEPLOYABLE_ITEM_MARINE_HEAVYARMOUR;
+			Action->BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, PrototypeLab->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
+			return;
+		}
+
+		if (bShouldDropHMG)
+		{
+			if (Action->ActionType == ACTION_DEPLOY && Action->StructureToBuild == DEPLOYABLE_ITEM_MARINE_HMG) { return; }
+
+			Action->ActionType = ACTION_DEPLOY;
+			Action->StructureToBuild = DEPLOYABLE_ITEM_MARINE_HMG;
+			Action->BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, AdvArmoury->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
+			return;
+		}
+
+		if (bShouldDropWelder)
+		{
+			if (Action->ActionType == ACTION_DEPLOY && Action->StructureToBuild == DEPLOYABLE_ITEM_MARINE_WELDER) { return; }
+
+			Action->ActionType = ACTION_DEPLOY;
+			Action->StructureToBuild = DEPLOYABLE_ITEM_MARINE_WELDER;
+			Action->BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, AdvArmoury->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
+			return;
+		}
+
 	}
-	
 
-	int DesiredNumWelders = (NumMarines / 2);
+	bool bShouldDropWelder = false;
 
-	int NumWeldersInPlay = UTIL_GetNumWeaponsOfTypeInPlay(WEAPON_MARINE_WELDER);
+	if (CommanderBot->resources > 100)
+	{
+		bShouldDropWelder = (UTIL_GetItemCountOfTypeInArea(ITEM_MARINE_WELDER, Armoury->v.origin, UTIL_MetresToGoldSrcUnits(5.0f)) < 3);
+	}
+	else
+	{
+		int DesiredNumWelders = (CommanderBot->resources > 100) ? NumMarines : (NumMarines / 2);
 
-	if (NumWeldersInPlay < DesiredNumWelders)
+		int NumWeldersInPlay = UTIL_GetNumWeaponsOfTypeInPlay(WEAPON_MARINE_WELDER);
+
+		bShouldDropWelder = (NumWeldersInPlay < DesiredNumWelders);
+	}
+
+	if (bShouldDropWelder)
 	{
 		if (Action->ActionType == ACTION_DEPLOY && Action->StructureToBuild == DEPLOYABLE_ITEM_MARINE_WELDER) { return; }
 
@@ -2817,11 +2809,22 @@ void COMM_SetNextSupportAction(bot_t* CommanderBot, commander_action* Action)
 		return;
 	}
 
-	int DesiredNumShotguns = (NumMarines / 2);
+	bool bShouldDropShotgun = false;
 
-	int NumShotgunsInPlay = UTIL_GetNumWeaponsOfTypeInPlay(WEAPON_MARINE_SHOTGUN);
+	if (CommanderBot->resources > 100)
+	{
+		bShouldDropShotgun = (UTIL_GetItemCountOfTypeInArea(ITEM_MARINE_SHOTGUN, Armoury->v.origin, UTIL_MetresToGoldSrcUnits(5.0f)) < 3);
+	}
+	else
+	{
+		int DesiredNumShotguns = (NumMarines / 2);
 
-	if (NumShotgunsInPlay < DesiredNumShotguns)
+		int NumShotgunsInPlay = UTIL_GetNumWeaponsOfTypeInPlay(WEAPON_MARINE_SHOTGUN);
+
+		bShouldDropShotgun = (NumShotgunsInPlay < DesiredNumShotguns);
+	}
+
+	if (bShouldDropShotgun)
 	{
 		if (Action->ActionType == ACTION_DEPLOY && Action->StructureToBuild == DEPLOYABLE_ITEM_MARINE_SHOTGUN) { return; }
 
@@ -2840,7 +2843,7 @@ void COMM_SetNextSupportAction(bot_t* CommanderBot, commander_action* Action)
 
 }
 
-void COMM_SetNextBuildAction(commander_action* Action)
+void COMM_SetNextBuildAction(bot_t* CommanderBot, commander_action* Action)
 {
 	edict_t* CommChair = UTIL_GetCommChair();
 
@@ -2946,7 +2949,7 @@ void COMM_SetNextBuildAction(commander_action* Action)
 
 	if (HiveToSecure)
 	{
-		COMM_SetNextSecureHiveAction(HiveToSecure, Action);
+		COMM_SetNextSecureHiveAction(CommanderBot, HiveToSecure, Action);
 		return;
 	}
 
@@ -3050,6 +3053,19 @@ void COMM_SetNextBuildAction(commander_action* Action)
 		}
 
 		return;
+	}
+
+	int Resources = CommanderBot->resources;
+
+	if (Resources > 100)
+	{
+		edict_t* UnelectrifiedResTower = UTIL_GetFurthestStructureOfTypeFromLocation(STRUCTURE_MARINE_RESTOWER, UTIL_GetCommChairLocation(), false);
+
+		if (!FNullEnt(UnelectrifiedResTower) && UTIL_ElectricalResearchIsAvailable(UnelectrifiedResTower))
+		{
+			COMM_SetElectrifyStructureAction(UnelectrifiedResTower, Action);
+			return;
+		}
 	}
 
 	UTIL_ClearCommanderAction(Action);

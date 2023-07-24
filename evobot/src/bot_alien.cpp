@@ -45,6 +45,12 @@ void AlienThink(bot_t* pBot)
 		BotAlienSetPrimaryTask(pBot, &pBot->PrimaryBotTask);
 	}
 
+	// We don't want the bot trying to attack or defend as a gorge
+	if (IsPlayerGorge(pBot->pEdict) && pBot->SecondaryBotTask.TaskType != TASK_HEAL)
+	{
+		UTIL_ClearBotTask(pBot, &pBot->SecondaryBotTask);
+	}
+
 	if (pBot->SecondaryBotTask.TaskType == TASK_NONE || !pBot->SecondaryBotTask.bTaskIsUrgent)
 	{
 		BotAlienSetSecondaryTask(pBot, &pBot->SecondaryBotTask);
@@ -1015,6 +1021,7 @@ void BotAlienSetSecondaryTask(bot_t* pBot, bot_task* Task)
 	if (IsPlayerGorge(pBot->pEdict))
 	{
 		AlienBuilderSetSecondaryTask(pBot, &pBot->SecondaryBotTask);
+		return;
 	}
 
 	// Don't let anything distract us from building hives. They're kind of important...
@@ -1058,6 +1065,8 @@ void AlienBuilderSetSecondaryTask(bot_t* pBot, bot_task* Task)
 			return;
 		}
 	}
+
+	UTIL_ClearBotTask(pBot, Task);
 }
 
 void AlienHarasserSetSecondaryTask(bot_t* pBot, bot_task* Task)
