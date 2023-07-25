@@ -632,9 +632,7 @@ void ClientCommand(edict_t* pEntity)
 
 			if (!FNullEnt(pBot->CurrentTask->TaskTarget))
 			{
-				float DistFromTarget = vDist3D(pBot->CurrentEyePosition, UTIL_GetCentreOfEntity(pBot->CurrentTask->TaskTarget));
-
-				sprintf(buf, "Dist to Task: %f\n", DistFromTarget);
+				sprintf(buf, "Target Location = (%4.2f, %4.2f, %4.2f)\n\n", pBot->CurrentTask->TaskTarget->v.origin.x, pBot->CurrentTask->TaskTarget->v.origin.y, pBot->CurrentTask->TaskTarget->v.origin.z);
 				UTIL_SayText(buf, listenserver_edict);
 			}
 

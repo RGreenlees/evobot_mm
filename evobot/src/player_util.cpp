@@ -648,7 +648,7 @@ bool IsEdictPlayer(const edict_t* edict)
 {
 	if (FNullEnt(edict)) { return false; }
 
-	return (edict->v.flags & FL_CLIENT) || (edict->v.flags & FL_FAKECLIENT);
+	return (edict->v.flags & FL_CLIENT) || (edict->v.flags & FL_FAKECLIENT) || (edict->v.flags & FL_THIRDPARTYBOT);
 }
 
 bool IsPlayerTouchingEntity(const edict_t* Player, const edict_t* TargetEntity)

@@ -421,7 +421,7 @@ bool UTIL_IsWeaponPickupTaskStillValid(bot_t* pBot, bot_task* Task)
 
 bool UTIL_IsAttackTaskStillValid(bot_t* pBot, bot_task* Task)
 {
-	if (FNullEnt(Task->TaskTarget)) { return false; }
+	if (FNullEnt(Task->TaskTarget) || Task->TaskTarget->v.origin == ZERO_VECTOR) { return false; }
 
 	if ((Task->TaskTarget->v.effects & EF_NODRAW) || (Task->TaskTarget->v.deadflag != DEAD_NO)) { return false; }
 
@@ -2315,6 +2315,13 @@ char* UTIL_TaskTypeToChar(const BotTaskType TaskType)
 
 void TASK_SetAttackTask(bot_t* pBot, bot_task* Task, edict_t* Target, const bool bIsUrgent)
 {
+	// Don't set the task if the target is invalid, dead or on the same team as the bot (can't picture a situation where you want them to teamkill...)
+	if (FNullEnt(Target) || (Target->v.deadflag != DEAD_NO) || Target->v.team == pBot->pEdict->v.team)
+	{
+		UTIL_ClearBotTask(pBot, Task);
+		return;
+	}
+
 	if (Task->TaskType == TASK_ATTACK && Task->TaskTarget == Target) 
 	{
 		Task->bTaskIsUrgent = bIsUrgent;
@@ -2323,8 +2330,7 @@ void TASK_SetAttackTask(bot_t* pBot, bot_task* Task, edict_t* Target, const bool
 
 	UTIL_ClearBotTask(pBot, Task);
 
-	// Don't set the task if the target is invalid, dead or on the same team as the bot (can't picture a situation where you want them to teamkill...)
-	if (FNullEnt(Target) || (Target->v.deadflag != DEAD_NO) || Target->v.team == pBot->pEdict->v.team) { return; }
+	
 
 	Task->TaskType = TASK_ATTACK;
 	Task->TaskTarget = Target;
