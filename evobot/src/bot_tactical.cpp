@@ -1966,7 +1966,6 @@ const resource_node* UTIL_FindEligibleResNodeFurthestFromLocation(const Vector& 
 	int Result = -1;
 	float MaxDist = 0.0f;
 
-
 	for (int i = 0; i < NumTotalResNodes; i++)
 	{
 		bool ResNodeOccupiedByEnemy = (Team == MARINE_TEAM) ? !ResourceNodes[i].bIsOwnedByMarines : ResourceNodes[i].bIsOwnedByMarines;
@@ -1998,6 +1997,11 @@ const resource_node* UTIL_FindEligibleResNodeFurthestFromLocation(const Vector& 
 					{
 						continue;
 					}
+				}
+				else
+				{
+					// Don't reinforce a hive with a marine turret factory in it, for obvious reasons...
+					if (UTIL_StructureOfTypeExistsInLocation(STRUCTURE_MARINE_ANYTURRETFACTORY, ResourceNodes->origin, UTIL_MetresToGoldSrcUnits(15.0f), true)) { continue; }
 				}
 
 			}
