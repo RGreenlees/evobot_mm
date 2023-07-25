@@ -572,7 +572,17 @@ Vector UTIL_GetEntityGroundLocation(const edict_t* pEntity)
 
 	if (GetStructureTypeFromEdict(pEntity) == STRUCTURE_ALIEN_HIVE)
 	{
-		return UTIL_GetFloorUnderEntity(pEntity);
+		const hive_definition* Hive = UTIL_GetHiveFromEdict(pEntity);
+
+		if (Hive)
+		{
+			return Hive->FloorLocation;
+		}
+		else
+		{
+			return UTIL_GetFloorUnderEntity(pEntity);
+		}
+		
 	}
 
 	Vector Centre = UTIL_GetCentreOfEntity(pEntity);

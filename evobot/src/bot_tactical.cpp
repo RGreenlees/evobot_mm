@@ -1941,7 +1941,17 @@ const resource_node* UTIL_FindEligibleResNodeClosestToLocation(const Vector& Loc
 
 					if (bClaimedByOtherBot) { continue; }
 				}
+				else
+				{
+					// Don't target a resource tower protected by turrets
+					if (UTIL_StructureOfTypeExistsInLocation(STRUCTURE_MARINE_ANYTURRETFACTORY, ResourceNodes->origin, UTIL_MetresToGoldSrcUnits(15.0f), true)) { continue; }
+				}
 
+			}
+			else
+			{
+				// Don't target a resource tower protected by offence chambers
+				if (UTIL_StructureOfTypeExistsInLocation(STRUCTURE_ALIEN_OFFENCECHAMBER, ResourceNodes->origin, UTIL_MetresToGoldSrcUnits(10.0f), true)) { continue; }
 			}
 
 			float Dist = vDist2DSq(Location, ResourceNodes[i].origin);
@@ -2000,10 +2010,15 @@ const resource_node* UTIL_FindEligibleResNodeFurthestFromLocation(const Vector& 
 				}
 				else
 				{
-					// Don't reinforce a hive with a marine turret factory in it, for obvious reasons...
+					// Don't target a resource tower protected by turrets
 					if (UTIL_StructureOfTypeExistsInLocation(STRUCTURE_MARINE_ANYTURRETFACTORY, ResourceNodes->origin, UTIL_MetresToGoldSrcUnits(15.0f), true)) { continue; }
 				}
 
+			}
+			else
+			{
+				// Don't target a resource tower protected by offence chambers
+				if (UTIL_StructureOfTypeExistsInLocation(STRUCTURE_ALIEN_OFFENCECHAMBER, ResourceNodes->origin, UTIL_MetresToGoldSrcUnits(10.0f), true)) { continue; }
 			}
 
 			float Dist = vDist2DSq(Location, ResourceNodes[i].origin);
@@ -2910,36 +2925,11 @@ edict_t* UTIL_GetClosestPlayerOnTeamWithLOS(const Vector& Location, const int Te
 			}
 		}
 	}
-
+	
 	return Result;
 }
 
-edict_t* UTIL_GetClosestPlayerOnTeamWithoutLOS(const Vector& Location, const int Team, float SearchRadius, edict_t* IgnorePlayer)
-{
-	float distSq = sqrf(SearchRadius);
-	float MinDist = 0.0f;
-	edict_t* Result = nullptr;
 
-	for (int i = 0; i < 32; i++)
-	{
-		if (!FNullEnt(clients[i]) && clients[i] != IgnorePlayer && clients[i]->v.team == Team && IsPlayerActiveInGame(clients[i]))
-		{
-			float ThisDist = vDist2DSq(clients[i]->v.origin, Location);
-
-			if (ThisDist <= distSq && !UTIL_QuickTrace(clients[i], GetPlayerEyePosition(clients[i]), Location))
-			{
-				if (FNullEnt(Result) || ThisDist < MinDist)
-				{
-					Result = clients[i];
-					MinDist = ThisDist;
-				}
-
-			}
-		}
-	}
-
-	return Result;
-}
 
 bool UTIL_AnyPlayerOnTeamHasLOSToLocation(const int Team, const Vector Target, const float MaxRange)
 {
@@ -3651,7 +3641,7 @@ NSWeapon UTIL_GetWeaponTypeFromEdict(const edict_t* ItemEdict)
 	return WEAPON_NONE;
 }
 
-const hive_definition* UTIL_GetHiveFromEdict(edict_t* HiveEdict)
+const hive_definition* UTIL_GetHiveFromEdict(const edict_t* HiveEdict)
 {
 	for (int i = 0; i < NumTotalHives; i++)
 	{
@@ -3710,6 +3700,18 @@ const hive_definition* UTIL_GetNearestHiveAtLocation(const Vector Location)
 	if (Result > -1)
 	{
 		return &Hives[Result];
+	}
+
+	return nullptr;
+}
+
+const resource_node* UTIL_GetResourceNodeFromEdict(edict_t* ResNodeEdict)
+{
+	if (FNullEnt(ResNodeEdict)) { return nullptr; }
+
+	for (int i = 0; i < NumTotalResNodes; i++)
+	{
+		if (ResourceNodes[i].edict == ResNodeEdict) { return &ResourceNodes[i]; }
 	}
 
 	return nullptr;

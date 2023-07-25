@@ -729,11 +729,7 @@ void BotShootLocation(bot_t* pBot, NSWeapon AttackWeapon, const Vector TargetLoc
 
 		if (bShouldReload)
 		{
-			if (!pBot->current_weapon.bIsReloading)
-			{
-				pBot->pEdict->v.button |= IN_RELOAD;
-				pBot->current_weapon.bIsReloading = true;
-			}
+			BotReloadCurrentWeapon(pBot);
 			return;
 		}
 
@@ -763,6 +759,21 @@ void BotShootLocation(bot_t* pBot, NSWeapon AttackWeapon, const Vector TargetLoc
 		{
 			pBot->pEdict->v.button |= IN_ATTACK;
 			pBot->current_weapon.LastFireTime = gpGlobals->time;
+		}
+	}
+}
+
+void BotReloadCurrentWeapon(bot_t* pBot)
+{
+	NSWeapon CurrentWeapon = GetBotCurrentWeapon(pBot);
+
+	if (!WeaponCanBeReloaded(CurrentWeapon)) { return; }
+
+	if (!IsBotReloading(pBot))
+	{
+		if (gpGlobals->time - pBot->LastUseTime > 0.5f)
+		{
+			pBot->pEdict->v.button |= IN_RELOAD;
 		}
 	}
 }
@@ -901,11 +912,7 @@ void BotShootTarget(bot_t* pBot, NSWeapon AttackWeapon, edict_t* Target)
 
 		if (bShouldReload)
 		{
-			if (!pBot->current_weapon.bIsReloading)
-			{
-				pBot->pEdict->v.button |= IN_RELOAD;
-				pBot->current_weapon.bIsReloading = true;
-			}
+			BotReloadCurrentWeapon(pBot);
 			return;
 		}
 
@@ -1084,7 +1091,8 @@ void BotReloadWeapons(bot_t* pBot)
 
 			if (CurrentWeapon == PrimaryWeapon)
 			{
-				pBot->pEdict->v.button |= IN_RELOAD;
+				BotReloadCurrentWeapon(pBot);
+				
 				return;
 			}
 		}
@@ -1095,7 +1103,7 @@ void BotReloadWeapons(bot_t* pBot)
 
 			if (CurrentWeapon == SecondaryWeapon)
 			{
-				pBot->pEdict->v.button |= IN_RELOAD;
+				BotReloadCurrentWeapon(pBot);
 				return;
 			}
 		}
@@ -1139,7 +1147,7 @@ void BotThrowGrenadeAtTarget(bot_t* pBot, const Vector TargetPoint)
 
 	if (GetBotCurrentWeapon(pBot) == WEAPON_MARINE_GL && BotGetPrimaryWeaponClipAmmo(pBot) == 0)
 	{
-		pBot->pEdict->v.button |= IN_RELOAD;
+		BotReloadCurrentWeapon(pBot);
 		return;
 	}
 
@@ -1162,7 +1170,32 @@ void BotThrowGrenadeAtTarget(bot_t* pBot, const Vector TargetPoint)
 
 bool IsBotReloading(bot_t* pBot)
 {
-	return pBot->current_weapon.bIsReloading;
+	//return pBot->current_weapon.bIsReloading;
+
+	if (IsPlayerAlien(pBot->pEdict)) { return false; }
+
+	NSWeapon CurrentWeapon = GetBotCurrentWeapon(pBot);
+
+	if (!WeaponCanBeReloaded(CurrentWeapon)) { return false; }
+
+	if (BotGetCurrentWeaponClipAmmo(pBot) == BotGetCurrentWeaponMaxClipAmmo(pBot) || BotGetCurrentWeaponReserveAmmo(pBot) == 0) { return false; }
+
+	switch (CurrentWeapon)
+	{
+		case WEAPON_MARINE_SHOTGUN:
+		case WEAPON_MARINE_PISTOL:
+			return (pBot->pEdict->v.weaponanim == 2 || pBot->pEdict->v.weaponanim == 3);
+		case WEAPON_MARINE_MG:
+			return pBot->pEdict->v.weaponanim == 2;
+		case WEAPON_MARINE_HMG:
+			return pBot->pEdict->v.weaponanim == 3;
+		case WEAPON_MARINE_GL:
+			return (pBot->pEdict->v.weaponanim == 1 || pBot->pEdict->v.weaponanim == 2 || pBot->pEdict->v.weaponanim == 4 || pBot->pEdict->v.weaponanim == 5 || pBot->pEdict->v.weaponanim == 6 || pBot->pEdict->v.weaponanim == 7);
+		default:
+			return false;
+	}
+
+	return false;
 }
 
 void BotEvolveLifeform(bot_t* pBot, NSPlayerClass TargetLifeform)

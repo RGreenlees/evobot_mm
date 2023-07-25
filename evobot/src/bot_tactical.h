@@ -250,7 +250,7 @@ int UTIL_GetNumPlayersOnTeamWithLOS(const Vector& Location, const int Team, floa
 bool UTIL_AnyPlayerOnTeamHasLOSToLocation(const int Team, const Vector Target, const float MaxRange);
 
 edict_t* UTIL_GetClosestPlayerOnTeamWithLOS(const Vector& Location, const int Team, float SearchRadius, edict_t* IgnorePlayer);
-edict_t* UTIL_GetClosestPlayerOnTeamWithoutLOS(const Vector& Location, const int Team, float SearchRadius, edict_t* IgnorePlayer);
+
 
 edict_t* UTIL_FindClosestMarineStructureUnbuilt(const Vector& SearchLocation, float SearchRadius, bool bUsePhaseDistance);
 edict_t* UTIL_FindClosestMarineStructureUnbuiltWithoutBuilders(bot_t* pBot, const int MaxBuilders, const Vector& SearchLocation, float SearchRadius, bool bUsePhaseDistance);
@@ -263,9 +263,10 @@ HiveStatusType UTIL_GetHiveStatus(const edict_t* Hive);
 edict_t* UTIL_FindSafePlayerInArea(const int Team, const Vector SearchLocation, float MinRadius, float MaxRadius);
 
 const resource_node* UTIL_GetResourceNodeAtIndex(int Index);
+const resource_node* UTIL_GetResourceNodeFromEdict(edict_t* ResNodeEdict);
 
 const hive_definition* UTIL_GetHiveAtIndex(int Index);
-const hive_definition* UTIL_GetHiveFromEdict(edict_t* HiveEdict);
+const hive_definition* UTIL_GetHiveFromEdict(const edict_t* HiveEdict);
 int UTIL_GetNumTotalHives();
 int UTIL_GetNumActiveHives();
 int UTIL_GetNumUnbuiltHives();

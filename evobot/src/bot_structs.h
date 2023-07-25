@@ -20,7 +20,7 @@ constexpr auto MAX_PATH_SIZE = 512; // Maximum number of points allowed in a pat
 constexpr auto MAX_ACTION_PRIORITIES = 12; // How many levels of priority the commander can assign actions to
 constexpr auto MAX_PRIORITY_ACTIONS = 20; // How many actions at each priority level the commander can have at one time
 
-constexpr auto FL_THIRDPARTYBOT = (1 << 27);
+constexpr auto FL_THIRDPARTYBOT = (1 << 27); // NS explicitly blocks clients with FL_FAKECLIENT flag using the comm chair. AI Commander uses this flag instead to circumvent block
 
 // Bot's role on the team. For marines, this only governs what they do when left to their own devices.
 // Marine bots will always listen to orders from the commander regardless of role.
@@ -340,6 +340,7 @@ typedef struct _BOT_T
 	int not_started = 0;
 
 	float LastUseTime = 0.0f; // When the bot hit the use key last. Used if bContinuous is false in BotUseObject
+	float LastReloadTime = 0.0f; // When the bot hit the reload key last.
 
 	// things from pev in CBasePlayer...
 	int bot_team = 0;

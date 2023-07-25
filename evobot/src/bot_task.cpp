@@ -1590,7 +1590,7 @@ void AlienProgressHealTask(bot_t* pBot, bot_task* Task)
 	if (LOSCheck == ATTACK_SUCCESS)
 	{
 		pBot->DesiredCombatWeapon = WEAPON_GORGE_HEALINGSPRAY;
-		BotLookAt(pBot, Task->TaskTarget->v.origin);
+		BotLookAt(pBot, UTIL_GetCentreOfEntity(Task->TaskTarget));
 		if (GetBotCurrentWeapon(pBot) == WEAPON_GORGE_HEALINGSPRAY)
 		{
 			pBot->pEdict->v.button |= IN_ATTACK;
@@ -1600,7 +1600,7 @@ void AlienProgressHealTask(bot_t* pBot, bot_task* Task)
 	}
 	else
 	{
-		MoveTo(pBot, Task->TaskTarget->v.origin, MOVESTYLE_NORMAL, kHealingSprayRange);
+		MoveTo(pBot, UTIL_GetEntityGroundLocation(Task->TaskTarget), MOVESTYLE_NORMAL, kHealingSprayRange);
 	}
 }
 

@@ -177,6 +177,52 @@ void COMM_IssueMarineSiegeHiveOrder(bot_t* CommanderBot, edict_t* Recipient, con
 	}
 }
 
+void COMM_IssueMarineSecureResNodeOrder(bot_t* CommanderBot, edict_t* Recipient, const resource_node* ResNode)
+{
+	if (!ResNode || FNullEnt(Recipient) || !IsPlayerActiveInGame(Recipient)) { return; }
+
+	int ClientIndex = GAME_GetClientIndex(Recipient);
+
+	if (ClientIndex < 0) { return; }
+
+	Vector MoveLocation = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, ResNode->origin, UTIL_MetresToGoldSrcUnits(3.0f));
+
+	if (MoveLocation == ZERO_VECTOR)
+	{
+		MoveLocation = ResNode->origin;
+	}
+
+	CommanderBot->LastPlayerOrders[ClientIndex].bIsActive = true;
+	CommanderBot->LastPlayerOrders[ClientIndex].MoveLocation = MoveLocation;
+	CommanderBot->LastPlayerOrders[ClientIndex].OrderPurpose = ORDERPURPOSE_SECURE_RESNODE;
+	CommanderBot->LastPlayerOrders[ClientIndex].Target = ResNode->edict;
+	CommanderBot->LastPlayerOrders[ClientIndex].OrderType = ORDERTYPEL_MOVE;
+
+	MESSAGE_BEGIN(MSG_ONE, REG_USER_MSG("SetOrder", -1), NULL, Recipient);
+	WRITE_BYTE(ENTINDEX(Recipient));
+	WRITE_BYTE(ORDERTYPEL_MOVE);
+
+	WRITE_COORD(MoveLocation.x);
+	WRITE_COORD(MoveLocation.y);
+	WRITE_COORD(MoveLocation.z);
+
+	WRITE_BYTE(AVH_USER3_NONE);
+	WRITE_BYTE(false);
+	WRITE_BYTE(kOrderStatusActive);
+
+	MESSAGE_END();
+
+	if (IsPlayerBot(Recipient))
+	{
+		bot_t* BotRef = GetBotPointer(Recipient);
+
+		if (BotRef)
+		{
+			BotReceiveCommanderOrder(BotRef, ORDERTYPEL_MOVE, AVH_USER3_NONE, MoveLocation);
+		}
+	}
+}
+
 
 void COMM_IssueMarineSecureHiveOrder(bot_t* CommanderBot, edict_t* Recipient, const hive_definition* HiveToSecure)
 {
@@ -443,7 +489,26 @@ void COMM_UpdateAndClearCommanderOrders(bot_t* CommanderBot)
 				}
 			}
 		}
+	}
 
+	const resource_node* ResNode = UTIL_FindEligibleResNodeClosestToLocation(UTIL_GetCommChairLocation(), MARINE_TEAM, false);
+
+	if (ResNode != nullptr)
+	{
+		int NumMarines = COMM_GetNumMarinesSecuringResNode(CommanderBot, ResNode, UTIL_MetresToGoldSrcUnits(5.0f));
+
+		int MarineDeficit = 1 - NumMarines;
+
+		if (MarineDeficit > 0)
+		{
+			edict_t* NearestMarine = COMM_GetNearestMarineWithoutOrder(CommanderBot, ResNode->origin, UTIL_MetresToGoldSrcUnits(5.0f), UTIL_MetresToGoldSrcUnits(30.0f));
+
+			if (!FNullEnt(NearestMarine))
+			{
+				COMM_IssueMarineSecureResNodeOrder(CommanderBot, NearestMarine, ResNode);
+				return;
+			}
+		}
 	}
 
 }
@@ -486,6 +551,36 @@ int COMM_GetNumMarinesSiegingHive(bot_t* CommanderBot, const hive_definition* Hi
 				if (CommanderBot->LastPlayerOrders[i].bIsActive)
 				{
 					if (CommanderBot->LastPlayerOrders[i].OrderPurpose == ORDERPURPOSE_SIEGE_HIVE && CommanderBot->LastPlayerOrders[i].Target == Hive->edict)
+					{
+						Result++;
+					}
+				}
+			}
+		}
+	}
+
+	return Result;
+}
+
+int COMM_GetNumMarinesSecuringResNode(bot_t* CommanderBot, const resource_node* ResNode, float MaxDistance)
+{
+	int Result = 0;
+
+	float MaxDistSq = sqrf(MaxDistance);
+
+	for (int i = 0; i < MAX_CLIENTS; i++)
+	{
+		if (IsPlayerMarine(clients[i]) && IsPlayerActiveInGame(clients[i]))
+		{
+			if (vDist2DSq(clients[i]->v.origin, ResNode->origin) < MaxDistSq)
+			{
+				Result++;
+			}
+			else
+			{
+				if (CommanderBot->LastPlayerOrders[i].bIsActive)
+				{
+					if (CommanderBot->LastPlayerOrders[i].OrderPurpose == ORDERPURPOSE_SECURE_RESNODE && CommanderBot->LastPlayerOrders[i].Target == ResNode->edict)
 					{
 						Result++;
 					}
@@ -1656,6 +1751,8 @@ bool UTIL_IsMarineOrderComplete(bot_t* CommanderBot, int PlayerIndex)
 			return COMM_IsSecureHiveOrderComplete(&CommanderBot->LastPlayerOrders[PlayerIndex]);
 		case ORDERPURPOSE_SIEGE_HIVE:
 			return COMM_IsSiegeHiveOrderComplete(&CommanderBot->LastPlayerOrders[PlayerIndex]);
+		case ORDERPURPOSE_SECURE_RESNODE:
+			return COMM_IsSecureResNodeOrderComplete(&CommanderBot->LastPlayerOrders[PlayerIndex]);
 		default:
 			return false;
 
@@ -1680,6 +1777,15 @@ bool COMM_IsSiegeHiveOrderComplete(commander_order* Order)
 	if (!HiveToSiege) { return true; }
 
 	return HiveToSiege->Status == HIVE_STATUS_UNBUILT;
+}
+
+bool COMM_IsSecureResNodeOrderComplete(commander_order* Order)
+{
+	const resource_node* ResNode = UTIL_GetResourceNodeFromEdict(Order->Target);
+
+	if (!ResNode) { return true; }
+
+	return ResNode->bIsOccupied && ResNode->bIsOwnedByMarines;
 }
 
 bool UTIL_ConfirmMarineOrderComplete(bot_t* CommanderBot, int CommanderOrderIndex)
@@ -2498,13 +2604,15 @@ void COMM_SetNextSiegeHiveAction(const hive_definition* Hive, commander_action* 
 {
 	bool bPhaseGatesAvailable = UTIL_ResearchIsComplete(RESEARCH_OBSERVATORY_PHASETECH);
 
-	edict_t* NearestPlayer = UTIL_GetClosestPlayerOnTeamWithoutLOS(Hive->edict->v.origin, MARINE_TEAM, UTIL_MetresToGoldSrcUnits(25.0f), nullptr);
+	edict_t* NearestPlayer = COMM_GetMarineEligibleToBuildSiege(Hive);
 
 	edict_t* TF = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ANYTURRETFACTORY, Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(25.0f), true, false);
 
 	edict_t* PhaseGate = (bPhaseGatesAvailable) ? UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_PHASEGATE, Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(25.0f), true, false) : nullptr;
 
 	edict_t* Armoury = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ANYARMOURY, Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(25.0f), true, false);
+
+	bool bHasBuiltStructureAlready = ((!FNullEnt(TF) && UTIL_StructureIsFullyBuilt(TF)) || (!FNullEnt(PhaseGate) && UTIL_StructureIsFullyBuilt(PhaseGate)));
 
 	if (bPhaseGatesAvailable)
 	{
@@ -2517,7 +2625,7 @@ void COMM_SetNextSiegeHiveAction(const hive_definition* Hive, commander_action* 
 
 			Vector BuildLocation = ZERO_VECTOR;
 
-			if (!FNullEnt(TF))
+			if (!FNullEnt(TF) && bHasBuiltStructureAlready)
 			{
 				BuildLocation = TF->v.origin;
 			}
@@ -2531,7 +2639,7 @@ void COMM_SetNextSiegeHiveAction(const hive_definition* Hive, commander_action* 
 
 			if (BuildLocation != ZERO_VECTOR)
 			{
-				Vector NewBuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(GORGE_BUILD_NAV_PROFILE, BuildLocation, UTIL_MetresToGoldSrcUnits(5.0f));
+				Vector NewBuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(GORGE_BUILD_NAV_PROFILE, BuildLocation, UTIL_MetresToGoldSrcUnits(3.0f));
 
 				Vector FinalBuildLocation = (NewBuildLocation != ZERO_VECTOR) ? NewBuildLocation : BuildLocation;
 
@@ -2560,7 +2668,7 @@ void COMM_SetNextSiegeHiveAction(const hive_definition* Hive, commander_action* 
 
 		Vector BuildLocation = ZERO_VECTOR;
 
-		if (!FNullEnt(PhaseGate))
+		if (!FNullEnt(PhaseGate) && bHasBuiltStructureAlready)
 		{
 			BuildLocation = PhaseGate->v.origin;
 		}
@@ -2574,7 +2682,7 @@ void COMM_SetNextSiegeHiveAction(const hive_definition* Hive, commander_action* 
 
 		if (BuildLocation != ZERO_VECTOR)
 		{
-			Vector NewBuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(GORGE_BUILD_NAV_PROFILE, BuildLocation, UTIL_MetresToGoldSrcUnits(2.0f));
+			Vector NewBuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(GORGE_BUILD_NAV_PROFILE, BuildLocation, UTIL_MetresToGoldSrcUnits(3.0f));
 
 			Vector FinalBuildLocation = (NewBuildLocation != ZERO_VECTOR) ? NewBuildLocation : BuildLocation;
 
@@ -2600,7 +2708,7 @@ void COMM_SetNextSiegeHiveAction(const hive_definition* Hive, commander_action* 
 
 		Vector BuildLocation = ZERO_VECTOR;
 
-		if (!FNullEnt(PhaseGate))
+		if (!FNullEnt(PhaseGate) && bHasBuiltStructureAlready)
 		{
 			BuildLocation = PhaseGate->v.origin;
 		}
@@ -3088,4 +3196,32 @@ void COMM_ConfirmObjectDeployed(bot_t* pBot, commander_action* Action, edict_t* 
 
 		pBot->next_commander_action_time = gpGlobals->time + commander_action_cooldown;
 	}
+}
+
+edict_t* COMM_GetMarineEligibleToBuildSiege(const hive_definition* Hive)
+{
+	float MinDist = 0.0f;
+	edict_t* Result = nullptr;
+
+	for (int i = 0; i < 32; i++)
+	{
+		if (!FNullEnt(clients[i]) && IsPlayerMarine(clients[i]) && IsPlayerActiveInGame(clients[i]))
+		{
+			if (DoesAnyPlayerOnTeamHaveLOSToPlayer(ALIEN_TEAM, clients[i])) { continue; }
+
+			float ThisDist = vDist2DSq(clients[i]->v.origin, Hive->Location);
+
+			if (ThisDist < sqrf(UTIL_MetresToGoldSrcUnits(25.0f)) && !UTIL_QuickTrace(clients[i], GetPlayerEyePosition(clients[i]), Hive->Location))
+			{
+				if (FNullEnt(Result) || ThisDist < MinDist)
+				{
+					Result = clients[i];
+					MinDist = ThisDist;
+				}
+
+			}
+		}
+	}
+
+	return Result;
 }

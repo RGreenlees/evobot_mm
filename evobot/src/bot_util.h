@@ -99,6 +99,8 @@ void BotReloadWeapons(bot_t* pBot);
 
 bool IsBotReloading(bot_t* pBot);
 
+void BotReloadCurrentWeapon(bot_t* pBot);
+
 void BotEvolveLifeform(bot_t* pBot, NSPlayerClass TargetLifeform);
 
 void UTIL_ClearAllBotData(bot_t* pBot);

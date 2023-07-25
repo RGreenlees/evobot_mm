@@ -36,6 +36,7 @@ void UTIL_IssueMarineMoveToOrder(bot_t* CommanderBot, edict_t* Recipient, const 
 void UTIL_IssueMarineBuildOrder(bot_t* CommanderBot, edict_t* Recipient, edict_t* StructureToBuild);
 void COMM_IssueMarineSecureHiveOrder(bot_t* CommanderBot, edict_t* Recipient, const hive_definition* HiveToSecure);
 void COMM_IssueMarineSiegeHiveOrder(bot_t* CommanderBot, edict_t* Recipient, const hive_definition* HiveToSiege, const Vector SiegePosition);
+void COMM_IssueMarineSecureResNodeOrder(bot_t* CommanderBot, edict_t* Recipient, const resource_node* ResNode);
 
 void CommanderReceiveAlert(bot_t* pBot, const Vector Location, const PlayerAlertType AlertType);
 void CommanderReceiveHealthRequest(bot_t* pBot, edict_t* Requestor);
@@ -64,6 +65,7 @@ edict_t* COMM_GetNearestMarineWithoutOrder(bot_t* CommanderBot, const Vector Sea
 
 int COMM_GetNumMarinesSecuringHive(bot_t* CommanderBot, const hive_definition* Hive, float MaxDistance);
 int COMM_GetNumMarinesSiegingHive(bot_t* CommanderBot, const hive_definition* Hive, float MaxDistance);
+int COMM_GetNumMarinesSecuringResNode(bot_t* CommanderBot, const resource_node* ResNode, float MaxDistance);
 Vector COMM_GetGoodSiegeLocation(const hive_definition* HiveToSiege);
 
 bool COMM_IsWaitingOnBuildLink(bot_t* CommanderBot);
@@ -105,6 +107,7 @@ bool UTIL_ConfirmMarineOrderComplete(bot_t* CommanderBot, int CommanderOrderInde
 
 bool COMM_IsSecureHiveOrderComplete(commander_order* Order);
 bool COMM_IsSiegeHiveOrderComplete(commander_order* Order);
+bool COMM_IsSecureResNodeOrderComplete(commander_order* Order);
 
 int UTIL_FindClosestAvailableMarinePlayer(bot_t* CommanderBot, const Vector Location);
 
@@ -136,5 +139,7 @@ void COMM_SetNextBuildAction(bot_t* CommanderBot, commander_action* Action);
 void COMM_SetNextSupportAction(bot_t* CommanderBot, commander_action* Action);
 
 commander_action* COMM_GetNextAction(bot_t* CommanderBot);
+
+edict_t* COMM_GetMarineEligibleToBuildSiege(const hive_definition* Hive);
 
 #endif

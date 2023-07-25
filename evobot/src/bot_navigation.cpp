@@ -3512,6 +3512,12 @@ void PhaseGateMove(bot_t* pBot, const Vector StartPoint, const Vector EndPoint)
 		BotMoveLookAt(pBot, NearestPhaseGate->v.origin);
 		pBot->desiredMovementDir = ZERO_VECTOR;
 		BotUseObject(pBot, NearestPhaseGate, false);
+
+		if (vDist2DSq(pBot->pEdict->v.origin, NearestPhaseGate->v.origin) < sqrf(16.0f))
+		{
+			pBot->desiredMovementDir = UTIL_GetForwardVector2D(NearestPhaseGate->v.angles);
+		}
+
 		return;
 	}
 	else

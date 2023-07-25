@@ -210,20 +210,38 @@ void ClientCommand(edict_t* pEntity)
 		RETURN_META(MRES_SUPERCEDE);
 	}
 
-	if (FStrEq(pcmd, "amivisible"))
+	if (FStrEq(pcmd, "testreload"))
 	{
-		edict_t* OtherPlayer = UTIL_GetNearestPlayerOfTeamInArea(pEntity->v.origin, UTIL_MetresToGoldSrcUnits(50.0f), ALIEN_TEAM, nullptr, CLASS_NONE);
+		NSWeapon CurrentWeapon = WEAPON_MARINE_PISTOL;
 
-		if (!FNullEnt(OtherPlayer))
+		bool IsReloading = false;
+
+		switch (CurrentWeapon)
 		{
-			if (DoesPlayerHaveLOSToPlayer(pEntity, OtherPlayer))
-			{
-				UTIL_SayText("True\n", pEntity);
-			}
-			else
-			{
-				UTIL_SayText("False\n", pEntity);
-			}
+		case WEAPON_MARINE_SHOTGUN:
+		case WEAPON_MARINE_PISTOL:
+			IsReloading = (pEntity->v.weaponanim == 2 || pEntity->v.weaponanim == 3);
+			break;
+		case WEAPON_MARINE_MG:
+			IsReloading =  pEntity->v.weaponanim == 2;
+			break;
+		case WEAPON_MARINE_HMG:
+			IsReloading = pEntity->v.weaponanim == 3;
+			break;
+		case WEAPON_MARINE_GL:
+			IsReloading = (pEntity->v.weaponanim == 1 || pEntity->v.weaponanim == 2 || pEntity->v.weaponanim == 4 || pEntity->v.weaponanim == 5 || pEntity->v.weaponanim == 6 || pEntity->v.weaponanim == 7);
+			break;
+		default:
+			IsReloading = false;
+		}
+
+		if (IsReloading)
+		{
+			UTIL_SayText("True\n", pEntity);
+		}
+		else
+		{
+			UTIL_SayText("False\n", pEntity);
 		}
 
 		RETURN_META(MRES_SUPERCEDE);

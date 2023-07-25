@@ -1094,16 +1094,22 @@ void AlienHarasserSetSecondaryTask(bot_t* pBot, bot_task* Task)
 
 	if (!FNullEnt(Hive))
 	{
-		TASK_SetDefendTask(pBot, Task, Hive, true);
-		return;
+		if (!UTIL_StructureOfTypeExistsInLocation(STRUCTURE_MARINE_SIEGETURRET, Hive->v.origin, UTIL_MetresToGoldSrcUnits(20.0f)))
+		{
+			TASK_SetDefendTask(pBot, Task, Hive, true);
+			return;
+		}
 	}
 
 	edict_t* ResourceTower = UTIL_GetNearestUndefendedStructureOfTypeUnderAttack(pBot, STRUCTURE_ALIEN_RESTOWER);
 
 	if (!FNullEnt(ResourceTower))
 	{
-		TASK_SetDefendTask(pBot, Task, ResourceTower, true);
-		return;
+		if (!UTIL_StructureOfTypeExistsInLocation(STRUCTURE_MARINE_SIEGETURRET, ResourceTower->v.origin, UTIL_MetresToGoldSrcUnits(20.0f)))
+		{
+			TASK_SetDefendTask(pBot, Task, ResourceTower, true);
+			return;
+		}
 	}
 
 
@@ -1131,21 +1137,25 @@ void AlienCapperSetSecondaryTask(bot_t* pBot, bot_task* Task)
 
 	if (!FNullEnt(ResourceTower))
 	{
-		if (Task->TaskType == TASK_DEFEND && Task->TaskTarget == ResourceTower) { return; }
-		TASK_SetDefendTask(pBot, Task, ResourceTower, true);
-		return;
+		if (!UTIL_StructureOfTypeExistsInLocation(STRUCTURE_MARINE_SIEGETURRET, ResourceTower->v.origin, UTIL_MetresToGoldSrcUnits(20.0f)))
+		{
+			if (Task->TaskType == TASK_DEFEND && Task->TaskTarget == ResourceTower) { return; }
+			TASK_SetDefendTask(pBot, Task, ResourceTower, true);
+			return;
+		}
 	}
 
 	edict_t* Hive = UTIL_GetNearestUndefendedStructureOfTypeUnderAttack(pBot, STRUCTURE_ALIEN_HIVE);
 
 	if (!FNullEnt(Hive))
 	{
-		if (Task->TaskType == TASK_DEFEND && Task->TaskTarget == Hive) { return; }
-		TASK_SetDefendTask(pBot, Task, Hive, true);
-		return;
+		if (!UTIL_StructureOfTypeExistsInLocation(STRUCTURE_MARINE_SIEGETURRET, Hive->v.origin, UTIL_MetresToGoldSrcUnits(20.0f)))
+		{
+			if (Task->TaskType == TASK_DEFEND && Task->TaskTarget == Hive) { return; }
+			TASK_SetDefendTask(pBot, Task, Hive, true);
+			return;
+		}
 	}
-
-
 }
 
 void AlienDestroyerSetSecondaryTask(bot_t* pBot, bot_task* Task)
@@ -1166,17 +1176,25 @@ void AlienDestroyerSetSecondaryTask(bot_t* pBot, bot_task* Task)
 
 	if (!FNullEnt(Hive))
 	{
-		TASK_SetDefendTask(pBot, Task, Hive, true);
-		return;
+		// Don't rush to defend the hive if it's under siege, primary task will focus on taking out the infrastructure
+		if (!UTIL_StructureOfTypeExistsInLocation(STRUCTURE_MARINE_SIEGETURRET, Hive->v.origin, UTIL_MetresToGoldSrcUnits(20.0f)))
+		{
+			TASK_SetDefendTask(pBot, Task, Hive, true);
+			return;
+		}
 	}
 		
 	edict_t* ResourceTower = UTIL_GetNearestUndefendedStructureOfTypeUnderAttack(pBot, STRUCTURE_ALIEN_RESTOWER);
 
 	if (!FNullEnt(ResourceTower))
 	{
-		bool bIsUrgent = (UTIL_GetNumPlacedStructuresOfType(STRUCTURE_ALIEN_RESTOWER) <= 3);
-		TASK_SetDefendTask(pBot, Task, ResourceTower, bIsUrgent);
-		return;
+		// Don't rush to defend the RT if it's under siege, primary task will focus on taking out siege bases
+		if (!UTIL_StructureOfTypeExistsInLocation(STRUCTURE_MARINE_SIEGETURRET, ResourceTower->v.origin, UTIL_MetresToGoldSrcUnits(20.0f)))
+		{
+			bool bIsUrgent = (UTIL_GetNumPlacedStructuresOfType(STRUCTURE_ALIEN_RESTOWER) <= 3);
+			TASK_SetDefendTask(pBot, Task, ResourceTower, bIsUrgent);
+			return;
+		}
 	}
 }
 

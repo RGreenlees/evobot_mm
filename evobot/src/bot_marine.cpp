@@ -1051,9 +1051,9 @@ void BotReceiveBuildOrder(bot_t* pBot, AvHUser3 TargetType, Vector destination)
 {
 	NSStructureType StructType = UTIL_IUSER3ToStructureType(TargetType);
 
-	edict_t* NearestStructure = UTIL_GetNearestStructureIndexOfType(destination, StructType, UTIL_MetresToGoldSrcUnits(2.0f), false, IsPlayerMarine(pBot->pEdict));
+	edict_t* NearestStructure = UTIL_GetNearestStructureIndexOfType(destination, StructType, UTIL_MetresToGoldSrcUnits(2.0f), false, false);
 
-	if (NearestStructure)
+	if (!FNullEnt(NearestStructure))
 	{
 		TASK_SetBuildTask(pBot, &pBot->CommanderTask, NearestStructure, false);
 		pBot->CommanderTask.bIssuedByCommander = true;
