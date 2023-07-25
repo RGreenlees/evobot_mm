@@ -1284,7 +1284,7 @@ void SkulkCombatThink(bot_t* pBot)
 		return;
 	}
 
-	if (TrackedEnemyRef->bHasLOS)
+	if (DoesAnyPlayerOnTeamHaveLOSToPlayer(MARINE_TEAM, pEdict))
 	{
 		int MoveProfile = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_HIDE);
 

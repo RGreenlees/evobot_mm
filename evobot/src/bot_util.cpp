@@ -1536,7 +1536,7 @@ void BotUpdateView(bot_t* pBot)
 		edict_t* Enemy = clients[i];
 
 		bool bInFOV = IsPlayerInBotFOV(pBot, Enemy);
-		bool bHasLOS = DoesBotHaveLOSToPlayer(pBot, Enemy);
+		bool bHasLOS = DoesPlayerHaveLOSToPlayer(pBot->pEdict, Enemy);
 
 		if (pBot->LastSafeLocation != ZERO_VECTOR && UTIL_PlayerHasLOSToLocation(Enemy, pBot->LastSafeLocation, UTIL_MetresToGoldSrcUnits(50.0f)))
 		{
@@ -1636,20 +1636,51 @@ void BotUpdateView(bot_t* pBot)
 	}
 }
 
-bool DoesBotHaveLOSToPlayer(bot_t* Observer, edict_t* TargetPlayer)
+bool DoesPlayerHaveLOSToPlayer(edict_t* Observer, edict_t* TargetPlayer)
 {
+	Vector TargetCentre = UTIL_GetCentreOfEntity(TargetPlayer);
+
 	TraceResult hit;
-	UTIL_TraceLine(GetPlayerEyePosition(Observer->pEdict), TargetPlayer->v.origin, ignore_monsters, ignore_glass, Observer->pEdict->v.pContainingEntity, &hit);
+	UTIL_TraceLine(GetPlayerEyePosition(Observer), TargetCentre, ignore_monsters, ignore_glass, Observer->v.pContainingEntity, &hit);
 
 	if (hit.flFraction >= 1.0f) { return true; }
 
-	UTIL_TraceLine(GetPlayerEyePosition(Observer->pEdict), GetPlayerEyePosition(TargetPlayer), ignore_monsters, ignore_glass, Observer->pEdict->v.pContainingEntity, &hit);
+	UTIL_TraceLine(GetPlayerEyePosition(Observer), GetPlayerEyePosition(TargetPlayer), ignore_monsters, ignore_glass, Observer->v.pContainingEntity, &hit);
 
 	if (hit.flFraction >= 1.0f) { return true; }
 
-	UTIL_TraceLine(GetPlayerEyePosition(Observer->pEdict), GetPlayerBottomOfCollisionHull(TargetPlayer) + Vector(0.0f, 0.0f, 5.0f), ignore_monsters, ignore_glass, Observer->pEdict->v.pContainingEntity, &hit);
+	UTIL_TraceLine(GetPlayerEyePosition(Observer), GetPlayerBottomOfCollisionHull(TargetPlayer) + Vector(0.0f, 0.0f, 5.0f), ignore_monsters, ignore_glass, Observer->v.pContainingEntity, &hit);
+
+	if (hit.flFraction >= 1.0f) { return true; }
+
+	Vector ForwardVector = UTIL_GetForwardVector(TargetPlayer->v.angles);
+
+	float Size = vSize3D(TargetPlayer->v.size);
+
+	Vector MinLoc = TargetCentre - (ForwardVector * Size);
+
+	UTIL_TraceLine(GetPlayerEyePosition(Observer), MinLoc, ignore_monsters, ignore_glass, Observer->v.pContainingEntity, &hit);
+
+	if (hit.flFraction >= 1.0f) { return true; }
+
+	Vector MaxLoc = TargetCentre + (ForwardVector * Size);
+
+	UTIL_TraceLine(GetPlayerEyePosition(Observer), MaxLoc, ignore_monsters, ignore_glass, Observer->v.pContainingEntity, &hit);
 
 	return (hit.flFraction >= 1.0f);
+}
+
+bool DoesAnyPlayerOnTeamHaveLOSToPlayer(const int Team, edict_t* TargetPlayer)
+{
+	for (int i = 0; i < MAX_CLIENTS; i++)
+	{
+		if (!FNullEnt(clients[i]) && clients[i]->v.team == Team && IsPlayerActiveInGame(clients[i]))
+		{
+			if (DoesPlayerHaveLOSToPlayer(clients[i], TargetPlayer)) { return true; }
+		}
+	}
+
+	return false;
 }
 
 bool IsPlayerInBotFOV(bot_t* Observer, edict_t* TargetPlayer)
@@ -2067,47 +2098,19 @@ void CustomThink(bot_t* pBot)
 {
 	if (!IsPlayerAlien(pBot->pEdict)) { return; }
 
-	pBot->CurrentRole = BOT_ROLE_BUILDER;
+	pBot->CurrentEnemy = BotGetNextEnemyTarget(pBot);
 
-	if (!pBot->CurrentTask) { pBot->CurrentTask = &pBot->PrimaryBotTask; }
-
-	BotUpdateAndClearTasks(pBot);
-
-	if (pBot->PrimaryBotTask.TaskType == TASK_NONE || !pBot->PrimaryBotTask.bTaskIsUrgent)
+	if (pBot->CurrentEnemy > -1)
 	{
-		BotAlienSetPrimaryTask(pBot, &pBot->PrimaryBotTask);
+		pBot->LastCombatTime = gpGlobals->time;
+
+		AlienCombatThink(pBot);
+	}
+	else
+	{
+		MoveTo(pBot, UTIL_GetCommChairLocation(), MOVESTYLE_NORMAL, 100.0f);
 	}
 
-	if (pBot->SecondaryBotTask.TaskType == TASK_NONE || !pBot->SecondaryBotTask.bTaskIsUrgent)
-	{
-		BotAlienSetSecondaryTask(pBot, &pBot->SecondaryBotTask);
-	}
-
-	AlienCheckWantsAndNeeds(pBot);
-
-	pBot->CurrentTask = BotGetNextTask(pBot);
-
-	if (!IsPlayerGorge(pBot->pEdict) || PlayerHasWeapon(pBot->pEdict, WEAPON_GORGE_BILEBOMB))
-	{
-		edict_t* DangerTurret = BotGetNearestDangerTurret(pBot, UTIL_MetresToGoldSrcUnits(10.0f));
-
-		if (!FNullEnt(DangerTurret))
-		{
-			Vector TaskLocation = (!FNullEnt(pBot->CurrentTask->TaskTarget)) ? pBot->CurrentTask->TaskTarget->v.origin : pBot->CurrentTask->TaskLocation;
-			float DistToTurret = vDist2DSq(TaskLocation, DangerTurret->v.origin);
-
-			if (pBot->CurrentTask->TaskType != TASK_ATTACK && DistToTurret < sqrf(UTIL_MetresToGoldSrcUnits(10.0f)))
-			{
-				BotAttackTarget(pBot, DangerTurret);
-				return;
-			}
-		}
-	}
-
-	if (pBot->CurrentTask && pBot->CurrentTask->TaskType != TASK_NONE)
-	{
-		BotProgressTask(pBot, pBot->CurrentTask);
-	}
 
 }
 

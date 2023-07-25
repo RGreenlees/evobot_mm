@@ -111,7 +111,8 @@ void BotClearEnemyTrackingInfo(enemy_status* TrackingInfo);
 byte BotThrottledMsec(bot_t* pBot);
 
 bool IsPlayerInBotFOV(bot_t* Observer, edict_t* TargetPlayer);
-bool DoesBotHaveLOSToPlayer(bot_t* Observer, edict_t* TargetPlayer);
+bool DoesPlayerHaveLOSToPlayer(edict_t* Observer, edict_t* TargetPlayer);
+bool DoesAnyPlayerOnTeamHaveLOSToPlayer(const int Team, edict_t* TargetPlayer);
 bool IsPlayerVisibleToBot(bot_t* Observer, edict_t* TargetPlayer);
 
 void OnBotBeginGestation(bot_t* pBot);

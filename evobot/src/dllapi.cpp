@@ -210,6 +210,25 @@ void ClientCommand(edict_t* pEntity)
 		RETURN_META(MRES_SUPERCEDE);
 	}
 
+	if (FStrEq(pcmd, "amivisible"))
+	{
+		edict_t* OtherPlayer = UTIL_GetNearestPlayerOfTeamInArea(pEntity->v.origin, UTIL_MetresToGoldSrcUnits(50.0f), ALIEN_TEAM, nullptr, CLASS_NONE);
+
+		if (!FNullEnt(OtherPlayer))
+		{
+			if (DoesPlayerHaveLOSToPlayer(pEntity, OtherPlayer))
+			{
+				UTIL_SayText("True\n", pEntity);
+			}
+			else
+			{
+				UTIL_SayText("False\n", pEntity);
+			}
+		}
+
+		RETURN_META(MRES_SUPERCEDE);
+	}
+
 	if (FStrEq(pcmd, "traceentity"))
 	{
 
