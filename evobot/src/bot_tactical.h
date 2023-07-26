@@ -32,7 +32,6 @@ typedef struct _BUILDABLE_STRUCTURE
 	float healthPercent = 0.0f; // Current health of the building
 	float lastDamagedTime = 0.0f; // When it was last damaged by something. Used by bots to determine if still needs defending
 	bool bUnderAttack = false; // If last damaged time < certain amount of time ago
-	bool bDead = false; // Has structure just been destroyed, but edict not yet freed up
 	bool bFullyConstructed = false; // Has the structure been fully built, or under construction?
 	bool bIsParasited = false; // Has been parasited by skulk
 	bool bIsElectrified = false; // Is electrified or not
@@ -41,8 +40,9 @@ typedef struct _BUILDABLE_STRUCTURE
 	int LastSeen = 0; // Which refresh cycle was this last seen on? Used to determine if the building has been removed from play
 	unsigned int ObstacleRefs[8]; // References to this structure's obstacles across each nav mesh
 	bool bOnNavmesh = false; // Is the building on the nav mesh? Used to determine if the building ended up out of play or sinking into the floor somehow
-	bool bIsReachableMarine = false; // Is the building reachable by marines? Checks from the comm chair location
-	bool bIsReachableAlien = false; // Is the building reachable by aliens? Checks from the comm chair location
+	bool bIsReachableMarine = false; // Is the building reachable by Marines/Gorge? Checks from the comm chair location
+	bool bIsReachableAlien = false; // Is the building reachable by Skulk/Fade/Lerk? Checks from the comm chair location
+	bool bIsReachableOnos = false; // Is the building reachable by Onos? Checks from the comm chair location
 	Vector LastSuccessfulCommanderLocation = ZERO_VECTOR; // Tracks the last commander view location where it successfully placed or selected the building
 	Vector LastSuccessfulCommanderAngle = ZERO_VECTOR; // Tracks the last commander input angle ("click" location) used to successfully place or select building
 
@@ -94,6 +94,12 @@ void UTIL_UpdateMarineItem(edict_t* Item, NSStructureType ItemType);
 
 // Will cycle through all structures in the map and update the marine and alien buildable structure maps
 void UTIL_RefreshBuildableStructures();
+
+void UTIL_RegisterNewMarineStructure(edict_t* Structure);
+void UTIL_UpdateMarineStructureDetails(edict_t* Structure);
+void UTIL_RegisterNewAlienStructure(edict_t* Structure);
+void UTIL_UpdateAlienStructureDetails(edict_t* Structure);
+
 // Will cycle through all dropped items in the map and update the marine items array
 void UTIL_RefreshMarineItems();
 // Will cycle through all func_resource entities and populate the ResourceNodes array

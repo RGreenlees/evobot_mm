@@ -278,79 +278,45 @@ void AlienSetCombatModeSecondaryTask(bot_t* pBot, bot_task* Task)
 
 	if (pBot->CurrentRole == BOT_ROLE_BUILDER && !IsPlayerGorge(pBot->pEdict) && GetBotAvailableCombatPoints(pBot) >= 1)
 	{
-		if (Task->TaskType == TASK_EVOLVE) { return; }
-
-		int BotProfile = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
-
-		Vector EvolvePosition = FindClosestNavigablePointToDestination(BotProfile, pBot->pEdict->v.origin, Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(5.0f));
-
-		if (EvolvePosition == ZERO_VECTOR)
+		if (Hive)
 		{
-			EvolvePosition = pBot->pEdict->v.origin;
+			TASK_SetEvolveTask(pBot, Task, Hive->edict, IMPULSE_ALIEN_EVOLVE_GORGE, true);
 		}
 		else
 		{
-			// Don't evolve right underneath the hive even if we can reach it...
-			if (vDist2DSq(EvolvePosition, Hive->FloorLocation) < sqrf(UTIL_MetresToGoldSrcUnits(2.0f)))
-			{
-				EvolvePosition = UTIL_GetRandomPointOnNavmeshInDonut(BotProfile, EvolvePosition, UTIL_MetresToGoldSrcUnits(3.0f), UTIL_MetresToGoldSrcUnits(5.0f));
-			}
+			TASK_SetEvolveTask(pBot, Task, pBot->pEdict->v.origin, IMPULSE_ALIEN_EVOLVE_GORGE, true);
 		}
 
-		TASK_SetEvolveTask(pBot, Task, EvolvePosition, IMPULSE_ALIEN_EVOLVE_GORGE, true);
 		return;
 
 	}
 
 	if (pBot->CurrentRole == BOT_ROLE_HARASS && !IsPlayerLerk(pBot->pEdict) && GetBotAvailableCombatPoints(pBot) >= 2)
 	{
-		if (Task->TaskType == TASK_EVOLVE) { return; }
-
-		Vector EvolvePosition = FindClosestNavigablePointToDestination(GORGE_REGULAR_NAV_PROFILE, pBot->pEdict->v.origin, Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(50.0f));
-
-		if (EvolvePosition == ZERO_VECTOR)
+		if (Hive)
 		{
-			EvolvePosition = pBot->pEdict->v.origin;
+			TASK_SetEvolveTask(pBot, Task, Hive->edict, IMPULSE_ALIEN_EVOLVE_LERK, true);
 		}
 		else
 		{
-			// Don't evolve right underneath the hive even if we can reach it...
-			if (vDist2DSq(EvolvePosition, Hive->FloorLocation) < sqrf(UTIL_MetresToGoldSrcUnits(2.0f)))
-			{
-				EvolvePosition = UTIL_GetRandomPointOnNavmeshInDonut(BUILDING_REGULAR_NAV_PROFILE, EvolvePosition, UTIL_MetresToGoldSrcUnits(3.0f), UTIL_MetresToGoldSrcUnits(5.0f));
-			}
+			TASK_SetEvolveTask(pBot, Task, pBot->pEdict->v.origin, IMPULSE_ALIEN_EVOLVE_LERK, true);
 		}
 
-		TASK_SetEvolveTask(pBot, Task, EvolvePosition, IMPULSE_ALIEN_EVOLVE_LERK, true);
 		return;
 
 	}
 
 	if (pBot->CurrentRole == BOT_ROLE_DESTROYER && IsPlayerSkulk(pBot->pEdict) && GetBotAvailableCombatPoints(pBot) >= 3)
 	{
-		if (Task->TaskType == TASK_EVOLVE) { return; }
-
-		Vector EvolvePosition = FindClosestNavigablePointToDestination(GORGE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(5.0f));
-
-		if (EvolvePosition == ZERO_VECTOR)
+		if (Hive)
 		{
-			EvolvePosition = pBot->pEdict->v.origin;
+			TASK_SetEvolveTask(pBot, Task, Hive->edict, IMPULSE_ALIEN_EVOLVE_FADE, true);
 		}
-		
-		// Don't evolve right underneath the hive even if we can reach it...
-		if (vDist2DSq(EvolvePosition, Hive->FloorLocation) < sqrf(UTIL_MetresToGoldSrcUnits(2.0f)))
+		else
 		{
-			EvolvePosition = UTIL_GetRandomPointOnNavmeshInDonut(BUILDING_REGULAR_NAV_PROFILE, EvolvePosition, UTIL_MetresToGoldSrcUnits(3.0f), UTIL_MetresToGoldSrcUnits(5.0f));
+			TASK_SetEvolveTask(pBot, Task, pBot->pEdict->v.origin, IMPULSE_ALIEN_EVOLVE_FADE, true);
 		}
 
-		int EvolutionImpulse = Task->Evolution = IMPULSE_ALIEN_EVOLVE_FADE;
-
-		if ((pBot->CombatUpgradeMask & COMBAT_ALIEN_UPGRADE_ONOS) && GetBotAvailableCombatPoints(pBot) >= 4)
-		{
-			EvolutionImpulse = IMPULSE_ALIEN_EVOLVE_ONOS;
-		}
-		
-		TASK_SetEvolveTask(pBot, Task, EvolvePosition, EvolutionImpulse, true);
 		return;
 
 	}
@@ -407,19 +373,13 @@ void AlienHarasserSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 			if (NearestHive)
 			{
-				EvolveLocation = FindClosestNavigablePointToDestination(GORGE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), NearestHive->FloorLocation, UTIL_MetresToGoldSrcUnits(50.0f));
+				TASK_SetEvolveTask(pBot, Task, NearestHive->edict, IMPULSE_ALIEN_EVOLVE_LERK, true);
 			}
-
-			if (EvolveLocation == ZERO_VECTOR)
+			else
 			{
-				EvolveLocation = pBot->pEdict->v.origin;
+				TASK_SetEvolveTask(pBot, Task, pBot->pEdict->v.origin, IMPULSE_ALIEN_EVOLVE_LERK, true);
 			}
-
-			Vector FinalEvolveLocation = UTIL_GetRandomPointOnNavmeshInRadius(BUILDING_REGULAR_NAV_PROFILE, EvolveLocation, UTIL_MetresToGoldSrcUnits(5.0f));
-
-			EvolveLocation = ((FinalEvolveLocation != ZERO_VECTOR) ? FinalEvolveLocation : EvolveLocation);
-
-			TASK_SetEvolveTask(pBot, Task, EvolveLocation, IMPULSE_ALIEN_EVOLVE_LERK, true);
+			
 			return;
 		}
 	}
@@ -824,39 +784,25 @@ void AlienDestroyerSetPrimaryTask(bot_t* pBot, bot_task* Task)
 	{
 		if (pBot->resources >= kFadeEvolutionCost)
 		{
-			Vector EvolveLocation = ZERO_VECTOR;
+			int NumOnos = GAME_GetNumPlayersOnTeamOfClass(pBot->pEdict->v.team, CLASS_ONOS);
+			int Evolution = IMPULSE_ALIEN_EVOLVE_FADE;
+
+			if (pBot->resources >= kOnosEvolutionCost && NumOnos < 2)
+			{
+				Evolution = IMPULSE_ALIEN_EVOLVE_ONOS;
+			}
 
 			const hive_definition* NearestHive = UTIL_GetNearestHiveOfStatus(pBot->pEdict->v.origin, HIVE_STATUS_BUILT);
 
 			if (NearestHive)
 			{
-				EvolveLocation = FindClosestNavigablePointToDestination(GORGE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), NearestHive->FloorLocation, UTIL_MetresToGoldSrcUnits(50.0f));
+				TASK_SetEvolveTask(pBot, Task, NearestHive->edict, Evolution, true);
 			}
-
-			if (EvolveLocation == ZERO_VECTOR)
+			else
 			{
-				EvolveLocation = pBot->pEdict->v.origin;
+				TASK_SetEvolveTask(pBot, Task, pBot->pEdict->v.origin, Evolution, true);
 			}
-
-			Vector FinalEvolveLocation = UTIL_GetRandomPointOnNavmeshInRadius(BUILDING_REGULAR_NAV_PROFILE, EvolveLocation, UTIL_MetresToGoldSrcUnits(5.0f));
-
-			EvolveLocation = ((FinalEvolveLocation != ZERO_VECTOR) ? FinalEvolveLocation : EvolveLocation);
-
-			int NumOnos = GAME_GetNumPlayersOnTeamOfClass(pBot->pEdict->v.team, CLASS_ONOS);
-
-			if (pBot->resources >= kOnosEvolutionCost && NumOnos < 2)
-			{
-				TASK_SetEvolveTask(pBot, Task, EvolveLocation, IMPULSE_ALIEN_EVOLVE_ONOS, true);
-				return;
-			}
-
-			int NumFades = GAME_GetNumPlayersOnTeamOfClass(ALIEN_TEAM, CLASS_FADE);
-
-			if (NumOnos >= 2 || NumFades < 2)
-			{
-				TASK_SetEvolveTask(pBot, Task, EvolveLocation, IMPULSE_ALIEN_EVOLVE_FADE, true);
-				return;
-			}
+			return;
 		}
 	}
 
@@ -1728,7 +1674,7 @@ void LerkCombatThink(bot_t* pBot)
 					{
 						if (UTIL_QuickTrace(pEdict, pBot->CurrentEyePosition, SporeLocation))
 						{
-							if (pBot->Adrenaline > GetEnergyCostForWeapon(WEAPON_LERK_SPORES))
+							if (pBot->Adrenaline > (GetEnergyCostForWeapon(WEAPON_LERK_SPORES) * 1.1f))
 							{
 								BotShootLocation(pBot, WEAPON_LERK_SPORES, SporeLocation);
 								return;
@@ -1767,7 +1713,7 @@ void LerkCombatThink(bot_t* pBot)
 		{
 			pBot->DesiredCombatWeapon = WEAPON_LERK_SPORES;
 
-			if (GetBotCurrentWeapon(pBot) == WEAPON_LERK_SPORES && (gpGlobals->time - pBot->current_weapon.LastFireTime >= pBot->current_weapon.MinRefireTime) && !UTIL_IsAreaAffectedBySpores(TrackedEnemyRef->LastSeenLocation))
+			if (pBot->Adrenaline > (GetEnergyCostForWeapon(WEAPON_LERK_SPORES) * 1.1f) && GetBotCurrentWeapon(pBot) == WEAPON_LERK_SPORES && (gpGlobals->time - pBot->current_weapon.LastFireTime >= pBot->current_weapon.MinRefireTime) && !UTIL_IsAreaAffectedBySpores(TrackedEnemyRef->LastSeenLocation))
 			{
 				Vector MoveLocation = (TrackedEnemyRef->LastLOSPosition != ZERO_VECTOR) ? TrackedEnemyRef->LastLOSPosition : TrackedEnemyRef->LastSeenLocation;
 				BotMoveStyle MoveStyle = (vDist2DSq(pBot->pEdict->v.origin, MoveLocation) > sqrf(UTIL_MetresToGoldSrcUnits(10.0f))) ? MOVESTYLE_NORMAL : MOVESTYLE_HIDE;
@@ -1778,7 +1724,7 @@ void LerkCombatThink(bot_t* pBot)
 			{
 				BotLookAt(pBot, TrackedEnemyRef->LastSeenLocation);
 
-				if (TrackedEnemyRef->LastLOSPosition != ZERO_VECTOR && vDist2DSq(CurrentEnemy->v.origin, TrackedEnemyRef->LastLOSPosition) < sqrf(UTIL_MetresToGoldSrcUnits(5.0f)) && UTIL_QuickTrace(pBot->pEdict, pBot->CurrentEyePosition, TrackedEnemyRef->LastLOSPosition) && !UTIL_IsAreaAffectedBySpores(TrackedEnemyRef->LastLOSPosition))
+				if (pBot->Adrenaline > (GetEnergyCostForWeapon(WEAPON_LERK_SPORES) * 1.1f) && TrackedEnemyRef->LastLOSPosition != ZERO_VECTOR && vDist2DSq(CurrentEnemy->v.origin, TrackedEnemyRef->LastLOSPosition) < sqrf(UTIL_MetresToGoldSrcUnits(5.0f)) && UTIL_QuickTrace(pBot->pEdict, pBot->CurrentEyePosition, TrackedEnemyRef->LastLOSPosition) && !UTIL_IsAreaAffectedBySpores(TrackedEnemyRef->LastLOSPosition))
 				{
 					BotShootLocation(pBot, WEAPON_LERK_SPORES, TrackedEnemyRef->LastLOSPosition);
 				}
@@ -1820,7 +1766,7 @@ void LerkCombatThink(bot_t* pBot)
 
 		pBot->DesiredCombatWeapon = WEAPON_LERK_SPORES;
 
-		if (GetBotCurrentWeapon(pBot) == WEAPON_LERK_SPORES && (gpGlobals->time - pBot->current_weapon.LastFireTime >= pBot->current_weapon.MinRefireTime) && !UTIL_IsAreaAffectedBySpores(TrackedEnemyRef->LastSeenLocation))
+		if (pBot->Adrenaline > (GetEnergyCostForWeapon(WEAPON_LERK_SPORES) * 1.1f) && GetBotCurrentWeapon(pBot) == WEAPON_LERK_SPORES && (gpGlobals->time - pBot->current_weapon.LastFireTime >= pBot->current_weapon.MinRefireTime) && !UTIL_IsAreaAffectedBySpores(TrackedEnemyRef->LastSeenLocation))
 		{			
 			BotShootTarget(pBot, WEAPON_LERK_SPORES, TrackedEnemyRef->EnemyEdict);
 			return;

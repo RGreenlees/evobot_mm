@@ -120,16 +120,23 @@ void ClientCommand(edict_t* pEntity)
 		RETURN_META(MRES_SUPERCEDE);
 	}
 
-	if (FStrEq(pcmd, "testbuildchamber"))
+	if (FStrEq(pcmd, "testbuildhive"))
 	{
-		for (int i = 0; i < MAX_CLIENTS; i++)
-		{
-			if (bots[i].is_used && !FNullEnt(bots[i].pEdict) && IsPlayerAlien(bots[i].pEdict))
-			{
-				TASK_SetBuildTask(&bots[i], &bots[i].PrimaryBotTask, STRUCTURE_ALIEN_OFFENCECHAMBER, pEntity->v.origin, true);
-			}
+		const hive_definition* Hive = UTIL_GetNearestHiveOfStatus(pEntity->v.origin, HIVE_STATUS_UNBUILT);
 
+		if (Hive)
+		{
+			for (int i = 0; i < MAX_CLIENTS; i++)
+			{
+				if (bots[i].is_used && !FNullEnt(bots[i].pEdict) && IsPlayerAlien(bots[i].pEdict))
+				{
+					TASK_SetBuildTask(&bots[i], &bots[i].PrimaryBotTask, STRUCTURE_ALIEN_HIVE, Hive->FloorLocation, true);
+				}
+
+			}
 		}
+
+		
 
 		RETURN_META(MRES_SUPERCEDE);
 	}
@@ -284,21 +291,34 @@ void ClientCommand(edict_t* pEntity)
 		RETURN_META(MRES_SUPERCEDE);
 	}
 
-	if (FStrEq(pcmd, "testbuildloc"))
+	if (FStrEq(pcmd, "testevolveloc"))
 	{
-		const hive_definition* Hive = UTIL_GetNearestBuiltHiveToLocation(pEntity->v.origin);
+		Vector EvolveLocation = ZERO_VECTOR;
 
-		if (Hive)
+		const hive_definition* NearestHive = UTIL_GetNearestHiveOfStatus(pEntity->v.origin, HIVE_STATUS_BUILT);
+
+		if (NearestHive)
 		{
-			Vector BuildLocation = FindClosestNavigablePointToDestination(GORGE_BUILD_NAV_PROFILE, UTIL_GetCommChairLocation(), Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(30.0f));
+			EvolveLocation = FindClosestNavigablePointToDestination(BUILDING_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), NearestHive->FloorLocation, UTIL_MetresToGoldSrcUnits(20.0f));
 
-			if (BuildLocation != ZERO_VECTOR)
+			if (EvolveLocation == ZERO_VECTOR)
 			{
-				BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(GORGE_BUILD_NAV_PROFILE, BuildLocation, UTIL_MetresToGoldSrcUnits(5.0f));
-
-				UTIL_DrawLine(pEntity, pEntity->v.origin, BuildLocation, 10.0f);
+				EvolveLocation = FindClosestNavigablePointToDestination(MARINE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), NearestHive->FloorLocation, UTIL_MetresToGoldSrcUnits(20.0f));
 			}
+		}
 
+		if (EvolveLocation == ZERO_VECTOR)
+		{
+			EvolveLocation = pEntity->v.origin;
+		}
+
+		Vector FinalEvolveLocation = UTIL_GetRandomPointOnNavmeshInRadius(BUILDING_REGULAR_NAV_PROFILE, EvolveLocation, UTIL_MetresToGoldSrcUnits(5.0f));
+
+		EvolveLocation = ((FinalEvolveLocation != ZERO_VECTOR) ? FinalEvolveLocation : EvolveLocation);
+
+		if (EvolveLocation != ZERO_VECTOR)
+		{
+			UTIL_DrawLine(pEntity, pEntity->v.origin, EvolveLocation, 10.0f, 255, 255, 0);
 		}
 
 		RETURN_META(MRES_SUPERCEDE);
@@ -843,6 +863,7 @@ void ClientCommand(edict_t* pEntity)
 				}
 			}
 		}
+
 		RETURN_META(MRES_SUPERCEDE);
 	}
 

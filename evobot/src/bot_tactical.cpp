@@ -3454,9 +3454,9 @@ void UTIL_UpdateMarineItem(edict_t* Item, NSStructureType ItemType)
 	MarineDroppedItemMap[EntIndex].LastSeen = ItemRefreshFrame;
 }
 
-void UTIL_UpdateBuildableStructure(edict_t* Structure)
+void UTIL_RegisterNewMarineStructure(edict_t* Structure)
 {
-	if (FNullEnt(Structure) || (Structure->v.effects & EF_NODRAW)) { return; }
+	if (FNullEnt(Structure) || (Structure->v.effects & EF_NODRAW) || (Structure->v.deadflag != DEAD_NO)) { return; }
 
 	NSStructureType StructureType = UTIL_IUSER3ToStructureType(Structure->v.iuser3);
 
@@ -3467,149 +3467,220 @@ void UTIL_UpdateBuildableStructure(edict_t* Structure)
 	int EntIndex = ENTINDEX(Structure);
 	if (EntIndex < 0) { return; }
 
-	if (UTIL_IsMarineStructure(StructureType))
+	MarineBuildableStructureMap[EntIndex].edict = Structure;
+
+	MarineBuildableStructureMap[EntIndex].healthPercent = (Structure->v.health / Structure->v.max_health);
+	MarineBuildableStructureMap[EntIndex].lastDamagedTime = 0.0f;
+
+	MarineBuildableStructureMap[EntIndex].Location = Structure->v.origin;
+
+	MarineBuildableStructureMap[EntIndex].bFullyConstructed = !(Structure->v.iuser4 & MASK_BUILDABLE);
+	MarineBuildableStructureMap[EntIndex].bIsParasited = (Structure->v.iuser4 & MASK_PARASITED);
+	MarineBuildableStructureMap[EntIndex].bIsElectrified = UTIL_IsStructureElectrified(Structure);
+	MarineBuildableStructureMap[EntIndex].StructureType = UTIL_IUSER3ToStructureType(Structure->v.iuser3);
+
+	if (bShouldCollide)
 	{
-		MarineBuildableStructureMap[EntIndex].edict = Structure;
+		unsigned int area = UTIL_GetAreaForObstruction(StructureType);
+		float Radius = UTIL_GetStructureRadiusForObstruction(StructureType);
+		UTIL_AddTemporaryObstacles(UTIL_GetCentreOfEntity(MarineBuildableStructureMap[EntIndex].edict), Radius, 100.0f, area, MarineBuildableStructureMap[EntIndex].ObstacleRefs);
+	}
+	else
+	{
+		memset(MarineBuildableStructureMap[EntIndex].ObstacleRefs, 0, sizeof(unsigned int) * MAX_NAV_MESHES);
+	}
 
-		if (!vEquals(Structure->v.origin, MarineBuildableStructureMap[EntIndex].Location, 5.0f))
+	UTIL_OnStructureCreated(&MarineBuildableStructureMap[EntIndex]);
+
+	MarineBuildableStructureMap[EntIndex].bOnNavmesh = UTIL_PointIsOnNavmesh(MARINE_REGULAR_NAV_PROFILE, UTIL_GetEntityGroundLocation(Structure), Vector(max_player_use_reach, max_player_use_reach, max_player_use_reach));
+	if (MarineBuildableStructureMap[EntIndex].bOnNavmesh)
+	{
+		MarineBuildableStructureMap[EntIndex].bIsReachableMarine = UTIL_PointIsReachable(MARINE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), UTIL_GetEntityGroundLocation(Structure), max_player_use_reach);
+		MarineBuildableStructureMap[EntIndex].bIsReachableAlien = UTIL_PointIsReachable(SKULK_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), UTIL_GetEntityGroundLocation(Structure), max_player_use_reach);
+		MarineBuildableStructureMap[EntIndex].bIsReachableOnos = UTIL_PointIsReachable(ONOS_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), UTIL_GetEntityGroundLocation(Structure), max_player_use_reach);
+	}
+	else
+	{
+		MarineBuildableStructureMap[EntIndex].bIsReachableMarine = false;
+		MarineBuildableStructureMap[EntIndex].bIsReachableAlien = false;
+		MarineBuildableStructureMap[EntIndex].bIsReachableOnos = false;
+	}
+
+	MarineBuildableStructureMap[EntIndex].LastSeen = StructureRefreshFrame;
+}
+
+void UTIL_UpdateMarineStructureDetails(edict_t* Structure)
+{
+	int EntIndex = ENTINDEX(Structure);
+	if (EntIndex < 0) { return; }
+
+	if (!vEquals(Structure->v.origin, MarineBuildableStructureMap[EntIndex].Location, 5.0f))
+	{
+		MarineBuildableStructureMap[EntIndex].bOnNavmesh = UTIL_PointIsOnNavmesh(MARINE_REGULAR_NAV_PROFILE, UTIL_GetEntityGroundLocation(Structure), Vector(max_player_use_reach, max_player_use_reach, max_player_use_reach));
+		if (MarineBuildableStructureMap[EntIndex].bOnNavmesh)
 		{
-			MarineBuildableStructureMap[EntIndex].bOnNavmesh = UTIL_PointIsOnNavmesh(MARINE_REGULAR_NAV_PROFILE, UTIL_GetEntityGroundLocation(Structure), Vector(max_player_use_reach, max_player_use_reach, max_player_use_reach));
-			if (MarineBuildableStructureMap[EntIndex].bOnNavmesh)
-			{
-				MarineBuildableStructureMap[EntIndex].bIsReachableMarine = UTIL_PointIsReachable(MARINE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), UTIL_GetEntityGroundLocation(Structure), max_player_use_reach);
-				MarineBuildableStructureMap[EntIndex].bIsReachableAlien = UTIL_PointIsReachable(SKULK_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), UTIL_GetEntityGroundLocation(Structure), max_player_use_reach);
-			}
-			else
-			{
-				MarineBuildableStructureMap[EntIndex].bIsReachableMarine = false;
-				MarineBuildableStructureMap[EntIndex].bIsReachableAlien = false;
-			}
-		}
-
-		MarineBuildableStructureMap[EntIndex].Location = Structure->v.origin;
-
-		MarineBuildableStructureMap[EntIndex].bFullyConstructed = !(Structure->v.iuser4 & MASK_BUILDABLE);
-		MarineBuildableStructureMap[EntIndex].bIsParasited = (Structure->v.iuser4 & MASK_PARASITED);
-		MarineBuildableStructureMap[EntIndex].bIsElectrified = UTIL_IsStructureElectrified(Structure);
-		MarineBuildableStructureMap[EntIndex].bDead = (Structure->v.deadflag != DEAD_NO);
-		MarineBuildableStructureMap[EntIndex].StructureType = UTIL_IUSER3ToStructureType(Structure->v.iuser3);
-
-		if (MarineBuildableStructureMap[EntIndex].LastSeen == 0)
-		{
-			MarineBuildableStructureMap[EntIndex].healthPercent = (Structure->v.health / Structure->v.max_health);
-			MarineBuildableStructureMap[EntIndex].lastDamagedTime = 0.0f;
-
-			if (bShouldCollide)
-			{
-				unsigned int area = UTIL_GetAreaForObstruction(StructureType);
-				float Radius = UTIL_GetStructureRadiusForObstruction(StructureType);
-				UTIL_AddTemporaryObstacles(UTIL_GetCentreOfEntity(MarineBuildableStructureMap[EntIndex].edict), Radius, 100.0f, area, MarineBuildableStructureMap[EntIndex].ObstacleRefs);
-			}
-			else
-			{
-				memset(MarineBuildableStructureMap[EntIndex].ObstacleRefs, 0, sizeof(unsigned int) * MAX_NAV_MESHES);
-			}
-
-			UTIL_OnStructureCreated(&MarineBuildableStructureMap[EntIndex]);
-
-			MarineBuildableStructureMap[EntIndex].bOnNavmesh = UTIL_PointIsOnNavmesh(MARINE_REGULAR_NAV_PROFILE, UTIL_GetEntityGroundLocation(Structure), Vector(max_player_use_reach, max_player_use_reach, max_player_use_reach));
-			if (MarineBuildableStructureMap[EntIndex].bOnNavmesh)
-			{
-				MarineBuildableStructureMap[EntIndex].bIsReachableMarine = UTIL_PointIsReachable(MARINE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), UTIL_GetEntityGroundLocation(Structure), max_player_use_reach);
-				MarineBuildableStructureMap[EntIndex].bIsReachableAlien = UTIL_PointIsReachable(SKULK_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), UTIL_GetEntityGroundLocation(Structure), max_player_use_reach);
-			}
-			else
-			{
-				MarineBuildableStructureMap[EntIndex].bIsReachableMarine = false;
-				MarineBuildableStructureMap[EntIndex].bIsReachableAlien = false;
-			}
+			MarineBuildableStructureMap[EntIndex].bIsReachableMarine = UTIL_PointIsReachable(MARINE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), UTIL_GetEntityGroundLocation(Structure), max_player_use_reach);
+			MarineBuildableStructureMap[EntIndex].bIsReachableAlien = UTIL_PointIsReachable(SKULK_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), UTIL_GetEntityGroundLocation(Structure), max_player_use_reach);
+			MarineBuildableStructureMap[EntIndex].bIsReachableOnos = UTIL_PointIsReachable(ONOS_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), UTIL_GetEntityGroundLocation(Structure), max_player_use_reach);
 		}
 		else
 		{
-			float NewHealthPercent = (Structure->v.health / Structure->v.max_health);
-
-			if (NewHealthPercent < MarineBuildableStructureMap[EntIndex].healthPercent)
-			{
-				MarineBuildableStructureMap[EntIndex].lastDamagedTime = gpGlobals->time;
-			}
-			MarineBuildableStructureMap[EntIndex].healthPercent = NewHealthPercent;
+			MarineBuildableStructureMap[EntIndex].bIsReachableMarine = false;
+			MarineBuildableStructureMap[EntIndex].bIsReachableAlien = false;
+			MarineBuildableStructureMap[EntIndex].bIsReachableOnos = false;
 		}
+	}
 
-		if (!MarineBuildableStructureMap[EntIndex].bDead)
+	MarineBuildableStructureMap[EntIndex].Location = Structure->v.origin;
+
+	MarineBuildableStructureMap[EntIndex].bFullyConstructed = !(Structure->v.iuser4 & MASK_BUILDABLE);
+	MarineBuildableStructureMap[EntIndex].bIsParasited = (Structure->v.iuser4 & MASK_PARASITED);
+	MarineBuildableStructureMap[EntIndex].bIsElectrified = UTIL_IsStructureElectrified(Structure);
+	MarineBuildableStructureMap[EntIndex].StructureType = UTIL_IUSER3ToStructureType(Structure->v.iuser3);
+
+	float NewHealthPercent = (Structure->v.health / Structure->v.max_health);
+
+	if (NewHealthPercent < MarineBuildableStructureMap[EntIndex].healthPercent)
+	{
+		MarineBuildableStructureMap[EntIndex].lastDamagedTime = gpGlobals->time;
+	}
+	MarineBuildableStructureMap[EntIndex].healthPercent = NewHealthPercent;
+
+	MarineBuildableStructureMap[EntIndex].LastSeen = StructureRefreshFrame;
+	MarineBuildableStructureMap[EntIndex].bUnderAttack = (gpGlobals->time - MarineBuildableStructureMap[EntIndex].lastDamagedTime) < 10.0f;
+}
+
+void UTIL_RegisterNewAlienStructure(edict_t* Structure)
+{
+	if (FNullEnt(Structure) || (Structure->v.effects & EF_NODRAW) || (Structure->v.deadflag != DEAD_NO)) { return; }
+
+	NSStructureType StructureType = UTIL_IUSER3ToStructureType(Structure->v.iuser3);
+
+	if (StructureType == STRUCTURE_NONE) { return; }
+
+	bool bShouldCollide = UTIL_ShouldStructureCollide(StructureType);
+
+	int EntIndex = ENTINDEX(Structure);
+	if (EntIndex < 0) { return; }
+
+	AlienBuildableStructureMap[EntIndex].edict = Structure;
+
+	AlienBuildableStructureMap[EntIndex].healthPercent = (Structure->v.health / Structure->v.max_health);
+	AlienBuildableStructureMap[EntIndex].lastDamagedTime = 0.0f;
+
+	AlienBuildableStructureMap[EntIndex].Location = Structure->v.origin;
+
+	AlienBuildableStructureMap[EntIndex].bFullyConstructed = !(Structure->v.iuser4 & MASK_BUILDABLE);
+	AlienBuildableStructureMap[EntIndex].bIsParasited = (Structure->v.iuser4 & MASK_PARASITED);
+	AlienBuildableStructureMap[EntIndex].bIsElectrified = false;
+	AlienBuildableStructureMap[EntIndex].StructureType = UTIL_IUSER3ToStructureType(Structure->v.iuser3);
+
+	if (bShouldCollide)
+	{
+		unsigned int area = UTIL_GetAreaForObstruction(StructureType);
+		float Radius = UTIL_GetStructureRadiusForObstruction(StructureType);
+		UTIL_AddTemporaryObstacles(UTIL_GetCentreOfEntity(AlienBuildableStructureMap[EntIndex].edict), Radius, 100.0f, area, AlienBuildableStructureMap[EntIndex].ObstacleRefs);
+	}
+	else
+	{
+		memset(AlienBuildableStructureMap[EntIndex].ObstacleRefs, 0, sizeof(unsigned int) * MAX_NAV_MESHES);
+	}
+
+	UTIL_OnStructureCreated(&AlienBuildableStructureMap[EntIndex]);
+
+	AlienBuildableStructureMap[EntIndex].bOnNavmesh = UTIL_PointIsOnNavmesh(MARINE_REGULAR_NAV_PROFILE, UTIL_GetEntityGroundLocation(Structure), Vector(max_player_use_reach, max_player_use_reach, max_player_use_reach));
+	if (AlienBuildableStructureMap[EntIndex].bOnNavmesh)
+	{
+		AlienBuildableStructureMap[EntIndex].bIsReachableMarine = UTIL_PointIsReachable(MARINE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), UTIL_GetEntityGroundLocation(Structure), max_player_use_reach);
+		AlienBuildableStructureMap[EntIndex].bIsReachableAlien = UTIL_PointIsReachable(SKULK_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), UTIL_GetEntityGroundLocation(Structure), max_player_use_reach);
+		AlienBuildableStructureMap[EntIndex].bIsReachableOnos = UTIL_PointIsReachable(ONOS_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), UTIL_GetEntityGroundLocation(Structure), max_player_use_reach);
+	}
+	else
+	{
+		AlienBuildableStructureMap[EntIndex].bIsReachableMarine = false;
+		AlienBuildableStructureMap[EntIndex].bIsReachableAlien = false;
+		AlienBuildableStructureMap[EntIndex].bIsReachableOnos = false;
+	}
+
+	AlienBuildableStructureMap[EntIndex].LastSeen = StructureRefreshFrame;
+}
+
+void UTIL_UpdateAlienStructureDetails(edict_t* Structure)
+{
+	int EntIndex = ENTINDEX(Structure);
+	if (EntIndex < 0) { return; }
+
+	if (!vEquals(Structure->v.origin, AlienBuildableStructureMap[EntIndex].Location, 5.0f))
+	{
+		AlienBuildableStructureMap[EntIndex].bOnNavmesh = UTIL_PointIsOnNavmesh(MARINE_REGULAR_NAV_PROFILE, UTIL_GetEntityGroundLocation(Structure), Vector(max_player_use_reach, max_player_use_reach, max_player_use_reach));
+		if (AlienBuildableStructureMap[EntIndex].bOnNavmesh)
 		{
-			MarineBuildableStructureMap[EntIndex].LastSeen = StructureRefreshFrame;
-			MarineBuildableStructureMap[EntIndex].bUnderAttack = (gpGlobals->time - MarineBuildableStructureMap[EntIndex].lastDamagedTime) < 10.0f;
+			AlienBuildableStructureMap[EntIndex].bIsReachableMarine = UTIL_PointIsReachable(MARINE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), UTIL_GetEntityGroundLocation(Structure), max_player_use_reach);
+			AlienBuildableStructureMap[EntIndex].bIsReachableAlien = UTIL_PointIsReachable(SKULK_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), UTIL_GetEntityGroundLocation(Structure), max_player_use_reach);
+			AlienBuildableStructureMap[EntIndex].bIsReachableOnos = UTIL_PointIsReachable(ONOS_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), UTIL_GetEntityGroundLocation(Structure), max_player_use_reach);
+		}
+		else
+		{
+			AlienBuildableStructureMap[EntIndex].bIsReachableMarine = false;
+			AlienBuildableStructureMap[EntIndex].bIsReachableAlien = false;
+			AlienBuildableStructureMap[EntIndex].bIsReachableOnos = false;
+		}
+	}
+
+	AlienBuildableStructureMap[EntIndex].Location = Structure->v.origin;
+
+	AlienBuildableStructureMap[EntIndex].bFullyConstructed = !(Structure->v.iuser4 & MASK_BUILDABLE);
+	AlienBuildableStructureMap[EntIndex].bIsParasited = (Structure->v.iuser4 & MASK_PARASITED);
+	AlienBuildableStructureMap[EntIndex].bIsElectrified = false;
+	AlienBuildableStructureMap[EntIndex].StructureType = UTIL_IUSER3ToStructureType(Structure->v.iuser3);
+
+	float NewHealthPercent = (Structure->v.health / Structure->v.max_health);
+
+	if (NewHealthPercent < AlienBuildableStructureMap[EntIndex].healthPercent)
+	{
+		AlienBuildableStructureMap[EntIndex].lastDamagedTime = gpGlobals->time;
+	}
+	AlienBuildableStructureMap[EntIndex].healthPercent = NewHealthPercent;
+
+	AlienBuildableStructureMap[EntIndex].LastSeen = StructureRefreshFrame;
+	AlienBuildableStructureMap[EntIndex].bUnderAttack = (gpGlobals->time - AlienBuildableStructureMap[EntIndex].lastDamagedTime) < 10.0f;
+}
+
+void UTIL_UpdateBuildableStructure(edict_t* Structure)
+{
+	if (FNullEnt(Structure) || (Structure->v.effects & EF_NODRAW) || (Structure->v.deadflag != DEAD_NO)) { return; }
+
+	NSStructureType StructureType = UTIL_IUSER3ToStructureType(Structure->v.iuser3);
+
+	if (StructureType == STRUCTURE_NONE) { return; }
+
+	int EntIndex = ENTINDEX(Structure);
+	if (EntIndex < 0) { return; }
+
+	if (UTIL_IsMarineStructure(StructureType))
+	{
+		if (MarineBuildableStructureMap[EntIndex].LastSeen == 0)
+		{
+			UTIL_RegisterNewMarineStructure(Structure);
+			return;
+		}
+		else
+		{
+			UTIL_UpdateMarineStructureDetails(Structure);
 		}
 
 	}
 	else
 	{
-		AlienBuildableStructureMap[EntIndex].edict = Structure;
-
-		if (Structure->v.origin != AlienBuildableStructureMap[EntIndex].Location)
-		{
-			AlienBuildableStructureMap[EntIndex].bOnNavmesh = UTIL_PointIsOnNavmesh(MARINE_REGULAR_NAV_PROFILE, UTIL_GetEntityGroundLocation(Structure), Vector(max_player_use_reach, max_player_use_reach, max_player_use_reach));
-			if (AlienBuildableStructureMap[EntIndex].bOnNavmesh)
-			{
-				AlienBuildableStructureMap[EntIndex].bIsReachableMarine = UTIL_PointIsReachable(MARINE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), UTIL_GetEntityGroundLocation(Structure), max_player_use_reach);
-				AlienBuildableStructureMap[EntIndex].bIsReachableAlien = UTIL_PointIsReachable(SKULK_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), UTIL_GetEntityGroundLocation(Structure), max_player_use_reach);
-			}
-		}
-
-		AlienBuildableStructureMap[EntIndex].Location = Structure->v.origin;
-
-		AlienBuildableStructureMap[EntIndex].bFullyConstructed = !(Structure->v.iuser4 & MASK_BUILDABLE);
-		AlienBuildableStructureMap[EntIndex].bIsParasited = (Structure->v.iuser4 & MASK_PARASITED);
-		AlienBuildableStructureMap[EntIndex].bIsElectrified = UTIL_IsStructureElectrified(Structure);
-		AlienBuildableStructureMap[EntIndex].bDead = (Structure->v.deadflag != DEAD_NO);
-		AlienBuildableStructureMap[EntIndex].StructureType = UTIL_IUSER3ToStructureType(Structure->v.iuser3);
-
 		if (AlienBuildableStructureMap[EntIndex].LastSeen == 0)
 		{
-			AlienBuildableStructureMap[EntIndex].healthPercent = (Structure->v.health / Structure->v.max_health);
-			AlienBuildableStructureMap[EntIndex].lastDamagedTime = 0.0f;
-
-			if (bShouldCollide)
-			{
-				unsigned int area = UTIL_GetAreaForObstruction(StructureType);
-				float Radius = UTIL_GetStructureRadiusForObstruction(StructureType);
-				UTIL_AddTemporaryObstacles(UTIL_GetCentreOfEntity(AlienBuildableStructureMap[EntIndex].edict), Radius, 100.0f, area, AlienBuildableStructureMap[EntIndex].ObstacleRefs);
-			}
-			else
-			{
-				memset(AlienBuildableStructureMap[EntIndex].ObstacleRefs, 0, sizeof(unsigned int) * MAX_NAV_MESHES);
-			}
-
-			UTIL_OnStructureCreated(&AlienBuildableStructureMap[EntIndex]);
-
-			AlienBuildableStructureMap[EntIndex].bOnNavmesh = UTIL_PointIsOnNavmesh(MARINE_REGULAR_NAV_PROFILE, UTIL_GetEntityGroundLocation(Structure), Vector(max_player_use_reach, max_player_use_reach, max_player_use_reach));
-			if (AlienBuildableStructureMap[EntIndex].bOnNavmesh)
-			{
-				AlienBuildableStructureMap[EntIndex].bIsReachableMarine = UTIL_PointIsReachable(MARINE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), UTIL_GetEntityGroundLocation(Structure), max_player_use_reach);
-				AlienBuildableStructureMap[EntIndex].bIsReachableAlien = UTIL_PointIsReachable(SKULK_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), UTIL_GetEntityGroundLocation(Structure), max_player_use_reach);
-			}
-			else
-			{
-				AlienBuildableStructureMap[EntIndex].bIsReachableMarine = false;
-				AlienBuildableStructureMap[EntIndex].bIsReachableAlien = false;
-			}
+			UTIL_RegisterNewAlienStructure(Structure);
 		}
 		else
 		{
-			float NewHealthPercent = (Structure->v.health / Structure->v.max_health);
-
-			if (NewHealthPercent < AlienBuildableStructureMap[EntIndex].healthPercent)
-			{
-				AlienBuildableStructureMap[EntIndex].lastDamagedTime = gpGlobals->time;
-			}
-			AlienBuildableStructureMap[EntIndex].healthPercent = NewHealthPercent;
+			UTIL_UpdateAlienStructureDetails(Structure);
 		}
 
-		if (!AlienBuildableStructureMap[EntIndex].bDead)
-		{
-			AlienBuildableStructureMap[EntIndex].LastSeen = StructureRefreshFrame;
-			AlienBuildableStructureMap[EntIndex].bUnderAttack = (gpGlobals->time - AlienBuildableStructureMap[EntIndex].lastDamagedTime) < 10.0f;
-		}
 	}
 }
 
