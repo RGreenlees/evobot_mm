@@ -129,6 +129,7 @@ edict_t* UTIL_GetNearestEquipment(const Vector Location, const float SearchDist,
 
 void SetNumberofHives(int NewValue)
 {
+	if (NewValue > 10) { return; } // Something screwed up with the network messaging, because it shouldn't be more than this...
 	NumTotalHives = NewValue;
 
 	for (int i = 0; i < NumTotalHives; i++)
