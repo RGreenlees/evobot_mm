@@ -554,6 +554,14 @@ Vector GetPlayerTopOfCollisionHull(const edict_t* pEdict)
 {
 	if (FNullEnt(pEdict)) { return ZERO_VECTOR; }
 
+	if (!IsEdictPlayer(pEdict))
+	{
+		Vector Centre = UTIL_GetCentreOfEntity(pEdict);
+		Centre.z = pEdict->v.absmax.z;
+
+		return Centre;
+	}
+
 	int iuser3 = pEdict->v.iuser3;
 	bool bIsCrouching = (pEdict->v.flags & FL_DUCKING);
 	Vector origin = pEdict->v.origin;

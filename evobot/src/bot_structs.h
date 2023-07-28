@@ -465,6 +465,8 @@ typedef struct _BOT_T
 
 	Vector LastPosition = ZERO_VECTOR;
 
+	bool bRetreatForHealth = false;
+
 } bot_t;
 
 // Data structure used to track resource nodes in the map

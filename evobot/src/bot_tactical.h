@@ -212,7 +212,7 @@ const resource_node* UTIL_FindEligibleResNodeFurthestFromLocation(const Vector& 
 const resource_node* UTIL_MarineFindUnclaimedResNodeNearestLocation(const bot_t* pBot, const Vector& Location, float MinDist);
 const resource_node* UTIL_AlienFindUnclaimedResNodeFurthestFromLocation(const bot_t* pBot, const Vector& Location, bool bIgnoreElectrified);
 
-edict_t* UTIL_GetNearestUndefendedStructureOfTypeUnderAttack(bot_t* pBot, const NSStructureType StructureType);
+edict_t* UTIL_GetNearestUndefendedStructureOfTypeUnderAttack(bot_t* pBot, const NSStructureType StructureType, bool bByPlayersOnly);
 edict_t* UTIL_GetNearestStructureOfTypeInLocation(const NSStructureType StructureType, const Vector& Location, const float SearchRadius, bool bAllowElectrified, bool bUsePhaseDistance);
 edict_t* UTIL_GetFurthestStructureOfTypeFromLocation(const NSStructureType StructureType, const Vector& Location, bool bAllowElectrified);
 edict_t* UTIL_GetNearestUnbuiltStructureOfTypeInLocation(const NSStructureType StructureType, const Vector& Location, const float SearchRadius);

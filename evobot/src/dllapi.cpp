@@ -421,20 +421,25 @@ void ClientCommand(edict_t* pEntity)
 		RETURN_META(MRES_SUPERCEDE);
 	}
 
-	if (FStrEq(pcmd, "buttonfloor"))
+	if (FStrEq(pcmd, "defendtask"))
 	{
-
-		edict_t* currTrigger = NULL;
-		while (((currTrigger = UTIL_FindEntityByClassname(currTrigger, "func_button")) != NULL) && (!FNullEnt(currTrigger)))
+		for (int i = 0; i < gpGlobals->maxClients; i++)
 		{
-			Vector EntityCentre = UTIL_GetCentreOfEntity(currTrigger);
+			if (bots[i].is_used && IsPlayerAlien(bots[i].pEdict) && IsPlayerActiveInGame(bots[i].pEdict))
+			{
+				edict_t* ResourceTower = UTIL_GetNearestUndefendedStructureOfTypeUnderAttack(&bots[i], STRUCTURE_ALIEN_RESTOWER, true);
 
-			Vector ButtonFloor = UTIL_GetButtonFloorLocation(pEntity->v.origin, currTrigger);
+				if (!FNullEnt(ResourceTower))
+				{
+					UTIL_SayText("True\n", pEntity);
+					UTIL_DrawLine(pEntity, bots[i].pEdict->v.origin, ResourceTower->v.origin, 10.0f, 255, 255, 0);
+				}
+				else
+				{
+					UTIL_SayText("False\n", pEntity);
+				}
+			}
 
-			ButtonFloor = FindClosestNavigablePointToDestination(GORGE_REGULAR_NAV_PROFILE, UTIL_GetEntityGroundLocation(pEntity), ButtonFloor, UTIL_MetresToGoldSrcUnits(10.0f));
-
-			UTIL_DrawLine(pEntity, EntityCentre, ButtonFloor, 5.0f);
-			
 		}
 		
 
@@ -557,7 +562,7 @@ void ClientCommand(edict_t* pEntity)
 		RETURN_META(MRES_SUPERCEDE);
 	}
 
-	if (FStrEq(pcmd, "botcombatpoints"))
+	if (FStrEq(pcmd, "testcansiege"))
 	{
 		if (!NavmeshLoaded())
 		{
@@ -565,29 +570,16 @@ void ClientCommand(edict_t* pEntity)
 			RETURN_META(MRES_SUPERCEDE);
 		}
 
-		edict_t* SpectatorTarget = INDEXENT(pEntity->v.iuser2);
+		const hive_definition* Hive = COMM_GetHiveSiegeOpportunityNearestLocation(UTIL_GetCommChairLocation());
 
-		if (FNullEnt(SpectatorTarget))
+		if (Hive)
 		{
-			UTIL_SayText("No Spectator Target\n", listenserver_edict);
-			RETURN_META(MRES_SUPERCEDE);
+			UTIL_SayText("True\n", pEntity);
 		}
-
-		int BotIndex = GetBotIndex(SpectatorTarget);
-
-		if (BotIndex < 0)
+		else
 		{
-			UTIL_SayText("Not spectating a bot\n", listenserver_edict);
-			RETURN_META(MRES_SUPERCEDE);
+			UTIL_SayText("False\n", pEntity);
 		}
-
-		bot_t* pBot = &bots[BotIndex];
-
-		char buf[32];
-
-		sprintf(buf, "%d\n", GetBotAvailableCombatPoints(pBot));
-
-		UTIL_SayText(buf, pEntity);
 
 		RETURN_META(MRES_SUPERCEDE);
 	}
@@ -657,6 +649,10 @@ void ClientCommand(edict_t* pEntity)
 			}
 
 			UTIL_DrawLine(clients[0], pBot->CurrentEyePosition, pBot->CurrentTask->TaskLocation, 20.0f, 255, 255, 0);
+			if (!FNullEnt(pBot->CurrentTask->TaskTarget))
+			{
+				UTIL_DrawLine(clients[0], pBot->CurrentEyePosition, pBot->CurrentTask->TaskTarget->v.origin, 20.0f, 255, 0, 0);
+			}
 		}
 		else
 		{

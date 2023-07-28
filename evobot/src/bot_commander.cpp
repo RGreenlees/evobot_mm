@@ -484,7 +484,10 @@ void COMM_UpdateAndClearCommanderOrders(bot_t* CommanderBot)
 				if (!FNullEnt(NearestMarine))
 				{
 					Vector SiegePosition = COMM_GetGoodSiegeLocation(SiegeHive);
-					COMM_IssueMarineSiegeHiveOrder(CommanderBot, NearestMarine, SiegeHive, SiegePosition);
+					if (SiegePosition != ZERO_VECTOR)
+					{
+						COMM_IssueMarineSiegeHiveOrder(CommanderBot, NearestMarine, SiegeHive, SiegePosition);
+					}					
 					return;
 				}
 			}
@@ -1492,6 +1495,8 @@ bool UTIL_ObservatoryResearchIsAvailable(const NSResearch Research)
 
 	if (!FNullEnt(Observatory))
 	{
+
+
 		switch (Research)
 		{
 		case RESEARCH_OBSERVATORY_DISTRESSBEACON:
@@ -1559,6 +1564,15 @@ void BotCommanderDeploy(bot_t* pBot, commander_action* Action)
 	int DeployCost = UTIL_GetCostOfStructureType(Action->StructureToBuild);
 
 	if (GetPlayerResources(pBot->pEdict) < DeployCost) { return; }
+
+	if (Action->StructureToBuild == DEPLOYABLE_ITEM_MARINE_SCAN)
+	{
+		if (GetStructureTypeFromEdict(pBot->CommanderCurrentlySelectedBuilding) != STRUCTURE_MARINE_OBSERVATORY)
+		{
+			BotCommanderSelectStructure(pBot, UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_OBSERVATORY, Action->BuildLocation, UTIL_MetresToGoldSrcUnits(1000.0f), true, false), Action);
+			return;
+		}
+	}
 
 	pBot->pEdict->v.v_angle = ZERO_VECTOR;
 
@@ -2011,6 +2025,8 @@ const hive_definition* COMM_GetEmptyHiveOpportunityNearestLocation(const Vector 
 
 		if (UTIL_IsHiveFullySecuredByMarines(Hive)) { continue; }
 
+		if (UTIL_FindSafePlayerInArea(MARINE_TEAM, Hive->Location, 0.0f, UTIL_MetresToGoldSrcUnits(10.0f)) == nullptr) { continue; }
+
 		if (!UTIL_AnyPlayerOnTeamWithLOS(Hive->edict->v.origin, MARINE_TEAM, UTIL_MetresToGoldSrcUnits(10.0f))) 
 		{
 			edict_t* PG = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_PHASEGATE, Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(10.0f), true, false);
@@ -2063,7 +2079,27 @@ const hive_definition* COMM_GetHiveSiegeOpportunityNearestLocation(const Vector 
 
 		if (Hive->Status == HIVE_STATUS_UNBUILT) { continue; }
 
-		if (!UTIL_IsPlayerOfTeamInArea(Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(20.0f), MARINE_TEAM, nullptr, CLASS_NONE)) { continue; }
+		edict_t* BuiltSiegeTurret = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_SIEGETURRET, Hive->Location, UTIL_MetresToGoldSrcUnits(20.0f), true, false);
+
+		if (!FNullEnt(BuiltSiegeTurret) && UTIL_StructureIsFullyBuilt(BuiltSiegeTurret) && UTIL_StructureOfTypeExistsInLocation(STRUCTURE_MARINE_ADVTURRETFACTORY, BuiltSiegeTurret->v.origin, UTIL_MetresToGoldSrcUnits(5.0f)))
+		{
+			if (UTIL_GetItemCountOfTypeInArea(ITEM_MARINE_SCAN, Hive->Location, UTIL_MetresToGoldSrcUnits(10.0f)) == 0)
+			{
+				return Hive;
+			}
+		}
+
+
+		if (UTIL_FindSafePlayerInArea(MARINE_TEAM, Hive->Location, UTIL_MetresToGoldSrcUnits(10.0f), UTIL_MetresToGoldSrcUnits(22.0f)) == nullptr)	{ continue;	}
+
+
+		edict_t* BuiltPhaseGate = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_PHASEGATE, Hive->Location, UTIL_MetresToGoldSrcUnits(20.0f), true, false);
+		
+
+		if (!FNullEnt(BuiltPhaseGate) && UTIL_StructureIsFullyBuilt(BuiltPhaseGate))
+		{
+			if (!UTIL_IsPlayerOfTeamInArea(BuiltPhaseGate->v.origin, UTIL_MetresToGoldSrcUnits(5.0f), MARINE_TEAM, nullptr, CLASS_NONE)) { continue; }
+		}
 
 		float ThisDist = vDist2DSq(Hive->FloorLocation, SearchLocation);
 
@@ -2549,6 +2585,8 @@ void COMM_SetNextResearchAction(commander_action* Action)
 		}
 	}
 
+	if (UTIL_GetFirstPlacedStructureOfType(STRUCTURE_MARINE_PROTOTYPELAB) == nullptr) { return; }
+
 	if (UTIL_PrototypeLabResearchIsAvailable(RESEARCH_PROTOTYPELAB_HEAVYARMOUR))
 	{
 		if (Action->ActionType == ACTION_RESEARCH && Action->ResearchId == RESEARCH_PROTOTYPELAB_HEAVYARMOUR) { return; }
@@ -2604,9 +2642,36 @@ void COMM_SetNextSiegeHiveAction(const hive_definition* Hive, commander_action* 
 {
 	bool bPhaseGatesAvailable = UTIL_ResearchIsComplete(RESEARCH_OBSERVATORY_PHASETECH);
 
-	edict_t* NearestPlayer = COMM_GetMarineEligibleToBuildSiege(Hive);
-
 	edict_t* TF = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ANYTURRETFACTORY, Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(25.0f), true, false);
+
+	if (!FNullEnt(TF) && UTIL_StructureIsFullyBuilt(TF) && GetStructureTypeFromEdict(TF) == STRUCTURE_MARINE_ADVTURRETFACTORY)
+	{
+		if (UTIL_StructureOfTypeExistsInLocation(STRUCTURE_MARINE_SIEGETURRET, TF->v.origin, UTIL_MetresToGoldSrcUnits(5.0f), true))
+		{
+			if (UTIL_ItemCanBeDeployed(ITEM_MARINE_SCAN) && UTIL_GetItemCountOfTypeInArea(ITEM_MARINE_SCAN, Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(10.0f)) == 0)
+			{
+				if (Action->ActionType == ACTION_DEPLOY && Action->ActionTarget == Hive->edict && Action->StructureToBuild == DEPLOYABLE_ITEM_MARINE_SCAN) { return; }
+
+				Vector ScanLoc = FindClosestNavigablePointToDestination(MARINE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(5.0f));
+
+				Vector FinalLoc = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, ScanLoc, UTIL_MetresToGoldSrcUnits(5.0f));
+
+				FinalLoc = (FinalLoc != ZERO_VECTOR) ? FinalLoc : ScanLoc;
+
+				if (ScanLoc != ZERO_VECTOR)
+				{
+					Action->ActionType = ACTION_DEPLOY;
+					Action->ActionTarget = Hive->edict;
+					Action->StructureToBuild = DEPLOYABLE_ITEM_MARINE_SCAN;
+					Action->BuildLocation = FinalLoc;
+					Action->bIsActionUrgent = true;
+					return;
+				}
+			}
+		}
+	}
+
+	edict_t* NearestPlayer = COMM_GetMarineEligibleToBuildSiege(Hive);
 
 	edict_t* PhaseGate = (bPhaseGatesAvailable) ? UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_PHASEGATE, Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(25.0f), true, false) : nullptr;
 
@@ -2755,21 +2820,6 @@ void COMM_SetNextSiegeHiveAction(const hive_definition* Hive, commander_action* 
 	}
 
 	int NumSiegeTurrets = UTIL_GetNumPlacedStructuresOfTypeInRadius(STRUCTURE_MARINE_SIEGETURRET, TF->v.origin, UTIL_MetresToGoldSrcUnits(10.0f));
-
-	if (NumSiegeTurrets > 0)
-	{
-		if (UTIL_GetItemCountOfTypeInArea(ITEM_MARINE_SCAN, Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(10.0f)) == 0)
-		{
-			if (Action->ActionType == ACTION_DEPLOY && Action->StructureToBuild == DEPLOYABLE_ITEM_MARINE_SCAN) { return; }
-
-			Action->ActionType = ACTION_DEPLOY;
-			Action->ActionTarget = Hive->edict;
-			Action->StructureToBuild = DEPLOYABLE_ITEM_MARINE_SCAN;
-			Action->BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(5.0f));
-			Action->bIsActionUrgent = true;
-			return;
-		}
-	}
 
 	if (NumSiegeTurrets < 3)
 	{

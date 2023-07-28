@@ -25,6 +25,8 @@ void AlienThink(bot_t* pBot)
 		}
 	}
 
+	pBot->bRetreatForHealth = false;
+
 	if (!pBot->CurrentTask) { pBot->CurrentTask = &pBot->PrimaryBotTask; }
 
 	BotUpdateAndClearTasks(pBot);
@@ -533,34 +535,35 @@ bool IsAlienBuilderTaskNeeded(bot_t* pBot)
 		return true;
 	}
 
-	if (!UTIL_HiveIsInProgress() && UTIL_GetNumUnbuiltHives() > 0)
+	const hive_definition* NearestUnclaimedHive = UTIL_GetNearestUnbuiltHiveNeedsReinforcing(pBot);
+
+	if (NearestUnclaimedHive != nullptr)
 	{
-		const hive_definition* UnbuiltHiveIndex = UTIL_GetClosestViableUnbuiltHive(pEdict->v.origin);
-		if (UnbuiltHiveIndex) { return true; }
+		return true;
 	}
 
-	if (UTIL_ActiveHiveWithTechExists(HIVE_TECH_DEFENCE))
-	{
-		const hive_definition* HiveNeedsSupporting = UTIL_GetActiveHiveWithoutChambers(HIVE_TECH_DEFENCE, 2);
+	const resource_node* NearestUnprotectedResNode = UTIL_GetNearestResNodeNeedsReinforcing(pBot, UTIL_GetCommChairLocation());
 
-		if (HiveNeedsSupporting) { return true; }
+	if (NearestUnprotectedResNode)
+	{
+		return true;
 	}
 
-	if (UTIL_ActiveHiveWithTechExists(HIVE_TECH_MOVEMENT))
+	const resource_node* ResNode = nullptr;
+
+	if (!IsPlayerGorge(pBot->pEdict) || PlayerHasWeapon(pBot->pEdict, WEAPON_GORGE_BILEBOMB))
 	{
-		const hive_definition* HiveNeedsSupporting = UTIL_GetActiveHiveWithoutChambers(HIVE_TECH_MOVEMENT, 1);
-		if (HiveNeedsSupporting) { return true; }
+		ResNode = UTIL_FindEligibleResNodeClosestToLocation(pBot->pEdict->v.origin, ALIEN_TEAM, IsPlayerSkulk(pBot->pEdict));
+	}
+	else
+	{
+		ResNode = UTIL_AlienFindUnclaimedResNodeFurthestFromLocation(pBot, UTIL_GetCommChairLocation(), false);
 	}
 
-	if (UTIL_ActiveHiveWithTechExists(HIVE_TECH_SENSORY))
+	if (ResNode)
 	{
-		const hive_definition* HiveNeedsSupporting = UTIL_GetActiveHiveWithoutChambers(HIVE_TECH_SENSORY, 1);
-		if (HiveNeedsSupporting) { return true; }
+		return true;
 	}
-
-	const resource_node* NearestUnprotectedResNode = UTIL_GetNearestUnprotectedResNode(UTIL_GetCommChairLocation());
-
-	if (NearestUnprotectedResNode != nullptr) { return true; }
 
 	return false;
 }
@@ -1036,22 +1039,24 @@ void AlienHarasserSetSecondaryTask(bot_t* pBot, bot_task* Task)
 	}
 
 
-	edict_t* Hive = UTIL_GetNearestUndefendedStructureOfTypeUnderAttack(pBot, STRUCTURE_ALIEN_HIVE);
+	edict_t* Hive = UTIL_GetNearestUndefendedStructureOfTypeUnderAttack(pBot, STRUCTURE_ALIEN_HIVE, true);
 
 	if (!FNullEnt(Hive))
 	{
-		if (!UTIL_StructureOfTypeExistsInLocation(STRUCTURE_MARINE_SIEGETURRET, Hive->v.origin, UTIL_MetresToGoldSrcUnits(20.0f)))
+		// Don't rush to defend if there isn't an enemy actively attacking it (i.e. is turret doing damage)
+		if (UTIL_AnyPlayerOnTeamHasLOSToLocation(MARINE_TEAM, Hive->v.origin, UTIL_MetresToGoldSrcUnits(20.0f)))
 		{
 			TASK_SetDefendTask(pBot, Task, Hive, true);
 			return;
 		}
 	}
 
-	edict_t* ResourceTower = UTIL_GetNearestUndefendedStructureOfTypeUnderAttack(pBot, STRUCTURE_ALIEN_RESTOWER);
+	edict_t* ResourceTower = UTIL_GetNearestUndefendedStructureOfTypeUnderAttack(pBot, STRUCTURE_ALIEN_RESTOWER, true);
 
 	if (!FNullEnt(ResourceTower))
 	{
-		if (!UTIL_StructureOfTypeExistsInLocation(STRUCTURE_MARINE_SIEGETURRET, ResourceTower->v.origin, UTIL_MetresToGoldSrcUnits(20.0f)))
+		// Don't rush to defend if there isn't an enemy actively attacking it (i.e. is turret doing damage)
+		if (UTIL_AnyPlayerOnTeamHasLOSToLocation(MARINE_TEAM, UTIL_GetCentreOfEntity(ResourceTower), UTIL_MetresToGoldSrcUnits(20.0f)))
 		{
 			TASK_SetDefendTask(pBot, Task, ResourceTower, true);
 			return;
@@ -1079,7 +1084,7 @@ void AlienCapperSetSecondaryTask(bot_t* pBot, bot_task* Task)
 		return;
 	}
 
-	edict_t* ResourceTower = UTIL_GetNearestUndefendedStructureOfTypeUnderAttack(pBot, STRUCTURE_ALIEN_RESTOWER);
+	edict_t* ResourceTower = UTIL_GetNearestUndefendedStructureOfTypeUnderAttack(pBot, STRUCTURE_ALIEN_RESTOWER, true);
 
 	if (!FNullEnt(ResourceTower))
 	{
@@ -1091,7 +1096,7 @@ void AlienCapperSetSecondaryTask(bot_t* pBot, bot_task* Task)
 		}
 	}
 
-	edict_t* Hive = UTIL_GetNearestUndefendedStructureOfTypeUnderAttack(pBot, STRUCTURE_ALIEN_HIVE);
+	edict_t* Hive = UTIL_GetNearestUndefendedStructureOfTypeUnderAttack(pBot, STRUCTURE_ALIEN_HIVE, true);
 
 	if (!FNullEnt(Hive))
 	{
@@ -1118,7 +1123,7 @@ void AlienDestroyerSetSecondaryTask(bot_t* pBot, bot_task* Task)
 	// Don't interrupt an attack task as destroyer if we're already close to attacking. Means fades and onos will focus on doing what they do best
 	if (pBot->PrimaryBotTask.TaskType == TASK_ATTACK && vDist2DSq(pBot->pEdict->v.origin, pBot->PrimaryBotTask.TaskTarget->v.origin) < sqrf(UTIL_MetresToGoldSrcUnits(10.0f))) { return; }
 
-	edict_t* Hive = UTIL_GetNearestUndefendedStructureOfTypeUnderAttack(pBot, STRUCTURE_ALIEN_HIVE);
+	edict_t* Hive = UTIL_GetNearestUndefendedStructureOfTypeUnderAttack(pBot, STRUCTURE_ALIEN_HIVE, true);
 
 	if (!FNullEnt(Hive))
 	{
@@ -1130,7 +1135,7 @@ void AlienDestroyerSetSecondaryTask(bot_t* pBot, bot_task* Task)
 		}
 	}
 		
-	edict_t* ResourceTower = UTIL_GetNearestUndefendedStructureOfTypeUnderAttack(pBot, STRUCTURE_ALIEN_RESTOWER);
+	edict_t* ResourceTower = UTIL_GetNearestUndefendedStructureOfTypeUnderAttack(pBot, STRUCTURE_ALIEN_RESTOWER, true);
 
 	if (!FNullEnt(ResourceTower))
 	{
@@ -1293,56 +1298,29 @@ void FadeCombatThink(bot_t* pBot)
 	float MaxHealthAndArmour = pEdict->v.max_health + GetPlayerMaxArmour(pEdict);
 	float CurrentHealthAndArmour = pEdict->v.health + pEdict->v.armorvalue;
 
-	bool bLowOnHealth = (GetPlayerOverallHealthPercent(pEdict) < 0.5f);
-	bool bNeedsHealth = (GetPlayerOverallHealthPercent(pEdict) < 0.9f);
+	float OverallHealthPercent = GetPlayerOverallHealthPercent(pEdict);
 
-	edict_t* NearestHealingSource = (bNeedsHealth) ? UTIL_AlienFindNearestHealingSpot(pBot, pEdict->v.origin) : nullptr;
+	bool bLowOnHealth = (OverallHealthPercent < 0.5f);
+	bool bNeedsHealth = (OverallHealthPercent < 0.9f);
 
-	// Run away if low on health
-	if (!FNullEnt(NearestHealingSource))
+	if (!bNeedsHealth)
 	{
-		// TODO: Attack enemy if they're in trouble
-		float DesiredDistFromHealingSource = (IsEdictPlayer(NearestHealingSource)) ? UTIL_MetresToGoldSrcUnits(2.0f) : UTIL_MetresToGoldSrcUnits(5.0f);
-		
-		if (bLowOnHealth)
+		pBot->bRetreatForHealth = false;
+	}
+
+	if (pBot->bRetreatForHealth)
+	{
+		edict_t* NearestHealingSource = UTIL_AlienFindNearestHealingSpot(pBot, pEdict->v.origin);
+
+		if (!FNullEnt(NearestHealingSource))
 		{
-			bool bOutOfEnemyLOS = UTIL_QuickTrace(pEdict, pBot->CurrentEyePosition, GetPlayerEyePosition(CurrentEnemy));
+			float DesiredDistFromHealingSource = (IsEdictPlayer(NearestHealingSource)) ? UTIL_MetresToGoldSrcUnits(2.0f) : UTIL_MetresToGoldSrcUnits(8.0f);
 
-			if (vDist3DSq(pEdict->v.origin, NearestHealingSource->v.origin) > sqrf(DesiredDistFromHealingSource))
-			{
-				MoveTo(pBot, UTIL_GetFloorUnderEntity(NearestHealingSource), MOVESTYLE_NORMAL, DesiredDistFromHealingSource);
+			bool bOutOfEnemyLOS = !DoesPlayerHaveLOSToPlayer(CurrentEnemy, pEdict);
 
-				if (bOutOfEnemyLOS)
-				{
-					if (PlayerHasWeapon(pBot->pEdict, WEAPON_FADE_METABOLIZE))
-					{
-						pBot->DesiredCombatWeapon = WEAPON_FADE_METABOLIZE;
+			float DistFromHealingSourceSq = vDist2DSq(pBot->pEdict->v.origin, NearestHealingSource->v.origin);
 
-						if (GetBotCurrentWeapon(pBot) == WEAPON_FADE_METABOLIZE)
-						{
-							pBot->pEdict->v.button |= IN_ATTACK;
-						}
-					}
-				}
-				else
-				{
-					Vector EnemyTargetDir = UTIL_GetVectorNormal2D(CurrentEnemy->v.origin - pEdict->v.origin);
-
-					float Dot = UTIL_GetDotProduct2D(pBot->desiredMovementDir, EnemyTargetDir);
-
-					if (Dot > 0.7f)
-					{
-						BotAttackResult LOSCheck = PerformAttackLOSCheck(pBot, WEAPON_FADE_SWIPE, CurrentEnemy);
-
-						if (LOSCheck == ATTACK_SUCCESS)
-						{
-							BotShootTarget(pBot, WEAPON_FADE_SWIPE, CurrentEnemy);
-						}
-					}
-				}
-
-				return;
-			}
+			bool bInHealingRange = (DistFromHealingSourceSq <= sqrf(DesiredDistFromHealingSource));
 
 			if (bOutOfEnemyLOS)
 			{
@@ -1356,55 +1334,29 @@ void FadeCombatThink(bot_t* pBot)
 					}
 				}
 
-				if (IsEdictPlayer(NearestHealingSource))
+				if (bInHealingRange)
 				{
-					const hive_definition* Hive = UTIL_GetNearestBuiltHiveToLocation(pEdict->v.origin);
-
-					if (Hive && vDist3DSq(pEdict->v.origin, Hive->FloorLocation) > sqrf(UTIL_MetresToGoldSrcUnits(5.0f)))
-					{
-						MoveTo(pBot, UTIL_GetFloorUnderEntity(NearestHealingSource), MOVESTYLE_NORMAL, UTIL_MetresToGoldSrcUnits(5.0f));
-						return;
-					}
+					BotGuardLocation(pBot, NearestHealingSource->v.origin);
 				}
-
-				Vector CurrentHealSpot = pBot->BotNavInfo.ActualMoveDestination;
-
-				if (!CurrentHealSpot || UTIL_QuickTrace(pEdict, CurrentHealSpot + Vector(0.0f, 0.0f, 32.0f), GetPlayerEyePosition(CurrentEnemy)))
+				else
 				{
-					int BotMoveProfile = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
-					CurrentHealSpot = UTIL_GetRandomPointOnNavmeshInRadius(BotMoveProfile, pBot->CurrentFloorPosition, UTIL_MetresToGoldSrcUnits(5.0f));
-
-					if (CurrentHealSpot != ZERO_VECTOR && vDist2DSq(CurrentHealSpot, NearestHealingSource->v.origin) < DesiredDistFromHealingSource && !UTIL_QuickTrace(pEdict, CurrentHealSpot + Vector(0.0f, 0.0f, 32.0f), GetPlayerEyePosition(CurrentEnemy)))
-					{
-						MoveTo(pBot, CurrentHealSpot, MOVESTYLE_NORMAL);
-						return;
-					}
-				}
-			}
-			else
-			{
-				return;
-			}
-			
-		}
-		else
-		{
-			if (vDist3DSq(pEdict->v.origin, NearestHealingSource->v.origin) <= sqrf(DesiredDistFromHealingSource) && !UTIL_QuickTrace(pEdict, pBot->CurrentEyePosition, GetPlayerEyePosition(CurrentEnemy)))
-			{
-				if (PlayerHasWeapon(pBot->pEdict, WEAPON_FADE_METABOLIZE))
-				{
-					pBot->DesiredCombatWeapon = WEAPON_FADE_METABOLIZE;
-
-					if (GetBotCurrentWeapon(pBot) == WEAPON_FADE_METABOLIZE)
-					{
-						pBot->pEdict->v.button |= IN_ATTACK;
-					}
+					MoveTo(pBot, UTIL_GetEntityGroundLocation(NearestHealingSource), MOVESTYLE_NORMAL, DesiredDistFromHealingSource);
 				}
 
 				return;
 			}
-		}
 
+			if (!bInHealingRange)
+			{
+				MoveTo(pBot, UTIL_GetEntityGroundLocation(NearestHealingSource), MOVESTYLE_NORMAL, DesiredDistFromHealingSource);
+				return;
+			}
+		}		
+	}
+
+	if (bLowOnHealth)
+	{
+		pBot->bRetreatForHealth = true;
 	}
 
 	// If the enemy is not visible
@@ -1839,75 +1791,50 @@ void OnosCombatThink(bot_t* pBot)
 	bool bLowOnHealth = (GetPlayerOverallHealthPercent(pEdict) < 0.35f);
 	bool bNeedsHealth = (GetPlayerOverallHealthPercent(pEdict) < 0.9f);
 
-	edict_t* NearestHealingSource = (bNeedsHealth) ? UTIL_AlienFindNearestHealingSpot(pBot, pEdict->v.origin) : nullptr;
-
-	// Run away if low on health
-	if (!FNullEnt(NearestHealingSource))
+	if (!bNeedsHealth)
 	{
-		// TODO: Attack enemy if they're in trouble
-		float DesiredDistFromHealingSource = (IsEdictPlayer(NearestHealingSource)) ? UTIL_MetresToGoldSrcUnits(2.0f) : UTIL_MetresToGoldSrcUnits(5.0f);
+		pBot->bRetreatForHealth = false;
+	}
 
-		if (bLowOnHealth)
+	if (pBot->bRetreatForHealth)
+	{
+		edict_t* NearestHealingSource = UTIL_AlienFindNearestHealingSpot(pBot, pEdict->v.origin);
+
+		if (!FNullEnt(NearestHealingSource))
 		{
-			bool bOutOfEnemyLOS = !UTIL_QuickTrace(pEdict, pBot->CurrentEyePosition, GetPlayerEyePosition(CurrentEnemy));
+			float DesiredDistFromHealingSource = (IsEdictPlayer(NearestHealingSource)) ? UTIL_MetresToGoldSrcUnits(2.0f) : UTIL_MetresToGoldSrcUnits(8.0f);
 
-			if (vDist3DSq(pEdict->v.origin, NearestHealingSource->v.origin) > sqrf(DesiredDistFromHealingSource))
+			bool bOutOfEnemyLOS = !DoesPlayerHaveLOSToPlayer(CurrentEnemy, pEdict);
+
+			float DistFromHealingSourceSq = vDist2DSq(pBot->pEdict->v.origin, NearestHealingSource->v.origin);
+
+			bool bInHealingRange = (DistFromHealingSourceSq <= sqrf(DesiredDistFromHealingSource));
+
+			if (bOutOfEnemyLOS)
 			{
-				MoveTo(pBot, UTIL_GetFloorUnderEntity(NearestHealingSource), MOVESTYLE_NORMAL, DesiredDistFromHealingSource);
-
-				if (!bOutOfEnemyLOS)
+				if (bInHealingRange)
 				{
-					Vector EnemyTargetDir = UTIL_GetVectorNormal2D(CurrentEnemy->v.origin - pEdict->v.origin);
-
-					float Dot = UTIL_GetDotProduct2D(pBot->desiredMovementDir, EnemyTargetDir);
-
-					if (Dot > 0.7f)
-					{
-						BotAttackResult LOSCheck = PerformAttackLOSCheck(pBot, WEAPON_ONOS_GORE, CurrentEnemy);
-
-						if (LOSCheck == ATTACK_SUCCESS)
-						{
-							BotShootTarget(pBot, WEAPON_ONOS_GORE, CurrentEnemy);
-						}
-					}
+					BotGuardLocation(pBot, NearestHealingSource->v.origin);
+				}
+				else
+				{
+					MoveTo(pBot, UTIL_GetEntityGroundLocation(NearestHealingSource), MOVESTYLE_NORMAL, DesiredDistFromHealingSource);
 				}
 
 				return;
 			}
 
-			if (!bOutOfEnemyLOS)
+			if (!bInHealingRange)
 			{
-				if (IsEdictPlayer(NearestHealingSource))
-				{
-					const hive_definition* Hive = UTIL_GetNearestBuiltHiveToLocation(pEdict->v.origin);
-
-					if (Hive && vDist3DSq(pEdict->v.origin, Hive->FloorLocation) > sqrf(UTIL_MetresToGoldSrcUnits(5.0f)))
-					{
-						MoveTo(pBot, UTIL_GetFloorUnderEntity(NearestHealingSource), MOVESTYLE_NORMAL, UTIL_MetresToGoldSrcUnits(5.0f));
-						return;
-					}
-				}
-
-				Vector CurrentHealSpot = pBot->BotNavInfo.ActualMoveDestination;
-
-				if (!CurrentHealSpot || UTIL_QuickTrace(pEdict, CurrentHealSpot + Vector(0.0f, 0.0f, 32.0f), GetPlayerEyePosition(CurrentEnemy)))
-				{
-					int BotMoveProfile = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
-					CurrentHealSpot = UTIL_GetRandomPointOnNavmeshInRadius(BotMoveProfile, pBot->CurrentFloorPosition, UTIL_MetresToGoldSrcUnits(5.0f));
-
-					if (CurrentHealSpot != ZERO_VECTOR && vDist2DSq(CurrentHealSpot, NearestHealingSource->v.origin) < DesiredDistFromHealingSource && !UTIL_QuickTrace(pEdict, CurrentHealSpot + Vector(0.0f, 0.0f, 32.0f), GetPlayerEyePosition(CurrentEnemy)))
-					{
-						MoveTo(pBot, CurrentHealSpot, MOVESTYLE_NORMAL);
-						return;
-					}
-				}
+				MoveTo(pBot, UTIL_GetEntityGroundLocation(NearestHealingSource), MOVESTYLE_NORMAL, DesiredDistFromHealingSource);
+				return;
 			}
-			else
-			{
-				BotGuardLocation(pBot, pBot->pEdict->v.origin);
-			}
-
 		}
+	}
+
+	if (bLowOnHealth)
+	{
+		pBot->bRetreatForHealth = true;
 	}
 
 	// If the enemy is not visible

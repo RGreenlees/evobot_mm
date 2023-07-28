@@ -2129,21 +2129,9 @@ void DroneThink(bot_t* pBot)
 
 void CustomThink(bot_t* pBot)
 {
-	if (!IsPlayerAlien(pBot->pEdict)) { return; }
+	if (IsPlayerAlien(pBot->pEdict)) { return; }
 
-	pBot->CurrentEnemy = BotGetNextEnemyTarget(pBot);
-
-	if (pBot->CurrentEnemy > -1)
-	{
-		pBot->LastCombatTime = gpGlobals->time;
-
-		AlienCombatThink(pBot);
-	}
-	else
-	{
-		MoveTo(pBot, UTIL_GetCommChairLocation(), MOVESTYLE_NORMAL, 100.0f);
-	}
-
+	RegularModeThink(pBot);
 
 }
 

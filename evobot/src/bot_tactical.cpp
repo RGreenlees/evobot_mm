@@ -761,8 +761,18 @@ void UTIL_RefreshBuildableStructures()
 	{
 		if (Hives[i].NextFloorLocationCheck > 0.0f && gpGlobals->time >= Hives[i].NextFloorLocationCheck)
 		{
-			Hives[i].FloorLocation = FindClosestNavigablePointToDestination(MARINE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), UTIL_GetFloorUnderEntity(Hives[i].edict), UTIL_MetresToGoldSrcUnits(20.0f));
-			Hives[i].NextFloorLocationCheck = 0.0f;
+			Vector ClosestPoint = FindClosestNavigablePointToDestination(MARINE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), UTIL_GetFloorUnderEntity(Hives[i].edict), UTIL_MetresToGoldSrcUnits(20.0f));
+
+			if (!ClosestPoint)
+			{
+				Hives[i].FloorLocation = UTIL_GetFloorUnderEntity(Hives[i].edict);
+			}
+			else
+			{
+				Hives[i].FloorLocation = ClosestPoint;
+			}
+
+			Hives[i].NextFloorLocationCheck = gpGlobals->time + (5.0f + (0.1f * i));
 		}
 	}
 
@@ -2154,12 +2164,14 @@ const resource_node* UTIL_AlienFindUnclaimedResNodeFurthestFromLocation(const bo
 	return nullptr;
 }
 
-edict_t* UTIL_GetNearestUndefendedStructureOfTypeUnderAttack(bot_t* pBot, const NSStructureType StructureType)
+edict_t* UTIL_GetNearestUndefendedStructureOfTypeUnderAttack(bot_t* pBot, const NSStructureType StructureType, bool bByPlayersOnly)
 {
 	edict_t* Result = nullptr;
 	float MinDist = 0.0f;
 
 	bool bIsMarine = IsPlayerMarine(pBot->pEdict);
+
+	int EnemyTeam = (bIsMarine) ? ALIEN_TEAM : MARINE_TEAM;
 
 	if (StructureType == STRUCTURE_ALIEN_HIVE)
 	{
@@ -2170,6 +2182,8 @@ edict_t* UTIL_GetNearestUndefendedStructureOfTypeUnderAttack(bot_t* pBot, const 
 			int NumPotentialDefenders = UTIL_GetNumPlayersOfTeamInArea(Hives[i].FloorLocation, UTIL_MetresToGoldSrcUnits(15.0f), pBot->pEdict->v.team, pBot->pEdict, CLASS_GORGE, false);
 
 			if (NumPotentialDefenders >= 3) { continue; }
+
+			if (bByPlayersOnly && !UTIL_AnyPlayerOnTeamHasLOSToLocation(EnemyTeam, UTIL_GetCentreOfEntity(Hives[i].edict), UTIL_MetresToGoldSrcUnits(20.0f))) { continue; }
 
 			float ThisDist = (bIsMarine) ? UTIL_GetPhaseDistanceBetweenPointsSq(Hives[i].FloorLocation, pBot->pEdict->v.origin) : vDist2DSq(Hives[i].FloorLocation, pBot->pEdict->v.origin);
 
@@ -2197,6 +2211,8 @@ edict_t* UTIL_GetNearestUndefendedStructureOfTypeUnderAttack(bot_t* pBot, const 
 
 			if (NumPotentialDefenders >= 2) { continue; }
 
+			if (bByPlayersOnly && !UTIL_AnyPlayerOnTeamHasLOSToLocation(EnemyTeam, UTIL_GetCentreOfEntity(it.second.edict), UTIL_MetresToGoldSrcUnits(20.0f))) { continue; }
+
 			float ThisDist = (bIsMarine) ? UTIL_GetPhaseDistanceBetweenPointsSq(it.second.Location, pBot->pEdict->v.origin) : vDist2DSq(it.second.Location, pBot->pEdict->v.origin);
 
 			if (FNullEnt(Result) || ThisDist < MinDist)
@@ -2218,6 +2234,8 @@ edict_t* UTIL_GetNearestUndefendedStructureOfTypeUnderAttack(bot_t* pBot, const 
 			int NumPotentialDefenders = UTIL_GetNumPlayersOfTeamInArea(it.second.Location, UTIL_MetresToGoldSrcUnits(10.0f), pBot->pEdict->v.team, pBot->pEdict, CLASS_GORGE, bIsMarine);
 
 			if (NumPotentialDefenders >= 2) { continue; }
+
+			if (bByPlayersOnly && !UTIL_AnyPlayerOnTeamHasLOSToLocation(EnemyTeam, UTIL_GetCentreOfEntity(it.second.edict), UTIL_MetresToGoldSrcUnits(20.0f))) { continue; }
 
 			float ThisDist = (bIsMarine) ? UTIL_GetPhaseDistanceBetweenPointsSq(it.second.Location, pBot->pEdict->v.origin) : vDist2DSq(it.second.Location, pBot->pEdict->v.origin);
 
@@ -2291,7 +2309,7 @@ edict_t* UTIL_FindSafePlayerInArea(const int Team, const Vector SearchLocation, 
 
 			edict_t* DangerTurret = PlayerGetNearestDangerTurret(clients[i], UTIL_MetresToGoldSrcUnits(15.0f));
 
-			if (!FNullEnt(DangerTurret)) { continue; }
+			if (!FNullEnt(DangerTurret) && UTIL_QuickTrace(DangerTurret, GetPlayerTopOfCollisionHull(DangerTurret), clients[i]->v.origin)) { continue; }
 
 			int EnemyTeam = (Team == MARINE_TEAM) ? ALIEN_TEAM : MARINE_TEAM;
 
@@ -3427,7 +3445,7 @@ void UTIL_UpdateMarineItem(edict_t* Item, NSStructureType ItemType)
 
 	if (MarineDroppedItemMap[EntIndex].LastSeen == 0 || !vEquals(Item->v.origin, MarineDroppedItemMap[EntIndex].Location, 5.0f))
 	{
-		if (ItemType == ITEM_MARINE_SCAN)
+		if (ItemType == DEPLOYABLE_ITEM_MARINE_SCAN)
 		{
 			MarineDroppedItemMap[EntIndex].bOnNavMesh = true;
 			MarineDroppedItemMap[EntIndex].bIsReachableMarine = true;

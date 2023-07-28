@@ -3289,7 +3289,7 @@ void LadderMove(bot_t* pBot, const Vector StartPoint, const Vector EndPoint, flo
 				pBot->desiredMovementDir = vForward;
 
 				Vector LookLocation = EndPoint;
-				LookLocation.z = pBot->CurrentEyePosition.z + 32.0f;
+				LookLocation.z = pBot->CurrentEyePosition.z + 64.0f;
 
 				BotMoveLookAt(pBot, LookLocation);
 
@@ -3579,9 +3579,9 @@ bool IsBotOffPath(const bot_t* pBot)
 		if (vEquals(PointOnPath, MoveTo, 2.0f) && fabs(pBot->CurrentFloorPosition.z - MoveTo.z) > PlayerHeight)
 		{
 			return true;
-
-
 		}
+
+		if (vDistanceFromLine2D(MoveFrom, MoveTo, pBot->CurrentFloorPosition) > sqrf(200.0f)) { return true; }
 
 		return false;
 	}

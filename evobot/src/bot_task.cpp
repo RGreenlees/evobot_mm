@@ -2430,8 +2430,6 @@ void TASK_SetAttackTask(bot_t* pBot, bot_task* Task, edict_t* Target, const bool
 
 	UTIL_ClearBotTask(pBot, Task);
 
-	
-
 	Task->TaskType = TASK_ATTACK;
 	Task->TaskTarget = Target;
 	Task->bTaskIsUrgent = bIsUrgent;

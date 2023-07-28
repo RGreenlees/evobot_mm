@@ -495,7 +495,7 @@ void MarineSetSecondaryTask(bot_t* pBot, bot_task* Task)
 
 	if (Task->TaskType == TASK_DEFEND) { return; }
 
-	edict_t* AttackedStructure = UTIL_GetNearestUndefendedStructureOfTypeUnderAttack(pBot, STRUCTURE_ANY_MARINE_STRUCTURE);
+	edict_t* AttackedStructure = UTIL_GetNearestUndefendedStructureOfTypeUnderAttack(pBot, STRUCTURE_ANY_MARINE_STRUCTURE, true);
 
 	if (!FNullEnt(AttackedStructure))
 	{
@@ -544,7 +544,7 @@ void MarineSetSecondaryTask(bot_t* pBot, bot_task* Task)
 
 void MarineSetCombatModeSecondaryTask(bot_t* pBot, bot_task* Task)
 {
-	edict_t* AttackedStructure = UTIL_GetNearestUndefendedStructureOfTypeUnderAttack(pBot, STRUCTURE_ANY_MARINE_STRUCTURE);
+	edict_t* AttackedStructure = UTIL_GetNearestUndefendedStructureOfTypeUnderAttack(pBot, STRUCTURE_ANY_MARINE_STRUCTURE, true);
 
 	if (!FNullEnt(AttackedStructure) && vDist2DSq(pBot->pEdict->v.origin, AttackedStructure->v.origin) <= sqrf(UTIL_MetresToGoldSrcUnits(15.0f)))
 	{
@@ -572,7 +572,7 @@ void MarineSweeperSetSecondaryTask(bot_t* pBot, bot_task* Task)
 
 	if (Task->TaskType == TASK_DEFEND) { return; }
 
-	edict_t* AttackedStructure = UTIL_GetNearestUndefendedStructureOfTypeUnderAttack(pBot, STRUCTURE_ANY_MARINE_STRUCTURE);
+	edict_t* AttackedStructure = UTIL_GetNearestUndefendedStructureOfTypeUnderAttack(pBot, STRUCTURE_ANY_MARINE_STRUCTURE, true);
 
 	if (!FNullEnt(AttackedStructure))
 	{
@@ -655,7 +655,7 @@ void MarineCapperSetSecondaryTask(bot_t* pBot, bot_task* Task)
 		}
 	}
 
-	edict_t* ResourceTower = UTIL_GetNearestUndefendedStructureOfTypeUnderAttack(pBot, STRUCTURE_MARINE_RESTOWER);
+	edict_t* ResourceTower = UTIL_GetNearestUndefendedStructureOfTypeUnderAttack(pBot, STRUCTURE_MARINE_RESTOWER, true);
 
 	if (!FNullEnt(ResourceTower))
 	{
@@ -697,7 +697,7 @@ void MarineAssaultSetSecondaryTask(bot_t* pBot, bot_task* Task)
 		}
 	}
 
-	edict_t* AttackedPhaseGate = UTIL_GetNearestUndefendedStructureOfTypeUnderAttack(pBot, STRUCTURE_MARINE_PHASEGATE);
+	edict_t* AttackedPhaseGate = UTIL_GetNearestUndefendedStructureOfTypeUnderAttack(pBot, STRUCTURE_MARINE_PHASEGATE, true);
 
 	if (!FNullEnt(AttackedPhaseGate))
 	{
@@ -710,7 +710,7 @@ void MarineAssaultSetSecondaryTask(bot_t* pBot, bot_task* Task)
 		}
 	}
 
-	edict_t* AttackedTurretFactory = UTIL_GetNearestUndefendedStructureOfTypeUnderAttack(pBot, STRUCTURE_MARINE_ANYTURRETFACTORY);
+	edict_t* AttackedTurretFactory = UTIL_GetNearestUndefendedStructureOfTypeUnderAttack(pBot, STRUCTURE_MARINE_ANYTURRETFACTORY, true);
 
 	if (!FNullEnt(AttackedTurretFactory))
 	{
@@ -727,7 +727,7 @@ void MarineAssaultSetSecondaryTask(bot_t* pBot, bot_task* Task)
 	
 	if (UTIL_GetNearestHiveUnderSiege(pBot->pEdict->v.origin) != nullptr)
 	{
-		ResourceTower = UTIL_GetNearestUndefendedStructureOfTypeUnderAttack(pBot, STRUCTURE_MARINE_RESTOWER);
+		ResourceTower = UTIL_GetNearestUndefendedStructureOfTypeUnderAttack(pBot, STRUCTURE_MARINE_RESTOWER, true);
 	}
 
 	edict_t* WeldTargetStructure = nullptr;
