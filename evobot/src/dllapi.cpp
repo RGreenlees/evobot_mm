@@ -980,6 +980,7 @@ void StartFrame(void)
 				if (gpGlobals->time - last_structure_refresh_time >= structure_inventory_refresh_rate)
 				{
 					UTIL_RefreshBuildableStructures();
+					UTIL_RefreshResourceNodes();
 					last_structure_refresh_time = gpGlobals->time;
 				}
 

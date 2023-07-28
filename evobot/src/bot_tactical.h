@@ -94,6 +94,7 @@ void UTIL_UpdateMarineItem(edict_t* Item, NSStructureType ItemType);
 
 // Will cycle through all structures in the map and update the marine and alien buildable structure maps
 void UTIL_RefreshBuildableStructures();
+void UTIL_RefreshResourceNodes();
 
 void UTIL_RegisterNewMarineStructure(edict_t* Structure);
 void UTIL_UpdateMarineStructureDetails(edict_t* Structure);

@@ -658,6 +658,7 @@ bool UTIL_IsAlienCapResNodeTaskStillValid(bot_t* pBot, bot_task* Task)
 		return false;
 	}
 
+
 	if (ResNodeIndex->bIsOccupied)
 	{
 		if (IsPlayerGorge(pBot->pEdict))
@@ -674,7 +675,7 @@ bool UTIL_IsAlienCapResNodeTaskStillValid(bot_t* pBot, bot_task* Task)
 		}
 		else
 		{
-			return true;
+			return ResNodeIndex->bIsOwnedByMarines;
 		}
 	}
 	else

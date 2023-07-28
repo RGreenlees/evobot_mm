@@ -585,6 +585,49 @@ void PrintHiveInfo()
 	fclose(HiveLog);
 }
 
+void UTIL_RefreshResourceNodes()
+{
+	for (int i = 0; i < NumTotalResNodes; i++)
+	{
+		ResourceNodes[i].bIsOccupied = false;
+		ResourceNodes[i].TowerEdict = nullptr;
+		ResourceNodes[i].bIsOwnedByMarines = false;
+	}
+
+	for (auto it = MarineBuildableStructureMap.begin(); it != MarineBuildableStructureMap.end();)
+	{
+		if (it->second.StructureType == STRUCTURE_MARINE_RESTOWER)
+		{
+			int ResNodeIndex = UTIL_FindNearestResNodeIndexToLocation(it->second.Location);
+
+			if (ResNodeIndex > -1)
+			{
+				ResourceNodes[ResNodeIndex].bIsOccupied = true;
+				ResourceNodes[ResNodeIndex].TowerEdict = it->second.edict;
+				ResourceNodes[ResNodeIndex].bIsOwnedByMarines = true;
+			}
+		}
+
+		it++;
+	}
+
+	for (auto it = AlienBuildableStructureMap.begin(); it != AlienBuildableStructureMap.end();)
+	{
+		if (it->second.StructureType == STRUCTURE_ALIEN_RESTOWER)
+		{
+			int ResNodeIndex = UTIL_FindNearestResNodeIndexToLocation(it->second.Location);
+
+			if (ResNodeIndex > -1)
+			{
+				ResourceNodes[ResNodeIndex].bIsOccupied = true;
+				ResourceNodes[ResNodeIndex].TowerEdict = it->second.edict;
+				ResourceNodes[ResNodeIndex].bIsOwnedByMarines = false;
+			}
+		}
+		it++;
+	}
+}
+
 void UTIL_RefreshBuildableStructures()
 {
 	if (!NavmeshLoaded()) { return; }
@@ -705,19 +748,6 @@ void UTIL_RefreshBuildableStructures()
 	{
 		if (it->second.LastSeen < StructureRefreshFrame)
 		{
-			if (it->second.StructureType == STRUCTURE_MARINE_RESTOWER)
-			{
-				for (int i = 0; i < NumTotalResNodes; i++)
-				{
-					if (ResourceNodes[i].TowerEdict == it->second.edict)
-					{
-						ResourceNodes[i].TowerEdict = nullptr;
-						ResourceNodes[i].bIsOccupied = false;
-						ResourceNodes[i].bIsOwnedByMarines = false;
-					}
-				}
-			}
-
 			UTIL_OnStructureDestroyed(it->second.StructureType, it->second.Location);
 			UTIL_RemoveTemporaryObstacles(it->second.ObstacleRefs);
 			it = MarineBuildableStructureMap.erase(it);
@@ -732,18 +762,6 @@ void UTIL_RefreshBuildableStructures()
 	{
 		if (it->second.LastSeen < StructureRefreshFrame)
 		{
-			if (it->second.StructureType == STRUCTURE_ALIEN_RESTOWER)
-			{
-				for (int i = 0; i < NumTotalResNodes; i++)
-				{
-					if (ResourceNodes[i].TowerEdict == it->second.edict)
-					{
-						ResourceNodes[i].TowerEdict = nullptr;
-						ResourceNodes[i].bIsOccupied = false;
-						ResourceNodes[i].bIsOwnedByMarines = false;
-					}
-				}
-			}
 
 			UTIL_OnStructureDestroyed(it->second.StructureType, it->second.Location);
 			UTIL_RemoveTemporaryObstacles(it->second.ObstacleRefs);
@@ -815,20 +833,6 @@ void UTIL_OnStructureCreated(buildable_structure* NewStructure)
 					}
 				}
 			}
-		}
-	}
-
-	if (StructureType == STRUCTURE_MARINE_RESTOWER || StructureType == STRUCTURE_ALIEN_RESTOWER)
-	{
-
-		int NearestResNodeIndex = UTIL_FindNearestResNodeIndexToLocation(NewStructure->edict->v.origin);
-
-		if (NearestResNodeIndex > -1)
-		{
-			ResourceNodes[NearestResNodeIndex].bIsOccupied = true;
-			ResourceNodes[NearestResNodeIndex].bIsOwnedByMarines = bIsMarineStructure;
-			ResourceNodes[NearestResNodeIndex].TowerEdict = NewStructure->edict;
-			ResourceNodes[NearestResNodeIndex].bIsMarineBaseNode = false;
 		}
 	}
 
