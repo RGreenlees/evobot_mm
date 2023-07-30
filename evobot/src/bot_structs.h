@@ -389,8 +389,6 @@ typedef struct _BOT_T
 
 	commander_order LastPlayerOrders[32]; // All the orders the commander has issued to players
 
-	commander_action SecureHiveAction;
-	commander_action SiegeHiveAction;
 	commander_action BuildAction;
 	commander_action ResearchAction;
 	commander_action SupportAction;

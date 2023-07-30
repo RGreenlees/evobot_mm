@@ -79,8 +79,6 @@ bool UTIL_ResearchInProgress(NSResearch Research);
 bool UTIL_HasIdleArmsLab();
 edict_t* UTIL_GetFirstIdleArmsLab();
 
-void UTIL_LinkItem(bot_t* Commander, edict_t* Item);
-
 bool UTIL_CancelCommanderPlayerOrder(bot_t* Commander, int PlayerIndex);
 
 void UTIL_ClearCommanderAction(commander_action* Action);
@@ -121,7 +119,7 @@ const resource_node* COMM_GetResNodeCapOpportunityNearestLocation(const Vector S
 const hive_definition* COMM_GetEmptyHiveOpportunityNearestLocation(const Vector SearchLocation);
 const hive_definition* COMM_GetUnsecuredEmptyHiveNearestLocation(const Vector SearchLocation);
 const hive_definition* COMM_GetUnsecuredEmptyHiveFurthestToLocation(const Vector SearchLocation);
-const hive_definition* COMM_GetHiveSiegeOpportunityNearestLocation(const Vector SearchLocation);
+const hive_definition* COMM_GetHiveSiegeOpportunityNearestLocation(bot_t* CommanderBot, const Vector SearchLocation);
 
 void COMM_SetInfantryPortalBuildAction(edict_t* CommChair, commander_action* Action);
 void COMM_SetTurretBuildAction(edict_t* TurretFactory, commander_action* Action);
@@ -132,7 +130,7 @@ void COMM_SetElectrifyStructureAction(edict_t* Structure, commander_action* Acti
 Vector UTIL_GetNextTurretPosition(edict_t* TurretFactory);
 
 void COMM_SetNextSecureHiveAction(bot_t* CommanderBot, const hive_definition* Hive, commander_action* Action);
-void COMM_SetNextSiegeHiveAction(const hive_definition* Hive, commander_action* Action);
+void COMM_SetNextSiegeHiveAction(bot_t* CommanderBot, const hive_definition* Hive, commander_action* Action);
 void COMM_SetNextResearchAction(commander_action* Action);
 
 void COMM_SetNextBuildAction(bot_t* CommanderBot, commander_action* Action);

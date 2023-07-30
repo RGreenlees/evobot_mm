@@ -562,28 +562,6 @@ void ClientCommand(edict_t* pEntity)
 		RETURN_META(MRES_SUPERCEDE);
 	}
 
-	if (FStrEq(pcmd, "testcansiege"))
-	{
-		if (!NavmeshLoaded())
-		{
-			UTIL_SayText("Navmesh is not loaded", pEntity);
-			RETURN_META(MRES_SUPERCEDE);
-		}
-
-		const hive_definition* Hive = COMM_GetHiveSiegeOpportunityNearestLocation(UTIL_GetCommChairLocation());
-
-		if (Hive)
-		{
-			UTIL_SayText("True\n", pEntity);
-		}
-		else
-		{
-			UTIL_SayText("False\n", pEntity);
-		}
-
-		RETURN_META(MRES_SUPERCEDE);
-	}
-
 	if (FStrEq(pcmd, "bottaskinfo"))
 	{
 		if (!NavmeshLoaded())

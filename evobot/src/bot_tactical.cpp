@@ -3438,10 +3438,6 @@ void UTIL_UpdateMarineItem(edict_t* Item, NSStructureType ItemType)
 {
 	if (FNullEnt(Item)) { return; }
 
-	if (Item->v.solid != SOLID_TRIGGER) { return; }
-
-	if (Item->v.effects & EF_NODRAW) { return; }
-
 	int EntIndex = ENTINDEX(Item);
 	if (EntIndex < 0) { return; }
 

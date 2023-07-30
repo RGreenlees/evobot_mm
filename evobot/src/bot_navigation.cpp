@@ -3532,10 +3532,20 @@ bool IsBotOffPath(const bot_t* pBot)
 	if (pBot->BotNavInfo.PathSize == 0) { return false; }
 	
 
-	// If we're trying to use a phase gate, then we're fine as long as there is a phase gate within reach
+	// If we're trying to use a phase gate, then we're fine as long as there is a phase gate within reach at the start and end teleport points
 	if (pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].area == SAMPLE_POLYAREA_PHASEGATE)
 	{
-		return !UTIL_StructureOfTypeExistsInLocation(STRUCTURE_MARINE_PHASEGATE, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(2.0f));
+		if (!UTIL_StructureOfTypeExistsInLocation(STRUCTURE_MARINE_PHASEGATE, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(2.0f)))
+		{
+			return false;
+		}
+
+		if (!UTIL_StructureOfTypeExistsInLocation(STRUCTURE_MARINE_PHASEGATE, pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].Location, UTIL_MetresToGoldSrcUnits(2.0f)))
+		{
+			return false;
+		}
+
+		return true;
 	}
 
 	edict_t* pEdict = pBot->pEdict;
