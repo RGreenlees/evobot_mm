@@ -428,6 +428,7 @@ typedef struct _BOT_T
 	float LastCommanderRequestTime = 0.0f; // The last time this bot requested something from the commander. Prevents spam
 
 	float CommanderLastScanTime = 0.0f; // When the commander last dropped a scan, so it doesn't spam them
+	float CommanderLastBeaconTime = 0.0f; // When the last time commander used beacon was
 
 	NSWeapon DesiredCombatWeapon = WEAPON_NONE; // Bot's desired weapon at any given time. Will switch to it at the end of BotThink
 	NSWeapon DesiredMoveWeapon = WEAPON_NONE; // If the bot needs a particular weapon for movement (e.g. blink) then this overrides DesiredCombatWeapon so it doesn't interrupt the movement
@@ -447,8 +448,6 @@ typedef struct _BOT_T
 	float LastViewUpdateTime = 0.0f; // Used to throttle view updates based on ViewUpdateRate
 
 	bool bIsPendingKill = false; // Has the bot issued a "kill" command and it waiting for oblivion?
-
-	float CommanderLastBeaconTime = 0.0f; // When the last time commander used beacon was
 
 	float LastGestateAttemptTime = 0.0f; // When the bot last attempted to gestate (either evolve or get upgrade)
 

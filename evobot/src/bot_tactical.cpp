@@ -1306,6 +1306,28 @@ edict_t* UTIL_GetNearestPlayerOfTeamInArea(const Vector Location, const float Se
 	return Result;
 }
 
+int UTIL_GetNumPlayersOfTeamOfClassInArea(const Vector Location, const float SearchRadius, const int Team, edict_t* IgnorePlayer, NSPlayerClass SearchClass, bool bUsePhaseDist)
+{
+	int Result = 0;
+	float CheckDist = sqrf(SearchRadius);
+	float MinDist = 0.0f;
+
+	for (int i = 0; i < 32; i++)
+	{
+		if (!FNullEnt(clients[i]) && clients[i] != IgnorePlayer && clients[i]->v.team == Team && GetPlayerClass(clients[i]) == SearchClass && IsPlayerActiveInGame(clients[i]))
+		{
+			float ThisDist = (bUsePhaseDist) ? UTIL_GetPhaseDistanceBetweenPointsSq(clients[i]->v.origin, Location) : vDist2DSq(clients[i]->v.origin, Location);
+
+			if (ThisDist < CheckDist)
+			{
+				Result++;
+			}
+		}
+	}
+
+	return Result;
+}
+
 int UTIL_GetNumPlayersOfTeamInArea(const Vector Location, const float SearchRadius, const int Team, edict_t* IgnorePlayer, NSPlayerClass IgnoreClass, bool bUsePhaseDist)
 {
 	int Result = 0;
@@ -4169,23 +4191,25 @@ int UTIL_GetNumEquipmentInPlay()
 }
 
 bool UTIL_BaseIsInDistress()
-{
-	int NumAliens = UTIL_GetNumPlayersOfTeamInArea(UTIL_GetCommChairLocation(), UTIL_MetresToGoldSrcUnits(15.0f), ALIEN_TEAM, nullptr, CLASS_GORGE, false);
+{	
+	int NumSkulks = UTIL_GetNumPlayersOfTeamOfClassInArea(UTIL_GetCommChairLocation(), UTIL_MetresToGoldSrcUnits(10.0f), ALIEN_TEAM, nullptr, CLASS_SKULK, false);
+	int NumOnos = UTIL_GetNumPlayersOfTeamOfClassInArea(UTIL_GetCommChairLocation(), UTIL_MetresToGoldSrcUnits(10.0f), ALIEN_TEAM, nullptr, CLASS_ONOS, false);
+	int NumFades = UTIL_GetNumPlayersOfTeamOfClassInArea(UTIL_GetCommChairLocation(), UTIL_MetresToGoldSrcUnits(10.0f), ALIEN_TEAM, nullptr, CLASS_FADE, false);
 
-	if (NumAliens == 0) { return false; }
+	int NumTotalAliens = NumSkulks + NumOnos + NumFades;
 
-	int NumDefenders = UTIL_GetNumPlayersOfTeamInArea(UTIL_GetCommChairLocation(), UTIL_MetresToGoldSrcUnits(15.0f), MARINE_TEAM, nullptr, CLASS_NONE, false);
+	if (NumTotalAliens == 0) { return false; }
 
-	if (NumDefenders > 0) { return false; }
+	float AlienPower = ((float)NumSkulks * 0.5f) + ((float)NumOnos * 2.0f) + ((float)NumFades * 1.5f);
 
-	if (!UTIL_StructureExistsOfType(STRUCTURE_MARINE_INFANTRYPORTAL)) { return true; }
+	if (AlienPower < 2.0f) { return false; }
 
-	int NumOnos = UTIL_GetNumPlayersOfTeamInArea(UTIL_GetCommChairLocation(), UTIL_MetresToGoldSrcUnits(10.0f), ALIEN_TEAM, nullptr, CLASS_ONOS, false);
-	int NumFades = UTIL_GetNumPlayersOfTeamInArea(UTIL_GetCommChairLocation(), UTIL_MetresToGoldSrcUnits(10.0f), ALIEN_TEAM, nullptr, CLASS_FADE, false);
+	int NumDefenders = UTIL_GetNumPlayersOfTeamInArea(UTIL_GetCommChairLocation(), UTIL_MetresToGoldSrcUnits(15.0f), MARINE_TEAM, nullptr, CLASS_NONE, true);
 
-	float ActiveMarineRatio = (float)GAME_GetNumActivePlayersOnTeam(MARINE_TEAM) / (float)GAME_GetNumDeadPlayersOnTeam(MARINE_TEAM);
+	float MarinePower = (float)NumDefenders;
 
-	return (ActiveMarineRatio < 1.0f || (NumOnos >= 1 || NumFades >= 2 || NumAliens >= 3));
+	return (AlienPower > (MarinePower * 3.0f));
+
 }
 
 bool UTIL_ResearchIsComplete(const NSResearch Research)

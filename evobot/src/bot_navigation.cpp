@@ -3537,15 +3537,15 @@ bool IsBotOffPath(const bot_t* pBot)
 	{
 		if (!UTIL_StructureOfTypeExistsInLocation(STRUCTURE_MARINE_PHASEGATE, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(2.0f)))
 		{
-			return false;
+			return true;
 		}
 
 		if (!UTIL_StructureOfTypeExistsInLocation(STRUCTURE_MARINE_PHASEGATE, pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].Location, UTIL_MetresToGoldSrcUnits(2.0f)))
 		{
-			return false;
+			return true;
 		}
 
-		return true;
+		return false;
 	}
 
 	edict_t* pEdict = pBot->pEdict;

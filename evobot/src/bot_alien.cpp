@@ -853,37 +853,12 @@ void AlienDestroyerSetPrimaryTask(bot_t* pBot, bot_task* Task)
 		return;
 	}
 
-	/*
-	if (Task->TaskType != TASK_NONE) { return; }
+	// Take out the observatory first to prevent beacon and phase gates
+	edict_t* Obs = UTIL_GetFirstCompletedStructureOfType(STRUCTURE_MARINE_OBSERVATORY);
 
-	// If we only have 1 hive, check to see if we should swing by and check in, to avoid marines sneaking in and securing it
-	if (UTIL_GetNumActiveHives() < 2 && !IsPlayerOnos(pBot->pEdict))
+	if (Obs)
 	{
-		const hive_definition* HiveToGuard = UTIL_GetNearestHiveOfStatus(pBot->pEdict->v.origin, HIVE_STATUS_BUILDING);
-
-		if (!HiveToGuard)
-		{
-			HiveToGuard = UTIL_GetNearestHiveOfStatus(pBot->pEdict->v.origin, HIVE_STATUS_UNBUILT);
-		}
-
-		if (HiveToGuard && vDist2DSq(pBot->pEdict->v.origin, HiveToGuard->FloorLocation) > sqrf(UTIL_MetresToGoldSrcUnits(10.0f)))
-		{
-			if (Task->TaskType == TASK_GUARD) { return; }
-
-			if (UTIL_GetNumPlayersOfTeamInArea(HiveToGuard->FloorLocation, UTIL_MetresToGoldSrcUnits(20.0f), ALIEN_TEAM, pBot->pEdict, CLASS_GORGE, false) < 1)
-			{
-				Task->TaskType = TASK_GUARD;
-				Task->TaskLocation
-			}
-		}
-	}*/
-
-	// Focus on taking out phase gates to prevent reinforcements
-	edict_t* PhaseGate = UTIL_GetFirstCompletedStructureOfType(STRUCTURE_MARINE_PHASEGATE);
-
-	if (PhaseGate)
-	{
-		TASK_SetAttackTask(pBot, Task, PhaseGate, false);
+		TASK_SetAttackTask(pBot, Task, Obs, false);
 		return;
 	}
 
@@ -893,15 +868,6 @@ void AlienDestroyerSetPrimaryTask(bot_t* pBot, bot_task* Task)
 	if (Armslab)
 	{
 		TASK_SetAttackTask(pBot, Task, Armslab, false);
-		return;
-	}
-
-	// Then observatories
-	edict_t* Obs = UTIL_GetFirstCompletedStructureOfType(STRUCTURE_MARINE_OBSERVATORY);
-
-	if (Obs)
-	{
-		TASK_SetAttackTask(pBot, Task, Obs, false);
 		return;
 	}
 

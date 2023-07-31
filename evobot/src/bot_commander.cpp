@@ -834,16 +834,38 @@ void CommanderThink(bot_t* pBot)
 
 	if (bCommanderOnCooldown || COMM_IsWaitingOnBuildLink(pBot)) { return; }
 
-	COMM_UpdateAndClearCommanderActions(pBot);
-	COMM_UpdateAndClearCommanderOrders(pBot);
+	if ((gpGlobals->time - pBot->CommanderLastBeaconTime) > 10.0f && UTIL_ObservatoryResearchIsAvailable(RESEARCH_OBSERVATORY_DISTRESSBEACON) && UTIL_BaseIsInDistress())
+	{
+		if (pBot->ResearchAction.ActionType != ACTION_RESEARCH || pBot->ResearchAction.ResearchId != RESEARCH_OBSERVATORY_DISTRESSBEACON)
+		{
+			UTIL_ClearCommanderAction(&pBot->ResearchAction);
 
-	COMM_SetNextBuildAction(pBot, &pBot->BuildAction);
+			edict_t* Observatory = UTIL_GetFirstIdleStructureOfType(STRUCTURE_MARINE_OBSERVATORY);
 
-	COMM_SetNextSupportAction(pBot, &pBot->SupportAction);
+			if (!FNullEnt(Observatory))
+			{
+				pBot->ResearchAction.ActionType = ACTION_RESEARCH;
+				pBot->ResearchAction.ResearchId = RESEARCH_OBSERVATORY_DISTRESSBEACON;
+				pBot->ResearchAction.ActionTarget = Observatory;
+				BotTeamSay(pBot, 0.5f, "Going to beacon guys, base is in trouble");
+			}		
+		}
 
-	COMM_SetNextResearchAction(&pBot->ResearchAction);
+		pBot->CurrentAction = &pBot->ResearchAction;
+	}
+	else
+	{
+		COMM_UpdateAndClearCommanderActions(pBot);
+		COMM_UpdateAndClearCommanderOrders(pBot);
 
-	pBot->CurrentAction = COMM_GetNextAction(pBot);
+		COMM_SetNextBuildAction(pBot, &pBot->BuildAction);
+
+		COMM_SetNextSupportAction(pBot, &pBot->SupportAction);
+
+		COMM_SetNextResearchAction(&pBot->ResearchAction);
+
+		pBot->CurrentAction = COMM_GetNextAction(pBot);
+	}
 
 	COMM_CommanderProgressAction(pBot, pBot->CurrentAction);
 
