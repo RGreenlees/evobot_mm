@@ -2235,7 +2235,7 @@ edict_t* UTIL_GetNearestUndefendedStructureOfTypeUnderAttack(bot_t* pBot, const 
 
 			int NumPotentialDefenders = UTIL_GetNumPlayersOfTeamInArea(it.second.Location, UTIL_MetresToGoldSrcUnits(10.0f), pBot->pEdict->v.team, pBot->pEdict, CLASS_NONE, bIsMarine);
 
-			if (NumPotentialDefenders >= 2) { continue; }
+			if (NumPotentialDefenders >= 1) { continue; }
 
 			if (bByPlayersOnly && !UTIL_AnyPlayerOnTeamHasLOSToLocation(EnemyTeam, UTIL_GetCentreOfEntity(it.second.edict), UTIL_MetresToGoldSrcUnits(20.0f))) { continue; }
 
@@ -3460,6 +3460,14 @@ void UTIL_UpdateMarineItem(edict_t* Item, NSStructureType ItemType)
 {
 	if (FNullEnt(Item)) { return; }
 
+	// All items except scans are of interest only if they're collectable. Without this check, marines will attempt to grab weapons from other players.
+	if (ItemType != DEPLOYABLE_ITEM_MARINE_SCAN)
+	{
+		if (Item->v.solid != SOLID_TRIGGER) { return; }
+
+		if (Item->v.effects & EF_NODRAW) { return; }
+	}
+
 	int EntIndex = ENTINDEX(Item);
 	if (EntIndex < 0) { return; }
 
@@ -3569,9 +3577,11 @@ void UTIL_UpdateMarineStructureDetails(edict_t* Structure)
 			MarineBuildableStructureMap[EntIndex].bIsReachableAlien = false;
 			MarineBuildableStructureMap[EntIndex].bIsReachableOnos = false;
 		}
+
+		MarineBuildableStructureMap[EntIndex].Location = Structure->v.origin;
 	}
 
-	MarineBuildableStructureMap[EntIndex].Location = Structure->v.origin;
+	
 
 	MarineBuildableStructureMap[EntIndex].bFullyConstructed = !(Structure->v.iuser4 & MASK_BUILDABLE);
 	MarineBuildableStructureMap[EntIndex].bIsParasited = (Structure->v.iuser4 & MASK_PARASITED);
@@ -3665,9 +3675,11 @@ void UTIL_UpdateAlienStructureDetails(edict_t* Structure)
 			AlienBuildableStructureMap[EntIndex].bIsReachableAlien = false;
 			AlienBuildableStructureMap[EntIndex].bIsReachableOnos = false;
 		}
+
+		AlienBuildableStructureMap[EntIndex].Location = Structure->v.origin;
 	}
 
-	AlienBuildableStructureMap[EntIndex].Location = Structure->v.origin;
+	
 
 	AlienBuildableStructureMap[EntIndex].bFullyConstructed = !(Structure->v.iuser4 & MASK_BUILDABLE);
 	AlienBuildableStructureMap[EntIndex].bIsParasited = (Structure->v.iuser4 & MASK_PARASITED);
@@ -5089,7 +5101,7 @@ Vector UTIL_GetAmbushPositionForTarget2(bot_t* pBot, edict_t* Target)
 	return ZERO_VECTOR;
 }
 
-bool UTIL_IsHiveFullySecuredByMarines(const hive_definition* Hive)
+bool UTIL_IsHiveFullySecuredByMarines(bot_t* CommanderBot, const hive_definition* Hive)
 {
 	bool bPhaseGatesAvailable = UTIL_ResearchIsComplete(RESEARCH_OBSERVATORY_PHASETECH);
 
@@ -5128,5 +5140,11 @@ bool UTIL_IsHiveFullySecuredByMarines(const hive_definition* Hive)
 
 	}
 
-	return ((!bPhaseGatesAvailable || bHasPhaseGate) && bHasTurretFactory && bTurretFactoryElectrified && NumTurrets >= 5);
+	const resource_node* ResNode = UTIL_GetResourceNodeAtIndex(Hive->HiveResNodeIndex);
+
+	bool bSecuredResNode = (!ResNode || (ResNode->bIsOccupied && ResNode->bIsOwnedByMarines));
+
+	bool bShouldElectrifyResNode = (ResNode && bSecuredResNode && CommanderBot->resources > 100 && UTIL_ElectricalResearchIsAvailable(ResNode->TowerEdict));
+
+	return ((!bPhaseGatesAvailable || bHasPhaseGate) && bHasTurretFactory && bTurretFactoryElectrified && NumTurrets >= 5 && bSecuredResNode && !bShouldElectrifyResNode);
 }

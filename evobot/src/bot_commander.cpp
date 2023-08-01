@@ -232,16 +232,48 @@ void COMM_IssueMarineSecureHiveOrder(bot_t* CommanderBot, edict_t* Recipient, co
 
 	if (ClientIndex < 0) { return; }
 
-	Vector NearestPoint = FindClosestNavigablePointToDestination(MARINE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), HiveToSecure->FloorLocation, UTIL_MetresToGoldSrcUnits(10.0f));
+	bool bSecureResNode = true;
 
-	if (NearestPoint == ZERO_VECTOR || vDist2DSq(NearestPoint, HiveToSecure->FloorLocation) > sqrf(UTIL_MetresToGoldSrcUnits(10.0f)))
+	edict_t* TF = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ANYTURRETFACTORY, HiveToSecure->FloorLocation, UTIL_MetresToGoldSrcUnits(15.0f), true, false);
+
+	if (FNullEnt(TF) || !UTIL_StructureIsFullyBuilt(TF)) { bSecureResNode = false; }
+
+	bool bPhaseGatesAvailable = UTIL_ResearchIsComplete(RESEARCH_OBSERVATORY_PHASETECH);
+
+	if (bPhaseGatesAvailable)
 	{
-		NearestPoint = HiveToSecure->FloorLocation;
+		edict_t* PhaseGate = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_PHASEGATE, HiveToSecure->FloorLocation, UTIL_MetresToGoldSrcUnits(15.0f), true, false);
+
+		if (FNullEnt(PhaseGate) || !UTIL_StructureIsFullyBuilt(PhaseGate)) { bSecureResNode = false; }
 	}
 
-	float MaxDist = UTIL_MetresToGoldSrcUnits(10.0f) - vDist2D(NearestPoint, HiveToSecure->FloorLocation);
+	if (!FNullEnt(TF))
+	{
+		int NumTurrets = UTIL_GetNumBuiltStructuresOfTypeInRadius(STRUCTURE_MARINE_TURRET, TF->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
 
-	Vector OrderLocation = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, NearestPoint, MaxDist);
+		if (NumTurrets < 5) { bSecureResNode = false; }
+	}
+
+	Vector OrderLocation = ZERO_VECTOR;
+
+	const resource_node* ResNode = UTIL_GetResourceNodeAtIndex(HiveToSecure->HiveResNodeIndex);
+
+	if (bSecureResNode && ResNode)
+	{
+		
+		OrderLocation = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, ResNode->origin, UTIL_MetresToGoldSrcUnits(2.0f));
+	}
+	else
+	{
+		Vector NearestPoint = FindClosestNavigablePointToDestination(MARINE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), HiveToSecure->FloorLocation, UTIL_MetresToGoldSrcUnits(10.0f));
+
+		if (NearestPoint == ZERO_VECTOR || vDist2DSq(NearestPoint, HiveToSecure->FloorLocation) > sqrf(UTIL_MetresToGoldSrcUnits(10.0f)))
+		{
+			NearestPoint = HiveToSecure->FloorLocation;
+		}
+
+		OrderLocation = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, NearestPoint, UTIL_MetresToGoldSrcUnits(5.0f));
+	}
 
 	CommanderBot->LastPlayerOrders[ClientIndex].bIsActive = true;
 	CommanderBot->LastPlayerOrders[ClientIndex].MoveLocation = OrderLocation;
@@ -427,42 +459,49 @@ void COMM_UpdateAndClearCommanderOrders(bot_t* CommanderBot)
 
 	int MaxMarines = GAME_GetNumActivePlayersOnTeam(MARINE_TEAM);
 
-	const hive_definition* NearestEmptyHive = COMM_GetUnsecuredEmptyHiveNearestLocation(UTIL_GetCommChairLocation());
+	const hive_definition* NearestEmptyHive = COMM_GetUnsecuredEmptyHiveNearestLocation(CommanderBot, UTIL_GetCommChairLocation());
 
 	if (NearestEmptyHive != nullptr)
 	{
-		int NumMarines = COMM_GetNumMarinesSecuringHive(CommanderBot, NearestEmptyHive, UTIL_MetresToGoldSrcUnits(15.0f));
 
-		int MarineDeficit = 2 - NumMarines;
-
-		if (MarineDeficit > 0)
+		if (COMM_SecureHiveNeedsDeployment(CommanderBot, NearestEmptyHive))
 		{
-			edict_t* NearestMarine = COMM_GetNearestMarineWithoutOrder(CommanderBot, NearestEmptyHive->FloorLocation, UTIL_MetresToGoldSrcUnits(15.0f), UTIL_MetresToGoldSrcUnits(500.0f));
+			int NumMarines = COMM_GetNumMarinesSecuringHive(CommanderBot, NearestEmptyHive, UTIL_MetresToGoldSrcUnits(15.0f));
 
-			if (!FNullEnt(NearestMarine))
-			{
-				COMM_IssueMarineSecureHiveOrder(CommanderBot, NearestMarine, NearestEmptyHive);
-				return;
-			}
-		}		
+				int MarineDeficit = 2 - NumMarines;
+
+				if (MarineDeficit > 0)
+				{
+					edict_t* NearestMarine = COMM_GetNearestMarineWithoutOrder(CommanderBot, NearestEmptyHive->FloorLocation, UTIL_MetresToGoldSrcUnits(15.0f), UTIL_MetresToGoldSrcUnits(500.0f));
+
+						if (!FNullEnt(NearestMarine))
+						{
+							COMM_IssueMarineSecureHiveOrder(CommanderBot, NearestMarine, NearestEmptyHive);
+							return;
+						}
+				}
+		}
 	}
 
-	const hive_definition* FurthestEmptyHive = COMM_GetUnsecuredEmptyHiveFurthestToLocation(UTIL_GetCommChairLocation());
+	const hive_definition* FurthestEmptyHive = COMM_GetUnsecuredEmptyHiveFurthestToLocation(CommanderBot, UTIL_GetCommChairLocation());
 
 	if (FurthestEmptyHive != nullptr)
 	{
-		int NumMarines = COMM_GetNumMarinesSecuringHive(CommanderBot, FurthestEmptyHive, UTIL_MetresToGoldSrcUnits(15.0f));
-
-		int MarineDeficit = 2 - NumMarines;
-
-		if (MarineDeficit > 0)
+		if (COMM_SecureHiveNeedsDeployment(CommanderBot, FurthestEmptyHive))
 		{
-			edict_t* NearestMarine = COMM_GetNearestMarineWithoutOrder(CommanderBot, FurthestEmptyHive->FloorLocation, UTIL_MetresToGoldSrcUnits(15.0f), UTIL_MetresToGoldSrcUnits(500.0f));
+			int NumMarines = COMM_GetNumMarinesSecuringHive(CommanderBot, FurthestEmptyHive, UTIL_MetresToGoldSrcUnits(15.0f));
 
-			if (!FNullEnt(NearestMarine))
+			int MarineDeficit = 2 - NumMarines;
+
+			if (MarineDeficit > 0)
 			{
-				COMM_IssueMarineSecureHiveOrder(CommanderBot, NearestMarine, FurthestEmptyHive);
-				return;
+				edict_t* NearestMarine = COMM_GetNearestMarineWithoutOrder(CommanderBot, FurthestEmptyHive->FloorLocation, UTIL_MetresToGoldSrcUnits(15.0f), UTIL_MetresToGoldSrcUnits(500.0f));
+
+				if (!FNullEnt(NearestMarine))
+				{
+					COMM_IssueMarineSecureHiveOrder(CommanderBot, NearestMarine, FurthestEmptyHive);
+					return;
+				}
 			}
 		}
 	}
@@ -1774,7 +1813,7 @@ bool UTIL_IsMarineOrderComplete(bot_t* CommanderBot, int PlayerIndex)
 	switch (OrderPurpose)
 	{
 		case ORDERPURPOSE_SECURE_HIVE:
-			return COMM_IsSecureHiveOrderComplete(&CommanderBot->LastPlayerOrders[PlayerIndex]);
+			return COMM_IsSecureHiveOrderComplete(CommanderBot, &CommanderBot->LastPlayerOrders[PlayerIndex]);
 		case ORDERPURPOSE_SIEGE_HIVE:
 			return COMM_IsSiegeHiveOrderComplete(&CommanderBot->LastPlayerOrders[PlayerIndex]);
 		case ORDERPURPOSE_SECURE_RESNODE:
@@ -1787,13 +1826,13 @@ bool UTIL_IsMarineOrderComplete(bot_t* CommanderBot, int PlayerIndex)
 	return true;
 }
 
-bool COMM_IsSecureHiveOrderComplete(commander_order* Order)
+bool COMM_IsSecureHiveOrderComplete(bot_t* CommanderBot, commander_order* Order)
 {
 	const hive_definition* HiveToSecure = UTIL_GetNearestHiveAtLocation(Order->Target->v.origin);
 
 	if (!HiveToSecure) { return true; }
 
-	return UTIL_IsHiveFullySecuredByMarines(HiveToSecure);
+	return UTIL_IsHiveFullySecuredByMarines(CommanderBot, HiveToSecure);
 }
 
 bool COMM_IsSiegeHiveOrderComplete(commander_order* Order)
@@ -1972,7 +2011,7 @@ const resource_node* COMM_GetResNodeCapOpportunityNearestLocation(const Vector S
 	return Result;
 }
 
-const hive_definition* COMM_GetUnsecuredEmptyHiveFurthestToLocation(const Vector SearchLocation)
+const hive_definition* COMM_GetUnsecuredEmptyHiveFurthestToLocation(bot_t* CommanderBot, const Vector SearchLocation)
 {
 	const hive_definition* Result = nullptr;
 	float MaxDist = 0.0f;
@@ -1983,7 +2022,7 @@ const hive_definition* COMM_GetUnsecuredEmptyHiveFurthestToLocation(const Vector
 
 		if (Hive->Status != HIVE_STATUS_UNBUILT) { continue; }
 
-		if (UTIL_IsHiveFullySecuredByMarines(Hive)) { continue; }
+		if (UTIL_IsHiveFullySecuredByMarines(CommanderBot, Hive)) { continue; }
 
 		float ThisDist = vDist2DSq(Hive->FloorLocation, SearchLocation);
 
@@ -1998,7 +2037,7 @@ const hive_definition* COMM_GetUnsecuredEmptyHiveFurthestToLocation(const Vector
 	return Result;
 }
 
-const hive_definition* COMM_GetUnsecuredEmptyHiveNearestLocation(const Vector SearchLocation)
+const hive_definition* COMM_GetUnsecuredEmptyHiveNearestLocation(bot_t* CommanderBot, const Vector SearchLocation)
 {
 	const hive_definition* Result = nullptr;
 	float MinDist = 0.0f;
@@ -2009,7 +2048,7 @@ const hive_definition* COMM_GetUnsecuredEmptyHiveNearestLocation(const Vector Se
 
 		if (Hive->Status != HIVE_STATUS_UNBUILT) { continue; }
 
-		if (UTIL_IsHiveFullySecuredByMarines(Hive)) { continue; }
+		if (UTIL_IsHiveFullySecuredByMarines(CommanderBot, Hive)) { continue; }
 
 		float ThisDist = vDist2DSq(Hive->FloorLocation, SearchLocation);
 
@@ -2024,7 +2063,7 @@ const hive_definition* COMM_GetUnsecuredEmptyHiveNearestLocation(const Vector Se
 	return Result;
 }
 
-const hive_definition* COMM_GetEmptyHiveOpportunityNearestLocation(const Vector SearchLocation)
+const hive_definition* COMM_GetEmptyHiveOpportunityNearestLocation(bot_t* CommanderBot, const Vector SearchLocation)
 {
 	const hive_definition* Result = nullptr;
 	float MinDist = 0.0f;
@@ -2035,7 +2074,7 @@ const hive_definition* COMM_GetEmptyHiveOpportunityNearestLocation(const Vector 
 
 		if (Hive->Status != HIVE_STATUS_UNBUILT) { continue; }
 
-		if (UTIL_IsHiveFullySecuredByMarines(Hive)) { continue; }
+		if (UTIL_IsHiveFullySecuredByMarines(CommanderBot, Hive)) { continue; }
 
 		if (UTIL_FindSafePlayerInArea(MARINE_TEAM, Hive->Location, 0.0f, UTIL_MetresToGoldSrcUnits(10.0f)) == nullptr) { continue; }
 
@@ -2324,6 +2363,36 @@ Vector UTIL_GetNextTurretPosition(edict_t* TurretFactory)
 	return BuildLocation;
 }
 
+bool COMM_SecureHiveNeedsDeployment(bot_t* CommanderBot, const hive_definition* Hive)
+{
+	edict_t* TF = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ANYTURRETFACTORY, Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(15.0f), true, false);
+
+	if (FNullEnt(TF) || !UTIL_StructureIsFullyBuilt(TF)) { return true; }
+
+	bool bPhaseGatesAvailable = UTIL_ResearchIsComplete(RESEARCH_OBSERVATORY_PHASETECH);
+
+	if (bPhaseGatesAvailable)
+	{
+		edict_t* PhaseGate = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_PHASEGATE, Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(15.0f), true, false);
+
+		if (FNullEnt(PhaseGate) || !UTIL_StructureIsFullyBuilt(PhaseGate)) { return true; }
+	}
+
+	int NumTurrets = UTIL_GetNumBuiltStructuresOfTypeInRadius(STRUCTURE_MARINE_TURRET, TF->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
+
+	if (NumTurrets < 5) { return true; }
+
+	const resource_node* ResNode = UTIL_GetResourceNodeAtIndex(Hive->HiveResNodeIndex);
+
+	if (ResNode && (!ResNode->bIsOccupied || !ResNode->bIsOwnedByMarines))
+	{
+		return true;
+	}
+
+	return false;
+
+}
+
 void COMM_SetNextSecureHiveAction(bot_t* CommanderBot, const hive_definition* Hive, commander_action* Action)
 {	
 
@@ -2558,6 +2627,22 @@ void COMM_SetNextResearchAction(commander_action* Action)
 			Action->ActionType = ACTION_RESEARCH;
 			Action->ActionTarget = Observatory;
 			Action->ResearchId = RESEARCH_OBSERVATORY_PHASETECH;
+
+			return;
+		}
+	}
+
+	if (UTIL_ObservatoryResearchIsAvailable(RESEARCH_OBSERVATORY_MOTIONTRACKING))
+	{
+		if (Action->ActionType == ACTION_RESEARCH && Action->ResearchId == RESEARCH_OBSERVATORY_MOTIONTRACKING) { return; }
+
+		edict_t* Observatory = UTIL_GetFirstIdleStructureOfType(STRUCTURE_MARINE_OBSERVATORY);
+
+		if (!FNullEnt(Observatory))
+		{
+			Action->ActionType = ACTION_RESEARCH;
+			Action->ActionTarget = Observatory;
+			Action->ResearchId = RESEARCH_OBSERVATORY_MOTIONTRACKING;
 
 			return;
 		}
@@ -3118,7 +3203,7 @@ void COMM_SetNextBuildAction(bot_t* CommanderBot, commander_action* Action)
 		return;
 	}
 
-	const hive_definition* HiveToSecure = COMM_GetEmptyHiveOpportunityNearestLocation(UTIL_GetCommChairLocation());
+	const hive_definition* HiveToSecure = COMM_GetEmptyHiveOpportunityNearestLocation(CommanderBot, UTIL_GetCommChairLocation());
 
 	if (HiveToSecure)
 	{
@@ -3178,6 +3263,10 @@ void COMM_SetNextBuildAction(bot_t* CommanderBot, commander_action* Action)
 	if (HiveToSiege)
 	{
 		COMM_SetNextSiegeHiveAction(CommanderBot, HiveToSiege, Action);
+		if (Action->ActionType != ACTION_NONE)
+		{
+			Action->bIsActionUrgent = true;
+		}
 		return;
 	}
 

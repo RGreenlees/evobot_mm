@@ -82,7 +82,6 @@ void MarineThink(bot_t* pBot)
 		}
 	}
 
-
 	if (pBot->CurrentTask && pBot->CurrentTask->TaskType != TASK_NONE)
 	{
 		BotProgressTask(pBot, pBot->CurrentTask);
@@ -493,24 +492,31 @@ void MarineSetSecondaryTask(bot_t* pBot, bot_task* Task)
 		return;
 	}
 
-	if (Task->TaskType == TASK_DEFEND) { return; }
+	const hive_definition* UnsecuredHive = UTIL_GetNearestHiveOfStatus(pBot->pEdict->v.origin, HIVE_STATUS_UNBUILT);
 
-	edict_t* AttackedStructure = UTIL_GetNearestUndefendedStructureOfTypeUnderAttack(pBot, STRUCTURE_ANY_MARINE_STRUCTURE, true);
-
-	if (!FNullEnt(AttackedStructure))
+	if (!UnsecuredHive || vDist2DSq(UnsecuredHive->FloorLocation, pBot->pEdict->v.origin) > sqrf(UTIL_MetresToGoldSrcUnits(10.0f)))
 	{
-		NSStructureType AttackedStructureType = GetStructureTypeFromEdict(AttackedStructure);
+		if (Task->TaskType == TASK_DEFEND) { return; }
 
-		// Critical structure if it's in base, or it's a turret factory or phase gate
-		bool bCriticalStructure = (vDist2DSq(AttackedStructure->v.origin, UTIL_GetCommChairLocation()) <= sqrf(UTIL_MetresToGoldSrcUnits(15.0f))) || (UTIL_StructureTypesMatch(AttackedStructureType, STRUCTURE_MARINE_ANYTURRETFACTORY) || UTIL_StructureTypesMatch(AttackedStructureType, STRUCTURE_MARINE_PHASEGATE));
+		edict_t* AttackedStructure = UTIL_GetNearestUndefendedStructureOfTypeUnderAttack(pBot, STRUCTURE_ANY_MARINE_STRUCTURE, true);
 
-		// Always defend if it's critical structure regardless of distance
-		if (bCriticalStructure || UTIL_GetPhaseDistanceBetweenPointsSq(pBot->pEdict->v.origin, AttackedStructure->v.origin) <= sqrf(UTIL_MetresToGoldSrcUnits(30.0f)))
+		if (!FNullEnt(AttackedStructure))
 		{
-			TASK_SetDefendTask(pBot, Task, AttackedStructure, true);
-			return;
+			NSStructureType AttackedStructureType = GetStructureTypeFromEdict(AttackedStructure);
+
+			// Critical structure if it's in base, or it's a turret factory or phase gate
+			bool bCriticalStructure = (UTIL_StructureTypesMatch(AttackedStructureType, STRUCTURE_MARINE_ANYTURRETFACTORY) || UTIL_StructureTypesMatch(AttackedStructureType, STRUCTURE_MARINE_PHASEGATE));
+
+			// Always defend if it's critical structure regardless of distance
+			if (bCriticalStructure || UTIL_GetPhaseDistanceBetweenPointsSq(pBot->pEdict->v.origin, AttackedStructure->v.origin) <= sqrf(UTIL_MetresToGoldSrcUnits(30.0f)))
+			{
+				TASK_SetDefendTask(pBot, Task, AttackedStructure, true);
+				return;
+			}
 		}
 	}
+
+	
 
 	if (Task->TaskType == TASK_WELD) { return; }
 
@@ -1533,19 +1539,9 @@ BotRole MarineGetBestBotRole(const bot_t* pBot)
 	float ResTowerRatio = ((float)NumMarineResTowers / (float)NumTotalResNodes);
 
 	// If we own less than a third of the map, prioritise capping resource nodes
-	if (ResTowerRatio < 0.30f)
+	if (ResTowerRatio < 0.5f)
 	{
 		return BOT_ROLE_FIND_RESOURCES;
-	}
-
-	if (ResTowerRatio <= 0.5f)
-	{
-		float CapperRatio = ((float)NumCappers / (float)NumPlayersOnTeam);
-
-		if (CapperRatio < 0.2f)
-		{
-			return BOT_ROLE_FIND_RESOURCES;
-		}
 	}
 
 	return BOT_ROLE_ASSAULT;

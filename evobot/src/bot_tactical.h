@@ -61,12 +61,12 @@ typedef struct _DROPPED_MARINE_ITEM
 
 
 
-// How frequently to update the global list of built structures (in seconds)
+// How frequently to update the global list of built structures (in seconds). 0 = every frame
 static const float structure_inventory_refresh_rate = 0.2f;
 
 
 
-// How frequently to update the global list of dropped marine items (in seconds)
+// How frequently to update the global list of dropped marine items (in seconds). 0 = every frame
 static const float item_inventory_refresh_rate = 0.1f;
 
 
@@ -382,7 +382,7 @@ bool UTIL_IsAreaAffectedByUmbra(const Vector Location);
 Vector UTIL_GetAmbushPositionForTarget(bot_t* pBot, edict_t* Target);
 Vector UTIL_GetAmbushPositionForTarget2(bot_t* pBot, edict_t* Target);
 
-bool UTIL_IsHiveFullySecuredByMarines(const hive_definition* Hive);
+bool UTIL_IsHiveFullySecuredByMarines(bot_t* CommanderBot, const hive_definition* Hive);
 
 
 #endif

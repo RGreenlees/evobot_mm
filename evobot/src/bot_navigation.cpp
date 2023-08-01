@@ -3540,6 +3540,7 @@ bool IsBotOffPath(const bot_t* pBot)
 			return true;
 		}
 
+		// This checks to ensure the target phase gate hasn't been destroyed since the bot initially calculated its path. If so, then this will force it to calculate a new path
 		if (!UTIL_StructureOfTypeExistsInLocation(STRUCTURE_MARINE_PHASEGATE, pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].Location, UTIL_MetresToGoldSrcUnits(2.0f)))
 		{
 			return true;

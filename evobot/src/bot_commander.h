@@ -63,6 +63,7 @@ int COMM_GetNumMarinesAndOrdersInLocation(bot_t* CommanderBot, const Vector Loca
 
 edict_t* COMM_GetNearestMarineWithoutOrder(bot_t* CommanderBot, const Vector SearchLocation, float MinDistance, float MaxDistance);
 
+bool COMM_SecureHiveNeedsDeployment(bot_t* CommanderBot, const hive_definition* Hive);
 int COMM_GetNumMarinesSecuringHive(bot_t* CommanderBot, const hive_definition* Hive, float MaxDistance);
 int COMM_GetNumMarinesSiegingHive(bot_t* CommanderBot, const hive_definition* Hive, float MaxDistance);
 int COMM_GetNumMarinesSecuringResNode(bot_t* CommanderBot, const resource_node* ResNode, float MaxDistance);
@@ -103,7 +104,7 @@ bool UTIL_CancelMarineOrder(bot_t* CommanderBot, int CommanderOrderIndex);
 bool UTIL_IsMarineOrderComplete(bot_t* CommanderBot, int CommanderOrderIndex);
 bool UTIL_ConfirmMarineOrderComplete(bot_t* CommanderBot, int CommanderOrderIndex);
 
-bool COMM_IsSecureHiveOrderComplete(commander_order* Order);
+bool COMM_IsSecureHiveOrderComplete(bot_t* CommanderBot, commander_order* Order);
 bool COMM_IsSiegeHiveOrderComplete(commander_order* Order);
 bool COMM_IsSecureResNodeOrderComplete(commander_order* Order);
 
@@ -116,9 +117,9 @@ bool UTIL_ItemCanBeDeployed(NSDeployableItem ItemToDeploy);
 void COMM_ConfirmObjectDeployed(bot_t* pBot, commander_action* Action, edict_t* DeployedObject);
 
 const resource_node* COMM_GetResNodeCapOpportunityNearestLocation(const Vector SearchLocation);
-const hive_definition* COMM_GetEmptyHiveOpportunityNearestLocation(const Vector SearchLocation);
-const hive_definition* COMM_GetUnsecuredEmptyHiveNearestLocation(const Vector SearchLocation);
-const hive_definition* COMM_GetUnsecuredEmptyHiveFurthestToLocation(const Vector SearchLocation);
+const hive_definition* COMM_GetEmptyHiveOpportunityNearestLocation(bot_t* CommanderBot, const Vector SearchLocation);
+const hive_definition* COMM_GetUnsecuredEmptyHiveNearestLocation(bot_t* CommanderBot, const Vector SearchLocation);
+const hive_definition* COMM_GetUnsecuredEmptyHiveFurthestToLocation(bot_t* CommanderBot, const Vector SearchLocation);
 const hive_definition* COMM_GetHiveSiegeOpportunityNearestLocation(bot_t* CommanderBot, const Vector SearchLocation);
 
 void COMM_SetInfantryPortalBuildAction(edict_t* CommChair, commander_action* Action);
