@@ -1218,7 +1218,9 @@ void BotProgressReinforceStructureTask(bot_t* pBot, bot_task* Task)
 		{
 			float currDist = vDist2D(BuildLocation, TargetLocation);
 
-			Task->TaskLocation = UTIL_GetRandomPointOnNavmeshInRadius(GORGE_BUILD_NAV_PROFILE, BuildLocation, (UTIL_MetresToGoldSrcUnits(5.0f) - currDist));
+			float MaxDist = fmaxf(UTIL_MetresToGoldSrcUnits(1.0f), (UTIL_MetresToGoldSrcUnits(5.0f) - currDist));
+
+			Task->TaskLocation = UTIL_GetRandomPointOnNavmeshInRadius(GORGE_BUILD_NAV_PROFILE, BuildLocation, MaxDist);
 		}
 
 		if (Task->TaskLocation == ZERO_VECTOR) { return; }
