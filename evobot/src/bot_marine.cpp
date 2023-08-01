@@ -871,6 +871,10 @@ bool MarineCombatThink(bot_t* pBot)
 	{
 		if (DistFromEnemy < sqrf(100.0f))
 		{
+			if (IsBotReloading(pBot) && CanInterruptWeaponReload(GetBotCurrentWeapon(pBot)) && BotGetCurrentWeaponClipAmmo(pBot) > 0)
+			{
+				InterruptReload(pBot);
+			}
 			BotJump(pBot);
 		}
 	}

@@ -98,6 +98,7 @@ void BotThrowGrenadeAtTarget(bot_t* pBot, const Vector TargetPoint);
 void BotReloadWeapons(bot_t* pBot);
 
 bool IsBotReloading(bot_t* pBot);
+bool IsBotWeaponPlayingReloadAnimation(bot_t* pBot);
 
 void BotReloadCurrentWeapon(bot_t* pBot);
 

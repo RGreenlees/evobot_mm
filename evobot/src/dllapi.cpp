@@ -219,7 +219,7 @@ void ClientCommand(edict_t* pEntity)
 
 	if (FStrEq(pcmd, "testreload"))
 	{
-		NSWeapon CurrentWeapon = WEAPON_MARINE_PISTOL;
+		NSWeapon CurrentWeapon = WEAPON_MARINE_MG;
 
 		bool IsReloading = false;
 

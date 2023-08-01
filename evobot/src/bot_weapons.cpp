@@ -45,6 +45,40 @@ float UTIL_GetProjectileVelocityForWeapon(const NSWeapon Weapon)
 	}
 }
 
+bool CanInterruptWeaponReload(NSWeapon Weapon)
+{
+	switch (Weapon)
+	{
+		case WEAPON_MARINE_SHOTGUN:
+		case WEAPON_MARINE_GL:
+			return true;
+		default:
+			return false;
+	}
+
+	return false;
+}
+
+float GetReloadTimeForWeapon(NSWeapon Weapon)
+{
+	switch (Weapon)
+	{
+		case WEAPON_MARINE_PISTOL:
+		case WEAPON_MARINE_MG:
+			return 3.0f;
+		case WEAPON_MARINE_HMG:
+			return 6.3f;
+		case WEAPON_MARINE_SHOTGUN:
+			return 0.22f;
+		case WEAPON_MARINE_GL:
+			return 1.5f;
+		default:
+			return 0.0f;
+	}
+
+	return 0.0f;
+}
+
 float GetEnergyCostForWeapon(const NSWeapon Weapon)
 {
 	switch (Weapon)
@@ -97,6 +131,15 @@ float GetEnergyCostForWeapon(const NSWeapon Weapon)
 	default:
 		return 0.0f;
 	}
+}
+
+void InterruptReload(bot_t* pBot)
+{
+	pBot->bHasRequestedReload = false;
+	pBot->current_weapon.bIsReloading = false;
+	pBot->current_weapon.bReloadStartTime = 0.0f;
+
+	pBot->pEdict->v.button |= IN_ATTACK;
 }
 
 NSWeapon UTIL_GetBotAlienPrimaryWeapon(const bot_t* pBot)

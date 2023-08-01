@@ -737,14 +737,7 @@ void BotShootLocation(bot_t* pBot, NSWeapon AttackWeapon, const Vector TargetLoc
 
 	if (IsBotReloading(pBot))
 	{
-		if (BotGetCurrentWeaponClipAmmo(pBot) == BotGetCurrentWeaponMaxClipAmmo(pBot) || BotGetCurrentWeaponReserveAmmo(pBot) == 0)
-		{
-			pBot->current_weapon.bIsReloading = false;
-		}
-		else
-		{
-			return;
-		}
+		return;
 	}
 
 	Vector AimDir = UTIL_GetForwardVector(pBot->pEdict->v.v_angle);
@@ -771,9 +764,11 @@ void BotReloadCurrentWeapon(bot_t* pBot)
 
 	if (!IsBotReloading(pBot))
 	{
-		if (gpGlobals->time - pBot->LastUseTime > 0.5f)
+		if (gpGlobals->time - pBot->LastUseTime > 1.0f)
 		{
 			pBot->pEdict->v.button |= IN_RELOAD;
+			pBot->bHasRequestedReload = true;
+			pBot->LastUseTime = gpGlobals->time;
 		}
 	}
 }
@@ -920,28 +915,7 @@ void BotShootTarget(bot_t* pBot, NSWeapon AttackWeapon, edict_t* Target)
 
 	if (IsBotReloading(pBot))
 	{
-		if (IsEdictStructure(Target))
-		{
-			if (BotGetCurrentWeaponClipAmmo(pBot) == BotGetCurrentWeaponMaxClipAmmo(pBot) || BotGetCurrentWeaponReserveAmmo(pBot) == 0)
-			{
-				pBot->current_weapon.bIsReloading = false;
-			}
-			else
-			{
-				return;
-			}
-		}
-		else
-		{
-			if (BotGetCurrentWeaponClipAmmo(pBot) > 0)
-			{
-				pBot->current_weapon.bIsReloading = false;
-			}
-			else
-			{
-				return;
-			}
-		}
+		return;
 	}
 
 	Vector AimDir = UTIL_GetForwardVector(pBot->pEdict->v.v_angle);
@@ -984,7 +958,6 @@ void BotAttackTarget(bot_t* pBot, edict_t* Target)
 
 	if (AttackResult == ATTACK_OUTOFRANGE)
 	{
-		// Might need to duck if it's an infantry portal
 		if (vDist2DSq(pBot->pEdict->v.origin, Target->v.origin) < sqrf(max_player_use_reach))
 		{
 			pBot->pEdict->v.button |= IN_DUCK;
@@ -1168,10 +1141,8 @@ void BotThrowGrenadeAtTarget(bot_t* pBot, const Vector TargetPoint)
 	}
 }
 
-bool IsBotReloading(bot_t* pBot)
+bool IsBotWeaponPlayingReloadAnimation(bot_t* pBot)
 {
-	//return pBot->current_weapon.bIsReloading;
-
 	if (IsPlayerAlien(pBot->pEdict)) { return false; }
 
 	NSWeapon CurrentWeapon = GetBotCurrentWeapon(pBot);
@@ -1182,20 +1153,27 @@ bool IsBotReloading(bot_t* pBot)
 
 	switch (CurrentWeapon)
 	{
-		case WEAPON_MARINE_SHOTGUN:
-		case WEAPON_MARINE_PISTOL:
-			return (pBot->pEdict->v.weaponanim == 2 || pBot->pEdict->v.weaponanim == 3);
-		case WEAPON_MARINE_MG:
-			return pBot->pEdict->v.weaponanim == 2;
-		case WEAPON_MARINE_HMG:
-			return pBot->pEdict->v.weaponanim == 3;
-		case WEAPON_MARINE_GL:
-			return (pBot->pEdict->v.weaponanim == 1 || pBot->pEdict->v.weaponanim == 2 || pBot->pEdict->v.weaponanim == 4 || pBot->pEdict->v.weaponanim == 5 || pBot->pEdict->v.weaponanim == 6 || pBot->pEdict->v.weaponanim == 7);
-		default:
-			return false;
+	case WEAPON_MARINE_SHOTGUN:
+	case WEAPON_MARINE_PISTOL:
+		return (pBot->pEdict->v.weaponanim == 2 || pBot->pEdict->v.weaponanim == 3);
+	case WEAPON_MARINE_MG:
+		return pBot->pEdict->v.weaponanim == 2;
+	case WEAPON_MARINE_HMG:
+		return pBot->pEdict->v.weaponanim == 3;
+	case WEAPON_MARINE_GL:
+		return (pBot->pEdict->v.weaponanim == 1 || pBot->pEdict->v.weaponanim == 2 || pBot->pEdict->v.weaponanim == 4 || pBot->pEdict->v.weaponanim == 5 || pBot->pEdict->v.weaponanim == 6 || pBot->pEdict->v.weaponanim == 7);
+	default:
+		return false;
 	}
 
 	return false;
+}
+
+bool IsBotReloading(bot_t* pBot)
+{
+	return pBot->current_weapon.bIsReloading;
+
+	
 }
 
 void BotEvolveLifeform(bot_t* pBot, NSPlayerClass TargetLifeform)
@@ -1826,6 +1804,32 @@ void StartNewBotFrame(bot_t* pBot)
 	}
 
 	pBot->BotNavInfo.bHasAttemptedJump = false;
+
+	if (pBot->bHasRequestedReload)
+	{
+		if (IsBotWeaponPlayingReloadAnimation(pBot))
+		{
+			pBot->current_weapon.bIsReloading = true;
+			pBot->current_weapon.bReloadStartTime = gpGlobals->time;
+			pBot->bHasRequestedReload = false;
+		}
+	}
+
+	if (IsBotReloading(pBot))
+	{
+		float ReloadTime = GetReloadTimeForWeapon(GetBotCurrentWeapon(pBot));
+
+		if (gpGlobals->time - pBot->current_weapon.bReloadStartTime >= ReloadTime)
+		{
+			if (BotGetCurrentWeaponClipAmmo(pBot) == BotGetCurrentWeaponMaxClipAmmo(pBot) || BotGetCurrentWeaponReserveAmmo(pBot) == 0)
+			{
+				pBot->current_weapon.bIsReloading = false;
+				pBot->current_weapon.bReloadStartTime = 0.0f;
+				pBot->bHasRequestedReload = false;
+			}
+			
+		}
+	}
 }
 
 void BotThink(bot_t* pBot)
@@ -2131,7 +2135,13 @@ void CustomThink(bot_t* pBot)
 {
 	if (IsPlayerAlien(pBot->pEdict)) { return; }
 
-	RegularModeThink(pBot);
+	edict_t* DangerTurret = BotGetNearestDangerTurret(pBot, UTIL_MetresToGoldSrcUnits(100.0f));
+
+	if (!FNullEnt(DangerTurret))
+	{
+		BotAttackTarget(pBot, DangerTurret);
+		return;
+	}
 
 }
 
@@ -2320,6 +2330,8 @@ char* UTIL_WeaponTypeToClassname(const NSWeapon WeaponType)
 void BotSwitchToWeapon(bot_t* pBot, NSWeapon NewWeaponSlot)
 {
 	pBot->current_weapon.bIsReloading = false;
+	pBot->current_weapon.bReloadStartTime = 0.0f;
+	pBot->bHasRequestedReload = false;
 
 	char* WeaponName = UTIL_WeaponTypeToClassname(NewWeaponSlot);
 

@@ -157,7 +157,8 @@ typedef struct _BOT_CURRENT_WEAPON_T
 	int  iAmmo2Max = 0; // Max ammo in secondary reserve (not used in NS)
 	float MinRefireTime = 0.0f; // For non-automatic weapons, how frequently (in seconds) should the bot fire. 0 for automatic weapons.
 	float LastFireTime = 0.0f; // When bot last pressed the fire button. Only used if MinRefireTime > 0.
-	bool bIsReloading = false; // Is the bot in the process of reloading? Used for shotguns and GL to prevent reload-fire-reload-fire
+	bool bIsReloading = false; // Is this weapon currently being reloaded?
+	float bReloadStartTime = 0.0f; // When this weapon began reloading
 } bot_current_weapon_t;
 
 // Bot path node. A path will be several of these strung together to lead the bot to its destination
@@ -463,6 +464,8 @@ typedef struct _BOT_T
 	Vector LastPosition = ZERO_VECTOR;
 
 	bool bRetreatForHealth = false;
+
+	bool bHasRequestedReload = false; // Has the bot requested a reload?
 
 } bot_t;
 
