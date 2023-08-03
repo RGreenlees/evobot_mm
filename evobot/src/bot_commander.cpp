@@ -414,7 +414,7 @@ void CommanderReceiveAmmoRequest(bot_t* pBot, edict_t* Requestor)
 		return;
 	}
 
-	if (UTIL_GetItemCountOfTypeInArea(ITEM_MARINE_AMMO, Requestor->v.origin, UTIL_MetresToGoldSrcUnits(10.0f)) > 0)
+	if (UTIL_GetItemCountOfTypeInArea(DEPLOYABLE_ITEM_MARINE_AMMO, Requestor->v.origin, UTIL_MetresToGoldSrcUnits(10.0f)) > 0)
 	{
 		char buf[512];
 		sprintf(buf, "I've already dropped ammo there, %s", STRING(Requestor->v.netname));
@@ -3050,17 +3050,17 @@ void COMM_SetNextSupportAction(bot_t* CommanderBot, commander_action* Action)
 
 		if (CommanderBot->resources > 100)
 		{
-			bShouldDropHeavyArmour = UTIL_GetItemCountOfTypeInArea(ITEM_MARINE_HEAVYARMOUR, PrototypeLab->v.origin, UTIL_MetresToGoldSrcUnits(5.0f)) < 3;
-			bShouldDropHMG = UTIL_GetItemCountOfTypeInArea(ITEM_MARINE_HMG, AdvArmoury->v.origin, UTIL_MetresToGoldSrcUnits(5.0f)) < 3;
-			bShouldDropWelder = UTIL_GetItemCountOfTypeInArea(ITEM_MARINE_WELDER, AdvArmoury->v.origin, UTIL_MetresToGoldSrcUnits(5.0f)) < 3;
+			bShouldDropHeavyArmour = UTIL_GetItemCountOfTypeInArea(DEPLOYABLE_ITEM_MARINE_HEAVYARMOUR, PrototypeLab->v.origin, UTIL_MetresToGoldSrcUnits(5.0f)) < 3;
+			bShouldDropHMG = UTIL_GetItemCountOfTypeInArea(DEPLOYABLE_ITEM_MARINE_HMG, AdvArmoury->v.origin, UTIL_MetresToGoldSrcUnits(5.0f)) < 3;
+			bShouldDropWelder = UTIL_GetItemCountOfTypeInArea(DEPLOYABLE_ITEM_MARINE_WELDER, AdvArmoury->v.origin, UTIL_MetresToGoldSrcUnits(5.0f)) < 3;
 		}
 		else
 		{
 			edict_t* MarineNeedingLoadout = UTIL_GetNearestMarineWithoutFullLoadout(AdvArmoury->v.origin, UTIL_MetresToGoldSrcUnits(10.0f));
 
-			int NumHeavyArmour = UTIL_GetItemCountOfTypeInArea(ITEM_MARINE_HEAVYARMOUR, PrototypeLab->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
-			int NumHMG = UTIL_GetItemCountOfTypeInArea(ITEM_MARINE_HMG, AdvArmoury->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
-			int NumWelder = UTIL_GetItemCountOfTypeInArea(ITEM_MARINE_WELDER, AdvArmoury->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
+			int NumHeavyArmour = UTIL_GetItemCountOfTypeInArea(DEPLOYABLE_ITEM_MARINE_HEAVYARMOUR, PrototypeLab->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
+			int NumHMG = UTIL_GetItemCountOfTypeInArea(DEPLOYABLE_ITEM_MARINE_HMG, AdvArmoury->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
+			int NumWelder = UTIL_GetItemCountOfTypeInArea(DEPLOYABLE_ITEM_MARINE_WELDER, AdvArmoury->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
 
 			bShouldDropHeavyArmour = (!FNullEnt(MarineNeedingLoadout) && !PlayerHasEquipment(MarineNeedingLoadout) && NumHeavyArmour == 0);
 			bShouldDropHMG = (!FNullEnt(MarineNeedingLoadout) && !PlayerHasSpecialWeapon(MarineNeedingLoadout) && NumHMG == 0);
@@ -3103,7 +3103,7 @@ void COMM_SetNextSupportAction(bot_t* CommanderBot, commander_action* Action)
 
 	if (CommanderBot->resources > 100)
 	{
-		bShouldDropWelder = (UTIL_GetItemCountOfTypeInArea(ITEM_MARINE_WELDER, Armoury->v.origin, UTIL_MetresToGoldSrcUnits(5.0f)) < 3);
+		bShouldDropWelder = (UTIL_GetItemCountOfTypeInArea(DEPLOYABLE_ITEM_MARINE_WELDER, Armoury->v.origin, UTIL_MetresToGoldSrcUnits(5.0f)) < 3);
 	}
 	else
 	{
@@ -3134,7 +3134,7 @@ void COMM_SetNextSupportAction(bot_t* CommanderBot, commander_action* Action)
 
 	if (CommanderBot->resources > 100)
 	{
-		bShouldDropShotgun = (UTIL_GetItemCountOfTypeInArea(ITEM_MARINE_SHOTGUN, Armoury->v.origin, UTIL_MetresToGoldSrcUnits(5.0f)) < 3);
+		bShouldDropShotgun = (UTIL_GetItemCountOfTypeInArea(DEPLOYABLE_ITEM_MARINE_SHOTGUN, Armoury->v.origin, UTIL_MetresToGoldSrcUnits(5.0f)) < 3);
 	}
 	else
 	{

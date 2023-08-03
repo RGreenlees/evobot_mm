@@ -1273,7 +1273,7 @@ void MarineCheckWantsAndNeeds(bot_t* pBot)
 
 	if (bUrgentlyNeedsHealth)
 	{
-		edict_t* HealthPackIndex = UTIL_GetNearestItemIndexOfType(ITEM_MARINE_HEALTHPACK, pEdict->v.origin, UTIL_MetresToGoldSrcUnits(15.0f));
+		edict_t* HealthPackIndex = UTIL_GetNearestItemIndexOfType(DEPLOYABLE_ITEM_MARINE_HEALTHPACK, pEdict->v.origin, UTIL_MetresToGoldSrcUnits(15.0f));
 
 		if (HealthPackIndex)
 		{
@@ -1305,7 +1305,7 @@ void MarineCheckWantsAndNeeds(bot_t* pBot)
 	{
 		if (pBot->WantsAndNeedsTask.TaskType != TASK_GET_WEAPON)
 		{
-			NSDeployableItem ExcludeItem = (pBot->CurrentRole == BOT_ROLE_SWEEPER) ? ITEM_MARINE_GRENADELAUNCHER : ITEM_NONE;
+			NSStructureType ExcludeItem = (pBot->CurrentRole == BOT_ROLE_SWEEPER) ? DEPLOYABLE_ITEM_MARINE_GRENADELAUNCHER : STRUCTURE_NONE;
 
 			edict_t* NewWeaponIndex = UTIL_GetNearestSpecialPrimaryWeapon(pEdict->v.origin, ExcludeItem, UTIL_MetresToGoldSrcUnits(15.0f), true);
 
@@ -1346,7 +1346,7 @@ void MarineCheckWantsAndNeeds(bot_t* pBot)
 
 	if (bNeedsAmmo)
 	{
-		edict_t* AmmoPackIndex = UTIL_GetNearestItemIndexOfType(ITEM_MARINE_AMMO, pEdict->v.origin, UTIL_MetresToGoldSrcUnits(10.0f));
+		edict_t* AmmoPackIndex = UTIL_GetNearestItemIndexOfType(DEPLOYABLE_ITEM_MARINE_AMMO, pEdict->v.origin, UTIL_MetresToGoldSrcUnits(10.0f));
 
 		if (AmmoPackIndex)
 		{
@@ -1383,7 +1383,7 @@ void MarineCheckWantsAndNeeds(bot_t* pBot)
 	{
 		if (pBot->WantsAndNeedsTask.TaskType != TASK_GET_WEAPON)
 		{
-			edict_t* WelderIndex = UTIL_GetNearestItemIndexOfType(ITEM_MARINE_WELDER, pEdict->v.origin, UTIL_MetresToGoldSrcUnits(15.0f));
+			edict_t* WelderIndex = UTIL_GetNearestItemIndexOfType(DEPLOYABLE_ITEM_MARINE_WELDER, pEdict->v.origin, UTIL_MetresToGoldSrcUnits(15.0f));
 
 			if (WelderIndex)
 			{

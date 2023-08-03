@@ -11,6 +11,8 @@
 #include <extdll.h>
 #include <dllapi.h>
 
+#include <float.h>
+
 #include "player_util.h"
 #include "general_util.h"
 #include "bot_navigation.h"
@@ -112,7 +114,7 @@ edict_t* UTIL_GetNearestEquipment(const Vector Location, const float SearchDist,
 	{
 		if (!it.second.bOnNavMesh || !it.second.bIsReachableMarine) { continue; }
 		
-		if (it.second.ItemType != ITEM_MARINE_JETPACK && it.second.ItemType != ITEM_MARINE_HEAVYARMOUR) { continue; }
+		if (it.second.ItemType != DEPLOYABLE_ITEM_MARINE_JETPACK && it.second.ItemType != DEPLOYABLE_ITEM_MARINE_HEAVYARMOUR) { continue; }
 
 		float DistSq = (bUsePhaseDist) ? UTIL_GetPhaseDistanceBetweenPointsSq(it.second.Location, Location) : vDist2DSq(it.second.Location, Location);
 
@@ -295,7 +297,7 @@ edict_t* UTIL_GetClosestStructureAtLocation(const Vector& Location, bool bMarine
 	return Result;
 }
 
-edict_t* UTIL_GetNearestItemOfType(const NSDeployableItem ItemType, const Vector Location, const float SearchDist)
+edict_t* UTIL_GetNearestItemOfType(const NSStructureType ItemType, const Vector Location, const float SearchDist)
 {
 	float SearchDistSq = sqrf(SearchDist);
 	edict_t* Result = nullptr;
@@ -411,7 +413,7 @@ edict_t* UTIL_GetNearestUnbuiltStructureWithLOS(bot_t* pBot, const Vector Locati
 	return Result;
 }
 
-edict_t* UTIL_GetNearestItemIndexOfType(const NSDeployableItem ItemType, const Vector Location, const float SearchDist)
+edict_t* UTIL_GetNearestItemIndexOfType(const NSStructureType ItemType, const Vector Location, const float SearchDist)
 {
 	float SearchDistSq = sqrf(SearchDist);
 	edict_t* Result = nullptr;
@@ -436,7 +438,7 @@ edict_t* UTIL_GetNearestItemIndexOfType(const NSDeployableItem ItemType, const V
 	return Result;
 }
 
-edict_t* UTIL_GetNearestSpecialPrimaryWeapon(const Vector Location, const NSDeployableItem ExcludeItem, const float SearchDist, bool bUsePhaseDist)
+edict_t* UTIL_GetNearestSpecialPrimaryWeapon(const Vector Location, const NSStructureType ExcludeItem, const float SearchDist, bool bUsePhaseDist)
 {
 	float SearchDistSq = sqrf(SearchDist);
 	edict_t* Result = nullptr;
@@ -446,7 +448,7 @@ edict_t* UTIL_GetNearestSpecialPrimaryWeapon(const Vector Location, const NSDepl
 	{
 		if (!it.second.bOnNavMesh || !it.second.bIsReachableMarine) { continue; }
 
-		if (it.second.ItemType == ExcludeItem || (it.second.ItemType != ITEM_MARINE_HMG && it.second.ItemType != ITEM_MARINE_SHOTGUN && it.second.ItemType != ITEM_MARINE_GRENADELAUNCHER)) { continue; }
+		if (it.second.ItemType == ExcludeItem || (it.second.ItemType != DEPLOYABLE_ITEM_MARINE_HMG && it.second.ItemType != DEPLOYABLE_ITEM_MARINE_SHOTGUN && it.second.ItemType != DEPLOYABLE_ITEM_MARINE_GRENADELAUNCHER)) { continue; }
 
 		float DistSq = (bUsePhaseDist) ? UTIL_GetPhaseDistanceBetweenPointsSq(it.second.Location, Location) : vDist2DSq(it.second.Location, Location);
 
@@ -1799,7 +1801,7 @@ HiveStatusType UTIL_GetHiveStatus(const edict_t* Hive)
 	return HIVE_STATUS_UNBUILT;
 }
 
-int UTIL_GetItemCountOfTypeInArea(const NSDeployableItem ItemType, const Vector& SearchLocation, const float Radius)
+int UTIL_GetItemCountOfTypeInArea(const NSStructureType ItemType, const Vector& SearchLocation, const float Radius)
 {
 	int Result = 0;
 	float RadiusSq = sqrf(Radius);
@@ -3784,15 +3786,15 @@ NSWeapon UTIL_GetWeaponTypeFromEdict(const edict_t* ItemEdict)
 		{
 			switch (it.second.ItemType)
 			{
-			case ITEM_MARINE_WELDER:
+			case DEPLOYABLE_ITEM_MARINE_WELDER:
 				return WEAPON_MARINE_WELDER;
-			case ITEM_MARINE_HMG:
+			case DEPLOYABLE_ITEM_MARINE_HMG:
 				return WEAPON_MARINE_HMG;
-			case ITEM_MARINE_GRENADELAUNCHER:
+			case DEPLOYABLE_ITEM_MARINE_GRENADELAUNCHER:
 				return WEAPON_MARINE_GL;
-			case ITEM_MARINE_SHOTGUN:
+			case DEPLOYABLE_ITEM_MARINE_SHOTGUN:
 				return WEAPON_MARINE_SHOTGUN;
-			case ITEM_MARINE_MINES:
+			case DEPLOYABLE_ITEM_MARINE_MINES:
 				return WEAPON_MARINE_MINES;
 			default:
 				return WEAPON_NONE;
@@ -4222,8 +4224,8 @@ int UTIL_GetNumWeaponsOfTypeInPlay(const NSWeapon WeaponType)
 int UTIL_GetNumEquipmentInPlay()
 {
 
-	int NumPlacedEquipment = UTIL_GetItemCountOfTypeInArea(ITEM_MARINE_HEAVYARMOUR, UTIL_GetCommChairLocation(), UTIL_MetresToGoldSrcUnits(30.0f));
-	NumPlacedEquipment += UTIL_GetItemCountOfTypeInArea(ITEM_MARINE_JETPACK, UTIL_GetCommChairLocation(), UTIL_MetresToGoldSrcUnits(30.0f));
+	int NumPlacedEquipment = UTIL_GetItemCountOfTypeInArea(DEPLOYABLE_ITEM_MARINE_HEAVYARMOUR, UTIL_GetCommChairLocation(), UTIL_MetresToGoldSrcUnits(30.0f));
+	NumPlacedEquipment += UTIL_GetItemCountOfTypeInArea(DEPLOYABLE_ITEM_MARINE_JETPACK, UTIL_GetCommChairLocation(), UTIL_MetresToGoldSrcUnits(30.0f));
 	int NumUsedEquipment = 0;
 
 	for (int i = 0; i < 32; i++)
@@ -4573,23 +4575,23 @@ bool UTIL_IsStructureElectrified(const edict_t* Structure)
 	return (UTIL_StructureIsFullyBuilt(Structure) && !UTIL_StructureIsRecycling(Structure) && (Structure->v.deadflag == DEAD_NO) && (Structure->v.iuser4 & MASK_UPGRADE_11));
 }
 
-NSDeployableItem UTIL_WeaponTypeToDeployableItem(const NSWeapon WeaponType)
+NSStructureType UTIL_WeaponTypeToDeployableItem(const NSWeapon WeaponType)
 {
 	switch (WeaponType)
 	{
 	case WEAPON_MARINE_SHOTGUN:
-		return ITEM_MARINE_SHOTGUN;
+		return DEPLOYABLE_ITEM_MARINE_SHOTGUN;
 	case WEAPON_MARINE_GL:
-		return ITEM_MARINE_GRENADELAUNCHER;
+		return DEPLOYABLE_ITEM_MARINE_GRENADELAUNCHER;
 	case WEAPON_MARINE_HMG:
-		return ITEM_MARINE_HMG;
+		return DEPLOYABLE_ITEM_MARINE_HMG;
 	case WEAPON_MARINE_WELDER:
-		return ITEM_MARINE_WELDER;
+		return DEPLOYABLE_ITEM_MARINE_WELDER;
 	default:
-		return ITEM_NONE;
+		return STRUCTURE_NONE;
 	}
 
-	return ITEM_NONE;
+	return STRUCTURE_NONE;
 }
 
 

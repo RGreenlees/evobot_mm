@@ -2538,7 +2538,7 @@ void CheckAndHandleDoorObstruction(bot_t* pBot, const Vector MoveFrom, const Vec
 
 edict_t* UTIL_GetDoorBlockingPathPoint(bot_path_node* PathNode, edict_t* SearchDoor)
 {
-	if (!PathNode) { return false; }
+	if (!PathNode) { return nullptr; }
 
 	Vector FromLoc = PathNode->FromLocation;
 	Vector ToLoc = PathNode->Location;

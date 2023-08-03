@@ -110,7 +110,7 @@ int UTIL_GetStructureCountOfType(const NSStructureType StructureType);
 
 bool UTIL_StructureIsFullyBuilt(const edict_t* Structure);
 
-int UTIL_GetItemCountOfTypeInArea(const NSDeployableItem ItemType, const Vector& SearchLocation, const float Radius);
+int UTIL_GetItemCountOfTypeInArea(const NSStructureType ItemType, const Vector& SearchLocation, const float Radius);
 
 NSStructureType UTIL_GetItemTypeFromEdict(const edict_t* ItemEdict);
 NSWeapon UTIL_GetWeaponTypeFromEdict(const edict_t* ItemEdict);
@@ -172,10 +172,10 @@ buildable_structure* UTIL_GetBuildableStructureRefFromEdict(const edict_t* Struc
 
 edict_t* UTIL_GetClosestStructureAtLocation(const Vector& Location, bool bMarineStructures);
 
-edict_t* UTIL_GetNearestItemOfType(const NSDeployableItem ItemType, const Vector Location, const float SearchDist);
+edict_t* UTIL_GetNearestItemOfType(const NSStructureType ItemType, const Vector Location, const float SearchDist);
 
-edict_t* UTIL_GetNearestItemIndexOfType(const NSDeployableItem ItemType, const Vector Location, const float SearchDist);
-edict_t* UTIL_GetNearestSpecialPrimaryWeapon(const Vector Location, const NSDeployableItem ExcludeItem, const float SearchDist, bool bUsePhaseDist);
+edict_t* UTIL_GetNearestItemIndexOfType(const NSStructureType ItemType, const Vector Location, const float SearchDist);
+edict_t* UTIL_GetNearestSpecialPrimaryWeapon(const Vector Location, const NSStructureType ExcludeItem, const float SearchDist, bool bUsePhaseDist);
 edict_t* UTIL_GetNearestEquipment(const Vector Location, const float SearchDist, bool bUsePhaseDist);
 
 edict_t* UTIL_GetNearestUnbuiltStructureOfTeamInArea(const Vector Location, const float SearchDist, const int Team);
@@ -367,7 +367,7 @@ bool UTIL_StructureIsResearching(const edict_t* Structure);
 bool UTIL_StructureIsResearching(const edict_t* Structure, const NSResearch Research);
 bool UTIL_IsStructureElectrified(const edict_t* Structure);
 
-NSDeployableItem UTIL_WeaponTypeToDeployableItem(const NSWeapon WeaponType);
+NSStructureType UTIL_WeaponTypeToDeployableItem(const NSWeapon WeaponType);
 
 AvHUpgradeMask UTIL_GetResearchMask(const NSResearch Research);
 
