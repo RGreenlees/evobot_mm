@@ -345,6 +345,8 @@ bool UTIL_IsTaskStillValid(bot_t* pBot, bot_task* Task)
 		return UTIL_IsAlienHealTaskStillValid(pBot, Task);
 	case TASK_USE:
 		return true;
+	case TASK_SECURE_HIVE:
+		return UTIL_IsSecureHiveTaskStillValid(pBot, Task);
 	default:
 		return false;
 	}
@@ -882,6 +884,41 @@ bool UTIL_IsAlienHealTaskStillValid(bot_t* pBot, bot_task* Task)
 	float MaxHealRelevant = sqrf(UTIL_MetresToGoldSrcUnits(5.0f));
 
 	return (vDist2DSq(pBot->CurrentFloorPosition, Task->TaskTarget->v.origin) <= MaxHealRelevant);
+}
+
+bool UTIL_IsSecureHiveTaskStillValid(bot_t* pBot, bot_task* Task)
+{
+	if (FNullEnt(Task->TaskTarget) || GetStructureTypeFromEdict(Task->TaskTarget) != STRUCTURE_ALIEN_HIVE) { return false; }
+
+	const hive_definition* Hive = UTIL_GetHiveFromEdict(Task->TaskTarget);
+
+	if (!Hive || Hive->Status != HIVE_STATUS_UNBUILT) { return false; }
+
+	edict_t* TF = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ANYTURRETFACTORY, Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(15.0f), true, false);
+
+	if (FNullEnt(TF) || !UTIL_StructureIsFullyBuilt(TF)) { return true; }
+
+	bool bPhaseGatesAvailable = UTIL_ResearchIsComplete(RESEARCH_OBSERVATORY_PHASETECH);
+
+	if (bPhaseGatesAvailable)
+	{
+		edict_t* PhaseGate = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_PHASEGATE, Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(15.0f), true, false);
+
+		if (FNullEnt(PhaseGate) || !UTIL_StructureIsFullyBuilt(PhaseGate)) { return true; }
+	}
+
+	int NumTurrets = UTIL_GetNumBuiltStructuresOfTypeInRadius(STRUCTURE_MARINE_TURRET, TF->v.origin, UTIL_MetresToGoldSrcUnits(10.0f));
+
+	if (NumTurrets < 5) { return true; }
+
+	const resource_node* ResNode = UTIL_GetResourceNodeAtIndex(Hive->HiveResNodeIndex);
+
+	if (ResNode && (!ResNode->bIsOccupied || !ResNode->bIsOwnedByMarines))
+	{
+		return true;
+	}
+
+	return false;
 }
 
 void BotProgressMoveTask(bot_t* pBot, bot_task* Task)
@@ -2049,6 +2086,14 @@ void BotProgressTask(bot_t* pBot, bot_task* Task)
 	case TASK_HEAL:
 		AlienProgressHealTask(pBot, Task);
 		break;
+	case TASK_SECURE_HIVE:
+	{
+		if (IsPlayerMarine(pBot->pEdict))
+		{
+			MarineProgressSecureHiveTask(pBot, Task);
+		}
+	}
+	break;
 	default:
 		break;
 
@@ -2112,6 +2157,70 @@ void MarineProgressWeldTask(bot_t* pBot, bot_task* Task)
 	{
 		MoveTo(pBot, Task->TaskTarget->v.origin, MOVESTYLE_NORMAL);
 	}
+}
+
+void MarineProgressSecureHiveTask(bot_t* pBot, bot_task* Task)
+{
+	const hive_definition* Hive = UTIL_GetHiveFromEdict(Task->TaskTarget);
+
+	if (!Hive) { return; }
+
+	bool bWaitForBuildingPlacement = false;
+
+	edict_t* TF = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ANYTURRETFACTORY, Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(15.0f), true, false);
+
+	if (FNullEnt(TF) || !UTIL_StructureIsFullyBuilt(TF)) { bWaitForBuildingPlacement = true; }
+
+	bool bPhaseGatesAvailable = UTIL_ResearchIsComplete(RESEARCH_OBSERVATORY_PHASETECH);
+
+	if (bPhaseGatesAvailable && !bWaitForBuildingPlacement)
+	{
+		edict_t* PhaseGate = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_PHASEGATE, Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(15.0f), true, false);
+
+		if (FNullEnt(PhaseGate) || !UTIL_StructureIsFullyBuilt(PhaseGate)) { bWaitForBuildingPlacement = true; }
+	}
+
+	if (!bWaitForBuildingPlacement)
+	{
+		int NumTurrets = UTIL_GetNumBuiltStructuresOfTypeInRadius(STRUCTURE_MARINE_TURRET, TF->v.origin, UTIL_MetresToGoldSrcUnits(10.0f));
+
+		if (NumTurrets < 5) { bWaitForBuildingPlacement = true; }
+	}
+
+	if (bWaitForBuildingPlacement)
+	{
+		if (!FNullEnt(TF))
+		{
+			BotGuardLocation(pBot, TF->v.origin);
+		}
+		else
+		{
+			BotGuardLocation(pBot, Task->TaskLocation);
+		}
+		
+		return;
+	}
+
+	const resource_node* ResNode = UTIL_GetResourceNodeAtIndex(Hive->HiveResNodeIndex);
+
+	if (ResNode && !ResNode->bIsOwnedByMarines)
+	{
+		if (ResNode->bIsOccupied)
+		{
+			BotAttackTarget(pBot, ResNode->TowerEdict);
+		}
+		else
+		{
+			BotGuardLocation(pBot, ResNode->origin);
+		}
+
+		return;
+	}
+
+	BotGuardLocation(pBot, Task->TaskLocation);
+
+
+	
 }
 
 void MarineProgressCapResNodeTask(bot_t* pBot, bot_task* Task)
@@ -2411,6 +2520,8 @@ char* UTIL_TaskTypeToChar(const BotTaskType TaskType)
 		return "Evolve";
 	case TASK_REINFORCE_STRUCTURE:
 		return "Reinforce Structure";
+	case TASK_SECURE_HIVE:
+		return "Secure Hive";
 	default:
 		return "INVALID";
 	}
@@ -2724,4 +2835,21 @@ void TASK_SetReinforceStructureTask(bot_t* pBot, bot_task* Task, edict_t* Target
 	Task->TaskTarget = Target;
 	Task->bTaskIsUrgent = bIsUrgent;
 	Task->StructureType = FirstStructureType;
+}
+
+void TASK_SetSecureHiveTask(bot_t* pBot, bot_task* Task, edict_t* Target, const Vector WaitLocation, bool bIsUrgent)
+{
+	if (Task->TaskType == TASK_SECURE_HIVE && Target == Task->TaskTarget)
+	{
+		Task->bTaskIsUrgent = bIsUrgent;
+		Task->TaskLocation = WaitLocation;
+		return;
+	}
+
+	UTIL_ClearBotTask(pBot, Task);
+
+	Task->TaskType = TASK_SECURE_HIVE;
+	Task->TaskTarget = Target;
+	Task->bTaskIsUrgent = bIsUrgent;
+	Task->TaskLocation = WaitLocation;
 }

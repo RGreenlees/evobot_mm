@@ -112,7 +112,7 @@ int UTIL_FindClosestAvailableMarinePlayer(bot_t* CommanderBot, const Vector Loca
 
 int UTIL_GetNumArmouriesUpgrading();
 
-bool UTIL_ItemCanBeDeployed(NSDeployableItem ItemToDeploy);
+bool UTIL_ItemCanBeDeployed(NSStructureType ItemToDeploy);
 
 void COMM_ConfirmObjectDeployed(bot_t* pBot, commander_action* Action, edict_t* DeployedObject);
 

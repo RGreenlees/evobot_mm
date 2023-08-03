@@ -644,20 +644,41 @@ int COMM_GetNumMarinesSecuringHive(bot_t* CommanderBot, const hive_definition* H
 	{
 		if (IsPlayerMarine(clients[i]) && IsPlayerActiveInGame(clients[i]))
 		{
-			if (vDist2DSq(clients[i]->v.origin, Hive->FloorLocation) < MaxDistSq)
+			if (IsPlayerBot(clients[i]))
 			{
-				Result++;
-			}
-			else
-			{
-				if (CommanderBot->LastPlayerOrders[i].bIsActive)
+				bot_t* BotRef = GetBotPointer(clients[i]);
+
+				if (BotRef)
 				{
-					if (vDist2DSq(CommanderBot->LastPlayerOrders[i].MoveLocation, Hive->FloorLocation) <= MaxDistSq)
+					if (BotRef->CommanderTask.TaskType == TASK_SECURE_HIVE)
 					{
-						Result++;
+						const hive_definition* TaskHive = UTIL_GetHiveFromEdict(BotRef->CommanderTask.TaskTarget);
+
+						if (TaskHive == Hive)
+						{
+							Result++;
+						}
 					}
 				}
 			}
+			else
+			{
+				if (vDist2DSq(clients[i]->v.origin, Hive->FloorLocation) < MaxDistSq)
+				{
+					Result++;
+				}
+				else
+				{
+					if (CommanderBot->LastPlayerOrders[i].bIsActive)
+					{
+						if (vDist2DSq(CommanderBot->LastPlayerOrders[i].MoveLocation, Hive->FloorLocation) <= MaxDistSq)
+						{
+							Result++;
+						}
+					}
+				}
+			}
+			
 		}
 	}
 
@@ -680,7 +701,7 @@ edict_t* COMM_GetNearestMarineWithoutOrder(bot_t* CommanderBot, const Vector Sea
 			continue;
 		}
 
-		// Don't issue commands to bots acting as a sweeper, we want them to stay at base and build/guard
+		// Don't issue commands to bots acting as a sweeper or securing a hive, they have important stuff to do
 		if (IsPlayerBot(clients[i]))
 		{
 			bot_t* BotRef = GetBotPointer(clients[i]);
@@ -688,6 +709,8 @@ edict_t* COMM_GetNearestMarineWithoutOrder(bot_t* CommanderBot, const Vector Sea
 			if (BotRef)
 			{
 				if (BotRef->CurrentRole == BOT_ROLE_SWEEPER) { continue; }
+
+				if (BotRef->CommanderTask.TaskType == TASK_SECURE_HIVE) { continue; }
 			}
 		}
 
@@ -1014,8 +1037,6 @@ bool UTIL_IsCommanderActionValid(bot_t* CommanderBot, commander_action* Action)
 		}
 		return (UTIL_MarineResearchIsAvailable(Action->ResearchId) && !FNullEnt(Action->ActionTarget));
 	}
-	case ACTION_DROPITEM:
-		return FNullEnt(Action->StructureOrItem) && UTIL_ItemCanBeDeployed(Action->ItemToDeploy) && ((Action->BuildLocation != ZERO_VECTOR) || !FNullEnt(Action->ActionTarget));
 	case ACTION_GIVEORDER:
 		return Action->AssignedPlayer > -1;
 	default:
@@ -1951,25 +1972,25 @@ int UTIL_GetNumArmouriesUpgrading()
 	return Result;
 }
 
-bool UTIL_ItemCanBeDeployed(NSDeployableItem ItemToDeploy)
+bool UTIL_ItemCanBeDeployed(NSStructureType ItemToDeploy)
 {
 	switch (ItemToDeploy)
 	{
-	case ITEM_MARINE_AMMO:
-	case ITEM_MARINE_HEALTHPACK:
+	case DEPLOYABLE_ITEM_MARINE_AMMO:
+	case DEPLOYABLE_ITEM_MARINE_HEALTHPACK:
 		return true;
-	case ITEM_MARINE_MINES:
-	case ITEM_MARINE_WELDER:
-	case ITEM_MARINE_SHOTGUN:
+	case DEPLOYABLE_ITEM_MARINE_MINES:
+	case DEPLOYABLE_ITEM_MARINE_WELDER:
+	case DEPLOYABLE_ITEM_MARINE_SHOTGUN:
 		return (UTIL_GetFirstCompletedStructureOfType(STRUCTURE_MARINE_ANYARMOURY) != nullptr);
-	case ITEM_MARINE_GRENADELAUNCHER:
-	case ITEM_MARINE_HMG:
+	case DEPLOYABLE_ITEM_MARINE_GRENADELAUNCHER:
+	case DEPLOYABLE_ITEM_MARINE_HMG:
 		return (UTIL_GetFirstCompletedStructureOfType(STRUCTURE_MARINE_ADVARMOURY) != nullptr);
-	case ITEM_MARINE_HEAVYARMOUR:
+	case DEPLOYABLE_ITEM_MARINE_HEAVYARMOUR:
 		return UTIL_ResearchIsComplete(RESEARCH_PROTOTYPELAB_HEAVYARMOUR);
-	case ITEM_MARINE_JETPACK:
+	case DEPLOYABLE_ITEM_MARINE_JETPACK:
 		return UTIL_ResearchIsComplete(RESEARCH_PROTOTYPELAB_JETPACKS);
-	case ITEM_MARINE_SCAN:
+	case DEPLOYABLE_ITEM_MARINE_SCAN:
 		return UTIL_ObservatoryResearchIsAvailable(RESEARCH_OBSERVATORY_SCAN);
 	default:
 		return false;
@@ -2787,7 +2808,7 @@ void COMM_SetNextSiegeHiveAction(bot_t* CommanderBot, const hive_definition* Hiv
 		if (UTIL_StructureOfTypeExistsInLocation(STRUCTURE_MARINE_SIEGETURRET, TF->v.origin, UTIL_MetresToGoldSrcUnits(5.0f), true))
 		{
 			
-			if (UTIL_ItemCanBeDeployed(ITEM_MARINE_SCAN) && (gpGlobals->time - CommanderBot->CommanderLastScanTime > 10.0f))
+			if (UTIL_ItemCanBeDeployed(DEPLOYABLE_ITEM_MARINE_SCAN) && (gpGlobals->time - CommanderBot->CommanderLastScanTime > 10.0f))
 			{
 				if (Action->ActionType == ACTION_DEPLOY && Action->ActionTarget == Hive->edict && Action->StructureToBuild == DEPLOYABLE_ITEM_MARINE_SCAN) { return; }
 

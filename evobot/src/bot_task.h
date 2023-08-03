@@ -48,6 +48,7 @@ bool UTIL_IsReinforceHiveTaskStillValid(bot_t* pBot, bot_task* Task);
 
 bool UTIL_IsAlienGetHealthTaskStillValid(bot_t* pBot, bot_task* Task);
 bool UTIL_IsAlienHealTaskStillValid(bot_t* pBot, bot_task* Task);
+bool UTIL_IsSecureHiveTaskStillValid(bot_t* pBot, bot_task* Task);
 
 char* UTIL_TaskTypeToChar(const BotTaskType TaskType);
 
@@ -64,6 +65,7 @@ void TASK_SetUseTask(bot_t* pBot, bot_task* Task, edict_t* Target, const Vector 
 void TASK_SetTouchTask(bot_t* pBot, bot_task* Task, edict_t* Target, bool bIsUrgent);
 void TASK_SetReinforceStructureTask(bot_t* pBot, bot_task* Task, edict_t* Target, bool bIsUrgent);
 void TASK_SetReinforceStructureTask(bot_t* pBot, bot_task* Task, edict_t* Target, const NSStructureType FirstStructureType, bool bIsUrgent);
+void TASK_SetSecureHiveTask(bot_t* pBot, bot_task* Task, edict_t* Target, const Vector WaitLocation, bool bIsUrgent);
 
 void BotProgressTask(bot_t* pBot, bot_task* Task);
 
@@ -82,6 +84,8 @@ void BotProgressEvolveTask(bot_t* pBot, bot_task* Task);
 void MarineProgressBuildTask(bot_t* pBot, bot_task* Task);
 void MarineProgressCapResNodeTask(bot_t* pBot, bot_task* Task);
 void MarineProgressWeldTask(bot_t* pBot, bot_task* Task);
+
+void MarineProgressSecureHiveTask(bot_t* pBot, bot_task* Task);
 
 void AlienProgressGetHealthTask(bot_t* pBot, bot_task* Task);
 void AlienProgressHealTask(bot_t* pBot, bot_task* Task);

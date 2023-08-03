@@ -527,28 +527,6 @@ typedef enum
 
 } NSStructureType;
 
-
-// Items that the commander can place for marines to pick up. Also, weapons dropped by players
-typedef enum
-{
-	ITEM_NONE = 0,
-
-	ITEM_MARINE_RESUPPLY = 31, // For combat mode
-	ITEM_MARINE_HEAVYARMOUR = 38,
-	ITEM_MARINE_JETPACK = 39,
-	ITEM_MARINE_CATALYSTS = 47,
-	ITEM_MARINE_SCAN = 53,
-	ITEM_MARINE_HEALTHPACK = 59,
-	ITEM_MARINE_AMMO = 60,
-	ITEM_MARINE_MINES = 61,
-	ITEM_MARINE_WELDER = 62,
-	ITEM_MARINE_SHOTGUN = 64,
-	ITEM_MARINE_HMG = 65,
-	ITEM_MARINE_GRENADELAUNCHER = 66
-	
-
-} NSDeployableItem;
-
 // All player classes
 typedef enum
 {

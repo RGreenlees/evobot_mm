@@ -69,7 +69,6 @@ typedef enum _COMMANDERACTIONTYPE
 	ACTION_UPGRADE,
 	ACTION_RESEARCH,
 	ACTION_RECYCLE,
-	ACTION_DROPITEM,
 	ACTION_GIVEORDER,
 	ACTION_DEPLOY // Deploy a structure or item into the map
 
@@ -105,7 +104,8 @@ typedef enum
 	TASK_COMMAND,
 	TASK_USE,
 	TASK_TOUCH,
-	TASK_REINFORCE_STRUCTURE
+	TASK_REINFORCE_STRUCTURE,
+	TASK_SECURE_HIVE
 }
 BotTaskType;
 
@@ -264,7 +264,6 @@ typedef struct _COMMANDER_ACTION
 	float StructureBuildAttemptTime = 0.0f; // When the commander tried placing a structure. Commander will wait a short while to confirm if the building appeared or if it should try again
 	int NumActionAttempts = 0; // Commander will give up after a certain number of attempts to place structure/item
 	NSResearch ResearchId = RESEARCH_NONE; // What research to perform if research action
-	NSDeployableItem ItemToDeploy = ITEM_NONE; // What item to drop if drop item action
 	bool bIsAwaitingBuildLink = false; // The AI has tried placing a structure or item and is waiting to confirm it worked or not
 	bool bIsActionUrgent = false;
 

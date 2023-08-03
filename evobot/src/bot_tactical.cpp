@@ -2194,6 +2194,71 @@ const resource_node* UTIL_AlienFindUnclaimedResNodeFurthestFromLocation(const bo
 	return nullptr;
 }
 
+edict_t* UTIL_GetNearestUndefendedStructureOfType(bot_t* pBot, const NSStructureType StructureType)
+{
+	edict_t* Result = nullptr;
+	float MinDist = 0.0f;
+
+	bool bIsMarine = IsPlayerMarine(pBot->pEdict);
+
+	int EnemyTeam = (bIsMarine) ? ALIEN_TEAM : MARINE_TEAM;
+
+	bool bMarineStructure = UTIL_IsMarineStructure(StructureType);
+
+	if (bMarineStructure)
+	{
+
+		for (auto& it : MarineBuildableStructureMap)
+		{
+			if (!it.second.bOnNavmesh) { continue; }
+			if (!UTIL_StructureTypesMatch(StructureType, it.second.StructureType)) { continue; }
+
+			if (it.second.StructureType == STRUCTURE_MARINE_TURRETFACTORY)
+			{
+				int NumTurrets = UTIL_GetNumBuiltStructuresOfTypeInRadius(STRUCTURE_MARINE_TURRET, it.second.Location, UTIL_MetresToGoldSrcUnits(5.0f));
+
+				if (NumTurrets >= 3) { continue; }
+			}
+
+			int NumPotentialDefenders = UTIL_GetNumPlayersOfTeamInArea(it.second.Location, UTIL_MetresToGoldSrcUnits(10.0f), pBot->pEdict->v.team, pBot->pEdict, CLASS_NONE, bIsMarine);
+
+			if (NumPotentialDefenders >= 1) { continue; }
+
+			float ThisDist = (bIsMarine) ? UTIL_GetPhaseDistanceBetweenPointsSq(it.second.Location, pBot->pEdict->v.origin) : vDist2DSq(it.second.Location, pBot->pEdict->v.origin);
+
+			if (FNullEnt(Result) || ThisDist < MinDist)
+			{
+				Result = it.second.edict;
+				MinDist = ThisDist;
+			}
+
+		}
+
+	}
+	else
+	{
+		for (auto& it : AlienBuildableStructureMap)
+		{
+			if (!it.second.bUnderAttack || !it.second.bOnNavmesh) { continue; }
+			if (!UTIL_StructureTypesMatch(StructureType, it.second.StructureType)) { continue; }
+
+			int NumPotentialDefenders = UTIL_GetNumPlayersOfTeamInArea(it.second.Location, UTIL_MetresToGoldSrcUnits(10.0f), pBot->pEdict->v.team, pBot->pEdict, CLASS_GORGE, bIsMarine);
+
+			if (NumPotentialDefenders >= 1) { continue; }
+
+			float ThisDist = (bIsMarine) ? UTIL_GetPhaseDistanceBetweenPointsSq(it.second.Location, pBot->pEdict->v.origin) : vDist2DSq(it.second.Location, pBot->pEdict->v.origin);
+
+			if (FNullEnt(Result) || ThisDist < MinDist)
+			{
+				Result = it.second.edict;
+				MinDist = ThisDist;
+			}
+		}
+	}
+
+	return Result;
+}
+
 edict_t* UTIL_GetNearestUndefendedStructureOfTypeUnderAttack(bot_t* pBot, const NSStructureType StructureType, bool bByPlayersOnly)
 {
 	edict_t* Result = nullptr;
@@ -4887,41 +4952,41 @@ const char* UTIL_ResearchTypeToChar(const NSResearch ResearchType)
 	return "INVALID";
 }
 
-const char* UTIL_DroppableItemTypeToChar(const NSDeployableItem ItemType)
+const char* UTIL_DroppableItemTypeToChar(const NSStructureType ItemType)
 {
 	switch (ItemType)
 	{
-	case ITEM_MARINE_AMMO:
+	case DEPLOYABLE_ITEM_MARINE_AMMO:
 		return "Ammo";
 		break;
-	case ITEM_MARINE_HEALTHPACK:
+	case DEPLOYABLE_ITEM_MARINE_HEALTHPACK:
 		return "Healthpack";
 		break;
-	case ITEM_MARINE_CATALYSTS:
+	case DEPLOYABLE_ITEM_MARINE_CATALYSTS:
 		return "Catalysts";
 		break;
-	case ITEM_MARINE_GRENADELAUNCHER:
+	case DEPLOYABLE_ITEM_MARINE_GRENADELAUNCHER:
 		return "Grenade Launcher";
 		break;
-	case ITEM_MARINE_HEAVYARMOUR:
+	case DEPLOYABLE_ITEM_MARINE_HEAVYARMOUR:
 		return "Heavy Armour";
 		break;
-	case ITEM_MARINE_HMG:
+	case DEPLOYABLE_ITEM_MARINE_HMG:
 		return "HMG";
 		break;
-	case ITEM_MARINE_JETPACK:
+	case DEPLOYABLE_ITEM_MARINE_JETPACK:
 		return "Jetpack";
 		break;
-	case ITEM_MARINE_MINES:
+	case DEPLOYABLE_ITEM_MARINE_MINES:
 		return "Mines";
 		break;
-	case ITEM_MARINE_SCAN:
+	case DEPLOYABLE_ITEM_MARINE_SCAN:
 		return "Scan";
 		break;
-	case ITEM_MARINE_SHOTGUN:
+	case DEPLOYABLE_ITEM_MARINE_SHOTGUN:
 		return "Shotgun";
 		break;
-	case ITEM_MARINE_WELDER:
+	case DEPLOYABLE_ITEM_MARINE_WELDER:
 		return "Welder";
 		break;
 	default:

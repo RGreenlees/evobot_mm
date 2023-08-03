@@ -181,6 +181,16 @@ void BotMarineSetPrimaryTask(bot_t* pBot, bot_task* Task)
 		return;
 	}
 
+	edict_t* UndefendedTF = UTIL_GetNearestUndefendedStructureOfType(pBot, STRUCTURE_MARINE_TURRETFACTORY);
+
+	if (!FNullEnt(UndefendedTF))
+	{
+		if (Task->TaskType == TASK_DEFEND && Task->TaskTarget == UndefendedTF) { return; }
+
+		TASK_SetDefendTask(pBot, Task, UndefendedTF, false);
+		return;
+	}
+
 	switch (pBot->CurrentRole)
 	{
 	case BOT_ROLE_SWEEPER:
@@ -1083,7 +1093,18 @@ void BotReceiveMoveToOrder(bot_t* pBot, Vector destination)
 	}
 	else
 	{
-		TASK_SetMoveTask(pBot, &pBot->CommanderTask, destination, false);
+		const hive_definition* HiveRef = UTIL_GetNearestHiveAtLocation(destination);
+		
+		if (HiveRef && HiveRef->Status == HIVE_STATUS_UNBUILT && vDist2DSq(HiveRef->Location, destination) <= sqrf(UTIL_MetresToGoldSrcUnits(15.0f)))
+		{
+			TASK_SetSecureHiveTask(pBot, &pBot->CommanderTask, HiveRef->edict, destination, false);
+		}
+		else
+		{
+			TASK_SetMoveTask(pBot, &pBot->CommanderTask, destination, false);
+		}
+
+		
 	}
 
 	pBot->CommanderTask.bIssuedByCommander = true;
