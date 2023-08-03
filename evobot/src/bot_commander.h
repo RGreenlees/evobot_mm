@@ -124,7 +124,7 @@ const hive_definition* COMM_GetHiveSiegeOpportunityNearestLocation(bot_t* Comman
 
 void COMM_SetInfantryPortalBuildAction(edict_t* CommChair, commander_action* Action);
 void COMM_SetTurretBuildAction(edict_t* TurretFactory, commander_action* Action);
-void COMM_SetSiegeTurretBuildAction(edict_t* TurretFactory, commander_action* Action, const Vector SiegeTarget);
+void COMM_SetSiegeTurretBuildAction(edict_t* TurretFactory, commander_action* Action, const Vector SiegeTarget, bool bIsUrgent);
 
 void COMM_SetElectrifyStructureAction(edict_t* Structure, commander_action* Action);
 

@@ -2135,13 +2135,7 @@ void CustomThink(bot_t* pBot)
 {
 	if (IsPlayerAlien(pBot->pEdict)) { return; }
 
-	edict_t* DangerTurret = BotGetNearestDangerTurret(pBot, UTIL_MetresToGoldSrcUnits(100.0f));
-
-	if (!FNullEnt(DangerTurret))
-	{
-		BotAttackTarget(pBot, DangerTurret);
-		return;
-	}
+	RegularModeThink(pBot);
 
 }
 

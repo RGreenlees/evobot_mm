@@ -2519,10 +2519,6 @@ void TASK_SetBuildTask(bot_t* pBot, bot_task* Task, const NSStructureType Struct
 			BotTeamSay(pBot, 1.0f, buf);
 		}
 	}
-	else
-	{
-		UTIL_DrawLine(GAME_GetListenServerEdict(), pBot->pEdict->v.origin, Location, 1.0f, 255, 0, 0);
-	}
 }
 
 void TASK_SetBuildTask(bot_t* pBot, bot_task* Task, edict_t* StructureToBuild, const bool bIsUrgent)

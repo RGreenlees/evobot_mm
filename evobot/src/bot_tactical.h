@@ -238,6 +238,7 @@ edict_t* UTIL_GetNearestPlayerOfClass(const Vector Location, const NSPlayerClass
 
 // Returns the index of the closest hive to the search location that has a phase gate within siege range of it (-1 if no hive found)
 const hive_definition* UTIL_GetNearestHiveUnderSiege(const Vector SearchLocation);
+const hive_definition* UTIL_GetNearestHiveUnderActiveSiege(const Vector SearchLocation);
 
 bool UTIL_IsAnyHumanNearLocation(const Vector& Location, const float SearchDist);
 bool UTIL_IsAnyHumanNearLocationWithoutEquipment(const Vector& Location, const float SearchDist);

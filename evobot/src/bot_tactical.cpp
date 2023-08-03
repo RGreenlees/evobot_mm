@@ -1819,6 +1819,8 @@ int UTIL_GetItemCountOfTypeInArea(const NSDeployableItem ItemType, const Vector&
 
 bool UTIL_StructureIsFullyBuilt(const edict_t* Structure)
 {
+	if (FNullEnt(Structure)) { return false; }
+
 	NSStructureType StructureType = GetStructureTypeFromEdict(Structure);
 
 	if (StructureType == STRUCTURE_ALIEN_HIVE)
@@ -2749,6 +2751,42 @@ Vector UTIL_GetNearestPointOfInterestToLocation(const Vector SearchLocation, boo
 	}
 
 	return Result;
+}
+
+const hive_definition* UTIL_GetNearestHiveUnderActiveSiege(const Vector SearchLocation)
+{
+	int Result = -1;
+	float MinDist = 0.0f;
+
+	for (int i = 0; i < NumTotalHives; i++)
+	{
+		if (Hives[i].Status == HIVE_STATUS_UNBUILT) { continue; }
+
+		edict_t* AdvTF = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ADVTURRETFACTORY, Hives[i].Location, UTIL_MetresToGoldSrcUnits(20.0f), true, false);
+
+		if (!FNullEnt(AdvTF))
+		{
+			if (UTIL_StructureOfTypeExistsInLocation(STRUCTURE_MARINE_SIEGETURRET, AdvTF->v.origin, UTIL_MetresToGoldSrcUnits(5.0f), true))
+			{
+				float ThisDist = vDist2DSq(SearchLocation, Hives[i].Location);
+
+				if (Result < 0 || ThisDist < MinDist)
+				{
+					Result = i;
+					MinDist = ThisDist;
+				}
+			}
+		}
+
+		
+	}
+
+	if (Result > -1)
+	{
+		return &Hives[Result];
+	}
+
+	return nullptr;
 }
 
 const hive_definition* UTIL_GetNearestHiveUnderSiege(const Vector SearchLocation)
