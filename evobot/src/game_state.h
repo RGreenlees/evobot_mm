@@ -53,6 +53,7 @@ void GAME_HandleFillTeams();
 void GAME_HandleManualFillTeams();
 void GAME_HandleTeamBalance();
 
+int GAME_GetNumBotsInGame();
 int GAME_GetNumBotsOnTeam(const int Team);
 void GAME_AddBotToTeam(const int Team);
 void GAME_RemoveBotFromTeam(const int Team);

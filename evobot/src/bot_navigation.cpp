@@ -2154,7 +2154,7 @@ dtStatus FindPathClosestToPoint(bot_t* pBot, const BotMoveStyle MoveStyle, const
 	TraceResult hit;
 	Vector TraceStart;
 
-	Vector NodeFromLocation = ZERO_VECTOR;
+	Vector NodeFromLocation = Vector(StartNearest[0], -StartNearest[2], StartNearest[1]);
 
 	for (int nVert = 0; nVert < nVertCount; nVert++)
 	{
@@ -3551,14 +3551,23 @@ bool IsBotOffPath(const bot_t* pBot)
 
 	edict_t* pEdict = pBot->pEdict;
 
+	Vector MoveTo = pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].Location;
+
 	Vector MoveFrom = pBot->CurrentFloorPosition;
 
 	if (pBot->BotNavInfo.CurrentPathPoint > 0)
 	{
 		MoveFrom = pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint - 1].Location;
 	}
+	else
+	{
+		if (!UTIL_PointIsDirectlyReachable(MoveFrom, MoveTo))
+		{
+			return true;
+		}
+	}
 
-	Vector MoveTo = pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].Location;
+	
 
 	float PlayerRadiusSq = sqrf(GetPlayerRadius(pBot->pEdict));
 	float PlayerHeight = GetPlayerHeight(pBot->pEdict, false);
@@ -3581,18 +3590,28 @@ bool IsBotOffPath(const bot_t* pBot)
 	if (pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].area == SAMPLE_POLYAREA_GROUND || pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].area == SAMPLE_POLYAREA_CROUCH)
 	{
 
+		bool bAtMoveStart = vEquals(PointOnPath, MoveFrom, 2.0f);
+
+
 		// If we're on the from or to move points, but the height is significantly different, we must be under or over the path somehow
-		if (vEquals(PointOnPath, MoveFrom, 2.0f) && fabs(pBot->CurrentFloorPosition.z - MoveFrom.z) > PlayerHeight)
+		if (bAtMoveStart && fabs(pBot->CurrentFloorPosition.z - MoveFrom.z) > PlayerHeight)
 		{
 			return true;
 		}
 
-		if (vEquals(PointOnPath, MoveTo, 2.0f) && fabs(pBot->CurrentFloorPosition.z - MoveTo.z) > PlayerHeight)
+		bool bAtMoveEnd = vEquals(PointOnPath, MoveTo, 2.0f);
+
+		if (bAtMoveEnd && fabs(pBot->CurrentFloorPosition.z - MoveTo.z) > PlayerHeight)
 		{
 			return true;
 		}
 
-		if (vDistanceFromLine2D(MoveFrom, MoveTo, pBot->CurrentFloorPosition) > sqrf(200.0f)) { return true; }
+		float MaxDist = (bAtMoveStart || bAtMoveEnd) ? 50.0f : 200.0f;
+
+		if (vDistanceFromLine2D(MoveFrom, MoveTo, pBot->CurrentFloorPosition) > sqrf(MaxDist))
+		{ 
+			return true;
+		}
 
 		return false;
 	}
@@ -4669,7 +4688,6 @@ bool AbortCurrentMove(bot_t* pBot, const Vector NewDestination)
 
 	if (area == SAMPLE_POLYAREA_GROUND || area == SAMPLE_POLYAREA_CROUCH)
 	{
-
 		if (bReverseCourse)
 		{
 			GroundMove(pBot, MoveTo, MoveFrom);
@@ -5364,6 +5382,16 @@ void BotFollowFlightPath(bot_t* pBot)
 	{
 		BotRecalcPath(pBot, BotNavInfo->ActualMoveDestination);
 		return;
+	}
+
+
+	if (IsBotStuck(pBot, CurrentMoveDest))
+	{
+		if (BotNavInfo->TotalStuckTime > 3.0f)
+		{
+			ClearBotPath(pBot);
+			return;
+		}
 	}
 
 	float Velocity = vSize2DSq(pBot->pEdict->v.velocity);

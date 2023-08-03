@@ -918,13 +918,15 @@ bool MarineCombatThink(bot_t* pBot)
 			if (!EngagementLocation || EngagementLocationDist < sqrf(MinDesiredDist) || PerformAttackLOSCheck(EngagementLocation + Vector(0.0f, 0.0f, 50.0f), DesiredCombatWeapon, CurrentEnemy) != ATTACK_SUCCESS)
 			{
 				int MoveProfile = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
-				EngagementLocation = UTIL_GetRandomPointOnNavmeshInRadius(MoveProfile, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
+				EngagementLocation = UTIL_GetRandomPointOnNavmeshInRadius(MoveProfile, CurrentEnemy->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
 
-				if (EngagementLocation != ZERO_VECTOR && PerformAttackLOSCheck(EngagementLocation + Vector(0.0f, 0.0f, 50.0f), DesiredCombatWeapon, CurrentEnemy) == ATTACK_SUCCESS)
+				if (EngagementLocation != ZERO_VECTOR && PerformAttackLOSCheck(EngagementLocation + Vector(0.0f, 0.0f, 50.0f), DesiredCombatWeapon, CurrentEnemy) != ATTACK_SUCCESS)
 				{
-					MoveTo(pBot, EngagementLocation, MOVESTYLE_NORMAL);
+					EngagementLocation = ZERO_VECTOR;
 				}
 			}
+
+			MoveTo(pBot, EngagementLocation, MOVESTYLE_NORMAL);
 			return true;
 		}
 
