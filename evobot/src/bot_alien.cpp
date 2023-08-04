@@ -29,6 +29,18 @@ void AlienThink(bot_t* pBot)
 
 	if (!pBot->CurrentTask) { pBot->CurrentTask = &pBot->PrimaryBotTask; }
 
+	if (gpGlobals->time < pBot->NextTaskEvaluation)
+	{
+		if (pBot->CurrentTask && pBot->CurrentTask->TaskType != TASK_NONE)
+		{
+			BotProgressTask(pBot, pBot->CurrentTask);
+		}
+
+		return;
+	}
+
+	pBot->NextTaskEvaluation = gpGlobals->time + frandrange(0.2f, 0.5f);
+
 	BotUpdateAndClearTasks(pBot);
 
 	if (pBot->PrimaryBotTask.TaskType == TASK_NONE || !pBot->PrimaryBotTask.bTaskIsUrgent)
@@ -1247,7 +1259,7 @@ void SkulkCombatThink(bot_t* pBot)
 		return;
 	}
 
-	MoveTo(pBot, TrackedEnemyRef->LastSeenLocation, MOVESTYLE_AMBUSH);
+	MoveTo(pBot, TrackedEnemyRef->LastFloorPosition, MOVESTYLE_AMBUSH);
 	
 }
 
@@ -1328,7 +1340,7 @@ void FadeCombatThink(bot_t* pBot)
 	// If the enemy is not visible
 	if (!TrackedEnemyRef->bHasLOS)
 	{
-		MoveTo(pBot, TrackedEnemyRef->LastSeenLocation, MOVESTYLE_NORMAL);
+		MoveTo(pBot, TrackedEnemyRef->LastFloorPosition, MOVESTYLE_NORMAL);
 
 		return;
 	}
@@ -1653,11 +1665,11 @@ void LerkCombatThink(bot_t* pBot)
 		// Target doesn't have any backup, go for the kill
 		if (!TrackedEnemyRef->LastLOSPosition || vDist2DSq(pBot->pEdict->v.origin, TrackedEnemyRef->LastLOSPosition) > sqrf(UTIL_MetresToGoldSrcUnits(5.0f)))
 		{
-			MoveTo(pBot, TrackedEnemyRef->LastSeenLocation, MOVESTYLE_NORMAL);
+			MoveTo(pBot, TrackedEnemyRef->LastFloorPosition, MOVESTYLE_NORMAL);
 		}
 		else
 		{
-			MoveTo(pBot, TrackedEnemyRef->LastSeenLocation, MOVESTYLE_HIDE);
+			MoveTo(pBot, TrackedEnemyRef->LastFloorPosition, MOVESTYLE_HIDE);
 		}
 
 		return;
@@ -1806,7 +1818,7 @@ void OnosCombatThink(bot_t* pBot)
 	// If the enemy is not visible
 	if (!TrackedEnemyRef->bHasLOS)
 	{
-		MoveTo(pBot, TrackedEnemyRef->LastSeenLocation, MOVESTYLE_NORMAL);
+		MoveTo(pBot, TrackedEnemyRef->LastFloorPosition, MOVESTYLE_NORMAL);
 
 		return;
 	}

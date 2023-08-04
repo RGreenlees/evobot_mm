@@ -48,6 +48,8 @@ EvobotDebugMode CurrentDebugMode = EVO_DEBUG_NONE;
 
 NSGameMode CurrentGameMode = GAME_MODE_NONE;
 
+bool bUseComplexFOV = true;
+
 EvobotDebugMode GAME_GetDebugMode()
 {
 	return CurrentDebugMode;
@@ -716,6 +718,16 @@ void GAME_HandleManualFillTeams()
 			return;
 		}
 	}
+}
+
+bool GAME_UseComplexFOV()
+{
+	return bUseComplexFOV;
+}
+
+void GAME_SetUseComplexFOV(bool bNewValue)
+{
+	bUseComplexFOV = bNewValue;
 }
 
 int GAME_GetNumBotsInGame()

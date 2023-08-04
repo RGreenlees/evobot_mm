@@ -39,17 +39,17 @@ void BotUpdateViewFrustum(bot_t* pBot)
 
 	Vector fc = (pBot->pEdict->v.origin + pBot->pEdict->v.view_ofs) + (forward * BOT_MAX_VIEW);
 
-	Vector fbl = fc + (up * f_ffheight / 2.0f) - (right * f_ffwidth / 2.0f);
-	Vector fbr = fc + (up * f_ffheight / 2.0f) + (right * f_ffwidth / 2.0f);
-	Vector ftl = fc - (up * f_ffheight / 2.0f) - (right * f_ffwidth / 2.0f);
-	Vector ftr = fc - (up * f_ffheight / 2.0f) + (right * f_ffwidth / 2.0f);
+	Vector fbl = fc + (up * f_ffheight * 0.5f) - (right * f_ffwidth * 0.5f);
+	Vector fbr = fc + (up * f_ffheight * 0.5f) + (right * f_ffwidth * 0.5f);
+	Vector ftl = fc - (up * f_ffheight * 0.5f) - (right * f_ffwidth * 0.5f);
+	Vector ftr = fc - (up * f_ffheight * 0.5f) + (right * f_ffwidth * 0.5f);
 
 	Vector nc = (pBot->pEdict->v.origin + pBot->pEdict->v.view_ofs) + (forward * BOT_MIN_VIEW);
 
-	Vector nbl = nc + (up * f_fnheight / 2.0f) - (right * f_fnwidth / 2.0f);
-	Vector nbr = nc + (up * f_fnheight / 2.0f) + (right * f_fnwidth / 2.0f);
-	Vector ntl = nc - (up * f_fnheight / 2.0f) - (right * f_fnwidth / 2.0f);
-	Vector ntr = nc - (up * f_fnheight / 2.0f) + (right * f_fnwidth / 2.0f);
+	Vector nbl = nc + (up * f_fnheight * 0.5f) - (right * f_fnwidth * 0.5f);
+	Vector nbr = nc + (up * f_fnheight * 0.5f) + (right * f_fnwidth * 0.5f);
+	Vector ntl = nc - (up * f_fnheight * 0.5f) - (right * f_fnwidth * 0.5f);
+	Vector ntr = nc - (up * f_fnheight * 0.5f) + (right * f_fnwidth * 0.5f);
 
 	UTIL_SetFrustumPlane(&pBot->viewFrustum[FRUSTUM_PLANE_TOP], ftl, ntl, ntr);
 	UTIL_SetFrustumPlane(&pBot->viewFrustum[FRUSTUM_PLANE_BOTTOM], fbr, nbr, nbl);
@@ -1520,22 +1520,22 @@ void BotUpdateView(bot_t* pBot)
 {
 	int visibleCount = 0;
 
-	// Updates the view frustum based on the bot's position and v_angle
-	BotUpdateViewFrustum(pBot);
-
 	bool bHasLOSToAnyEnemy = false;
 
 	int EnemyTeam = 0;
 
+	pBot->ViewForwardVector = UTIL_GetForwardVector(pBot->pEdict->v.v_angle);
+
 	// Update list of currently visible players
 	for (int i = 0; i < 32; i++)
 	{
-		pBot->TrackedEnemies[i].EnemyEdict = clients[i];
 		if (FNullEnt(clients[i]) || !IsPlayerActiveInGame(clients[i]) || clients[i]->v.team == pBot->pEdict->v.team)
 		{
 			BotClearEnemyTrackingInfo(&pBot->TrackedEnemies[i]);
 			continue;
 		}
+
+		pBot->TrackedEnemies[i].EnemyEdict = clients[i];
 
 		enemy_status* TrackingInfo = &pBot->TrackedEnemies[i];
 
@@ -1546,8 +1546,15 @@ void BotUpdateView(bot_t* pBot)
 
 		edict_t* Enemy = clients[i];
 
-		bool bInFOV = IsPlayerInBotFOV(pBot, Enemy);
+		bool bInFOV = GAME_UseComplexFOV();
+		
 		bool bHasLOS = DoesPlayerHaveLOSToPlayer(pBot->pEdict, Enemy);
+		bool bIsTracked = (!bHasLOS && (IsPlayerParasited(Enemy) || IsPlayerMotionTracked(Enemy)));
+
+		//if (bHasLOS || bIsTracked)
+		//{
+		//	bInFOV = IsPlayerInBotFOV(pBot, Enemy);
+		//}
 
 		if (pBot->LastSafeLocation != ZERO_VECTOR && UTIL_PlayerHasLOSToLocation(Enemy, pBot->LastSafeLocation, UTIL_MetresToGoldSrcUnits(50.0f)))
 		{
@@ -1570,11 +1577,10 @@ void BotUpdateView(bot_t* pBot)
 			continue;
 		}
 
-		bool bIsTracked = (!bHasLOS && (IsPlayerParasited(Enemy) || IsPlayerMotionTracked(Enemy)));
+		
 
 		if (bInFOV && (bHasLOS || bIsTracked))
 		{
-			Vector BotLocation = UTIL_GetFloorUnderEntity(Enemy);
 			Vector BotVelocity = Enemy->v.velocity;
 
 			if (gpGlobals->time >= TrackingInfo->NextVelocityUpdateTime)
@@ -1589,7 +1595,8 @@ void BotUpdateView(bot_t* pBot)
 			}
 
 			TrackingInfo->bIsAwareOfPlayer = true;
-			TrackingInfo->LastSeenLocation = BotLocation;
+			TrackingInfo->LastSeenLocation = Enemy->v.origin;
+			TrackingInfo->LastFloorPosition = UTIL_GetFloorUnderEntity(Enemy);
 
 			if (bHasLOS)
 			{
@@ -1696,18 +1703,14 @@ bool DoesAnyPlayerOnTeamHaveLOSToPlayer(const int Team, edict_t* TargetPlayer)
 
 bool IsPlayerInBotFOV(bot_t* Observer, edict_t* TargetPlayer)
 {
-	if (FNullEnt(TargetPlayer) || !IsPlayerActiveInGame(TargetPlayer)) { return false; }
-	// To make things a little more accurate, we're going to treat players as cylinders rather than boxes
-	for (int i = 0; i < 6; i++)
-	{
-		// Our cylinder must be inside all planes to be visible, otherwise return false
-		if (!UTIL_CylinderInsidePlane(&Observer->viewFrustum[i], TargetPlayer->v.origin - Vector(0, 0, 5), 60.0f, 16.0f))
-		{
-			return false;
-		}
-	}
+	if (!GAME_UseComplexFOV()) { return true; }
 
-	return true;
+	Vector TargetVector = (TargetPlayer->v.origin - Observer->CurrentEyePosition).Normalize();
+
+	float DotProduct = UTIL_GetDotProduct(Observer->ViewForwardVector, TargetVector);
+
+	return DotProduct > 0.65f;
+
 }
 
 // Checks to see if pBot can see player. Returns true if player is visible

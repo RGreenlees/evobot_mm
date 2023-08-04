@@ -183,16 +183,7 @@ void UTIL_NormalizeVector2D(Vector* vec)
 // Returns a normalized copy of the supplied Vector. Original value is unmodified
 Vector UTIL_GetVectorNormal(const Vector vec)
 {
-	Vector result;
-	float len = sqrt((vec.x * vec.x) + (vec.y * vec.y) + (vec.z * vec.z));
-
-	float div = 1.0f / len;
-
-	result.x = vec.x * div;
-	result.y = vec.y * div;
-	result.z = vec.z * div;
-
-	return result;
+	return vec.Normalize();
 }
 
 // Returns a 2D (Z axis is 0) normalized copy of the supplied Vector. Original value is unmodified
@@ -303,10 +294,10 @@ bool fNearlyEqual(const float f1, const float f2)
 
 
 // Returns the dot product of two vectors (1.0f if both vectors pointing exactly the same direction, -1.0f if opposites, 0.0f if perpendicular)
-float UTIL_GetDotProduct(const Vector v1, const Vector v2)
-{
-	return ((v1.x * v2.x) + (v1.y * v2.y) + (v1.z * v2.z));
-}
+//float UTIL_GetDotProduct(const Vector v1, const Vector v2)
+//{
+//	return ((v1.x * v2.x) + (v1.y * v2.y) + (v1.z * v2.z));
+//}
 
 // Returns the 2D dot product (Z axis ignored) of two vectors (1.0f if both vectors pointing exactly the same direction, -1.0f if opposites, 0.0f if perpendicular)
 float UTIL_GetDotProduct2D(const Vector v1, const Vector v2)
@@ -341,8 +332,8 @@ bool UTIL_CylinderInsidePlane(const frustum_plane_t* plane, const Vector centre,
 	Vector testNormal = plane->normal;
 	testNormal.z = 0;
 
-	Vector topPoint = centre + Vector(0, 0, height / 2.0f) + (testNormal * radius);
-	Vector bottomPoint = centre - Vector(0, 0, height / 2.0f) + (testNormal * radius);
+	Vector topPoint = centre + Vector(0, 0, height * 0.5f) + (testNormal * radius);
+	Vector bottomPoint = centre - Vector(0, 0, height * 0.5f) + (testNormal * radius);
 
 	return (UTIL_PointInsidePlane(plane, topPoint) || UTIL_PointInsidePlane(plane, bottomPoint));
 }
@@ -454,11 +445,7 @@ Vector GetPitchForProjectile(Vector LaunchPoint, Vector TargetPoint, const float
 
 void UTIL_AnglesToVector(const Vector angles, Vector* fwd, Vector* right, Vector* up)
 {
-
 	g_engfuncs.pfnAngleVectors(angles, (float*)fwd, (float*)right, (float*)up);
-	UTIL_NormalizeVector(fwd);
-	UTIL_NormalizeVector(right);
-	UTIL_NormalizeVector(up);
 }
 
 void ClampAngle(float& angle)
@@ -620,7 +607,7 @@ Vector UTIL_GetForwardVector(const Vector angles)
 	Vector fwd, right, up;
 
 	UTIL_AnglesToVector(angles, &fwd, &right, &up);
-	return UTIL_GetVectorNormal(fwd);
+	return fwd;
 }
 
 Vector UTIL_GetForwardVector2D(const Vector angles)

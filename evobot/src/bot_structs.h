@@ -222,6 +222,7 @@ typedef struct _ENEMY_STATUS
 {
 	edict_t* EnemyEdict = nullptr; // Reference to the enemy player edict
 	Vector LastSeenLocation = ZERO_VECTOR; // The last visibly-confirmed location of the player
+	Vector LastFloorPosition = ZERO_VECTOR; // Nearest point on the floor where the enemy was (for moving towards it)
 	Vector LastSeenVelocity = ZERO_VECTOR; // Last visibly-confirmed movement direction of the player
 	Vector PendingSeenLocation = ZERO_VECTOR; // The last visibly-confirmed location of the player
 	Vector PendingSeenVelocity = ZERO_VECTOR; // Last visibly-confirmed movement direction of the player
@@ -465,6 +466,10 @@ typedef struct _BOT_T
 	bool bRetreatForHealth = false;
 
 	bool bHasRequestedReload = false; // Has the bot requested a reload?
+
+	float NextTaskEvaluation = 0.0f; // When should the bot next evaluate their tasks?
+
+	Vector ViewForwardVector = ZERO_VECTOR; // Bot's current forward unit vector
 
 } bot_t;
 

@@ -95,7 +95,7 @@ bool vEquals2D(const Vector v1, const Vector v2, const float epsilon);
 bool fNearlyEqual(const float f1, const float f2);
 
 // Returns the dot product of two unit vectors
-float UTIL_GetDotProduct(const Vector v1, const Vector v2);
+inline float UTIL_GetDotProduct(const Vector v1, const Vector v2) { return ((v1.x * v2.x) + (v1.y * v2.y) + (v1.z * v2.z)); }
 // Returns the dot product of two unit vectors excluding Z axis
 float UTIL_GetDotProduct2D(const Vector v1, const Vector v2);
 

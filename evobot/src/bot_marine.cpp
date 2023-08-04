@@ -40,6 +40,20 @@ void MarineThink(bot_t* pBot)
 		}
 	}
 
+	if (!pBot->CurrentTask) { pBot->CurrentTask = &pBot->PrimaryBotTask; }
+
+	if (gpGlobals->time < pBot->NextTaskEvaluation)
+	{
+		if (pBot->CurrentTask && pBot->CurrentTask->TaskType != TASK_NONE)
+		{
+			BotProgressTask(pBot, pBot->CurrentTask);
+		}
+
+		return;
+	}
+
+	pBot->NextTaskEvaluation = gpGlobals->time + frandrange(0.2f, 0.5f);
+
 	BotUpdateAndClearTasks(pBot);
 
 	if (pBot->PrimaryBotTask.TaskType == TASK_NONE || (!pBot->PrimaryBotTask.bTaskIsUrgent && !pBot->PrimaryBotTask.bIssuedByCommander))
@@ -1232,7 +1246,7 @@ void MarineHuntEnemy(bot_t* pBot, enemy_status* TrackedEnemy)
 
 	if (UTIL_PointIsReachable(NavProfileIndex, pBot->pEdict->v.origin, TrackedEnemy->LastSeenLocation, max_player_use_reach))
 	{
-		MoveTo(pBot, TrackedEnemy->LastSeenLocation, MOVESTYLE_NORMAL);
+		MoveTo(pBot, TrackedEnemy->LastFloorPosition, MOVESTYLE_NORMAL);
 	}
 	
 	return;

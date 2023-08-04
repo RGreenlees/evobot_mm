@@ -58,6 +58,9 @@ int GAME_GetNumBotsOnTeam(const int Team);
 void GAME_AddBotToTeam(const int Team);
 void GAME_RemoveBotFromTeam(const int Team);
 
+bool GAME_UseComplexFOV();
+void GAME_SetUseComplexFOV(bool bNewValue);
+
 EvobotDebugMode GAME_GetDebugMode();
 
 void GAME_OnGameStart();

@@ -120,23 +120,9 @@ void ClientCommand(edict_t* pEntity)
 		RETURN_META(MRES_SUPERCEDE);
 	}
 
-	if (FStrEq(pcmd, "testbuildhive"))
+	if (FStrEq(pcmd, "togglecomplexfov"))
 	{
-		const hive_definition* Hive = UTIL_GetNearestHiveOfStatus(pEntity->v.origin, HIVE_STATUS_UNBUILT);
-
-		if (Hive)
-		{
-			for (int i = 0; i < MAX_CLIENTS; i++)
-			{
-				if (bots[i].is_used && !FNullEnt(bots[i].pEdict) && IsPlayerAlien(bots[i].pEdict))
-				{
-					TASK_SetBuildTask(&bots[i], &bots[i].PrimaryBotTask, STRUCTURE_ALIEN_HIVE, Hive->FloorLocation, true);
-				}
-
-			}
-		}
-
-		
+		GAME_SetUseComplexFOV(!GAME_UseComplexFOV());
 
 		RETURN_META(MRES_SUPERCEDE);
 	}
