@@ -345,7 +345,7 @@ void BotTakeDamage(bot_t* pBot, int damageTaken, edict_t* aggressor)
 		pBot->TrackedEnemies[aggressorIndex].LastSeenTime = gpGlobals->time;
 
 		// If the bot can't see the enemy (bCurrentlyVisible is false) then set the last seen location to a random point in the vicinity so the bot doesn't immediately know where they are
-		if (pBot->TrackedEnemies[aggressorIndex].bInFOV)
+		if (false)
 		{
 			pBot->TrackedEnemies[aggressorIndex].LastSeenLocation = aggressor->v.origin;
 		}
@@ -1529,13 +1529,12 @@ void BotUpdateView(bot_t* pBot)
 	// Update list of currently visible players
 	for (int i = 0; i < 32; i++)
 	{
+		pBot->TrackedEnemies[i].EnemyEdict = clients[i];
 		if (FNullEnt(clients[i]) || !IsPlayerActiveInGame(clients[i]) || clients[i]->v.team == pBot->pEdict->v.team)
 		{
 			BotClearEnemyTrackingInfo(&pBot->TrackedEnemies[i]);
 			continue;
 		}
-
-		pBot->TrackedEnemies[i].EnemyEdict = clients[i];
 
 		enemy_status* TrackingInfo = &pBot->TrackedEnemies[i];
 
@@ -1546,15 +1545,16 @@ void BotUpdateView(bot_t* pBot)
 
 		edict_t* Enemy = clients[i];
 
-		bool bInFOV = GAME_UseComplexFOV();
-		
-		bool bHasLOS = DoesPlayerHaveLOSToPlayer(pBot->pEdict, Enemy);
-		bool bIsTracked = (!bHasLOS && (IsPlayerParasited(Enemy) || IsPlayerMotionTracked(Enemy)));
+		bool bInFOV = IsPlayerInBotFOV(pBot, Enemy);
 
-		//if (bHasLOS || bIsTracked)
-		//{
-		//	bInFOV = IsPlayerInBotFOV(pBot, Enemy);
-		//}
+		if (!TrackingInfo->bIsAwareOfPlayer && !bInFOV)
+		{
+			continue;
+		}
+
+		bool bHasLOS = DoesPlayerHaveLOSToPlayer(pBot->pEdict, Enemy);
+
+		bool bIsTracked = (!bHasLOS && (IsPlayerParasited(Enemy) || IsPlayerMotionTracked(Enemy)));
 
 		if (pBot->LastSafeLocation != ZERO_VECTOR && UTIL_PlayerHasLOSToLocation(Enemy, pBot->LastSafeLocation, UTIL_MetresToGoldSrcUnits(50.0f)))
 		{
@@ -1568,19 +1568,20 @@ void BotUpdateView(bot_t* pBot)
 
 		float bot_reaction_time = (IsPlayerMarine(pBot->pEdict)) ? pBot->BotSkillSettings.marine_bot_reaction_time : pBot->BotSkillSettings.alien_bot_reaction_time;
 
-		if (bInFOV != TrackingInfo->bInFOV || bHasLOS != TrackingInfo->bHasLOS)
+		bool bIsVisible = (bInFOV && (bHasLOS || bIsTracked));
+
+		if (bIsVisible != TrackingInfo->bIsVisible)
 		{
-			TrackingInfo->bInFOV = bInFOV;
+			TrackingInfo->bIsVisible = bIsVisible;
 			TrackingInfo->bHasLOS = bHasLOS;
 
 			TrackingInfo->NextUpdateTime = gpGlobals->time + bot_reaction_time;
 			continue;
-		}
-
-		
+		}		
 
 		if (bInFOV && (bHasLOS || bIsTracked))
 		{
+			Vector BotLocation = UTIL_GetFloorUnderEntity(Enemy);
 			Vector BotVelocity = Enemy->v.velocity;
 
 			if (gpGlobals->time >= TrackingInfo->NextVelocityUpdateTime)
@@ -1595,8 +1596,7 @@ void BotUpdateView(bot_t* pBot)
 			}
 
 			TrackingInfo->bIsAwareOfPlayer = true;
-			TrackingInfo->LastSeenLocation = Enemy->v.origin;
-			TrackingInfo->LastFloorPosition = UTIL_GetFloorUnderEntity(Enemy);
+			TrackingInfo->LastSeenLocation = BotLocation;
 
 			if (bHasLOS)
 			{
@@ -1607,7 +1607,7 @@ void BotUpdateView(bot_t* pBot)
 				{
 					TrackingInfo->LastHiddenPosition = ZERO_VECTOR;
 				}
-				
+
 			}
 			else
 			{
@@ -1616,6 +1616,11 @@ void BotUpdateView(bot_t* pBot)
 			}
 
 			continue;
+		}
+
+		if (!bInFOV || !bHasLOS)
+		{
+			TrackingInfo->LastSeenLocation = TrackingInfo->LastSeenLocation + (TrackingInfo->LastSeenVelocity * 0.016f);
 		}
 
 		if (bHasLOS)
@@ -1663,29 +1668,40 @@ bool DoesPlayerHaveLOSToPlayer(edict_t* Observer, edict_t* TargetPlayer)
 
 	if (hit.flFraction >= 1.0f) { return true; }
 
-	UTIL_TraceLine(GetPlayerEyePosition(Observer), GetPlayerEyePosition(TargetPlayer), ignore_monsters, ignore_glass, Observer->v.pContainingEntity, &hit);
+	NSPlayerClass TargetClass = GetPlayerClass(TargetPlayer);
 
-	if (hit.flFraction >= 1.0f) { return true; }
+	// Only check the head and feet if we're not a short-arse (i.e. marine, fade or onos)
+	if (TargetClass == CLASS_MARINE || TargetClass == CLASS_FADE || TargetClass == CLASS_ONOS)
+	{
 
-	UTIL_TraceLine(GetPlayerEyePosition(Observer), GetPlayerBottomOfCollisionHull(TargetPlayer) + Vector(0.0f, 0.0f, 5.0f), ignore_monsters, ignore_glass, Observer->v.pContainingEntity, &hit);
+		UTIL_TraceLine(GetPlayerEyePosition(Observer), GetPlayerEyePosition(TargetPlayer), ignore_monsters, ignore_glass, Observer->v.pContainingEntity, &hit);
 
-	if (hit.flFraction >= 1.0f) { return true; }
+		if (hit.flFraction >= 1.0f) { return true; }
 
-	Vector ForwardVector = UTIL_GetForwardVector(TargetPlayer->v.angles);
+		UTIL_TraceLine(GetPlayerEyePosition(Observer), GetPlayerBottomOfCollisionHull(TargetPlayer) + Vector(0.0f, 0.0f, 5.0f), ignore_monsters, ignore_glass, Observer->v.pContainingEntity, &hit);
 
-	float Size = vSize3D(TargetPlayer->v.size);
+		if (hit.flFraction >= 1.0f) { return true; }
+	}
 
-	Vector MinLoc = TargetCentre - (ForwardVector * Size);
+	// Skulks are long bois, so check to make sure they don't have their little legs poking out round a corner...
+	if (TargetClass == CLASS_SKULK)
+	{
+		Vector ForwardVector = UTIL_GetForwardVector(TargetPlayer->v.angles);
 
-	UTIL_TraceLine(GetPlayerEyePosition(Observer), MinLoc, ignore_monsters, ignore_glass, Observer->v.pContainingEntity, &hit);
+		Vector MinLoc = TargetCentre - (ForwardVector * 55.0f);
 
-	if (hit.flFraction >= 1.0f) { return true; }
+		UTIL_TraceLine(GetPlayerEyePosition(Observer), MinLoc, ignore_monsters, ignore_glass, Observer->v.pContainingEntity, &hit);
 
-	Vector MaxLoc = TargetCentre + (ForwardVector * Size);
+		if (hit.flFraction >= 1.0f) { return true; }
 
-	UTIL_TraceLine(GetPlayerEyePosition(Observer), MaxLoc, ignore_monsters, ignore_glass, Observer->v.pContainingEntity, &hit);
+		Vector MaxLoc = TargetCentre + (ForwardVector * 55.0f);
 
-	return (hit.flFraction >= 1.0f);
+		UTIL_TraceLine(GetPlayerEyePosition(Observer), MaxLoc, ignore_monsters, ignore_glass, Observer->v.pContainingEntity, &hit);
+
+		return (hit.flFraction >= 1.0f);
+	}
+
+	return false;
 }
 
 bool DoesAnyPlayerOnTeamHaveLOSToPlayer(const int Team, edict_t* TargetPlayer)
@@ -1703,8 +1719,6 @@ bool DoesAnyPlayerOnTeamHaveLOSToPlayer(const int Team, edict_t* TargetPlayer)
 
 bool IsPlayerInBotFOV(bot_t* Observer, edict_t* TargetPlayer)
 {
-	if (!GAME_UseComplexFOV()) { return true; }
-
 	Vector TargetVector = (TargetPlayer->v.origin - Observer->CurrentEyePosition).Normalize();
 
 	float DotProduct = UTIL_GetDotProduct(Observer->ViewForwardVector, TargetVector);
@@ -1738,7 +1752,7 @@ bool IsPlayerVisibleToBot(bot_t* Observer, edict_t* TargetPlayer)
 
 void BotClearEnemyTrackingInfo(enemy_status* TrackingInfo)
 {
-	TrackingInfo->bInFOV = false;
+	TrackingInfo->bIsVisible = false;
 	TrackingInfo->bHasLOS = false;
 	TrackingInfo->LastSeenLocation = ZERO_VECTOR;
 	TrackingInfo->LastSeenVelocity = ZERO_VECTOR;
@@ -2156,7 +2170,9 @@ void TestAimThink(bot_t* pBot)
 	{
 		edict_t* CurrentEnemy = pBot->TrackedEnemies[pBot->CurrentEnemy].EnemyEdict;
 
-		BotAttackTarget(pBot, CurrentEnemy);
+		BotLookAt(pBot, pBot->TrackedEnemies[pBot->CurrentEnemy].LastSeenLocation);
+
+		UTIL_DrawLine(GAME_GetListenServerEdict(), pBot->CurrentEyePosition, pBot->TrackedEnemies[pBot->CurrentEnemy].LastSeenLocation, 255, 255, 0);
 
 		return;
 	}

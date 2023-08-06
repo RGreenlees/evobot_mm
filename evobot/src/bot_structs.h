@@ -230,8 +230,9 @@ typedef struct _ENEMY_STATUS
 	Vector LastHiddenPosition = ZERO_VECTOR; // The last position where the bot did NOT have LOS to the enemy
 	float LastSeenTime = 0.0f; // Last time the bot saw the player (not tracked)
 	float LastTrackedTime = 0.0f; // Last time the bot saw the player (tracked position)
-	bool bInFOV = false; // Is the player in the bot's FOV
+	//bool bInFOV = false; // Is the player in the bot's FOV
 	bool bHasLOS = false; // Does the bot have LOS to the target
+	bool bIsVisible = false; // Enemy is in FOV and has LOS
 	bool bIsAwareOfPlayer = false; // Is the bot aware of this player's presence?
 	float NextUpdateTime = 0.0f; // When the bot can next react to a change in target's state
 	float NextVelocityUpdateTime = 0.0f; // When the bot can next react to a change in target's state
