@@ -42,6 +42,20 @@ void MarineThink(bot_t* pBot)
 
 	if (!pBot->CurrentTask) { pBot->CurrentTask = &pBot->PrimaryBotTask; }
 
+	edict_t* DangerTurret = BotGetNearestDangerTurret(pBot, UTIL_MetresToGoldSrcUnits(15.0f));
+
+	if (!FNullEnt(DangerTurret))
+	{
+		Vector TaskLocation = (!FNullEnt(pBot->CurrentTask->TaskTarget)) ? pBot->CurrentTask->TaskTarget->v.origin : pBot->CurrentTask->TaskLocation;
+		float DistToTurret = vDist2DSq(TaskLocation, DangerTurret->v.origin);
+
+		if (pBot->CurrentTask->TaskType != TASK_ATTACK && DistToTurret < sqrf(UTIL_MetresToGoldSrcUnits(15.0f)))
+		{
+			BotAttackTarget(pBot, DangerTurret);
+			return;
+		}
+	}
+
 	if (gpGlobals->time < pBot->NextTaskEvaluation)
 	{
 		if (pBot->CurrentTask && pBot->CurrentTask->TaskType != TASK_NONE)
@@ -82,19 +96,7 @@ void MarineThink(bot_t* pBot)
 
 	pBot->CurrentTask = BotGetNextTask(pBot);
 
-	edict_t* DangerTurret = BotGetNearestDangerTurret(pBot, UTIL_MetresToGoldSrcUnits(10.0f));
 
-	if (!FNullEnt(DangerTurret))
-	{
-		Vector TaskLocation = (!FNullEnt(pBot->CurrentTask->TaskTarget)) ? pBot->CurrentTask->TaskTarget->v.origin : pBot->CurrentTask->TaskLocation;
-		float DistToTurret = vDist2DSq(TaskLocation, DangerTurret->v.origin);
-
-		if (pBot->CurrentTask->TaskType != TASK_ATTACK && DistToTurret < sqrf(UTIL_MetresToGoldSrcUnits(10.0f)))
-		{
-			BotAttackTarget(pBot, DangerTurret);
-			return;
-		}
-	}
 
 	if (pBot->CurrentTask && pBot->CurrentTask->TaskType != TASK_NONE)
 	{
