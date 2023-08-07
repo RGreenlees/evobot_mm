@@ -55,4 +55,6 @@ bool CanInterruptWeaponReload(NSWeapon Weapon);
 
 void InterruptReload(bot_t* pBot);
 
+bool IsHitscanWeapon(NSWeapon Weapon);
+
 #endif

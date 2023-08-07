@@ -163,6 +163,24 @@ NSWeapon UTIL_GetBotAlienPrimaryWeapon(const bot_t* pBot)
 	return WEAPON_NONE;
 }
 
+bool IsHitscanWeapon(NSWeapon Weapon)
+{
+	switch (Weapon)
+	{
+		case WEAPON_MARINE_MG:
+		case WEAPON_MARINE_HMG:
+		case WEAPON_MARINE_PISTOL:
+		case WEAPON_MARINE_SHOTGUN:
+		case WEAPON_SKULK_PARASITE:
+		case WEAPON_MARINE_WELDER:
+			return true;
+		default:
+			return false;
+	}
+
+	return false;
+}
+
 NSWeapon GetBotMarinePrimaryWeapon(const bot_t* pBot)
 {
 	if (PlayerHasWeapon(pBot->pEdict, WEAPON_MARINE_MG))

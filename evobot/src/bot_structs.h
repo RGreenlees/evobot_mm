@@ -236,6 +236,7 @@ typedef struct _ENEMY_STATUS
 	bool bIsAwareOfPlayer = false; // Is the bot aware of this player's presence?
 	float NextUpdateTime = 0.0f; // When the bot can next react to a change in target's state
 	float NextVelocityUpdateTime = 0.0f; // When the bot can next react to a change in target's state
+	float EndTrackingTime = 0.0f; // When to stop "sensing" enemy movement after losing LOS
 
 } enemy_status;
 
@@ -467,6 +468,7 @@ typedef struct _BOT_T
 	bool bRetreatForHealth = false;
 
 	bool bHasRequestedReload = false; // Has the bot requested a reload?
+	float ReloadRequestedTime = 0.0f; // When did the bot request to start reloading?
 
 	float NextTaskEvaluation = 0.0f; // When should the bot next evaluate their tasks?
 

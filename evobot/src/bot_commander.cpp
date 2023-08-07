@@ -483,29 +483,6 @@ void COMM_UpdateAndClearCommanderOrders(bot_t* CommanderBot)
 		}
 	}
 
-	const hive_definition* FurthestEmptyHive = COMM_GetUnsecuredEmptyHiveFurthestToLocation(CommanderBot, UTIL_GetCommChairLocation());
-
-	if (FurthestEmptyHive != nullptr)
-	{
-		if (COMM_SecureHiveNeedsDeployment(CommanderBot, FurthestEmptyHive))
-		{
-			int NumMarines = COMM_GetNumMarinesSecuringHive(CommanderBot, FurthestEmptyHive, UTIL_MetresToGoldSrcUnits(15.0f));
-
-			int MarineDeficit = 2 - NumMarines;
-
-			if (MarineDeficit > 0)
-			{
-				edict_t* NearestMarine = COMM_GetNearestMarineWithoutOrder(CommanderBot, FurthestEmptyHive->FloorLocation, UTIL_MetresToGoldSrcUnits(15.0f), UTIL_MetresToGoldSrcUnits(500.0f));
-
-				if (!FNullEnt(NearestMarine))
-				{
-					COMM_IssueMarineSecureHiveOrder(CommanderBot, NearestMarine, FurthestEmptyHive);
-					return;
-				}
-			}
-		}
-	}
-
 	if (UTIL_ResearchIsComplete(RESEARCH_OBSERVATORY_PHASETECH))
 	{
 		const hive_definition* SiegeHive = COMM_GetHiveSiegeOpportunityNearestLocation(CommanderBot, UTIL_GetCommChairLocation());

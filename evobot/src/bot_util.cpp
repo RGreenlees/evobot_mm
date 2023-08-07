@@ -769,6 +769,7 @@ void BotReloadCurrentWeapon(bot_t* pBot)
 			pBot->pEdict->v.button |= IN_RELOAD;
 			pBot->bHasRequestedReload = true;
 			pBot->LastUseTime = gpGlobals->time;
+			pBot->ReloadRequestedTime = gpGlobals->time;
 		}
 	}
 }
@@ -920,12 +921,24 @@ void BotShootTarget(bot_t* pBot, NSWeapon AttackWeapon, edict_t* Target)
 
 	Vector AimDir = UTIL_GetForwardVector(pBot->pEdict->v.v_angle);
 
+	bool bWillHit = false;
+
 	float AimDot = UTIL_GetDotProduct(AimDir, TargetAimDir);
 
 	// We can be less accurate with spores and umbra since they have AoE effects
 	float MinAcceptableAccuracy = 0.9f;
 
-	if (AimDot >= MinAcceptableAccuracy)
+	bWillHit = (AimDot >= MinAcceptableAccuracy);
+
+	if (!bWillHit && IsHitscanWeapon(CurrentWeapon))
+	{
+
+		edict_t* HitEntity = UTIL_TraceEntity(pBot->pEdict, pBot->CurrentEyePosition, pBot->CurrentEyePosition + (AimDir * GetMaxIdealWeaponRange(CurrentWeapon)));
+
+		bWillHit = (HitEntity == Target);
+	}
+
+	if (bWillHit)
 	{
 		if ((gpGlobals->time - pBot->current_weapon.LastFireTime) >= pBot->current_weapon.MinRefireTime)
 		{
@@ -1572,6 +1585,11 @@ void BotUpdateView(bot_t* pBot)
 
 		if (bIsVisible != TrackingInfo->bIsVisible)
 		{
+			if (TrackingInfo->bIsVisible)
+			{
+				TrackingInfo->EndTrackingTime = gpGlobals->time + 1.0f;
+			}
+
 			TrackingInfo->bIsVisible = bIsVisible;
 			TrackingInfo->bHasLOS = bHasLOS;
 
@@ -1581,7 +1599,7 @@ void BotUpdateView(bot_t* pBot)
 
 		if (bInFOV && (bHasLOS || bIsTracked))
 		{
-			Vector BotLocation = UTIL_GetFloorUnderEntity(Enemy);
+			Vector FloorLocation = UTIL_GetFloorUnderEntity(Enemy);
 			Vector BotVelocity = Enemy->v.velocity;
 
 			if (gpGlobals->time >= TrackingInfo->NextVelocityUpdateTime)
@@ -1596,7 +1614,8 @@ void BotUpdateView(bot_t* pBot)
 			}
 
 			TrackingInfo->bIsAwareOfPlayer = true;
-			TrackingInfo->LastSeenLocation = BotLocation;
+			TrackingInfo->LastSeenLocation = Enemy->v.origin;
+			TrackingInfo->LastFloorPosition = FloorLocation;
 
 			if (bHasLOS)
 			{
@@ -1620,7 +1639,10 @@ void BotUpdateView(bot_t* pBot)
 
 		if (!bInFOV || !bHasLOS)
 		{
-			TrackingInfo->LastSeenLocation = TrackingInfo->LastSeenLocation + (TrackingInfo->LastSeenVelocity * 0.016f);
+			if (gpGlobals->time < TrackingInfo->EndTrackingTime)
+			{
+				TrackingInfo->LastSeenLocation = Enemy->v.origin;
+			}
 		}
 
 		if (bHasLOS)
@@ -1822,6 +1844,13 @@ void StartNewBotFrame(bot_t* pBot)
 
 	pBot->BotNavInfo.bHasAttemptedJump = false;
 
+	if (pBot->pEdict->v.weaponmodel == 0)
+	{
+		pBot->current_weapon.bIsReloading = false;
+		pBot->current_weapon.bReloadStartTime = 0.0f;
+		pBot->bHasRequestedReload = false;
+	}
+
 	if (pBot->bHasRequestedReload)
 	{
 		if (IsBotWeaponPlayingReloadAnimation(pBot))
@@ -1830,10 +1859,18 @@ void StartNewBotFrame(bot_t* pBot)
 			pBot->current_weapon.bReloadStartTime = gpGlobals->time;
 			pBot->bHasRequestedReload = false;
 		}
+		else
+		{
+			if (gpGlobals->time - pBot->ReloadRequestedTime > 1.0f)
+			{
+				pBot->bHasRequestedReload = false;
+			}
+		}
 	}
 
 	if (IsBotReloading(pBot))
 	{
+		
 		float ReloadTime = GetReloadTimeForWeapon(GetBotCurrentWeapon(pBot));
 
 		if (gpGlobals->time - pBot->current_weapon.bReloadStartTime >= ReloadTime)
@@ -2150,9 +2187,45 @@ void DroneThink(bot_t* pBot)
 
 void CustomThink(bot_t* pBot)
 {
-	if (IsPlayerAlien(pBot->pEdict)) { return; }
+	if (!bGameIsActive)
+	{
+		WaitGameStartThink(pBot);
+		return;
+	}
 
-	RegularModeThink(pBot);
+	pBot->CurrentEnemy = BotGetNextEnemyTarget(pBot);
+
+	if (pBot->CurrentEnemy > -1)
+	{
+		const enemy_status* TrackedEnemy = &pBot->TrackedEnemies[pBot->CurrentEnemy];
+
+		edict_t* CurrentEnemy = TrackedEnemy->EnemyEdict;
+
+		if (FNullEnt(CurrentEnemy)) { return; }
+
+		BotLookAt(pBot, TrackedEnemy->LastSeenLocation);
+
+		if (!TrackedEnemy->bHasLOS)
+		{
+
+			float TimeSinceLastSighting = (gpGlobals->time - TrackedEnemy->LastSeenTime);
+
+			// If the enemy is being motion tracked, or the last seen time was within the last 5 seconds, and the suspected location is close enough, then throw a grenade!
+			if (PlayerHasWeapon(pBot->pEdict, WEAPON_MARINE_GRENADE) || ((PlayerHasWeapon(pBot->pEdict, WEAPON_MARINE_GL) && (BotGetPrimaryWeaponClipAmmo(pBot) > 0 || BotGetPrimaryWeaponAmmoReserve(pBot) > 0))))
+			{
+				if (TimeSinceLastSighting < 5.0f && vDist3DSq(pBot->pEdict->v.origin, TrackedEnemy->LastSeenLocation) <= sqrf(UTIL_MetresToGoldSrcUnits(10.0f)))
+				{
+					Vector GrenadeThrowLocation = UTIL_GetGrenadeThrowTarget(pBot, TrackedEnemy->LastSeenLocation, UTIL_MetresToGoldSrcUnits(5.0f));
+
+					if (GrenadeThrowLocation != ZERO_VECTOR)
+					{
+						BotThrowGrenadeAtTarget(pBot, GrenadeThrowLocation);
+						return;
+					}
+				}
+			}
+		}
+	}
 
 }
 
@@ -2173,6 +2246,8 @@ void TestAimThink(bot_t* pBot)
 		BotLookAt(pBot, pBot->TrackedEnemies[pBot->CurrentEnemy].LastSeenLocation);
 
 		UTIL_DrawLine(GAME_GetListenServerEdict(), pBot->CurrentEyePosition, pBot->TrackedEnemies[pBot->CurrentEnemy].LastSeenLocation, 255, 255, 0);
+
+		UTIL_DrawLine(GAME_GetListenServerEdict(), pBot->CurrentEyePosition, pBot->CurrentEyePosition + (pBot->ViewForwardVector * 1000.0f), 255, 0, 0);
 
 		return;
 	}
