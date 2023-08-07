@@ -882,11 +882,11 @@ bool MarineCombatThink(bot_t* pBot)
 	NSWeapon DesiredCombatWeapon = BotMarineChooseBestWeapon(pBot, CurrentEnemy);
 	NSWeapon PrimaryWeapon = GetBotMarinePrimaryWeapon(pBot);
 
-	BotAttackResult LOSCheck = PerformAttackLOSCheck(pBot, DesiredCombatWeapon, CurrentEnemy);
+	BotAttackResult LOSCheck = PerformAttackLOSCheck(pBot, DesiredCombatWeapon, TrackedEnemyRef->LastSeenLocation, CurrentEnemy);
 
 	if (LOSCheck == ATTACK_SUCCESS)
 	{
-		BotShootTarget(pBot, DesiredCombatWeapon, CurrentEnemy);
+		BotShootLocation(pBot, DesiredCombatWeapon, TrackedEnemyRef->LastSeenLocation);
 	}
 
 	float DistFromEnemy = vDist2DSq(pBot->pEdict->v.origin, CurrentEnemy->v.origin);
@@ -914,7 +914,7 @@ bool MarineCombatThink(bot_t* pBot)
 		BotLookAt(pBot, CurrentEnemy);
 		if (LOSCheck == ATTACK_OUTOFRANGE)
 		{			
-			MoveTo(pBot, CurrentEnemy->v.origin, MOVESTYLE_NORMAL);
+			MoveTo(pBot, TrackedEnemyRef->LastFloorPosition, MOVESTYLE_NORMAL);
 			BotReloadWeapons(pBot);
 			return true;
 		}

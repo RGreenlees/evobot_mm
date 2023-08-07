@@ -67,6 +67,7 @@ void BotShootLocation(bot_t* pBot, NSWeapon AttackWeapon, const Vector TargetLoc
 void BotAttackTarget(bot_t* pBot, edict_t* Target);
 
 BotAttackResult PerformAttackLOSCheck(bot_t* pBot, const NSWeapon Weapon, const edict_t* Target);
+BotAttackResult PerformAttackLOSCheck(bot_t* pBot, const NSWeapon Weapon, const Vector TargetLocation, const edict_t* Target);
 BotAttackResult PerformAttackLOSCheck(const Vector Location, const NSWeapon Weapon, const edict_t* Target);
 
 float GetLeapCost(bot_t* pBot);
@@ -115,6 +116,7 @@ byte BotThrottledMsec(bot_t* pBot);
 
 bool IsPlayerInBotFOV(bot_t* Observer, edict_t* TargetPlayer);
 bool DoesPlayerHaveLOSToPlayer(edict_t* Observer, edict_t* TargetPlayer);
+Vector GetVisiblePointOnPlayerFromObserver(edict_t* Observer, edict_t* TargetPlayer);
 bool DoesAnyPlayerOnTeamHaveLOSToPlayer(const int Team, edict_t* TargetPlayer);
 bool IsPlayerVisibleToBot(bot_t* Observer, edict_t* TargetPlayer);
 

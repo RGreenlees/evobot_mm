@@ -338,7 +338,7 @@ void GAME_BotSpawnInit(bot_t* pBot)
 	// Force bot to choose a new destination
 	ClearBotPath(pBot);
 
-	BotUpdateViewFrustum(pBot);
+	//BotUpdateViewFrustum(pBot);
 
 	pBot->f_previous_command_time = gpGlobals->time;
 }

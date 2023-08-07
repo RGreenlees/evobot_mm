@@ -474,6 +474,71 @@ void BotTeamSay(bot_t* pBot, float Delay, char* textToSay)
 	}
 }
 
+BotAttackResult PerformAttackLOSCheck(bot_t* pBot, const NSWeapon Weapon, const Vector TargetLocation, const edict_t* Target)
+{
+	if (!TargetLocation) { return ATTACK_INVALIDTARGET; }
+
+	if (Weapon == WEAPON_NONE) { return ATTACK_NOWEAPON; }
+
+	// Don't need aiming or special LOS checks for primal scream as it's AoE buff
+	if (Weapon == WEAPON_LERK_PRIMALSCREAM)
+	{
+		return ATTACK_SUCCESS;
+	}
+
+	// Add a LITTLE bit of give to avoid edge cases where the bot is a smidge out of range
+	float MaxWeaponRange = GetMaxIdealWeaponRange(Weapon) - 5.0f;
+
+	// Don't need aiming or special LOS checks for Xenocide as it's an AOE attack, just make sure we're close enough and don't have a wall in the way
+	if (Weapon == WEAPON_SKULK_XENOCIDE)
+	{
+		if (vDist3DSq(pBot->pEdict->v.origin, TargetLocation) <= sqrf(MaxWeaponRange) && UTIL_QuickTrace(pBot->pEdict, pBot->pEdict->v.origin, TargetLocation))
+		{
+			return ATTACK_SUCCESS;
+		}
+		else
+		{
+			return ATTACK_OUTOFRANGE;
+		}
+	}
+
+	// For charge and stomp, we can go through stuff so don't need to check for being blocked
+	if (Weapon == WEAPON_ONOS_CHARGE || Weapon == WEAPON_ONOS_STOMP)
+	{
+		if (vDist3DSq(pBot->pEdict->v.origin, TargetLocation) > sqrf(MaxWeaponRange)) { return ATTACK_OUTOFRANGE; }
+
+		if (!UTIL_QuickTrace(pBot->pEdict, pBot->pEdict->v.origin, TargetLocation) || fabsf(TargetLocation.z - TargetLocation.z) > 50.0f) { return ATTACK_OUTOFRANGE; }
+
+		return ATTACK_SUCCESS;
+	}
+
+	TraceResult hit;
+
+	Vector StartTrace = pBot->CurrentEyePosition;
+
+	Vector AttackDir = UTIL_GetVectorNormal(TargetLocation - StartTrace);
+
+	Vector EndTrace = pBot->CurrentEyePosition + (AttackDir * MaxWeaponRange);
+
+	UTIL_TraceLine(StartTrace, EndTrace, dont_ignore_monsters, dont_ignore_glass, pBot->pEdict->v.pContainingEntity, &hit);
+
+	if (FNullEnt(hit.pHit)) { return ATTACK_OUTOFRANGE; }
+
+	if (hit.pHit != Target)
+	{
+		if (vDist3DSq(pBot->CurrentEyePosition, TargetLocation) > sqrf(MaxWeaponRange))
+		{
+			return ATTACK_OUTOFRANGE;
+		}
+		else
+		{
+			return ATTACK_BLOCKED;
+		}
+	}
+
+	return ATTACK_SUCCESS;
+}
+
 BotAttackResult PerformAttackLOSCheck(bot_t* pBot, const NSWeapon Weapon, const edict_t* Target)
 {
 	if (FNullEnt(Target) || (Target->v.deadflag != DEAD_NO)) { return ATTACK_INVALIDTARGET; }
@@ -1565,7 +1630,9 @@ void BotUpdateView(bot_t* pBot)
 			continue;
 		}
 
-		bool bHasLOS = DoesPlayerHaveLOSToPlayer(pBot->pEdict, Enemy);
+		Vector VisiblePoint = GetVisiblePointOnPlayerFromObserver(pBot->pEdict, Enemy);
+
+		bool bHasLOS = (VisiblePoint != ZERO_VECTOR);
 
 		bool bIsTracked = (!bHasLOS && (IsPlayerParasited(Enemy) || IsPlayerMotionTracked(Enemy)));
 
@@ -1614,7 +1681,7 @@ void BotUpdateView(bot_t* pBot)
 			}
 
 			TrackingInfo->bIsAwareOfPlayer = true;
-			TrackingInfo->LastSeenLocation = Enemy->v.origin;
+			TrackingInfo->LastSeenLocation = VisiblePoint;
 			TrackingInfo->LastFloorPosition = FloorLocation;
 
 			if (bHasLOS)
@@ -1681,6 +1748,51 @@ void BotUpdateView(bot_t* pBot)
 	}
 }
 
+Vector GetVisiblePointOnPlayerFromObserver(edict_t* Observer, edict_t* TargetPlayer)
+{
+	Vector TargetCentre = UTIL_GetCentreOfEntity(TargetPlayer);
+
+	TraceResult hit;
+	UTIL_TraceLine(GetPlayerEyePosition(Observer), TargetCentre, ignore_monsters, ignore_glass, Observer->v.pContainingEntity, &hit);
+
+	if (hit.flFraction >= 1.0f) { return TargetCentre; }
+
+	NSPlayerClass TargetClass = GetPlayerClass(TargetPlayer);
+
+	// Only check the head and feet if we're not a short-arse (i.e. marine, fade or onos)
+	if (TargetClass == CLASS_MARINE || TargetClass == CLASS_FADE || TargetClass == CLASS_ONOS)
+	{
+
+		UTIL_TraceLine(GetPlayerEyePosition(Observer), GetPlayerEyePosition(TargetPlayer), ignore_monsters, ignore_glass, Observer->v.pContainingEntity, &hit);
+
+		if (hit.flFraction >= 1.0f) { return GetPlayerEyePosition(TargetPlayer); }
+
+		UTIL_TraceLine(GetPlayerEyePosition(Observer), GetPlayerBottomOfCollisionHull(TargetPlayer) + Vector(0.0f, 0.0f, 5.0f), ignore_monsters, ignore_glass, Observer->v.pContainingEntity, &hit);
+
+		if (hit.flFraction >= 1.0f) { return GetPlayerBottomOfCollisionHull(TargetPlayer) + Vector(0.0f, 0.0f, 5.0f); }
+	}
+
+	// Skulks are long bois, so check to make sure they don't have their little legs poking out round a corner...
+	if (TargetClass == CLASS_SKULK)
+	{
+		Vector ForwardVector = UTIL_GetForwardVector(TargetPlayer->v.angles);
+
+		Vector MinLoc = TargetCentre - (ForwardVector * 55.0f);
+
+		UTIL_TraceLine(GetPlayerEyePosition(Observer), MinLoc, ignore_monsters, ignore_glass, Observer->v.pContainingEntity, &hit);
+
+		if (hit.flFraction >= 1.0f) { return MinLoc; }
+
+		Vector MaxLoc = TargetCentre + (ForwardVector * 55.0f);
+
+		UTIL_TraceLine(GetPlayerEyePosition(Observer), MaxLoc, ignore_monsters, ignore_glass, Observer->v.pContainingEntity, &hit);
+
+		return (hit.flFraction >= 1.0f) ? MaxLoc : ZERO_VECTOR;
+	}
+
+	return ZERO_VECTOR;
+}
+
 bool DoesPlayerHaveLOSToPlayer(edict_t* Observer, edict_t* TargetPlayer)
 {
 	Vector TargetCentre = UTIL_GetCentreOfEntity(TargetPlayer);
@@ -1710,13 +1822,13 @@ bool DoesPlayerHaveLOSToPlayer(edict_t* Observer, edict_t* TargetPlayer)
 	{
 		Vector ForwardVector = UTIL_GetForwardVector(TargetPlayer->v.angles);
 
-		Vector MinLoc = TargetCentre - (ForwardVector * 55.0f);
+		Vector MinLoc = TargetCentre - (ForwardVector * 30.0f);
 
 		UTIL_TraceLine(GetPlayerEyePosition(Observer), MinLoc, ignore_monsters, ignore_glass, Observer->v.pContainingEntity, &hit);
 
 		if (hit.flFraction >= 1.0f) { return true; }
 
-		Vector MaxLoc = TargetCentre + (ForwardVector * 55.0f);
+		Vector MaxLoc = TargetCentre + (ForwardVector * 30.0f);
 
 		UTIL_TraceLine(GetPlayerEyePosition(Observer), MaxLoc, ignore_monsters, ignore_glass, Observer->v.pContainingEntity, &hit);
 
@@ -1798,7 +1910,7 @@ void StartNewBotFrame(bot_t* pBot)
 		pEdict->v.flags &= ~FL_FAKECLIENT;
 		pEdict->v.flags |= FL_THIRDPARTYBOT;
 	}
-	
+
 	pEdict->v.button = 0;
 	pBot->ForwardMove = 0.0f;
 	pBot->SideMove = 0.0f;
@@ -2193,6 +2305,10 @@ void CustomThink(bot_t* pBot)
 		return;
 	}
 
+	pBot->pEdict->v.button |= IN_ATTACK;
+
+	return;
+
 	pBot->CurrentEnemy = BotGetNextEnemyTarget(pBot);
 
 	if (pBot->CurrentEnemy > -1)
@@ -2202,8 +2318,6 @@ void CustomThink(bot_t* pBot)
 		edict_t* CurrentEnemy = TrackedEnemy->EnemyEdict;
 
 		if (FNullEnt(CurrentEnemy)) { return; }
-
-		BotLookAt(pBot, TrackedEnemy->LastSeenLocation);
 
 		if (!TrackedEnemy->bHasLOS)
 		{
@@ -2224,6 +2338,11 @@ void CustomThink(bot_t* pBot)
 					}
 				}
 			}
+		}
+		else
+		{
+			BotDirectLookAt(pBot, CurrentEnemy->v.origin);
+			BotShootLocation(pBot, GetBotCurrentWeapon(pBot), TrackedEnemy->LastSeenLocation);
 		}
 	}
 
@@ -2719,8 +2838,7 @@ void BotDirectLookAt(bot_t* pBot, Vector target)
 
 	Vector viewPos = pBot->CurrentEyePosition;
 
-	Vector dir = target - viewPos;
-	UTIL_NormalizeVector(&dir);
+	Vector dir = (target - viewPos);
 
 	pEdict->v.v_angle = UTIL_VecToAngles(dir);
 
