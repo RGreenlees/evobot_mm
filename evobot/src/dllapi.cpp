@@ -189,6 +189,18 @@ void ClientCommand(edict_t* pEntity)
 		RETURN_META(MRES_SUPERCEDE);
 	}
 
+	if (FStrEq(pcmd, "lookatme"))
+	{
+		for (int i = 0; i < MAX_CLIENTS; i++)
+		{
+			if (bots[i].is_used && !FNullEnt(bots[i].pEdict))
+			{
+				BotDirectLookAt(&bots[i], UTIL_GetCentreOfEntity(pEntity));
+			}
+		}
+		RETURN_META(MRES_SUPERCEDE);
+	}
+
 	if (FStrEq(pcmd, "testweldables"))
 	{
 		edict_t* currWeldable = NULL;
