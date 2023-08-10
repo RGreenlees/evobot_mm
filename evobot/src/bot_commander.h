@@ -25,20 +25,18 @@ static const float move_order_success_dist_metres = 2.0f;
 // What is the minimum acceptable resource towers for a team? Bots will prioritise building them if below this number
 static const int min_desired_resource_towers = 3;
 
-bool CommanderProgressAction(bot_t* CommanderBot, int ActionIndex, int Priority);
-bool CommanderProgressBuildAction(bot_t* CommanderBot, int ActionIndex, int Priority);
-bool CommanderProgressRecycleAction(bot_t* CommanderBot, int ActionIndex, int Priority);
-bool CommanderProgressUpgradeAction(bot_t* CommanderBot, int ActionIndex, int Priority);
-bool CommanderProgressResearchAction(bot_t* CommanderBot, int ActionIndex, int Priority);
-bool CommanderProgressItemDropAction(bot_t* CommanderBot, int ActionIndex, int Priority);
-bool CommanderProgressOrderAction(bot_t* CommanderBot, int ActionIndex, int Priority);
+void COMM_CommanderProgressAction(bot_t* CommanderBot, commander_action* Action);
+void BotCommanderDeploy(bot_t* pBot, commander_action* Action);
+void BotCommanderUpgradeStructure(bot_t* pBot, commander_action* Action);
+void BotCommanderResearchTech(bot_t* pBot, commander_action* Action);
+void BotCommanderRecycleStructure(bot_t* pBot, commander_action* Action);
+void BotCommanderSelectStructure(bot_t* pBot, const edict_t* Structure, commander_action* Action);
 
-bool UTIL_IssueOrderForAction(bot_t* CommanderBot, int PlayerIndex, int ActionIndex, int Priority);
 void UTIL_IssueMarineMoveToOrder(bot_t* CommanderBot, edict_t* Recipient, const Vector Destination);
 void UTIL_IssueMarineBuildOrder(bot_t* CommanderBot, edict_t* Recipient, edict_t* StructureToBuild);
-
-// First free action slot for the commander, for the given priority. -1 if none found
-int UTIL_CommanderFirstFreeActionIndex(bot_t* CommanderBot, int Priority);
+void COMM_IssueMarineSecureHiveOrder(bot_t* CommanderBot, edict_t* Recipient, const hive_definition* HiveToSecure);
+void COMM_IssueMarineSiegeHiveOrder(bot_t* CommanderBot, edict_t* Recipient, const hive_definition* HiveToSiege, const Vector SiegePosition);
+void COMM_IssueMarineSecureResNodeOrder(bot_t* CommanderBot, edict_t* Recipient, const resource_node* ResNode);
 
 void CommanderReceiveAlert(bot_t* pBot, const Vector Location, const PlayerAlertType AlertType);
 void CommanderReceiveHealthRequest(bot_t* pBot, edict_t* Requestor);
@@ -46,74 +44,45 @@ void CommanderReceiveAmmoRequest(bot_t* pBot, edict_t* Requestor);
 void CommanderReceiveOrderRequest(bot_t* pBot, edict_t* Requestor);
 void CommanderReceiveBaseAttackAlert(bot_t* pBot, const Vector Location);
 
-void UTIL_OrganiseCommanderActions(bot_t* pBot);
-
 void UpdateCommanderOrders(bot_t* Commander);
-void UpdateCommanderActions(bot_t* Commander);
 
-void CommanderQueueInfantryPortalBuild(bot_t* pBot, int Priority);
-void CommanderQueuePhaseGateBuild(bot_t* pBot, const Vector Location, int Priority);
-void CommanderQueueArmouryBuild(bot_t* pBot, int Priority);
-void CommanderQueueResTowerBuild(bot_t* pBot, int Priority);
-void CommanderQueueArmsLabBuild(bot_t* pBot, int Priority);
-void CommanderQueueResearch(bot_t* pBot, NSResearch Research, int Priority);
-void CommanderQueueArmsLabResearch(bot_t* pBot, NSResearch Research, int Priority);
-void CommanderQueuePrototypeLabResearch(bot_t* pBot, NSResearch Research, int Priority);
-void CommanderQueueObservatoryResearch(bot_t* pBot, NSResearch Research, int Priority);
-void CommanderQueueArmouryResearch(bot_t* pBot, NSResearch Research, int Priority);
-void CommanderQueueRecycleAction(bot_t* pBot, edict_t* Structure, int Priority);
-void CommanderQueueUpgrade(bot_t* pBot, edict_t* BuildingToUpgrade, int Priority);
-void CommanderQueueItemDrop(bot_t* pBot, NSDeployableItem ItemToDeploy, const Vector DropLocation, edict_t* Recipient, int Priority);
-void CommanderQueueActionOrder(bot_t* pBot, int Priority, int AssignedPlayer);
-void CommanderQueueElectricResearch(bot_t* pBot, int Priority, edict_t* StructureToElectrify);
-
-commander_action* UTIL_FindCommanderBuildActionOfType(bot_t* pBot, const NSStructureType StructureType, const Vector SearchLocation, const float SearchRadius);
+bool ShouldCommanderLeaveChair(bot_t* pBot);
 
 void CommanderThink(bot_t* CommanderBot);
 
 void CommanderGetPrimaryTask(bot_t* pBot, bot_task* Task);
 
+void COMM_UpdateAndClearCommanderActions(bot_t* CommanderBot);
+void COMM_UpdateAndClearCommanderOrders(bot_t* CommanderBot);
+
+bool COMM_ClearCompletedOrders(bot_t* CommanderBot);
+
+int COMM_GetNumMoveOrdersNearLocation(bot_t* CommanderBot, const Vector Location, const float MaxDistance);
+
+int COMM_GetNumMarinesAndOrdersInLocation(bot_t* CommanderBot, const Vector Location, const float SearchDist);
+
+edict_t* COMM_GetNearestMarineWithoutOrder(bot_t* CommanderBot, const Vector SearchLocation, float MinDistance, float MaxDistance);
+
+bool COMM_SecureHiveNeedsDeployment(bot_t* CommanderBot, const hive_definition* Hive);
+int COMM_GetNumMarinesSecuringHive(bot_t* CommanderBot, const hive_definition* Hive, float MaxDistance);
+int COMM_GetNumMarinesSiegingHive(bot_t* CommanderBot, const hive_definition* Hive, float MaxDistance);
+int COMM_GetNumMarinesSecuringResNode(bot_t* CommanderBot, const resource_node* ResNode, float MaxDistance);
+Vector COMM_GetGoodSiegeLocation(const hive_definition* HiveToSiege);
+
+bool COMM_IsWaitingOnBuildLink(bot_t* CommanderBot);
+
 bool UTIL_IsMarineOrderValid(bot_t* CommanderBot, int CommanderOrderIndex);
-bool UTIL_IsCommanderActionValid(bot_t* CommanderBot, int CommanderActionIndex, int Priority);
-bool UTIL_IsCommanderActionActionable(bot_t* CommanderBot, int CommanderActionIndex, int Priority);
-bool UTIL_IsCommanderActionComplete(bot_t* CommanderBot, int ActionIndex, int Priority);
+bool UTIL_IsCommanderActionValid(bot_t* CommanderBot, commander_action* Action);
 bool UTIL_CommanderBuildActionIsValid(bot_t* CommanderBot, commander_action* Action);
-
-int UTIL_FindFreeResNodeWithMarineNearby(bot_t* CommanderBot);
-
-bool UTIL_ActionHasValidPlayerAssigned(bot_t* CommanderBot, int CommanderActionIndex, int Priority);
-
-bool UTIL_StructureIsScheduledForRecycle(bot_t* CommanderBot, edict_t* Structure);
-
-edict_t* UTIL_GetFirstMarineStructureOffNavmesh();
-
-int UTIL_GetNumPlacedOrQueuedStructuresOfType(bot_t* CommanderBot, NSStructureType StructureType);
-
-
-void UTIL_CommanderQueueStructureBuildAtLocation(bot_t* pBot, const Vector Location, NSStructureType StructureType, int Priority);
 
 bool UTIL_ResearchInProgress(NSResearch Research);
 
-void QueueHeavyArmourLoadout(bot_t* CommanderBot, const Vector Area, int Priority);
-
-void QueueSecureHiveAction(bot_t* CommanderBot, const Vector Area, int Priority);
-
-void QueueSiegeHiveAction(bot_t* CommanderBot, const Vector Area, int Priority);
-
-bool UTIL_ResearchIsAlreadyQueued(bot_t* pBot, NSResearch Research);
 bool UTIL_HasIdleArmsLab();
 edict_t* UTIL_GetFirstIdleArmsLab();
 
-bool UTIL_ItemIsAlreadyLinked(bot_t* Commander, edict_t* Item);
-
-void UTIL_LinkItem(bot_t* Commander, edict_t* Item);
-
 bool UTIL_CancelCommanderPlayerOrder(bot_t* Commander, int PlayerIndex);
 
-bool UTIL_ActionExistsInLocation(const bot_t* Commander, const Vector CheckPoint);
-
-void UTIL_ClearCommanderAction(bot_t* Commander, int ActionIndex, int Priority);
-void UTIL_ClearCommanderAction(bot_t* Commander, commander_action* Action);
+void UTIL_ClearCommanderAction(commander_action* Action);
 void UTIL_ClearCommanderOrder(bot_t* Commander, int OrderIndex);
 
 bool UTIL_StructureCanBeUpgraded(const edict_t* Structure);
@@ -127,17 +96,7 @@ bool UTIL_ElectricalResearchIsAvailable(const edict_t* Structure);
 
 
 
-bool BotCommanderPlaceStructure(bot_t* pBot, int ActionIndex, int Priority);
-bool BotCommanderDropItem(bot_t* pBot, int ActionIndex, int Priority);
-bool BotCommanderRecycleStructure(bot_t* pBot, int ActionIndex, int Priority);
-bool BotCommanderUpgradeStructure(bot_t* pBot, int ActionIndex, int Priority);
-bool BotCommanderResearchTech(bot_t* pBot, int ActionIndex, int Priority);
-bool BotCommanderSelectStructure(bot_t* pBot, const edict_t* Structure, int ActionIndex, int Priority);
-
-
-
 int UTIL_GetCostOfResearch(const NSResearch Research);
-
 
 Vector UTIL_FindClearCommanderOriginForBuild(const bot_t* Commander, const Vector BuildLocation, const float CommanderViewZ);
 
@@ -145,19 +104,41 @@ bool UTIL_CancelMarineOrder(bot_t* CommanderBot, int CommanderOrderIndex);
 bool UTIL_IsMarineOrderComplete(bot_t* CommanderBot, int CommanderOrderIndex);
 bool UTIL_ConfirmMarineOrderComplete(bot_t* CommanderBot, int CommanderOrderIndex);
 
-void CommanderQueueNextAction(bot_t* pBot);
+bool COMM_IsSecureHiveOrderComplete(bot_t* CommanderBot, commander_order* Order);
+bool COMM_IsSiegeHiveOrderComplete(commander_order* Order);
+bool COMM_IsSecureResNodeOrderComplete(commander_order* Order);
 
 int UTIL_FindClosestAvailableMarinePlayer(bot_t* CommanderBot, const Vector Location);
 
 int UTIL_GetNumArmouriesUpgrading();
 
-bool UTIL_ResearchActionAlreadyExists(const bot_t* Commander, const NSResearch Research);
+bool UTIL_ItemCanBeDeployed(NSStructureType ItemToDeploy);
 
-int UTIL_GetQueuedBuildRequestsOfType(bot_t* CommanderBot, NSStructureType StructureType);
-int UTIL_GetQueuedBuildRequestsOfTypeInArea(bot_t* CommanderBot, NSStructureType StructureType, const Vector SearchLocation, const float SearchRadius);
-int UTIL_GetQueuedUpgradeRequestsOfType(bot_t* CommanderBot, NSStructureType StructureToBeUpgraded);
-int UTIL_GetQueuedItemDropRequestsOfType(bot_t* CommanderBot, NSDeployableItem ItemType);
+void COMM_ConfirmObjectDeployed(bot_t* pBot, commander_action* Action, edict_t* DeployedObject);
 
-bool UTIL_ItemCanBeDeployed(NSDeployableItem ItemToDeploy);
+const resource_node* COMM_GetResNodeCapOpportunityNearestLocation(const Vector SearchLocation);
+const hive_definition* COMM_GetEmptyHiveOpportunityNearestLocation(bot_t* CommanderBot, const Vector SearchLocation);
+const hive_definition* COMM_GetUnsecuredEmptyHiveNearestLocation(bot_t* CommanderBot, const Vector SearchLocation);
+const hive_definition* COMM_GetUnsecuredEmptyHiveFurthestToLocation(bot_t* CommanderBot, const Vector SearchLocation);
+const hive_definition* COMM_GetHiveSiegeOpportunityNearestLocation(bot_t* CommanderBot, const Vector SearchLocation);
+
+void COMM_SetInfantryPortalBuildAction(edict_t* CommChair, commander_action* Action);
+void COMM_SetTurretBuildAction(edict_t* TurretFactory, commander_action* Action);
+void COMM_SetSiegeTurretBuildAction(edict_t* TurretFactory, commander_action* Action, const Vector SiegeTarget, bool bIsUrgent);
+
+void COMM_SetElectrifyStructureAction(edict_t* Structure, commander_action* Action);
+
+Vector UTIL_GetNextTurretPosition(edict_t* TurretFactory);
+
+void COMM_SetNextSecureHiveAction(bot_t* CommanderBot, const hive_definition* Hive, commander_action* Action);
+void COMM_SetNextSiegeHiveAction(bot_t* CommanderBot, const hive_definition* Hive, commander_action* Action);
+void COMM_SetNextResearchAction(commander_action* Action);
+
+void COMM_SetNextBuildAction(bot_t* CommanderBot, commander_action* Action);
+void COMM_SetNextSupportAction(bot_t* CommanderBot, commander_action* Action);
+
+commander_action* COMM_GetNextAction(bot_t* CommanderBot);
+
+edict_t* COMM_GetMarineEligibleToBuildSiege(const hive_definition* Hive);
 
 #endif

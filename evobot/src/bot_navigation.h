@@ -38,11 +38,14 @@ constexpr auto BUILDING_REGULAR_NAV_PROFILE = 7;
 
 constexpr auto ALL_NAV_PROFILE = 8;
 
+constexpr auto LERK_FLYING_NAV_PROFILE = 9;
+
+constexpr auto GORGE_BUILD_NAV_PROFILE = 10;
 
 constexpr auto MIN_PATH_RECALC_TIME = 0.33f; // How frequently can a bot recalculate its path? Default to max 3 times per second
 
 
-#define MAX_PATH_POLY 1024 // Max nav mesh polys that can be traversed in a path. This should be sufficient for any sized map.
+#define MAX_PATH_POLY 512 // Max nav mesh polys that can be traversed in a path. This should be sufficient for any sized map.
 
 // Possible area types. Water, Road, Door and Grass are not used (left-over from Detour library)
 enum SamplePolyAreas
@@ -61,6 +64,7 @@ enum SamplePolyAreas
 	SAMPLE_POLYAREA_PHASEGATE = 11,
 	SAMPLE_POLYAREA_MSTRUCTURE = 12,
 	SAMPLE_POLYAREA_ASTRUCTURE = 13,
+	SAMPLE_POLYAREA_FLY = 14
 };
 
 // Possible movement types. Swim and door are not used
@@ -82,6 +86,7 @@ enum SamplePolyFlags
 	SAMPLE_POLYFLAGS_PHASEGATE = 1 << 13,		// Requires using a phase gate to traverse
 	SAMPLE_POLYFLAGS_MSTRUCTURE = 1 << 14,		// Marine Structure in the way, must be destroyed if alien, or impassable if marine
 	SAMPLE_POLYFLAGS_ASTRUCTURE = 1 << 15,		// Structure in the way, must be destroyed if marine, or impassable if alien
+	SAMPLE_POLYFLAGS_FLY = 1 << 16,		// Structure in the way, must be destroyed if marine, or impassable if alien
 	SAMPLE_POLYFLAGS_ALL = 0xffff		// All abilities.
 };
 
@@ -100,13 +105,32 @@ enum DoorActivationType
 typedef struct _NAV_DOOR
 {
 	edict_t* DoorEdict = nullptr; // Reference to the func_door
-	unsigned int ObstacleRef = 0; // Dynamic obstacle ref. Used to add/remove the obstacle as the door is opened/closed
-	edict_t* TriggerEdict = nullptr; // Reference to the trigger edict (e.g. func_trigger, func_button etc.)
+	unsigned int ObstacleRefs[32][8]; // Dynamic obstacle ref. Used to add/remove the obstacle as the door is opened/closed
+	int NumObstacles = 0;
+	edict_t* TriggerEdicts[8] = { nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr }; // Reference to the trigger edicts (e.g. func_trigger, func_button etc.)
+	int NumTriggers = 0; // How many triggers can activate the door (bot will pick best one)
 	DoorActivationType ActivationType = DOOR_NONE; // How the door should be opened
 	Vector PositionOne = ZERO_VECTOR; // Door's starting position
 	Vector PositionTwo = ZERO_VECTOR; // Door's open/close position (depending on if it starts open or not)
 	Vector CurrentPosition = ZERO_VECTOR; // Current world position
+	bool bStartOpen = false; // Does the door start open? (PositionOne = open position, not close position)
+	float OpenDelay = 0.0f; // How long the door takes to start opening after activation
 } nav_door;
+
+typedef struct _NAV_WELDABLE
+{
+	edict_t* WeldableEdict = nullptr;
+	unsigned int ObstacleRefs[32][8];
+	int NumObstacles = 0;
+} nav_weldable;
+
+// Door reference. Not used, but is a future feature to allow bots to track if a door is open or not, and how to open it etc.
+typedef struct _NAV_HITRESULT
+{
+	float flFraction = 0.0f;
+	bool bStartOffMesh = false;
+	Vector TraceEndPoint = ZERO_VECTOR;
+} nav_hitresult;
 
 // Links together a tile cache, nav query and the nav mesh into one handy structure for all your querying needs
 typedef struct _NAV_MESH
@@ -121,6 +145,7 @@ typedef struct _NAV_PROFILE
 {
 	int NavMeshIndex = -1;
 	dtQueryFilter Filters;
+	bool bFlyingProfile = false;
 } nav_profile;
 
 static const int NAVMESHSET_MAGIC = 'M' << 24 | 'S' << 16 | 'E' << 8 | 'T'; //'MSET', used to confirm the nav mesh we're loading is compatible;
@@ -145,6 +170,7 @@ static const int DT_AREA_BLOCKED = 3; // Area occupied by an obstruction (e.g. b
 static const int MAX_OFFMESH_CONNS = 1024; // Max number of dynamic connections that can be placed. Not currently used (connections are baked into the nav mesh using the external tool)
 
 static const int DOOR_USE_ONLY = 256; // Flag used by GoldSrc to determine if a door entity can only be used to open (i.e. can't be triggered)
+static const int DOOR_START_OPEN = 1;
 
 static const float CHECK_STUCK_INTERVAL = 0.1f; // How frequently should the bot check if it's stuck?
 
@@ -155,8 +181,14 @@ static nav_profile NavProfiles[MAX_NAV_PROFILES]; // Array of nav profiles
 bool NavmeshLoaded();
 // Unloads all data, including loaded nav meshes, nav profiles, all the map data such as buildable structure maps and hive locations.
 void UnloadNavigationData();
+// Unloads only the nav meshes, but not map data such as doors, hives and locations
+void UnloadNavMeshes();
 // Searches for the corresponding .nav file for the input map name, and loads/initiatialises the nav meshes and nav profiles.
 bool loadNavigationData(const char* mapname);
+// Loads the nav mesh only. Map data such as hive locations, doors etc are not loaded
+bool LoadNavMesh(const char* mapname);
+// Unloads the nav meshes (UnloadNavMeshes()) and then reloads them (LoadNavMesh). Map data such as doors, hives, locations are not touched.
+void ReloadNavMeshes();
 
 // FUTURE FEATURE: Will eventually link a door to the trigger than opens it
 void UTIL_LinkTriggerToDoor(const edict_t* DoorEdict, nav_door* DoorRef);
@@ -221,14 +253,26 @@ void BlockedMove(bot_t* pBot, const Vector StartPoint, const Vector EndPoint);
 // Called by NewMove, determines the movement direction and inputs required to drop down from start to end points
 void FallMove(bot_t* pBot, const Vector StartPoint, const Vector EndPoint);
 // Called by NewMove, determines the movement direction and inputs required to climb a ladder to reach endpoint
-void LadderMove(bot_t* pBot, const Vector StartPoint, const Vector EndPoint, float RequiredClimbHeight);
+void LadderMove(bot_t* pBot, const Vector StartPoint, const Vector EndPoint, float RequiredClimbHeight, unsigned char NextArea);
 // Called by NewMove, determines the movement direction and inputs required to climb a wall to reach endpoint
 void WallClimbMove(bot_t* pBot, const Vector StartPoint, const Vector EndPoint, float RequiredClimbHeight);
+void BlinkClimbMove(bot_t* pBot, const Vector StartPoint, const Vector EndPoint, float RequiredClimbHeight);
 // Called by NewMove, determines the movement direction and inputs required to use a phase gate to reach end point
 void PhaseGateMove(bot_t* pBot, const Vector StartPoint, const Vector EndPoint);
 
 // Will check for any func_breakable which might be in the way (e.g. window, vent) and make the bot aim and attack it to break it. Marines will switch to knife to break it.
 void CheckAndHandleBreakableObstruction(bot_t* pBot, const Vector MoveFrom, const Vector MoveTo);
+
+void CheckAndHandleDoorObstruction(bot_t* pBot, const Vector MoveFrom, const Vector MoveTo);
+
+edict_t* UTIL_GetNearestDoorTrigger(const Vector Location, const nav_door* Door, edict_t* IgnoreTrigger);
+bool UTIL_IsPathBlockedByDoor(const Vector StartLoc, const Vector EndLoc, edict_t* SearchDoor);
+
+edict_t* UTIL_GetDoorBlockingPathPoint(bot_path_node* PathNode, edict_t* SearchDoor);
+edict_t* UTIL_GetDoorBlockingPathPoint(const Vector FromLocation, const Vector ToLocation, const unsigned char Area, edict_t* SearchDoor);
+
+
+Vector UTIL_GetButtonFloorLocation(const Vector UserLocation, edict_t* ButtonEdict);
 
 // Clears all tracking of a bot's stuck status
 void ClearBotStuck(bot_t* pBot);
@@ -237,6 +281,7 @@ void ClearBotMovement(bot_t* pBot);
 
 // Will draw all temporary obstacles placed on the nav mesh, within a 10 metre (525 unit) radius
 void UTIL_DrawTemporaryObstacles();
+void DEBUG_DrawOffMeshConnections();
 
 // Checks if the bot has managed to make progress towards MoveDestination. Move destination should be the bot's current path point, not overall destination
 bool IsBotStuck(bot_t* pBot, const Vector MoveDestination);
@@ -254,12 +299,17 @@ Vector UTIL_GetNearestPointOnNavWall(const int NavProfileIndex, const Vector Loc
 	Using DT_AREA_NULL will effectively cut a hole in the nav mesh, meaning it's no longer considered a valid mesh position.
 */
 unsigned int UTIL_AddTemporaryObstacle(const Vector Location, float Radius, float Height, int area);
-unsigned int UTIL_AddTemporaryBoxObstacle(const Vector Location, Vector HalfExtents, float OrientationInRadians, int area);
+void UTIL_AddTemporaryObstacles(const Vector Location, float Radius, float Height, int area, unsigned int* ObstacleRefArray);
+
+
+unsigned int UTIL_AddTemporaryBoxObstacle(Vector bMin, Vector bMax, int area);
 
 /*	Removes the temporary obstacle from the mesh. The area will return to its default type (either walk or crouch).
 	Removing a DT_AREA_NULL obstacle will "fill in" the hole again, making it traversable and considered a valid mesh position.
 */
 void UTIL_RemoveTemporaryObstacle(unsigned int ObstacleRef);
+
+void UTIL_RemoveTemporaryObstacles(unsigned int* ObstacleRefs);
 
 // Not currently working. Intended to draw the nav mesh polys within a radius of the player, colour coded by area. Does nothing right now.
 void DEBUG_DrawNavMesh(const Vector DrawCentre, const int NavMeshIndex);
@@ -288,10 +338,16 @@ bool AreKeyPointsReachableForBot(bot_t* pBot);
 	Will handle path calculation, following the path, detecting if stuck and trying to unstick itself.
 	Will only recalculate paths if it decides it needs to, so is safe to call every frame.
 */
-bool MoveTo(bot_t* pBot, const Vector Destination, const BotMoveStyle MoveStyle);
+bool MoveTo(bot_t* pBot, const Vector Destination, const BotMoveStyle MoveStyle, const float MaxAcceptableDist = max_player_use_reach);
 
 // Used by the MoveTo command, handles the bot's movement and inputs to follow a path it has calculated for itself
 void BotFollowPath(bot_t* pBot);
+void BotFollowFlightPath(bot_t* pBot);
+
+int GetNextDirectFlightPath(bot_t* pBot);
+
+// If the bot has been unable to move more than 32 units in the last MaxStuckTime seconds (must be trying to move somewhere) then returns true
+bool IsBotPermaStuck(bot_t* pBot);
 
 // Walks directly towards the destination. No path finding, just raw movement input. Will detect obstacles and try to jump/duck under them.
 void MoveDirectlyTo(bot_t* pBot, const Vector Destination);
@@ -299,19 +355,23 @@ void MoveDirectlyTo(bot_t* pBot, const Vector Destination);
 // Check if there are any players in our way and try to move around them. If we can't, then back up to let them through
 void HandlePlayerAvoidance(bot_t* pBot, const Vector MoveDestination);
 
-// Finds a path between two supplied points, using the supplied nav profile. Will return a failure if it can't reach the exact given location, and bAllowPartial is false.
-// If bAllowPartial is true, it will return success and provide the partial path that got it as close as possible to the destination
-dtStatus FindPathToPoint(const int NavProfileIndex, const Vector FromLocation, const Vector ToLocation, bot_path_node* path, int* pathSize, bool bAllowPartial);
-
 // Special path finding that takes the presence of phase gates into account 
 dtStatus FindPhaseGatePathToPoint(const int NavProfileIndex, Vector FromLocation, Vector ToLocation, bot_path_node* path, int* pathSize, float MaxAcceptableDistance);
+
+// Special path finding that takes the presence of phase gates into account 
+dtStatus FindFlightPathToPoint(const int NavProfileIndex, Vector FromLocation, Vector ToLocation, bot_path_node* path, int* pathSize, float MaxAcceptableDistance);
+
+Vector UTIL_FindHighestSuccessfulTracePoint(const Vector TraceFrom, const Vector TargetPoint, const Vector NextPoint, const float IterationStep, const float MinIdealHeight, const float MaxHeight);
 
 // Similar to FindPathToPoint, but you can specify a max acceptable distance for partial results. Will return a failure if it can't reach at least MaxAcceptableDistance away from the ToLocation
 dtStatus FindPathClosestToPoint(bot_t* pBot, const BotMoveStyle MoveStyle, const Vector FromLocation, const Vector ToLocation, bot_path_node* path, int* pathSize, float MaxAcceptableDistance);
 dtStatus FindPathClosestToPoint(const int NavProfileIndex, const Vector FromLocation, const Vector ToLocation, bot_path_node* path, int* pathSize, float MaxAcceptableDistance);
+dtStatus FindDetailedPathClosestToPoint(const int NavProfileIndex, const Vector FromLocation, const Vector ToLocation, bot_path_node* path, int* pathSize, float MaxAcceptableDistance);
 
 // If the bot is stuck and off the path or nav mesh, this will try to find a point it can directly move towards to get it back on track
 Vector FindClosestPointBackOnPath(bot_t* pBot);
+
+Vector DEBUG_FindClosestPointBackOnPath(edict_t* Player);
 
 Vector FindClosestNavigablePointToDestination(const int NavProfileIndex, const Vector FromLocation, const Vector ToLocation, float MaxAcceptableDistance);
 
@@ -344,6 +404,8 @@ bool UTIL_PointIsDirectlyReachable(const int NavProfileIndex, const Vector start
 
 // Will trace along the nav mesh from start to target and return true if the trace reaches within MaxAcceptableDistance
 bool UTIL_TraceNav(const int NavProfileIndex, const Vector start, const Vector target, const float MaxAcceptableDistance);
+
+void UTIL_TraceNavLine(const int NavProfileIndex, const Vector Start, const Vector End, nav_hitresult* HitResult);
 
 /*
 	Project point to navmesh:
@@ -412,7 +474,7 @@ void ClearBotPath(bot_t* pBot);
 void ClearBotStuckMovement(bot_t* pBot);
 
 // Draws just the bot's next movement on its path. Colour-coded based on the movement type (e.g. walk, crouch, jump, ladder)
-void DEBUG_DrawBotNextPathPoint(bot_t* pBot);
+void DEBUG_DrawBotNextPathPoint(bot_t* pBot, float TimeInSeconds);
 
 // Based on the direction the bot wants to move and it's current facing angle, sets the forward and side move, and the directional buttons to make the bot actually move
 void BotMovementInputs(bot_t* pBot);
@@ -422,11 +484,28 @@ void OnBotStartLadder(bot_t* pBot);
 // Event called when a bot leaves a ladder
 void OnBotEndLadder(bot_t* pBot);
 
-// Not in use yet, will track all doors and their current status
+// Tracks all doors and their current status
 void UTIL_PopulateDoors();
+
+// Mark the door with the matching target name as weldable. Weld-activated doors leave permanent markers on the nav mesh to block movement since they can only be triggered once
+void UTIL_MarkDoorWeldable(const char* DoorTargetName);
+
+void UTIL_UpdateWeldableDoors();
+void UTIL_UpdateWeldableObstacles();
+
+void UTIL_PopulateWeldableObstacles();
+
+const nav_door* UTIL_GetNavDoorByEdict(const edict_t* DoorEdict);
 
 // If the bot has a path, will draw it out in full if bShort is false, or just the first 5 path nodes if bShort is true
 void BotDrawPath(bot_t* pBot, float DrawTimeInSeconds, bool bShort);
+
+void DEBUG_TestFlightPathFind(edict_t* pEdict, const Vector Destination);
+
+Vector UTIL_AdjustPointAwayFromNavWall(const Vector Location, const float MaxDistanceFromWall);
+
+unsigned char UTIL_GetBotCurrentPathArea(bot_t* pBot);
+unsigned char UTIL_GetNextBotCurrentPathArea(bot_t* pBot);
 
 #endif // BOT_NAVIGATION_H
 

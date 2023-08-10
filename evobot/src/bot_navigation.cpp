@@ -26,16 +26,19 @@
 #include "bot_tactical.h"
 #include "general_util.h"
 #include "bot_util.h"
-
 #include "bot_weapons.h"
-
 #include "game_state.h"
+#include "bot_task.h"
+#include "bot_bsp.h"
+#include "bot_config.h"
 
 extern hive_definition Hives[10];
 extern int NumTotalHives;
 
 nav_door NavDoors[32];
+nav_weldable NavWeldableObstacles[32];
 int NumDoors;
+int NumWeldableObstacles;
 
 extern edict_t* clients[MAX_CLIENTS];
 extern bot_t bots[MAX_CLIENTS];
@@ -250,26 +253,27 @@ struct MeshProcess : public dtTileCacheMeshProcess
 			switch (OffMeshFlags[i])
 			{
 			case SAMPLE_POLYFLAGS_WALK:
-				UTIL_DrawLine(clients[0], StartLine, EndLine, 30.0f, 255, 255, 255);
+				UTIL_DrawLine(GAME_GetListenServerEdict(), StartLine, EndLine, 30.0f, 255, 255, 255);
 				break;
 			case SAMPLE_POLYFLAGS_JUMP:
-				UTIL_DrawLine(clients[0], StartLine, EndLine, 30.0f, 255, 255, 0);
+			case SAMPLE_POLYFLAGS_HIGHJUMP:
+				UTIL_DrawLine(GAME_GetListenServerEdict(), StartLine, EndLine, 30.0f, 255, 255, 0);
 				break;
 			case SAMPLE_POLYFLAGS_WALLCLIMB:
-				UTIL_DrawLine(clients[0], StartLine, EndLine, 30.0f, 0, 255, 0);
+				UTIL_DrawLine(GAME_GetListenServerEdict(), StartLine, EndLine, 30.0f, 0, 255, 0);
 				break;
 			case SAMPLE_POLYFLAGS_FALL:
 			case SAMPLE_POLYFLAGS_HIGHFALL:
-				UTIL_DrawLine(clients[0], StartLine, EndLine, 30.0f, 255, 0, 0);
+				UTIL_DrawLine(GAME_GetListenServerEdict(), StartLine, EndLine, 30.0f, 255, 0, 0);
 				break;
 			case SAMPLE_POLYFLAGS_LADDER:
-				UTIL_DrawLine(clients[0], StartLine, EndLine, 30.0f, 0, 0, 255);
+				UTIL_DrawLine(GAME_GetListenServerEdict(), StartLine, EndLine, 30.0f, 0, 0, 255);
 				break;
 			case SAMPLE_POLYFLAGS_PHASEGATE:
-				UTIL_DrawLine(clients[0], StartLine, EndLine, 30.0f, 255, 128, 128);
+				UTIL_DrawLine(GAME_GetListenServerEdict(), StartLine, EndLine, 30.0f, 255, 128, 128);
 				break;
 			default:
-				UTIL_DrawLine(clients[0], StartLine, EndLine, 30.0f, 0, 255, 255);
+				UTIL_DrawLine(GAME_GetListenServerEdict(), StartLine, EndLine, 30.0f, 0, 255, 255);
 				break;
 			}
 		}
@@ -354,64 +358,14 @@ void UTIL_DrawTemporaryObstacles()
 		{
 			const dtTileCacheObstacle* ObstacleRef = m_tileCache->getObstacle(i);
 
-			if (!ObstacleRef) { continue; }
+			if (!ObstacleRef || ObstacleRef->state != DT_OBSTACLE_PROCESSED) { continue; }
 
-			if (ObstacleRef->type == ObstacleType::DT_OBSTACLE_ORIENTED_BOX)
+			if (ObstacleRef->type == ObstacleType::DT_OBSTACLE_BOX)
 			{
-				float MinX = ObstacleRef->orientedBox.center[0] - ObstacleRef->orientedBox.halfExtents[0];
-				float MinZ = ObstacleRef->orientedBox.center[2] - ObstacleRef->orientedBox.halfExtents[2];
+				Vector bMin = Vector(ObstacleRef->box.bmin[0], -ObstacleRef->box.bmin[2], ObstacleRef->box.bmin[1]);
+				Vector bMax = Vector(ObstacleRef->box.bmax[0], -ObstacleRef->box.bmax[2], ObstacleRef->box.bmax[1]);
 
-				float MaxX = ObstacleRef->orientedBox.center[0] + ObstacleRef->orientedBox.halfExtents[0];
-				float MaxZ = ObstacleRef->orientedBox.center[2] + ObstacleRef->orientedBox.halfExtents[2];
-
-				float minx2 = 2.0f * (float(MinX) - ObstacleRef->orientedBox.center[0]);
-				float minz2 = 2.0f * (float(MinZ) - ObstacleRef->orientedBox.center[2]);
-				float maxx2 = 2.0f * (float(MaxX) - ObstacleRef->orientedBox.center[0]);
-				float maxz2 = 2.0f * (float(MaxZ) - ObstacleRef->orientedBox.center[2]);
-
-				Vector Centre = Vector(ObstacleRef->orientedBox.center[0], -ObstacleRef->orientedBox.center[2], ObstacleRef->orientedBox.center[1]);
-
-				UTIL_DrawLine(clients[0], Centre - Vector(0.0f, 0.0f, ObstacleRef->orientedBox.halfExtents[1]), Centre + Vector(0.0f, 0.0f, ObstacleRef->orientedBox.halfExtents[1]), 20.0f, 255, 0, 0);
-
-				float xrot = ObstacleRef->orientedBox.rotAux[1] * minx2 + ObstacleRef->orientedBox.rotAux[0] * minz2;
-				float zrot = ObstacleRef->orientedBox.rotAux[1] * minz2 - ObstacleRef->orientedBox.rotAux[0] * minx2;
-
-				Vector LowerBottomLeftCorner = Vector(xrot, -zrot, ObstacleRef->orientedBox.center[1] - ObstacleRef->orientedBox.halfExtents[1]);
-
-				xrot = ObstacleRef->orientedBox.rotAux[1] * minx2 + ObstacleRef->orientedBox.rotAux[0] * maxz2;
-				zrot = ObstacleRef->orientedBox.rotAux[1] * maxz2 - ObstacleRef->orientedBox.rotAux[0] * minx2;
-
-				Vector LowerTopLeftCorner = Vector(xrot, -zrot, ObstacleRef->orientedBox.center[1] - ObstacleRef->orientedBox.halfExtents[1]);
-
-				xrot = ObstacleRef->orientedBox.rotAux[1] * maxx2 + ObstacleRef->orientedBox.rotAux[0] * maxz2;
-				zrot = ObstacleRef->orientedBox.rotAux[1] * maxz2 - ObstacleRef->orientedBox.rotAux[0] * maxx2;
-
-				Vector LowerTopRightCorner = Vector(xrot, -zrot, ObstacleRef->orientedBox.center[1] - ObstacleRef->orientedBox.halfExtents[1]);
-
-				xrot = ObstacleRef->orientedBox.rotAux[1] * maxx2 + ObstacleRef->orientedBox.rotAux[0] * minz2;
-				zrot = ObstacleRef->orientedBox.rotAux[1] * minz2 - ObstacleRef->orientedBox.rotAux[0] * maxx2;
-
-				Vector LowerBottomRightCorner = Vector(xrot, -zrot, ObstacleRef->orientedBox.center[1] - ObstacleRef->orientedBox.halfExtents[1]);
-
-				Vector UpperBottomLeftCorner = LowerBottomLeftCorner + Vector(0.0f, 0.0f, ObstacleRef->orientedBox.halfExtents[1] * 2.0f);
-				Vector UpperTopLeftCorner = LowerTopLeftCorner + Vector(0.0f, 0.0f, ObstacleRef->orientedBox.halfExtents[1] * 2.0f);
-				Vector UpperTopRightCorner = LowerTopRightCorner + Vector(0.0f, 0.0f, ObstacleRef->orientedBox.halfExtents[1] * 2.0f);
-				Vector UpperBottomRightCorner = LowerBottomRightCorner + Vector(0.0f, 0.0f, ObstacleRef->orientedBox.halfExtents[1] * 2.0f);
-
-				UTIL_DrawLine(clients[0], LowerBottomLeftCorner, LowerTopLeftCorner, 20.0f, 255, 255, 255);
-				UTIL_DrawLine(clients[0], LowerTopLeftCorner, LowerTopRightCorner, 20.0f, 255, 255, 255);
-				UTIL_DrawLine(clients[0], LowerTopRightCorner, LowerBottomRightCorner, 20.0f, 255, 255, 255);
-				UTIL_DrawLine(clients[0], LowerBottomRightCorner, LowerBottomLeftCorner, 20.0f, 255, 255, 255);
-
-				UTIL_DrawLine(clients[0], UpperBottomLeftCorner, UpperTopLeftCorner, 20.0f, 255, 255, 255);
-				UTIL_DrawLine(clients[0], UpperTopLeftCorner, UpperTopRightCorner, 20.0f, 255, 255, 255);
-				UTIL_DrawLine(clients[0], UpperTopRightCorner, UpperBottomRightCorner, 20.0f, 255, 255, 255);
-				UTIL_DrawLine(clients[0], UpperBottomRightCorner, UpperBottomLeftCorner, 20.0f, 255, 255, 255);
-
-				UTIL_DrawLine(clients[0], LowerBottomLeftCorner, UpperBottomLeftCorner, 20.0f, 255, 255, 255);
-				UTIL_DrawLine(clients[0], LowerTopLeftCorner, UpperTopLeftCorner, 20.0f, 255, 255, 255);
-				UTIL_DrawLine(clients[0], LowerTopRightCorner, UpperTopRightCorner, 20.0f, 255, 255, 255);
-				UTIL_DrawLine(clients[0], LowerBottomRightCorner, UpperBottomRightCorner, 20.0f, 255, 255, 255);
+				UTIL_DrawBox(GAME_GetListenServerEdict(), bMin, bMax, 10.0f);
 				continue;
 			}
 
@@ -424,37 +378,59 @@ void UTIL_DrawTemporaryObstacles()
 				// The location of obstacles in Recast are at the bottom of the shape, not the centre
 				Vector Centre = Vector(ObstacleRef->cylinder.pos[0], -ObstacleRef->cylinder.pos[2], ObstacleRef->cylinder.pos[1] + (Height * 0.5f));
 
-				if (vDist2DSq(clients[0]->v.origin, Centre) > sqrf(UTIL_MetresToGoldSrcUnits(10.0f))) { continue; }
+				if (vDist2DSq(GAME_GetListenServerEdict()->v.origin, Centre) > sqrf(UTIL_MetresToGoldSrcUnits(10.0f))) { continue; }
 
-				Vector LowerBottomLeftCorner = Centre - Vector(Radius, Radius, Height * 0.5f);
-				Vector LowerTopLeftCorner = Centre - Vector(Radius, -Radius, Height * 0.5f);
-				Vector LowerTopRightCorner = Centre + Vector(Radius, Radius, -(Height * 0.5f));
-				Vector LowerBottomRightCorner = Centre - Vector(-Radius, Radius, Height * 0.5f);
+				Vector bMin = Centre - Vector(Radius, Radius, Height * 0.5f);
+				Vector bMax = Centre + Vector(Radius, Radius, (Height * 0.5f));
 
-				Vector UpperBottomLeftCorner = Centre - Vector(Radius, Radius, -(Height * 0.5f));
-				Vector UpperTopLeftCorner = Centre - Vector(Radius, -Radius, -(Height * 0.5f));
-				Vector UpperTopRightCorner = Centre + Vector(Radius, Radius, (Height * 0.5f));
-				Vector UpperBottomRightCorner = Centre - Vector(-Radius, Radius, -(Height * 0.5f));
-
-				UTIL_DrawLine(clients[0], LowerBottomLeftCorner, LowerTopLeftCorner, 20.0f, 255, 255, 255);
-				UTIL_DrawLine(clients[0], LowerTopLeftCorner, LowerTopRightCorner, 20.0f, 255, 255, 255);
-				UTIL_DrawLine(clients[0], LowerTopRightCorner, LowerBottomRightCorner, 20.0f, 255, 255, 255);
-				UTIL_DrawLine(clients[0], LowerBottomRightCorner, LowerBottomLeftCorner, 20.0f, 255, 255, 255);
-
-				UTIL_DrawLine(clients[0], UpperBottomLeftCorner, UpperTopLeftCorner, 20.0f, 255, 255, 255);
-				UTIL_DrawLine(clients[0], UpperTopLeftCorner, UpperTopRightCorner, 20.0f, 255, 255, 255);
-				UTIL_DrawLine(clients[0], UpperTopRightCorner, UpperBottomRightCorner, 20.0f, 255, 255, 255);
-				UTIL_DrawLine(clients[0], UpperBottomRightCorner, UpperBottomLeftCorner, 20.0f, 255, 255, 255);
-
-				UTIL_DrawLine(clients[0], LowerBottomLeftCorner, UpperBottomLeftCorner, 20.0f, 255, 255, 255);
-				UTIL_DrawLine(clients[0], LowerTopLeftCorner, UpperTopLeftCorner, 20.0f, 255, 255, 255);
-				UTIL_DrawLine(clients[0], LowerTopRightCorner, UpperTopRightCorner, 20.0f, 255, 255, 255);
-				UTIL_DrawLine(clients[0], LowerBottomRightCorner, UpperBottomRightCorner, 20.0f, 255, 255, 255);
+				UTIL_DrawBox(GAME_GetListenServerEdict(), bMin, bMax, 10.0f);
 				continue;
 			}
 
 		}
 	}
+}
+
+
+Vector UTIL_AdjustPointAwayFromNavWall(const Vector Location, const float MaxDistanceFromWall)
+{
+
+	const dtNavMeshQuery* m_navQuery = UTIL_GetNavMeshQueryForProfile(SKULK_REGULAR_NAV_PROFILE);
+	const dtQueryFilter* m_navFilter = UTIL_GetNavMeshFilterForProfile(SKULK_REGULAR_NAV_PROFILE);
+
+	float Pos[3] = { Location.x, Location.z, -Location.y };
+
+	float HitDist = 0.0f;
+	float HitPos[3] = { 0.0f, 0.0f, 0.0f };
+	float HitNorm[3] = { 0.0f, 0.0f, 0.0f };
+
+	dtPolyRef StartPoly = UTIL_GetNearestPolyRefForLocation(Location);
+
+	dtStatus Result = m_navQuery->findDistanceToWall(StartPoly, Pos, MaxDistanceFromWall, m_navFilter, &HitDist, HitPos, HitNorm);
+
+	if (dtStatusSucceed(Result))
+	{
+		float AdjustDistance = MaxDistanceFromWall - HitDist;
+
+		Vector HitPosVector = Vector(HitPos[0], -HitPos[2], HitPos[1]);
+
+		Vector AdjustDir = (HitDist > 0.1f) ? UTIL_GetVectorNormal2D(Location - HitPosVector) : Vector(HitNorm[0], -HitNorm[2], HitNorm[1]);
+
+		Vector AdjustLocation = Location + (AdjustDir * AdjustDistance);
+
+		float AdjustLoc[3] = { AdjustLocation.x, AdjustLocation.z, -AdjustLocation.y };
+
+		if (UTIL_TraceNav(SKULK_REGULAR_NAV_PROFILE, Location, AdjustLocation, 0.1f))
+		{
+			return AdjustLocation;
+		}
+		else
+		{
+			return Location;
+		}
+	}
+
+	return Location;
 }
 
 Vector UTIL_GetNearestPointOnNavWall(bot_t* pBot, const float MaxRadius)
@@ -553,27 +529,42 @@ unsigned int UTIL_AddTemporaryObstacle(const Vector Location, float Radius, floa
 		}
 	}
 
-	if (ObstacleNum > 0)
-	{
-		RecalcAllBotPaths();
-	}
-
 	return ObstacleNum;
 }
 
-unsigned int UTIL_AddTemporaryBoxObstacle(const Vector Location, Vector HalfExtents, float OrientationInRadians, int area)
+void UTIL_AddTemporaryObstacles(const Vector Location, float Radius, float Height, int area, unsigned int* ObstacleRefArray)
 {
 	unsigned int ObstacleNum = 0;
 
-	float Pos[3] = { Location.x, Location.z - HalfExtents.z, -Location.y };
-	float bHalfExtents[3] = { HalfExtents.x, HalfExtents.z, HalfExtents.y };
+	float Pos[3] = { Location.x, Location.z - (Height * 0.5f), -Location.y };
+
+	for (int i = 0; i < MAX_NAV_MESHES; i++)
+	{
+		ObstacleRefArray[i] = 0;
+
+		if (NavMeshes[i].tileCache)
+		{
+			dtObstacleRef ObsRef = 0;
+			NavMeshes[i].tileCache->addObstacle(Pos, Radius, Height, area, &ObsRef);
+
+			ObstacleRefArray[i] = (unsigned int)ObsRef;
+		}
+	}
+}
+
+unsigned int UTIL_AddTemporaryBoxObstacle(const Vector bMin, const Vector bMax, int area)
+{
+	unsigned int ObstacleNum = 0;
+
+	float bMinf[3] = { bMin.x, bMin.z, -bMin.y };
+	float bMaxf[3] = { bMax.x, bMax.z, -bMax.y };
 
 	for (int i = 0; i < MAX_NAV_MESHES; i++)
 	{
 		if (NavMeshes[i].tileCache)
 		{
 			dtObstacleRef ObsRef = 0;
-			NavMeshes[i].tileCache->addBoxObstacle(Pos, bHalfExtents, OrientationInRadians, area, &ObsRef);
+			NavMeshes[i].tileCache->addBoxObstacle(bMinf, bMaxf, area, &ObsRef);
 
 			ObstacleNum = (unsigned int)ObsRef;
 
@@ -582,9 +573,6 @@ unsigned int UTIL_AddTemporaryBoxObstacle(const Vector Location, Vector HalfExte
 
 	return ObstacleNum;
 }
-
-
-
 
 void DEBUG_DrawNavMesh(const Vector DrawCentre, const int NavMeshIndex)
 {
@@ -609,7 +597,7 @@ void DEBUG_DrawNavMesh(const Vector DrawCentre, const int NavMeshIndex)
 		{
 			char buf[64];
 			sprintf(buf, "Failed to find any tiles! %d in total\n", m_tileCache->getTileCount());
-			UTIL_SayText(buf, clients[0]);
+			UTIL_SayText(buf, GAME_GetListenServerEdict());
 		}
 
 		for (int i = 0; i < NumTiles; i++)
@@ -623,15 +611,15 @@ void DEBUG_DrawNavMesh(const Vector DrawCentre, const int NavMeshIndex)
 			Vector MinBox = Vector(bmin[0], -bmin[2], bmin[1]);
 			Vector MaxBox = Vector(bmax[0], -bmax[2], bmax[1]);
 
-			UTIL_DrawLine(clients[0], Vector(MinBox.x, MinBox.y, MinBox.z + 10.0f), Vector(MaxBox.x, MinBox.y, MinBox.z + 10.0f), 5.0f);
-			UTIL_DrawLine(clients[0], Vector(MaxBox.x, MinBox.y, MinBox.z + 10.0f), Vector(MaxBox.x, MaxBox.y, MinBox.z + 10.0f), 5.0f);
-			UTIL_DrawLine(clients[0], Vector(MaxBox.x, MaxBox.y, MinBox.z + 10.0f), Vector(MinBox.x, MaxBox.y, MinBox.z + 10.0f), 5.0f);
-			UTIL_DrawLine(clients[0], Vector(MinBox.x, MaxBox.y, MinBox.z + 10.0f), Vector(MinBox.x, MinBox.y, MinBox.z + 10.0f), 5.0f);
+			UTIL_DrawLine(GAME_GetListenServerEdict(), Vector(MinBox.x, MinBox.y, MinBox.z + 10.0f), Vector(MaxBox.x, MinBox.y, MinBox.z + 10.0f), 5.0f);
+			UTIL_DrawLine(GAME_GetListenServerEdict(), Vector(MaxBox.x, MinBox.y, MinBox.z + 10.0f), Vector(MaxBox.x, MaxBox.y, MinBox.z + 10.0f), 5.0f);
+			UTIL_DrawLine(GAME_GetListenServerEdict(), Vector(MaxBox.x, MaxBox.y, MinBox.z + 10.0f), Vector(MinBox.x, MaxBox.y, MinBox.z + 10.0f), 5.0f);
+			UTIL_DrawLine(GAME_GetListenServerEdict(), Vector(MinBox.x, MaxBox.y, MinBox.z + 10.0f), Vector(MinBox.x, MinBox.y, MinBox.z + 10.0f), 5.0f);
 		}
 	}
 	else
 	{
-		UTIL_SayText("No Tile Cache!\n", clients[0]);
+		UTIL_SayText("No Tile Cache!\n", GAME_GetListenServerEdict());
 	}
 }
 
@@ -643,12 +631,23 @@ void UTIL_RemoveTemporaryObstacle(unsigned int ObstacleRef)
 	{
 		if (NavMeshes[i].tileCache)
 		{
-			dtObstacleRef ObsRef = 0;
 			NavMeshes[i].tileCache->removeObstacle((dtObstacleRef)ObstacleRef);
 		}
 	}
+}
 
-	RecalcAllBotPaths();
+void UTIL_RemoveTemporaryObstacles(unsigned int* ObstacleRefs)
+{
+	for (int i = 0; i < MAX_NAV_MESHES; i++)
+	{
+		if (NavMeshes[i].tileCache)
+		{
+			NavMeshes[i].tileCache->removeObstacle(ObstacleRefs[i]);
+
+		}
+
+		ObstacleRefs[i] = 0;
+	}
 }
 
 void GetFullFilePath(char* buffer, const char* mapname)
@@ -657,7 +656,26 @@ void GetFullFilePath(char* buffer, const char* mapname)
 	strcat(buffer, ".nav");
 }
 
-void UnloadNavigationData()
+void DEBUG_DrawOffMeshConnections()
+{
+	if (NavMeshes[0].tileCache)
+	{
+		MeshProcess* m_tmproc = (MeshProcess*)NavMeshes[0].tileCache->getMeshProcess();
+
+		if (m_tmproc)
+		{
+			m_tmproc->DrawAllConnections();
+		}
+	}
+}
+
+void ReloadNavMeshes()
+{
+	UnloadNavMeshes();
+	LoadNavMesh(STRING(gpGlobals->mapname));
+}
+
+void UnloadNavMeshes()
 {
 	for (int i = 0; i < MAX_NAV_MESHES; i++)
 	{
@@ -679,18 +697,23 @@ void UnloadNavigationData()
 			NavMeshes[i].tileCache = nullptr;
 		}
 	}
+}
+
+void UnloadNavigationData()
+{
+	UnloadNavMeshes();
 
 	memset(NavProfiles, 0, sizeof(nav_profile));
+	memset(NavDoors, 0, sizeof(NavDoors));
+	memset(NavWeldableObstacles, 0, sizeof(NavWeldableObstacles));
+	NumDoors = 0;
 
 	UTIL_ClearMapAIData();
 	UTIL_ClearMapLocations();
 }
 
-bool loadNavigationData(const char* mapname)
+bool LoadNavMesh(const char* mapname)
 {
-
-	UnloadNavigationData();
-
 	char filename[256]; // Full path to BSP file
 
 	GetFullFilePath(filename, mapname);
@@ -716,14 +739,14 @@ bool loadNavigationData(const char* mapname)
 	{
 		char buf[64];
 		sprintf(buf, "Header Magic does not match! %d\n", header.magic);
-		ClientPrint(clients[0], HUD_PRINTNOTIFY, buf);
+		ClientPrint(GAME_GetListenServerEdict(), HUD_PRINTNOTIFY, buf);
 		fclose(savedFile);
 		UnloadNavigationData();
 		return false;
 	}
 	if (header.version != TILECACHESET_VERSION)
 	{
-		ClientPrint(clients[0], HUD_PRINTNOTIFY, "Header version does not match!\n");
+		ClientPrint(GAME_GetListenServerEdict(), HUD_PRINTNOTIFY, "Header version does not match!\n");
 		fclose(savedFile);
 		UnloadNavigationData();
 		return false;
@@ -732,7 +755,7 @@ bool loadNavigationData(const char* mapname)
 	NavMeshes[REGULAR_NAV_MESH].navMesh = dtAllocNavMesh();
 	if (!NavMeshes[REGULAR_NAV_MESH].navMesh)
 	{
-		ClientPrint(clients[0], HUD_PRINTNOTIFY, "Could not allocate navmesh\n");
+		ClientPrint(GAME_GetListenServerEdict(), HUD_PRINTNOTIFY, "Could not allocate navmesh\n");
 		fclose(savedFile);
 		UnloadNavigationData();
 		return false;
@@ -740,7 +763,7 @@ bool loadNavigationData(const char* mapname)
 	dtStatus status = NavMeshes[REGULAR_NAV_MESH].navMesh->init(&header.regularMeshParams);
 	if (dtStatusFailed(status))
 	{
-		ClientPrint(clients[0], HUD_PRINTNOTIFY, "Could not initialise nav mesh\n");
+		ClientPrint(GAME_GetListenServerEdict(), HUD_PRINTNOTIFY, "Could not initialise nav mesh\n");
 		fclose(savedFile);
 		UnloadNavigationData();
 		return false;
@@ -749,7 +772,7 @@ bool loadNavigationData(const char* mapname)
 	NavMeshes[REGULAR_NAV_MESH].tileCache = dtAllocTileCache();
 	if (!NavMeshes[REGULAR_NAV_MESH].tileCache)
 	{
-		ClientPrint(clients[0], HUD_PRINTNOTIFY, "Could not allocate tile cache\n");
+		ClientPrint(GAME_GetListenServerEdict(), HUD_PRINTNOTIFY, "Could not allocate tile cache\n");
 		fclose(savedFile);
 		UnloadNavigationData();
 		return false;
@@ -759,7 +782,7 @@ bool loadNavigationData(const char* mapname)
 	NavMeshes[ONOS_NAV_MESH].navMesh = dtAllocNavMesh();
 	if (!NavMeshes[ONOS_NAV_MESH].navMesh)
 	{
-		ClientPrint(clients[0], HUD_PRINTNOTIFY, "Could not allocate onos navmesh\n");
+		ClientPrint(GAME_GetListenServerEdict(), HUD_PRINTNOTIFY, "Could not allocate onos navmesh\n");
 		fclose(savedFile);
 		UnloadNavigationData();
 		return false;
@@ -767,7 +790,7 @@ bool loadNavigationData(const char* mapname)
 	status = NavMeshes[ONOS_NAV_MESH].navMesh->init(&header.onosMeshParams);
 	if (dtStatusFailed(status))
 	{
-		ClientPrint(clients[0], HUD_PRINTNOTIFY, "Could not initialise onos nav mesh\n");
+		ClientPrint(GAME_GetListenServerEdict(), HUD_PRINTNOTIFY, "Could not initialise onos nav mesh\n");
 		fclose(savedFile);
 		UnloadNavigationData();
 		return false;
@@ -776,7 +799,7 @@ bool loadNavigationData(const char* mapname)
 	NavMeshes[ONOS_NAV_MESH].tileCache = dtAllocTileCache();
 	if (!NavMeshes[ONOS_NAV_MESH].tileCache)
 	{
-		ClientPrint(clients[0], HUD_PRINTNOTIFY, "Could not allocate onos tile cache\n");
+		ClientPrint(GAME_GetListenServerEdict(), HUD_PRINTNOTIFY, "Could not allocate onos tile cache\n");
 		fclose(savedFile);
 		UnloadNavigationData();
 		return false;
@@ -786,7 +809,7 @@ bool loadNavigationData(const char* mapname)
 	NavMeshes[BUILDING_NAV_MESH].navMesh = dtAllocNavMesh();
 	if (!NavMeshes[BUILDING_NAV_MESH].navMesh)
 	{
-		ClientPrint(clients[0], HUD_PRINTNOTIFY, "Could not allocate building navmesh\n");
+		ClientPrint(GAME_GetListenServerEdict(), HUD_PRINTNOTIFY, "Could not allocate building navmesh\n");
 		fclose(savedFile);
 		UnloadNavigationData();
 		return false;
@@ -794,7 +817,7 @@ bool loadNavigationData(const char* mapname)
 	status = NavMeshes[BUILDING_NAV_MESH].navMesh->init(&header.buildingMeshParams);
 	if (dtStatusFailed(status))
 	{
-		ClientPrint(clients[0], HUD_PRINTNOTIFY, "Could not initialise building nav mesh\n");
+		ClientPrint(GAME_GetListenServerEdict(), HUD_PRINTNOTIFY, "Could not initialise building nav mesh\n");
 		fclose(savedFile);
 		UnloadNavigationData();
 		return false;
@@ -803,7 +826,7 @@ bool loadNavigationData(const char* mapname)
 	NavMeshes[BUILDING_NAV_MESH].tileCache = dtAllocTileCache();
 	if (!NavMeshes[BUILDING_NAV_MESH].tileCache)
 	{
-		ClientPrint(clients[0], HUD_PRINTNOTIFY, "Could not allocate building tile cache\n");
+		ClientPrint(GAME_GetListenServerEdict(), HUD_PRINTNOTIFY, "Could not allocate building tile cache\n");
 		fclose(savedFile);
 		UnloadNavigationData();
 		return false;
@@ -841,7 +864,7 @@ bool loadNavigationData(const char* mapname)
 	status = NavMeshes[REGULAR_NAV_MESH].tileCache->init(&header.regularCacheParams, m_talloc, m_tcomp, m_tmproc);
 	if (dtStatusFailed(status))
 	{
-		ClientPrint(clients[0], HUD_PRINTNOTIFY, "Could not initialise tile cache\n");
+		ClientPrint(GAME_GetListenServerEdict(), HUD_PRINTNOTIFY, "Could not initialise tile cache\n");
 		fclose(savedFile);
 		UnloadNavigationData();
 		return false;
@@ -850,7 +873,7 @@ bool loadNavigationData(const char* mapname)
 	status = NavMeshes[ONOS_NAV_MESH].tileCache->init(&header.onosCacheParams, m_talloc, m_tcomp, m_tmproc);
 	if (dtStatusFailed(status))
 	{
-		ClientPrint(clients[0], HUD_PRINTNOTIFY, "Could not initialise tile cache\n");
+		ClientPrint(GAME_GetListenServerEdict(), HUD_PRINTNOTIFY, "Could not initialise tile cache\n");
 		fclose(savedFile);
 		UnloadNavigationData();
 		return false;
@@ -859,7 +882,7 @@ bool loadNavigationData(const char* mapname)
 	status = NavMeshes[BUILDING_NAV_MESH].tileCache->init(&header.buildingCacheParams, m_talloc, m_tcomp, m_tmproc);
 	if (dtStatusFailed(status))
 	{
-		ClientPrint(clients[0], HUD_PRINTNOTIFY, "Could not initialise tile cache\n");
+		ClientPrint(GAME_GetListenServerEdict(), HUD_PRINTNOTIFY, "Could not initialise tile cache\n");
 		fclose(savedFile);
 		UnloadNavigationData();
 		return false;
@@ -874,7 +897,7 @@ bool loadNavigationData(const char* mapname)
 		size_t tileHeaderReadReturnCode = fread(&tileHeader, sizeof(tileHeader), 1, savedFile);
 		if (tileHeaderReadReturnCode != 1)
 		{
-			ClientPrint(clients[0], HUD_PRINTNOTIFY, "Tile header read returned code\n");
+			ClientPrint(GAME_GetListenServerEdict(), HUD_PRINTNOTIFY, "Tile header read returned code\n");
 			fclose(savedFile);
 			UnloadNavigationData();
 			return false;
@@ -888,7 +911,7 @@ bool loadNavigationData(const char* mapname)
 		size_t tileDataReadReturnCode = fread(data, tileHeader.dataSize, 1, savedFile);
 		if (tileDataReadReturnCode != 1)
 		{
-			ClientPrint(clients[0], HUD_PRINTNOTIFY, "Tile data read returned code\n");
+			ClientPrint(GAME_GetListenServerEdict(), HUD_PRINTNOTIFY, "Tile data read returned code\n");
 			// Error or early EOF
 			dtFree(data);
 			fclose(savedFile);
@@ -913,7 +936,7 @@ bool loadNavigationData(const char* mapname)
 		size_t tileHeaderReadReturnCode = fread(&tileHeader, sizeof(tileHeader), 1, savedFile);
 		if (tileHeaderReadReturnCode != 1)
 		{
-			ClientPrint(clients[0], HUD_PRINTNOTIFY, "Tile header read returned code\n");
+			ClientPrint(GAME_GetListenServerEdict(), HUD_PRINTNOTIFY, "Tile header read returned code\n");
 			fclose(savedFile);
 			UnloadNavigationData();
 			return false;
@@ -927,7 +950,7 @@ bool loadNavigationData(const char* mapname)
 		size_t tileDataReadReturnCode = fread(data, tileHeader.dataSize, 1, savedFile);
 		if (tileDataReadReturnCode != 1)
 		{
-			ClientPrint(clients[0], HUD_PRINTNOTIFY, "Tile data read returned code\n");
+			ClientPrint(GAME_GetListenServerEdict(), HUD_PRINTNOTIFY, "Tile data read returned code\n");
 			// Error or early EOF
 			dtFree(data);
 			fclose(savedFile);
@@ -952,7 +975,7 @@ bool loadNavigationData(const char* mapname)
 		size_t tileHeaderReadReturnCode = fread(&tileHeader, sizeof(tileHeader), 1, savedFile);
 		if (tileHeaderReadReturnCode != 1)
 		{
-			ClientPrint(clients[0], HUD_PRINTNOTIFY, "Tile header read returned code\n");
+			ClientPrint(GAME_GetListenServerEdict(), HUD_PRINTNOTIFY, "Tile header read returned code\n");
 			fclose(savedFile);
 			UnloadNavigationData();
 			return false;
@@ -966,7 +989,7 @@ bool loadNavigationData(const char* mapname)
 		size_t tileDataReadReturnCode = fread(data, tileHeader.dataSize, 1, savedFile);
 		if (tileDataReadReturnCode != 1)
 		{
-			ClientPrint(clients[0], HUD_PRINTNOTIFY, "Tile data read returned code\n");
+			ClientPrint(GAME_GetListenServerEdict(), HUD_PRINTNOTIFY, "Tile data read returned code\n");
 			// Error or early EOF
 			dtFree(data);
 			fclose(savedFile);
@@ -993,7 +1016,7 @@ bool loadNavigationData(const char* mapname)
 
 	if (dtStatusFailed(initStatus))
 	{
-		ClientPrint(clients[0], HUD_PRINTNOTIFY, "Could not initialise nav query\n");
+		ClientPrint(GAME_GetListenServerEdict(), HUD_PRINTNOTIFY, "Could not initialise nav query\n");
 		UnloadNavigationData();
 		return false;
 	}
@@ -1004,7 +1027,7 @@ bool loadNavigationData(const char* mapname)
 
 	if (dtStatusFailed(initStatus))
 	{
-		ClientPrint(clients[0], HUD_PRINTNOTIFY, "Could not initialise onos nav query\n");
+		ClientPrint(GAME_GetListenServerEdict(), HUD_PRINTNOTIFY, "Could not initialise onos nav query\n");
 		UnloadNavigationData();
 		return false;
 	}
@@ -1015,11 +1038,24 @@ bool loadNavigationData(const char* mapname)
 
 	if (dtStatusFailed(initStatus))
 	{
-		ClientPrint(clients[0], HUD_PRINTNOTIFY, "Could not initialise building nav query\n");
+		ClientPrint(GAME_GetListenServerEdict(), HUD_PRINTNOTIFY, "Could not initialise building nav query\n");
 		UnloadNavigationData();
 		return false;
 	}
 
+	return true;
+}
+
+bool loadNavigationData(const char* mapname)
+{
+
+	UnloadNavigationData();
+
+	if (!LoadNavMesh(mapname))
+	{
+		return false;
+	}
+	
 	NavProfiles[MARINE_REGULAR_NAV_PROFILE].NavMeshIndex = REGULAR_NAV_MESH;
 	NavProfiles[MARINE_REGULAR_NAV_PROFILE].Filters.setIncludeFlags(0xFFFF);
 	NavProfiles[MARINE_REGULAR_NAV_PROFILE].Filters.setExcludeFlags(0);
@@ -1035,6 +1071,7 @@ bool loadNavigationData(const char* mapname)
 	NavProfiles[MARINE_REGULAR_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_HIGHJUMP, 10.0f);
 	NavProfiles[MARINE_REGULAR_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_CROUCH, 2.0f);
 	NavProfiles[MARINE_REGULAR_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_ASTRUCTURE, 20.0f);
+	NavProfiles[MARINE_REGULAR_NAV_PROFILE].bFlyingProfile = false;
 
 	NavProfiles[SKULK_REGULAR_NAV_PROFILE].NavMeshIndex = REGULAR_NAV_MESH;
 	NavProfiles[SKULK_REGULAR_NAV_PROFILE].Filters.setIncludeFlags(0xFFFF);
@@ -1051,6 +1088,7 @@ bool loadNavigationData(const char* mapname)
 	NavProfiles[SKULK_REGULAR_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_CROUCH, 1.0f);
 	NavProfiles[SKULK_REGULAR_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_BLOCKED, 2.0f);
 	NavProfiles[SKULK_REGULAR_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_MSTRUCTURE, 20.0f);
+	NavProfiles[SKULK_REGULAR_NAV_PROFILE].bFlyingProfile = false;
 
 	NavProfiles[FADE_REGULAR_NAV_PROFILE].NavMeshIndex = REGULAR_NAV_MESH;
 	NavProfiles[FADE_REGULAR_NAV_PROFILE].Filters.setIncludeFlags(0xFFFF);
@@ -1068,6 +1106,7 @@ bool loadNavigationData(const char* mapname)
 	NavProfiles[FADE_REGULAR_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_WALLCLIMB, 1.0f);
 	NavProfiles[FADE_REGULAR_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_BLOCKED, 2.0f);
 	NavProfiles[FADE_REGULAR_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_MSTRUCTURE, 20.0f);
+	NavProfiles[FADE_REGULAR_NAV_PROFILE].bFlyingProfile = false;
 
 	NavProfiles[GORGE_REGULAR_NAV_PROFILE].NavMeshIndex = REGULAR_NAV_MESH;
 	NavProfiles[GORGE_REGULAR_NAV_PROFILE].Filters.setIncludeFlags(0xFFFF);
@@ -1084,6 +1123,7 @@ bool loadNavigationData(const char* mapname)
 	NavProfiles[GORGE_REGULAR_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_CROUCH, 1.0f);
 	NavProfiles[GORGE_REGULAR_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_BLOCKED, 2.0f);
 	NavProfiles[GORGE_REGULAR_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_MSTRUCTURE, 20.0f);
+	NavProfiles[GORGE_REGULAR_NAV_PROFILE].bFlyingProfile = false;
 
 	NavProfiles[ONOS_REGULAR_NAV_PROFILE].NavMeshIndex = ONOS_NAV_MESH;
 	NavProfiles[ONOS_REGULAR_NAV_PROFILE].Filters.setIncludeFlags(0xFFFF);
@@ -1101,6 +1141,7 @@ bool loadNavigationData(const char* mapname)
 	NavProfiles[ONOS_REGULAR_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_CROUCH, 3.0f);
 	NavProfiles[ONOS_REGULAR_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_BLOCKED, 2.0f);
 	NavProfiles[ONOS_REGULAR_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_MSTRUCTURE, 10.0f);
+	NavProfiles[ONOS_REGULAR_NAV_PROFILE].bFlyingProfile = false;
 
 	NavProfiles[BUILDING_REGULAR_NAV_PROFILE].NavMeshIndex = BUILDING_NAV_MESH;
 	NavProfiles[BUILDING_REGULAR_NAV_PROFILE].Filters.setIncludeFlags(0xFFFF);
@@ -1108,7 +1149,17 @@ bool loadNavigationData(const char* mapname)
 	NavProfiles[BUILDING_REGULAR_NAV_PROFILE].Filters.addExcludeFlags(SAMPLE_POLYFLAGS_BLOCKED);
 	NavProfiles[BUILDING_REGULAR_NAV_PROFILE].Filters.addExcludeFlags(SAMPLE_POLYFLAGS_ASTRUCTURE);
 	NavProfiles[BUILDING_REGULAR_NAV_PROFILE].Filters.addExcludeFlags(SAMPLE_POLYFLAGS_MSTRUCTURE);
+	NavProfiles[BUILDING_REGULAR_NAV_PROFILE].bFlyingProfile = false;
 
+	NavProfiles[GORGE_BUILD_NAV_PROFILE].NavMeshIndex = BUILDING_NAV_MESH;
+	NavProfiles[GORGE_BUILD_NAV_PROFILE].Filters.setIncludeFlags(0xFFFF);
+	NavProfiles[GORGE_BUILD_NAV_PROFILE].Filters.setExcludeFlags(0);
+	NavProfiles[GORGE_BUILD_NAV_PROFILE].Filters.addExcludeFlags(SAMPLE_POLYFLAGS_BLOCKED);
+	NavProfiles[GORGE_BUILD_NAV_PROFILE].Filters.addExcludeFlags(SAMPLE_POLYFLAGS_ASTRUCTURE);
+	NavProfiles[GORGE_BUILD_NAV_PROFILE].Filters.addExcludeFlags(SAMPLE_POLYFLAGS_MSTRUCTURE);
+	NavProfiles[GORGE_BUILD_NAV_PROFILE].Filters.addExcludeFlags(SAMPLE_POLYFLAGS_WALLCLIMB);
+	NavProfiles[GORGE_BUILD_NAV_PROFILE].Filters.addExcludeFlags(SAMPLE_POLYFLAGS_PHASEGATE);
+	NavProfiles[GORGE_BUILD_NAV_PROFILE].bFlyingProfile = false;
 
 	NavProfiles[SKULK_AMBUSH_NAV_PROFILE].NavMeshIndex = REGULAR_NAV_MESH;
 	NavProfiles[SKULK_AMBUSH_NAV_PROFILE].Filters.setIncludeFlags(0xFFFF);
@@ -1116,8 +1167,8 @@ bool loadNavigationData(const char* mapname)
 	NavProfiles[SKULK_AMBUSH_NAV_PROFILE].Filters.addExcludeFlags(SAMPLE_POLYFLAGS_LADDER);
 	NavProfiles[SKULK_AMBUSH_NAV_PROFILE].Filters.addExcludeFlags(SAMPLE_POLYFLAGS_ASTRUCTURE);
 	NavProfiles[SKULK_AMBUSH_NAV_PROFILE].Filters.addExcludeFlags(SAMPLE_POLYFLAGS_PHASEGATE);
-	NavProfiles[SKULK_AMBUSH_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_GROUND, 5.0f);
-	NavProfiles[SKULK_AMBUSH_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_JUMP, 1.5f);
+	NavProfiles[SKULK_AMBUSH_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_GROUND, 50.0f);
+	NavProfiles[SKULK_AMBUSH_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_JUMP, 1.0f);
 	NavProfiles[SKULK_AMBUSH_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_FALL, 1.0f);
 	NavProfiles[SKULK_AMBUSH_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_WALLCLIMB, 1.0f);
 	NavProfiles[SKULK_AMBUSH_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_HIGHFALL, 1.0f);
@@ -1125,6 +1176,7 @@ bool loadNavigationData(const char* mapname)
 	NavProfiles[SKULK_AMBUSH_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_CROUCH, 1.0f);
 	NavProfiles[SKULK_AMBUSH_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_BLOCKED, 2.0f);
 	NavProfiles[SKULK_AMBUSH_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_MSTRUCTURE, 20.0f);
+	NavProfiles[SKULK_AMBUSH_NAV_PROFILE].bFlyingProfile = false;
 
 	NavProfiles[GORGE_HIDE_NAV_PROFILE].NavMeshIndex = REGULAR_NAV_MESH;
 	NavProfiles[GORGE_HIDE_NAV_PROFILE].Filters.setIncludeFlags(0xFFFF);
@@ -1141,10 +1193,31 @@ bool loadNavigationData(const char* mapname)
 	NavProfiles[GORGE_HIDE_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_CROUCH, 1.0f);
 	NavProfiles[GORGE_HIDE_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_BLOCKED, 2.0f);
 	NavProfiles[GORGE_HIDE_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_MSTRUCTURE, 20.0f);
+	NavProfiles[GORGE_HIDE_NAV_PROFILE].bFlyingProfile = false;
+
+	NavProfiles[LERK_FLYING_NAV_PROFILE].NavMeshIndex = REGULAR_NAV_MESH;
+	NavProfiles[LERK_FLYING_NAV_PROFILE].Filters.setIncludeFlags(0xFFFF);
+	NavProfiles[LERK_FLYING_NAV_PROFILE].Filters.setExcludeFlags(0);
+	NavProfiles[LERK_FLYING_NAV_PROFILE].Filters.addExcludeFlags(SAMPLE_POLYFLAGS_ASTRUCTURE);
+	NavProfiles[LERK_FLYING_NAV_PROFILE].Filters.addExcludeFlags(SAMPLE_POLYFLAGS_PHASEGATE);
+	NavProfiles[LERK_FLYING_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_GROUND, 1.0f);
+	NavProfiles[LERK_FLYING_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_JUMP, 1.0f);
+	NavProfiles[LERK_FLYING_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_FALL, 1.0f);
+	NavProfiles[LERK_FLYING_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_WALLCLIMB, 1.0f);
+	NavProfiles[LERK_FLYING_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_HIGHFALL, 1.0f);
+	NavProfiles[LERK_FLYING_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_HIGHJUMP, 1.0f);
+	NavProfiles[LERK_FLYING_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_CROUCH, 1.0f);
+	NavProfiles[LERK_FLYING_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_BLOCKED, 2.0f);
+	NavProfiles[LERK_FLYING_NAV_PROFILE].Filters.setAreaCost(SAMPLE_POLYAREA_MSTRUCTURE, 20.0f);
+	NavProfiles[LERK_FLYING_NAV_PROFILE].bFlyingProfile = true;
 
 	NavProfiles[ALL_NAV_PROFILE].NavMeshIndex = REGULAR_NAV_MESH;
 	NavProfiles[ALL_NAV_PROFILE].Filters.setIncludeFlags(0xFFFF);
 	NavProfiles[ALL_NAV_PROFILE].Filters.setExcludeFlags(0);
+	NavProfiles[ALL_NAV_PROFILE].bFlyingProfile = false;
+
+	UTIL_PopulateDoors();
+	UTIL_PopulateWeldableObstacles();
 
 	return true;
 }
@@ -1354,104 +1427,6 @@ static float frand()
 	return (float)rand() / (float)RAND_MAX;
 }
 
-dtStatus FindPathToPoint(const int NavProfileIndex, const Vector FromLocation, const Vector ToLocation, bot_path_node* path, int* pathSize, bool bAllowPartial)
-{
-	const dtNavMeshQuery* m_navQuery = UTIL_GetNavMeshQueryForProfile(NavProfileIndex);
-	const dtNavMesh* m_navMesh = UTIL_GetNavMeshForProfile(NavProfileIndex);
-	const dtQueryFilter* m_navFilter = UTIL_GetNavMeshFilterForProfile(NavProfileIndex);
-
-	if (!m_navQuery || !FromLocation || !ToLocation)
-	{
-		return DT_FAILURE;
-	}
-
-	float pStartPos[3] = { FromLocation.x, FromLocation.z, -FromLocation.y };
-	float pEndPos[3] = { ToLocation.x, ToLocation.z, -ToLocation.y };
-
-	dtStatus status;
-	dtPolyRef StartPoly;
-	float StartNearest[3];
-	dtPolyRef EndPoly;
-	float EndNearest[3];
-	dtPolyRef PolyPath[MAX_PATH_POLY];
-	dtPolyRef StraightPolyPath[MAX_PATH_SIZE];
-	int nPathCount = 0;
-	float StraightPath[MAX_PATH_SIZE * 3];
-	unsigned char straightPathFlags[MAX_PATH_SIZE];
-	memset(straightPathFlags, 0, sizeof(straightPathFlags));
-	int nVertCount = 0;
-
-	// find the start polygon
-	status = m_navQuery->findNearestPoly(pStartPos, pExtents, m_navFilter, &StartPoly, StartNearest);
-	if ((status & DT_FAILURE) || (status & DT_STATUS_DETAIL_MASK))
-	{
-		//BotSay(pBot, "findNearestPoly start failed!");
-		return (status & DT_STATUS_DETAIL_MASK); // couldn't find a polygon
-	}
-
-	// find the end polygon
-	status = m_navQuery->findNearestPoly(pEndPos, pExtents, m_navFilter, &EndPoly, EndNearest);
-	if ((status & DT_FAILURE) || (status & DT_STATUS_DETAIL_MASK))
-	{
-		//BotSay(pBot, "findNearestPoly end failed!");
-		return (status & DT_STATUS_DETAIL_MASK); // couldn't find a polygon
-	}
-
-	status = m_navQuery->findPath(StartPoly, EndPoly, StartNearest, EndNearest, m_navFilter, PolyPath, &nPathCount, MAX_PATH_POLY);
-	if ((status & DT_FAILURE) || (status & DT_STATUS_DETAIL_MASK))
-	{
-		if (!bAllowPartial || !(status & DT_PARTIAL_RESULT))
-		{
-			return (status & DT_STATUS_DETAIL_MASK); // couldn't create a path
-		}
-	}
-
-	if (nPathCount == 0)
-	{
-		return DT_FAILURE; // couldn't find a path
-	}
-
-	status = m_navQuery->findStraightPath(StartNearest, EndNearest, PolyPath, nPathCount, StraightPath, straightPathFlags, StraightPolyPath, &nVertCount, MAX_PATH_SIZE, DT_STRAIGHTPATH_AREA_CROSSINGS);
-	if ((status & DT_FAILURE) || (status & DT_STATUS_DETAIL_MASK))
-	{
-		return (status & DT_STATUS_DETAIL_MASK); // couldn't create a path
-	}
-
-	if (nVertCount == 0)
-	{
-		return DT_FAILURE; // couldn't find a path
-	}
-
-	int pathLengthInBytes = MAX_PATH_SIZE * sizeof(bot_path_node);
-	memset(path, 0, pathLengthInBytes);
-
-	unsigned char CurrArea;
-
-	m_navMesh->getPolyArea(StraightPolyPath[0], &CurrArea);
-
-	// At this point we have our path.  Copy it to the path store
-	int nIndex = 0;
-	TraceResult hit;
-	Vector TraceStart;
-
-	for (int nVert = 0; nVert < nVertCount; nVert++)
-	{
-		path[(nVert)].Location.x = StraightPath[nIndex++];
-		path[(nVert)].Location.z = StraightPath[nIndex++];
-		path[(nVert)].Location.y = -StraightPath[nIndex++];
-
-		path[(nVert)].flag = straightPathFlags[nVert];
-		path[(nVert)].area = CurrArea;
-		path[(nVert)].poly = StraightPolyPath[nVert];
-
-		m_navMesh->getPolyArea(StraightPolyPath[nVert], &CurrArea);
-	}
-
-	*pathSize = nVertCount;
-
-	return DT_SUCCESS;
-}
-
 dtStatus FindPhaseGatePathToPoint(const int NavProfileIndex, Vector FromLocation, Vector ToLocation, bot_path_node* path, int* pathSize, float MaxAcceptableDistance)
 {
 	*pathSize = 0;
@@ -1526,6 +1501,262 @@ dtStatus FindPhaseGatePathToPoint(const int NavProfileIndex, Vector FromLocation
 	*pathSize = CurrPathIndex;
 
 	return DT_SUCCESS;
+}
+
+// Special path finding that takes flight movement into account
+dtStatus FindFlightPathToPoint(const int NavProfileIndex, Vector FromLocation, Vector ToLocation, bot_path_node* path, int* pathSize, float MaxAcceptableDistance)
+{
+	if (NavProfileIndex < 0) { return DT_FAILURE; }
+
+	const dtNavMeshQuery* m_navQuery = UTIL_GetNavMeshQueryForProfile(NavProfileIndex);
+	const dtNavMesh* m_navMesh = UTIL_GetNavMeshForProfile(NavProfileIndex);
+	const dtQueryFilter* m_navFilter = UTIL_GetNavMeshFilterForProfile(NavProfileIndex);
+
+	if (!m_navQuery || !m_navMesh || !m_navFilter || !FromLocation || !ToLocation)
+	{
+		return DT_FAILURE;
+	}
+
+	float pStartPos[3] = { FromLocation.x, FromLocation.z, -FromLocation.y };
+	float pEndPos[3] = { ToLocation.x, ToLocation.z, -ToLocation.y };
+
+	dtStatus status;
+	dtPolyRef StartPoly;
+	float StartNearest[3];
+	dtPolyRef EndPoly;
+	float EndNearest[3];
+	dtPolyRef PolyPath[MAX_PATH_POLY];
+	dtPolyRef StraightPolyPath[MAX_PATH_SIZE];
+	int nPathCount = 0;
+	float StraightPath[MAX_PATH_SIZE * 3];
+	unsigned char straightPathFlags[MAX_PATH_SIZE];
+	memset(straightPathFlags, 0, sizeof(straightPathFlags));
+	int nVertCount = 0;
+
+	// find the start polygon
+	status = m_navQuery->findNearestPoly(pStartPos, pExtents, m_navFilter, &StartPoly, StartNearest);
+	if ((status & DT_FAILURE) || (status & DT_STATUS_DETAIL_MASK))
+	{
+		//BotSay(pBot, "findNearestPoly start failed!");
+		return (status & DT_STATUS_DETAIL_MASK); // couldn't find a polygon
+	}
+
+	// find the end polygon
+	status = m_navQuery->findNearestPoly(pEndPos, pExtents, m_navFilter, &EndPoly, EndNearest);
+	if ((status & DT_FAILURE) || (status & DT_STATUS_DETAIL_MASK))
+	{
+		//BotSay(pBot, "findNearestPoly end failed!");
+		return (status & DT_STATUS_DETAIL_MASK); // couldn't find a polygon
+	}
+
+	status = m_navQuery->findPath(StartPoly, EndPoly, StartNearest, EndNearest, m_navFilter, PolyPath, &nPathCount, MAX_PATH_POLY);
+
+	if (PolyPath[nPathCount - 1] != EndPoly)
+	{
+		float epos[3];
+		dtVcopy(epos, EndNearest);
+
+		m_navQuery->closestPointOnPoly(PolyPath[nPathCount - 1], EndNearest, epos, 0);
+
+		if (dtVdistSqr(EndNearest, epos) > sqrf(MaxAcceptableDistance))
+		{
+			return DT_FAILURE;
+		}
+		else
+		{
+			dtVcopy(EndNearest, epos);
+		}
+	}
+
+	status = m_navQuery->findStraightPath(StartNearest, EndNearest, PolyPath, nPathCount, StraightPath, straightPathFlags, StraightPolyPath, &nVertCount, MAX_PATH_SIZE, DT_STRAIGHTPATH_AREA_CROSSINGS);
+	if ((status & DT_FAILURE) || (status & DT_STATUS_DETAIL_MASK))
+	{
+		return (status & DT_STATUS_DETAIL_MASK); // couldn't create a path
+	}
+
+	if (nVertCount == 0)
+	{
+		return DT_FAILURE; // couldn't find a path
+	}
+
+	int pathLengthInBytes = MAX_PATH_SIZE * sizeof(bot_path_node);
+	memset(path, 0, pathLengthInBytes);
+
+	unsigned char CurrArea;
+	unsigned char ThisArea;
+
+	m_navMesh->getPolyArea(StraightPolyPath[0], &CurrArea);
+
+	// At this point we have our path.  Copy it to the path store
+	int nIndex = 0;
+	TraceResult hit;
+	Vector TraceStart;
+
+	int NumPathPoints = nVertCount;
+	int CurrentPathPoint = 0;
+
+	for (int nVert = 0; nVert < nVertCount; nVert++)
+	{
+		Vector NextPathPoint = ZERO_VECTOR;
+		Vector PrevPoint = (CurrentPathPoint > 0) ? path[(CurrentPathPoint - 1)].Location : ZERO_VECTOR;
+
+		// The path point output by Detour uses the OpenGL, right-handed coordinate system. Convert to Goldsrc coordinates
+		NextPathPoint.x = StraightPath[nIndex++];
+		NextPathPoint.z = StraightPath[nIndex++];
+		NextPathPoint.y = -StraightPath[nIndex++];
+
+		m_navMesh->getPolyArea(StraightPolyPath[nVert], &ThisArea);
+
+		if (ThisArea == SAMPLE_POLYAREA_GROUND || ThisArea == SAMPLE_POLYAREA_CROUCH)
+		{
+			NextPathPoint = UTIL_AdjustPointAwayFromNavWall(NextPathPoint, 16.0f);
+		}
+
+		TraceStart = NextPathPoint;
+
+		UTIL_TraceLine(TraceStart, (TraceStart - Vector(0.0f, 0.0f, 100.0f)), ignore_monsters, ignore_glass, nullptr, &hit);
+
+		if (hit.flFraction < 1.0f)
+		{
+			NextPathPoint = hit.vecEndPos + Vector(0.0f, 0.0f, 20.0f);
+		}
+
+		float NewRequiredZ = NextPathPoint.z;
+
+		if (CurrArea == SAMPLE_POLYAREA_WALLCLIMB || CurrArea == SAMPLE_POLYAREA_LADDER)
+		{
+			NewRequiredZ = UTIL_FindZHeightForWallClimb(PrevPoint, NextPathPoint, head_hull);
+			
+			Vector ClimbStartPoint = Vector(PrevPoint.x, PrevPoint.y, NewRequiredZ);
+
+			path[CurrentPathPoint].requiredZ = ClimbStartPoint.z;
+			path[CurrentPathPoint].Location = ClimbStartPoint;
+			path[CurrentPathPoint].flag = straightPathFlags[nVert];
+			path[CurrentPathPoint].area = CurrArea;
+			path[CurrentPathPoint].poly = StraightPolyPath[nVert];
+
+			CurrentPathPoint++;
+			NumPathPoints++;
+
+			Vector ClimbEndPoint = Vector(NextPathPoint.x, NextPathPoint.y, NewRequiredZ);
+
+			path[CurrentPathPoint].requiredZ = ClimbEndPoint.z;
+			path[CurrentPathPoint].Location = ClimbEndPoint;
+			path[CurrentPathPoint].flag = straightPathFlags[nVert];
+			path[CurrentPathPoint].area = CurrArea;
+			path[CurrentPathPoint].poly = StraightPolyPath[nVert];
+
+			CurrentPathPoint++;
+			NumPathPoints++;	
+		}
+
+		if (CurrArea == SAMPLE_POLYAREA_JUMP || CurrArea == SAMPLE_POLYAREA_HIGHJUMP)
+		{
+			float MaxHeight = fmaxf(PrevPoint.z, NextPathPoint.z);
+			MaxHeight += 60.0f;
+
+			path[CurrentPathPoint].requiredZ = MaxHeight;
+			path[CurrentPathPoint].Location = Vector(PrevPoint.x, PrevPoint.y, MaxHeight);
+			path[CurrentPathPoint].flag = straightPathFlags[nVert];
+			path[CurrentPathPoint].area = CurrArea;
+			path[CurrentPathPoint].poly = StraightPolyPath[nVert];
+
+			CurrentPathPoint++;
+			NumPathPoints++;
+
+			path[CurrentPathPoint].requiredZ = MaxHeight;
+			path[CurrentPathPoint].Location = Vector(NextPathPoint.x, NextPathPoint.y, MaxHeight);
+			path[CurrentPathPoint].flag = straightPathFlags[nVert];
+			path[CurrentPathPoint].area = CurrArea;
+			path[CurrentPathPoint].poly = StraightPolyPath[nVert];
+
+			CurrentPathPoint++;
+			NumPathPoints++;
+		}
+
+		if (CurrArea == SAMPLE_POLYAREA_FALL || CurrArea == SAMPLE_POLYAREA_HIGHFALL)
+		{
+			Vector MidPoint = PrevPoint + ((NextPathPoint - PrevPoint) * 0.5f);
+
+			path[CurrentPathPoint].requiredZ = PrevPoint.z;
+			path[CurrentPathPoint].Location = Vector(MidPoint.x, MidPoint.y, PrevPoint.z);
+			path[CurrentPathPoint].flag = straightPathFlags[nVert];
+			path[CurrentPathPoint].area = CurrArea;
+			path[CurrentPathPoint].poly = StraightPolyPath[nVert];
+
+			CurrentPathPoint++;
+			NumPathPoints++;
+
+			path[CurrentPathPoint].requiredZ = NextPathPoint.z;
+			path[CurrentPathPoint].Location = Vector(MidPoint.x, MidPoint.y, NextPathPoint.z);
+			path[CurrentPathPoint].flag = straightPathFlags[nVert];
+			path[CurrentPathPoint].area = CurrArea;
+			path[CurrentPathPoint].poly = StraightPolyPath[nVert];
+
+			CurrentPathPoint++;
+			NumPathPoints++;
+		}
+
+		path[CurrentPathPoint].requiredZ = NextPathPoint.z;
+		path[CurrentPathPoint].Location = NextPathPoint;
+		path[CurrentPathPoint].flag = straightPathFlags[nVert];
+		path[CurrentPathPoint].area = CurrArea;
+		path[CurrentPathPoint].poly = StraightPolyPath[nVert];
+
+		CurrArea = ThisArea;
+
+		CurrentPathPoint++;
+	}
+
+	*pathSize = NumPathPoints;
+
+	return DT_SUCCESS;
+}
+
+Vector UTIL_FindHighestSuccessfulTracePoint(const Vector TraceFrom, const Vector TargetPoint, const Vector NextPoint, const float IterationStep, const float MinIdealHeight, const float MaxHeight)
+{
+
+	Vector OriginTrace = TraceFrom;
+	float AddedHeight = 0.0f;
+
+	bool bFoundInitialPoint = false;
+	Vector CurrentHighest = ZERO_VECTOR;
+	
+	int NumIterations = (int)ceilf(MaxHeight / IterationStep);
+
+	Vector CurrentTarget = TargetPoint;
+
+	for (int i = 0; i <= NumIterations; i++)
+	{
+		if (!UTIL_QuickTrace(nullptr, TargetPoint, CurrentTarget)) { return CurrentHighest; }
+
+		if (!UTIL_QuickHullTrace(nullptr, OriginTrace, CurrentTarget, head_hull))
+		{
+			if (bFoundInitialPoint) { break; }
+		}
+		else
+		{
+			bFoundInitialPoint = true;
+			if (AddedHeight >= MinIdealHeight)
+			{
+				return CurrentTarget;
+			}
+			else
+			{
+				if (NextPoint != ZERO_VECTOR && UTIL_QuickHullTrace(nullptr, CurrentTarget, NextPoint, head_hull))
+				{
+					CurrentHighest = CurrentTarget;
+				}
+				
+			}
+			
+		}	
+
+		CurrentTarget.z += IterationStep;
+		AddedHeight += IterationStep;
+	}
+
+	return CurrentHighest;
 }
 
 dtStatus FindPathClosestToPoint(const int NavProfileIndex, const Vector FromLocation, const Vector ToLocation, bot_path_node* path, int* pathSize, float MaxAcceptableDistance)
@@ -1607,6 +1838,155 @@ dtStatus FindPathClosestToPoint(const int NavProfileIndex, const Vector FromLoca
 	memset(path, 0, pathLengthInBytes);
 
 	unsigned char CurrArea;
+	unsigned char ThisArea;
+
+	m_navMesh->getPolyArea(StraightPolyPath[0], &CurrArea);
+
+	// At this point we have our path.  Copy it to the path store
+	int nIndex = 0;
+	TraceResult hit;
+	Vector TraceStart;
+
+	Vector NodeFromLocation = ZERO_VECTOR;
+
+	for (int nVert = 0; nVert < nVertCount; nVert++)
+	{
+		path[(nVert)].FromLocation = NodeFromLocation;
+
+		path[(nVert)].Location.x = StraightPath[nIndex++];
+		path[(nVert)].Location.z = StraightPath[nIndex++];
+		path[(nVert)].Location.y = -StraightPath[nIndex++];
+
+		 m_navMesh->getPolyArea(StraightPolyPath[nVert], &ThisArea);
+
+		if (ThisArea == SAMPLE_POLYAREA_GROUND || ThisArea == SAMPLE_POLYAREA_CROUCH)
+		{
+			path[(nVert)].Location = UTIL_AdjustPointAwayFromNavWall(path[(nVert)].Location, 16.0f);
+		}
+
+		TraceStart.x = path[(nVert)].Location.x;
+		TraceStart.y = path[(nVert)].Location.y;
+		TraceStart.z = path[(nVert)].Location.z;
+
+		UTIL_TraceLine(TraceStart, (TraceStart - Vector(0.0f, 0.0f, 100.0f)), ignore_monsters, ignore_glass, nullptr, &hit);
+
+		if (hit.flFraction < 1.0f)
+		{
+			path[(nVert)].Location = hit.vecEndPos + Vector(0.0f, 0.0f, 20.0f);
+		}
+
+		path[(nVert)].requiredZ = path[(nVert)].Location.z;
+
+		if (CurrArea == SAMPLE_POLYAREA_WALLCLIMB || CurrArea == SAMPLE_POLYAREA_LADDER)
+		{
+			float NewRequiredZ = UTIL_FindZHeightForWallClimb(path[(nVert - 1)].Location, path[(nVert)].Location, head_hull);
+			path[(nVert)].requiredZ = fmaxf(NewRequiredZ, path[(nVert)].Location.z);
+
+			if (CurrArea == SAMPLE_POLYAREA_LADDER)
+			{
+				path[(nVert)].requiredZ += 5.0f;
+			}
+
+		}
+		else
+		{
+			path[(nVert)].requiredZ = path[(nVert)].Location.z;
+		}
+
+		path[(nVert)].flag = straightPathFlags[nVert];
+		path[(nVert)].area = CurrArea;
+		path[(nVert)].poly = StraightPolyPath[nVert];
+
+		CurrArea = ThisArea;
+
+		NodeFromLocation = path[(nVert)].Location;
+	}
+
+	*pathSize = nVertCount;
+
+	return DT_SUCCESS;
+}
+
+dtStatus FindDetailedPathClosestToPoint(const int NavProfileIndex, const Vector FromLocation, const Vector ToLocation, bot_path_node* path, int* pathSize, float MaxAcceptableDistance)
+{
+	if (NavProfileIndex < 0) { return DT_FAILURE; }
+
+	const dtNavMeshQuery* m_navQuery = UTIL_GetNavMeshQueryForProfile(NavProfileIndex);
+	const dtNavMesh* m_navMesh = UTIL_GetNavMeshForProfile(NavProfileIndex);
+	const dtQueryFilter* m_navFilter = UTIL_GetNavMeshFilterForProfile(NavProfileIndex);
+
+	if (!m_navQuery || !m_navMesh || !m_navFilter || !FromLocation || !ToLocation)
+	{
+		return DT_FAILURE;
+	}
+
+	float pStartPos[3] = { FromLocation.x, FromLocation.z, -FromLocation.y };
+	float pEndPos[3] = { ToLocation.x, ToLocation.z, -ToLocation.y };
+
+	dtStatus status;
+	dtPolyRef StartPoly;
+	float StartNearest[3];
+	dtPolyRef EndPoly;
+	float EndNearest[3];
+	dtPolyRef PolyPath[MAX_PATH_POLY];
+	dtPolyRef StraightPolyPath[MAX_PATH_SIZE];
+	int nPathCount = 0;
+	float StraightPath[MAX_PATH_SIZE * 3];
+	unsigned char straightPathFlags[MAX_PATH_SIZE];
+	memset(straightPathFlags, 0, sizeof(straightPathFlags));
+	int nVertCount = 0;
+
+	// find the start polygon
+	status = m_navQuery->findNearestPoly(pStartPos, pExtents, m_navFilter, &StartPoly, StartNearest);
+	if ((status & DT_FAILURE) || (status & DT_STATUS_DETAIL_MASK))
+	{
+		//BotSay(pBot, "findNearestPoly start failed!");
+		return (status & DT_STATUS_DETAIL_MASK); // couldn't find a polygon
+	}
+
+	// find the end polygon
+	status = m_navQuery->findNearestPoly(pEndPos, pExtents, m_navFilter, &EndPoly, EndNearest);
+	if ((status & DT_FAILURE) || (status & DT_STATUS_DETAIL_MASK))
+	{
+		//BotSay(pBot, "findNearestPoly end failed!");
+		return (status & DT_STATUS_DETAIL_MASK); // couldn't find a polygon
+	}
+
+	status = m_navQuery->findPath(StartPoly, EndPoly, StartNearest, EndNearest, m_navFilter, PolyPath, &nPathCount, MAX_PATH_POLY);
+
+	if (PolyPath[nPathCount - 1] != EndPoly)
+	{
+		float epos[3];
+		dtVcopy(epos, EndNearest);
+
+		m_navQuery->closestPointOnPoly(PolyPath[nPathCount - 1], EndNearest, epos, 0);
+
+		if (dtVdistSqr(EndNearest, epos) > sqrf(MaxAcceptableDistance))
+		{
+			return DT_FAILURE;
+		}
+		else
+		{
+			dtVcopy(EndNearest, epos);
+		}
+	}
+
+	status = m_navQuery->findStraightPath(StartNearest, EndNearest, PolyPath, nPathCount, StraightPath, straightPathFlags, StraightPolyPath, &nVertCount, MAX_PATH_SIZE, DT_STRAIGHTPATH_ALL_CROSSINGS);
+	if ((status & DT_FAILURE) || (status & DT_STATUS_DETAIL_MASK))
+	{
+		return (status & DT_STATUS_DETAIL_MASK); // couldn't create a path
+	}
+
+	if (nVertCount == 0)
+	{
+		return DT_FAILURE; // couldn't find a path
+	}
+
+	int pathLengthInBytes = MAX_PATH_SIZE * sizeof(bot_path_node);
+	memset(path, 0, pathLengthInBytes);
+
+	unsigned char CurrArea;
+	unsigned char ThisArea;
 
 	m_navMesh->getPolyArea(StraightPolyPath[0], &CurrArea);
 
@@ -1620,6 +2000,13 @@ dtStatus FindPathClosestToPoint(const int NavProfileIndex, const Vector FromLoca
 		path[(nVert)].Location.x = StraightPath[nIndex++];
 		path[(nVert)].Location.z = StraightPath[nIndex++];
 		path[(nVert)].Location.y = -StraightPath[nIndex++];
+
+		m_navMesh->getPolyArea(StraightPolyPath[nVert], &ThisArea);
+
+		if (ThisArea == SAMPLE_POLYAREA_GROUND || ThisArea == SAMPLE_POLYAREA_CROUCH)
+		{
+			path[(nVert)].Location = UTIL_AdjustPointAwayFromNavWall(path[(nVert)].Location, 16.0f);
+		}
 
 		TraceStart.x = path[(nVert)].Location.x;
 		TraceStart.y = path[(nVert)].Location.y;
@@ -1656,7 +2043,7 @@ dtStatus FindPathClosestToPoint(const int NavProfileIndex, const Vector FromLoca
 		path[(nVert)].area = CurrArea;
 		path[(nVert)].poly = StraightPolyPath[nVert];
 
-		m_navMesh->getPolyArea(StraightPolyPath[nVert], &CurrArea);
+		CurrArea = ThisArea;
 	}
 
 	*pathSize = nVertCount;
@@ -1767,12 +2154,18 @@ dtStatus FindPathClosestToPoint(bot_t* pBot, const BotMoveStyle MoveStyle, const
 	TraceResult hit;
 	Vector TraceStart;
 
+	Vector NodeFromLocation = Vector(StartNearest[0], -StartNearest[2], StartNearest[1]);
+
 	for (int nVert = 0; nVert < nVertCount; nVert++)
 	{
+		path[(nVert)].FromLocation = NodeFromLocation;
+
 		// The nav mesh doesn't always align perfectly with the floor, so align each nav point with the floor after generation
 		path[(nVert)].Location.x = StraightPath[nIndex++];
 		path[(nVert)].Location.z = StraightPath[nIndex++];
 		path[(nVert)].Location.y = -StraightPath[nIndex++];
+
+		path[(nVert)].Location = UTIL_AdjustPointAwayFromNavWall(path[(nVert)].Location, 16.0f);
 
 		TraceStart.x = path[(nVert)].Location.x;
 		TraceStart.y = path[(nVert)].Location.y;
@@ -1786,8 +2179,9 @@ dtStatus FindPathClosestToPoint(bot_t* pBot, const BotMoveStyle MoveStyle, const
 			bool isCrouchedArea = (CurrArea == SAMPLE_POLYAREA_CROUCH);
 
 			path[(nVert)].Location = hit.vecEndPos + Vector(0.0f, 0.0f, 2.0f);
-
 		}
+
+		// End alignment to floor
 
 		// For ladders and wall climbing, calculate the climb height needed to complete the move.
 		// This what allows bots to climb over railings without having to explicitly place nav points on the railing itself
@@ -1815,6 +2209,8 @@ dtStatus FindPathClosestToPoint(bot_t* pBot, const BotMoveStyle MoveStyle, const
 		path[(nVert)].poly = StraightPolyPath[nVert];
 
 		m_navMesh->getPolyArea(StraightPolyPath[nVert], &CurrArea);
+
+		NodeFromLocation = path[(nVert)].Location;
 	}
 
 	*pathSize = nVertCount;
@@ -1899,7 +2295,7 @@ bool HasBotReachedPathPoint(const bot_t* pBot)
 	Vector ClosestPointToPath = vClosestPointOnLine2D(pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint - 1].Location, pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].Location, pEdict->v.origin);
 
 	bool bDestIsDirectlyReachable = UTIL_PointIsDirectlyReachable(CurrentPos, CurrentMoveDest);
-	bool bAtOrPastDestination = vEquals(ClosestPointToPath, Vector(CurrentMoveDest.x, CurrentMoveDest.y, 0.0f), 1.0f) && bDestIsDirectlyReachable;
+	bool bAtOrPastDestination = vEquals2D(ClosestPointToPath, CurrentMoveDest, 1.0f) && bDestIsDirectlyReachable;
 
 	dtPolyRef BotPoly = pBot->BotNavInfo.CurrentPoly;
 	dtPolyRef DestinationPoly = pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].poly;
@@ -1934,11 +2330,11 @@ bool HasBotReachedPathPoint(const bot_t* pBot)
 
 			if (DirectionDot >= -0.5f)
 			{
-				return bAtOrPastDestination && UTIL_PointIsDirectlyReachable(pBot, pBot->CurrentFloorPosition, pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint + 1].Location);
+				return bAtOrPastDestination && UTIL_PointIsDirectlyReachable(pBot, pBot->CurrentFloorPosition, pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint + 1].Location) && UTIL_QuickHullTrace(pBot->pEdict, pBot->pEdict->v.origin, pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint + 1].Location + Vector(0.0f, 0.0f, 10.0f));
 			}
 			else
 			{
-				return bAtOrPastDestination && pBot->BotNavInfo.IsOnGround;
+				return bAtOrPastDestination && pBot->BotNavInfo.IsOnGround && fabs(pBot->CurrentFloorPosition.z - CurrentMoveDest.z) < 50.0f;
 				//return (vDist2D(pEdict->v.origin, CurrentMoveDest) <= playerRadius && (fabs(pBot->CurrentFloorPosition.z - CurrentMoveDest.z) < 50.0f) && pBot->BotNavInfo.IsOnGround);
 			}
 		}
@@ -1962,6 +2358,542 @@ bool HasBotReachedPathPoint(const bot_t* pBot)
 	}
 
 	return false;
+}
+
+void CheckAndHandleDoorObstruction(bot_t* pBot, const Vector MoveFrom, const Vector MoveTo)
+{
+
+	edict_t* BlockingDoor = UTIL_GetDoorBlockingPathPoint(pBot->pEdict->v.origin, pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].Location, SAMPLE_POLYAREA_GROUND, nullptr);
+
+	if (!FNullEnt(BlockingDoor))
+	{
+		if (BlockingDoor->v.velocity != ZERO_VECTOR || BlockingDoor->v.avelocity != ZERO_VECTOR) { return; }
+
+		const nav_door* Door = UTIL_GetNavDoorByEdict(BlockingDoor);
+
+		if (Door)
+		{
+			if (Door->ActivationType == DOOR_USE)
+			{
+				if (IsPlayerInUseRange(pBot->pEdict, Door->DoorEdict))
+				{
+					if (pBot->pEdict->v.oldbuttons & IN_DUCK)
+					{
+						pBot->pEdict->v.button |= IN_DUCK;
+					}
+
+					BotUseObject(pBot, Door->DoorEdict, false);
+				}
+
+				return;
+			}
+
+			if (Door->ActivationType == DOOR_SHOOT)
+			{
+				BotAttackTarget(pBot, Door->DoorEdict);
+				return;
+			}
+
+			
+
+			if (Door->ActivationType == DOOR_BUTTON || Door->ActivationType == DOOR_TRIGGER)
+			{
+				edict_t* Trigger = UTIL_GetNearestDoorTrigger(pBot->pEdict->v.origin, Door, nullptr);
+
+				if (!FNullEnt(Trigger))
+				{
+					if (Door->ActivationType == DOOR_BUTTON)
+					{
+						Vector UseLocation = UTIL_GetButtonFloorLocation(pBot->pEdict->v.origin, Trigger);
+
+						TASK_SetUseTask(pBot, &pBot->MoveTask, Trigger, UseLocation, true);
+					}
+					else
+					{
+						TASK_SetTouchTask(pBot, &pBot->MoveTask, Trigger, true);
+						
+					}
+
+					return;
+				}
+			}
+		}
+	}
+
+	if (pBot->BotNavInfo.CurrentPathPoint < pBot->BotNavInfo.PathSize - 1)
+	{
+		BlockingDoor = UTIL_GetDoorBlockingPathPoint(&pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint + 1], nullptr);
+
+		if (!FNullEnt(BlockingDoor))
+		{
+			if (BlockingDoor->v.velocity != ZERO_VECTOR || BlockingDoor->v.avelocity != ZERO_VECTOR) { return; }
+
+			const nav_door* Door = UTIL_GetNavDoorByEdict(BlockingDoor);
+
+			if (Door)
+			{
+				if (Door->ActivationType == DOOR_USE)
+				{
+					if (IsPlayerInUseRange(pBot->pEdict, Door->DoorEdict))
+					{
+						if (pBot->pEdict->v.oldbuttons & IN_DUCK)
+						{
+							pBot->pEdict->v.button |= IN_DUCK;
+						}
+
+						BotUseObject(pBot, Door->DoorEdict, false);
+					}
+
+					return;
+				}
+
+				if (Door->ActivationType == DOOR_SHOOT)
+				{
+					BotAttackTarget(pBot, Door->DoorEdict);
+					return;
+				}
+
+				if (Door->ActivationType == DOOR_BUTTON || Door->ActivationType == DOOR_TRIGGER)
+				{
+					edict_t* Trigger = UTIL_GetNearestDoorTrigger(pBot->pEdict->v.origin, Door, nullptr);
+
+					if (!FNullEnt(Trigger))
+					{
+						if (Door->ActivationType == DOOR_BUTTON)
+						{
+							Vector UseLocation = UTIL_GetButtonFloorLocation(pBot->pEdict->v.origin, Trigger);
+							TASK_SetUseTask(pBot, &pBot->MoveTask, Trigger, UseLocation, true);
+						}
+						else
+						{
+							TASK_SetTouchTask(pBot, &pBot->MoveTask, Trigger, true);
+						}
+						
+						return;
+					}
+				}
+			}
+		}
+	}
+
+	if (pBot->BotNavInfo.CurrentPathPoint < pBot->BotNavInfo.PathSize - 2)
+	{
+		BlockingDoor = UTIL_GetDoorBlockingPathPoint(&pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint + 2], nullptr);
+
+		if (!FNullEnt(BlockingDoor))
+		{
+			if (BlockingDoor->v.velocity != ZERO_VECTOR || BlockingDoor->v.avelocity != ZERO_VECTOR) { return; }
+
+			const nav_door* Door = UTIL_GetNavDoorByEdict(BlockingDoor);
+
+			if (Door)
+			{
+				if (Door->ActivationType == DOOR_USE)
+				{
+					if (IsPlayerInUseRange(pBot->pEdict, Door->DoorEdict))
+					{
+						if (pBot->pEdict->v.oldbuttons & IN_DUCK)
+						{
+							pBot->pEdict->v.button |= IN_DUCK;
+						}
+
+						BotUseObject(pBot, Door->DoorEdict, false);
+					}
+
+					return;
+				}
+
+				if (Door->ActivationType == DOOR_SHOOT)
+				{
+					BotAttackTarget(pBot, Door->DoorEdict);
+					return;
+				}
+
+				if (Door->ActivationType == DOOR_BUTTON || Door->ActivationType == DOOR_TRIGGER)
+				{
+					edict_t* Trigger = UTIL_GetNearestDoorTrigger(pBot->pEdict->v.origin, Door, nullptr);
+
+					if (!FNullEnt(Trigger))
+					{
+						if (Door->ActivationType == DOOR_BUTTON)
+						{
+							Vector UseLocation = UTIL_GetButtonFloorLocation(pBot->pEdict->v.origin, Trigger);
+
+							TASK_SetUseTask(pBot, &pBot->MoveTask, Trigger, UseLocation, true);
+						}
+						else
+						{
+							TASK_SetTouchTask(pBot, &pBot->MoveTask, Trigger, true);
+						}
+
+						return;
+					}
+				}
+
+			}
+		}
+	}
+	
+}
+
+edict_t* UTIL_GetDoorBlockingPathPoint(bot_path_node* PathNode, edict_t* SearchDoor)
+{
+	if (!PathNode) { return nullptr; }
+
+	Vector FromLoc = PathNode->FromLocation;
+	Vector ToLoc = PathNode->Location;
+
+	TraceResult doorHit;
+
+	if (PathNode->area == SAMPLE_POLYAREA_LADDER || PathNode->area == SAMPLE_POLYAREA_WALLCLIMB)
+	{
+		Vector TargetLoc = Vector(FromLoc.x, FromLoc.y, PathNode->requiredZ);
+
+		UTIL_TraceLine(FromLoc, TargetLoc, ignore_monsters, dont_ignore_glass, nullptr, &doorHit);
+
+		if (!FNullEnt(doorHit.pHit))
+		{
+			const char* HitName = STRING(doorHit.pHit->v.classname);
+		}
+
+		if (!FNullEnt(SearchDoor))
+		{
+			if (doorHit.pHit == SearchDoor) { return doorHit.pHit; }
+		}
+		else
+		{
+			if (!FNullEnt(doorHit.pHit))
+			{
+				if (strcmp(STRING(doorHit.pHit->v.classname), "func_door") == 0
+					|| strcmp(STRING(doorHit.pHit->v.classname), "func_seethroughdoor") == 0
+					|| strcmp(STRING(doorHit.pHit->v.classname), "func_door_rotating") == 0)
+				{
+					return doorHit.pHit;
+				}
+			}
+			
+		}
+
+		Vector TargetLoc2 = Vector(ToLoc.x, ToLoc.y, PathNode->requiredZ);
+
+		UTIL_TraceLine(TargetLoc, TargetLoc2, ignore_monsters, dont_ignore_glass, nullptr, &doorHit);
+
+		if (!FNullEnt(doorHit.pHit))
+		{
+			const char* HitName2 = STRING(doorHit.pHit->v.classname);
+		}
+
+		if (!FNullEnt(SearchDoor))
+		{
+			if (doorHit.pHit == SearchDoor) { return doorHit.pHit; }
+		}
+		else
+		{
+			if (!FNullEnt(doorHit.pHit))
+			{
+				if (strcmp(STRING(doorHit.pHit->v.classname), "func_door") == 0
+					|| strcmp(STRING(doorHit.pHit->v.classname), "func_seethroughdoor") == 0
+					|| strcmp(STRING(doorHit.pHit->v.classname), "func_door_rotating") == 0)
+				{
+					return doorHit.pHit;
+				}
+			}
+		}
+
+	}
+	else if (PathNode->area == SAMPLE_POLYAREA_FALL || PathNode->area == SAMPLE_POLYAREA_HIGHFALL)
+	{
+		Vector TargetLoc = Vector(ToLoc.x, ToLoc.y, FromLoc.z);
+
+		UTIL_TraceLine(FromLoc, TargetLoc, ignore_monsters, dont_ignore_glass, nullptr, &doorHit);
+
+		if (!FNullEnt(doorHit.pHit))
+		{
+			const char* HitName3 = STRING(doorHit.pHit->v.classname);
+		}
+
+		if (!FNullEnt(SearchDoor))
+		{
+			if (doorHit.pHit == SearchDoor) { return doorHit.pHit; }
+		}
+		else
+		{
+			if (!FNullEnt(doorHit.pHit))
+			{
+				if (strcmp(STRING(doorHit.pHit->v.classname), "func_door") == 0
+					|| strcmp(STRING(doorHit.pHit->v.classname), "func_seethroughdoor") == 0
+					|| strcmp(STRING(doorHit.pHit->v.classname), "func_door_rotating") == 0)
+				{
+					return doorHit.pHit;
+				}
+			}
+		}
+
+		UTIL_TraceLine(TargetLoc, ToLoc + Vector(0.0f, 0.0f, 10.0f), ignore_monsters, dont_ignore_glass, nullptr, &doorHit);
+
+		if (!FNullEnt(doorHit.pHit))
+		{
+			const char* HitName4 = STRING(doorHit.pHit->v.classname);
+		}
+
+		if (!FNullEnt(SearchDoor))
+		{
+			if (doorHit.pHit == SearchDoor) { return doorHit.pHit; }
+		}
+		else
+		{
+			if (!FNullEnt(doorHit.pHit))
+			{
+				if (strcmp(STRING(doorHit.pHit->v.classname), "func_door") == 0
+					|| strcmp(STRING(doorHit.pHit->v.classname), "func_seethroughdoor") == 0
+					|| strcmp(STRING(doorHit.pHit->v.classname), "func_door_rotating") == 0)
+				{
+					return doorHit.pHit;
+				}
+			}
+		}
+	}
+
+	UTIL_TraceLine(FromLoc, ToLoc + Vector(0.0f, 0.0f, 10.0f), ignore_monsters, dont_ignore_glass, nullptr, &doorHit);
+
+	if (!FNullEnt(doorHit.pHit))
+	{
+		const char* HitName5 = STRING(doorHit.pHit->v.classname);
+	}
+
+	if (!FNullEnt(SearchDoor))
+	{
+		if (doorHit.pHit == SearchDoor) { return doorHit.pHit; }
+	}
+	else
+	{
+		if (!FNullEnt(doorHit.pHit))
+		{
+			if (strcmp(STRING(doorHit.pHit->v.classname), "func_door") == 0
+				|| strcmp(STRING(doorHit.pHit->v.classname), "func_seethroughdoor") == 0
+				|| strcmp(STRING(doorHit.pHit->v.classname), "func_door_rotating") == 0)
+			{
+				return doorHit.pHit;
+			}
+		}
+	}
+
+
+	return nullptr;
+}
+
+edict_t* UTIL_GetDoorBlockingPathPoint(const Vector FromLocation, const Vector ToLocation, const unsigned char Area, edict_t* SearchDoor)
+{
+
+	Vector FromLoc = FromLocation;
+	Vector ToLoc = ToLocation;
+
+	TraceResult doorHit;
+
+	if (Area == SAMPLE_POLYAREA_LADDER || Area == SAMPLE_POLYAREA_WALLCLIMB)
+	{
+		Vector TargetLoc = Vector(FromLoc.x, FromLoc.y, ToLocation.z);
+
+		UTIL_TraceLine(FromLoc, TargetLoc, ignore_monsters, dont_ignore_glass, nullptr, &doorHit);
+
+		if (!FNullEnt(doorHit.pHit))
+		{
+			const char* HitName = STRING(doorHit.pHit->v.classname);
+		}
+
+		if (!FNullEnt(SearchDoor))
+		{
+			if (doorHit.pHit == SearchDoor) { return doorHit.pHit; }
+		}
+		else
+		{
+			if (!FNullEnt(doorHit.pHit))
+			{
+				if (strcmp(STRING(doorHit.pHit->v.classname), "func_door") == 0
+					|| strcmp(STRING(doorHit.pHit->v.classname), "func_seethroughdoor") == 0
+					|| strcmp(STRING(doorHit.pHit->v.classname), "func_door_rotating") == 0)
+				{
+					return doorHit.pHit;
+				}
+			}
+
+		}
+
+		Vector TargetLoc2 = Vector(ToLoc.x, ToLoc.y, ToLocation.z);
+
+		UTIL_TraceLine(TargetLoc, TargetLoc2, ignore_monsters, dont_ignore_glass, nullptr, &doorHit);
+
+		if (!FNullEnt(doorHit.pHit))
+		{
+			const char* HitName2 = STRING(doorHit.pHit->v.classname);
+		}
+
+		if (!FNullEnt(SearchDoor))
+		{
+			if (doorHit.pHit == SearchDoor) { return doorHit.pHit; }
+		}
+		else
+		{
+			if (!FNullEnt(doorHit.pHit))
+			{
+				if (strcmp(STRING(doorHit.pHit->v.classname), "func_door") == 0
+					|| strcmp(STRING(doorHit.pHit->v.classname), "func_seethroughdoor") == 0
+					|| strcmp(STRING(doorHit.pHit->v.classname), "func_door_rotating") == 0)
+				{
+					return doorHit.pHit;
+				}
+			}
+		}
+
+	}
+	else if (Area == SAMPLE_POLYAREA_FALL || Area == SAMPLE_POLYAREA_HIGHFALL)
+	{
+		Vector TargetLoc = Vector(ToLoc.x, ToLoc.y, FromLoc.z);
+
+		UTIL_TraceLine(FromLoc, TargetLoc, ignore_monsters, dont_ignore_glass, nullptr, &doorHit);
+
+		if (!FNullEnt(doorHit.pHit))
+		{
+			const char* HitName3 = STRING(doorHit.pHit->v.classname);
+		}
+
+		if (!FNullEnt(SearchDoor))
+		{
+			if (doorHit.pHit == SearchDoor) { return doorHit.pHit; }
+		}
+		else
+		{
+			if (!FNullEnt(doorHit.pHit))
+			{
+				if (strcmp(STRING(doorHit.pHit->v.classname), "func_door") == 0
+					|| strcmp(STRING(doorHit.pHit->v.classname), "func_seethroughdoor") == 0
+					|| strcmp(STRING(doorHit.pHit->v.classname), "func_door_rotating") == 0)
+				{
+					return doorHit.pHit;
+				}
+			}
+		}
+
+		UTIL_TraceLine(TargetLoc, ToLoc + Vector(0.0f, 0.0f, 10.0f), ignore_monsters, dont_ignore_glass, nullptr, &doorHit);
+
+		if (!FNullEnt(doorHit.pHit))
+		{
+			const char* HitName4 = STRING(doorHit.pHit->v.classname);
+		}
+
+		if (!FNullEnt(SearchDoor))
+		{
+			if (doorHit.pHit == SearchDoor) { return doorHit.pHit; }
+		}
+		else
+		{
+			if (!FNullEnt(doorHit.pHit))
+			{
+				if (strcmp(STRING(doorHit.pHit->v.classname), "func_door") == 0
+					|| strcmp(STRING(doorHit.pHit->v.classname), "func_seethroughdoor") == 0
+					|| strcmp(STRING(doorHit.pHit->v.classname), "func_door_rotating") == 0)
+				{
+					return doorHit.pHit;
+				}
+			}
+		}
+	}
+
+	UTIL_TraceLine(FromLoc, ToLoc + Vector(0.0f, 0.0f, 10.0f), ignore_monsters, dont_ignore_glass, nullptr, &doorHit);
+
+	if (!FNullEnt(doorHit.pHit))
+	{
+		const char* HitName5 = STRING(doorHit.pHit->v.classname);
+	}
+
+	if (!FNullEnt(SearchDoor))
+	{
+		if (doorHit.pHit == SearchDoor) { return doorHit.pHit; }
+	}
+	else
+	{
+		if (!FNullEnt(doorHit.pHit))
+		{
+			if (strcmp(STRING(doorHit.pHit->v.classname), "func_door") == 0
+				|| strcmp(STRING(doorHit.pHit->v.classname), "func_seethroughdoor") == 0
+				|| strcmp(STRING(doorHit.pHit->v.classname), "func_door_rotating") == 0)
+			{
+				return doorHit.pHit;
+			}
+		}
+	}
+
+
+	return nullptr;
+}
+
+bool UTIL_IsPathBlockedByDoor(const Vector StartLoc, const Vector EndLoc, edict_t* SearchDoor)
+{
+	Vector ValidNavmeshPoint = UTIL_ProjectPointToNavmesh(EndLoc, MARINE_REGULAR_NAV_PROFILE);
+
+	if (!ValidNavmeshPoint)
+	{
+		return ZERO_VECTOR;
+	}
+
+	bot_path_node Path[MAX_PATH_SIZE];
+	memset(Path, 0, sizeof(Path));
+	int PathSize = 0;
+
+	// Now we find a path backwards from the valid nav mesh point to our location, trying to get as close as we can to it
+
+	dtStatus PathFindingStatus = FindPathClosestToPoint(MARINE_REGULAR_NAV_PROFILE, StartLoc, ValidNavmeshPoint, Path, &PathSize, 50.0f);
+
+	if (dtStatusSucceed(PathFindingStatus))
+	{
+		for (int i = 1; i < PathSize; i++)
+		{
+			if (UTIL_GetDoorBlockingPathPoint(&Path[i], SearchDoor) != nullptr)
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	return true;
+}
+
+edict_t* UTIL_GetNearestDoorTrigger(const Vector Location, const nav_door* Door, edict_t* IgnoreTrigger)
+{
+	if (!Door) { return nullptr; }
+
+	if (Door->NumTriggers == 0) { return nullptr; }
+
+	if (Door->NumTriggers == 1) { return Door->TriggerEdicts[0]; }
+
+	edict_t* NearestTrigger = nullptr;
+	float NearestDist = 0.0f;
+
+	Vector DoorLocation = UTIL_GetCentreOfEntity(Door->DoorEdict);
+
+	for (int i = 0; i < Door->NumTriggers; i++)
+	{
+		if (!FNullEnt(Door->TriggerEdicts[i]) && Door->TriggerEdicts[i] != IgnoreTrigger)
+		{
+			Vector ButtonLocation = UTIL_GetButtonFloorLocation(Location, Door->TriggerEdicts[i]);
+
+			if (!UTIL_IsPathBlockedByDoor(Location, ButtonLocation, Door->DoorEdict))
+			{
+				float ThisDist = vDist3DSq(DoorLocation, ButtonLocation);
+
+				if (FNullEnt(NearestTrigger) || ThisDist < NearestDist)
+				{
+					NearestTrigger = Door->TriggerEdicts[i];
+					NearestDist = ThisDist;
+				}
+				
+			}
+		}
+	}
+
+	return NearestTrigger;
 }
 
 void CheckAndHandleBreakableObstruction(bot_t* pBot, const Vector MoveFrom, const Vector MoveTo)
@@ -2046,6 +2978,13 @@ void NewMove(bot_t* pBot)
 
 	int CurrentNavArea = pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].area;
 
+	unsigned char NextArea = SAMPLE_POLYAREA_GROUND;
+
+	if (pBot->BotNavInfo.CurrentPathPoint < (pBot->BotNavInfo.PathSize - 1))
+	{
+		NextArea = pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint + 1].area;
+	}
+
 	Vector MoveFrom = ZERO_VECTOR;
 
 	if (pBot->BotNavInfo.CurrentPathPoint > 0)
@@ -2058,6 +2997,8 @@ void NewMove(bot_t* pBot)
 	}
 
 	Vector MoveTo = pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].Location;
+
+
 
 	switch (CurrentNavArea)
 	{
@@ -2077,10 +3018,19 @@ void NewMove(bot_t* pBot)
 		BlockedMove(pBot, MoveFrom, MoveTo);
 		break;
 	case SAMPLE_POLYAREA_WALLCLIMB:
-		WallClimbMove(pBot, MoveFrom, MoveTo, pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].requiredZ);
-		break;
+	{
+		if (IsPlayerSkulk(pBot->pEdict))
+		{
+			WallClimbMove(pBot, MoveFrom, MoveTo, pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].requiredZ);
+		}
+		else
+		{
+			BlinkClimbMove(pBot, MoveFrom, MoveTo, pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].requiredZ);
+		}
+	}
+	break;
 	case SAMPLE_POLYAREA_LADDER:
-		LadderMove(pBot, MoveFrom, MoveTo, pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].requiredZ);
+		LadderMove(pBot, MoveFrom, MoveTo, pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].requiredZ, NextArea);
 		break;
 	case SAMPLE_POLYAREA_PHASEGATE:
 		PhaseGateMove(pBot, MoveFrom, MoveTo);
@@ -2108,6 +3058,12 @@ void NewMove(bot_t* pBot)
 
 	// While moving, check to make sure we're not obstructed by a func_breakable, e.g. vent or window.
 	CheckAndHandleBreakableObstruction(pBot, MoveFrom, MoveTo);
+
+	if (gpGlobals->time - pBot->LastUseTime >= 3.0f)
+	{
+		CheckAndHandleDoorObstruction(pBot, MoveFrom, MoveTo);
+	}
+	
 
 }
 
@@ -2292,13 +3248,19 @@ void JumpMove(bot_t* pBot, const Vector StartPoint, const Vector EndPoint)
 	}
 }
 
-void LadderMove(bot_t* pBot, const Vector StartPoint, const Vector EndPoint, float RequiredClimbHeight)
+void LadderMove(bot_t* pBot, const Vector StartPoint, const Vector EndPoint, float RequiredClimbHeight, unsigned char NextArea)
 {
 	edict_t* pEdict = pBot->pEdict;
 
 	const Vector vForward = UTIL_GetVectorNormal2D(EndPoint - StartPoint);
 
 	bool bIsGoingUpLadder = (EndPoint.z > StartPoint.z);
+
+	// Onos is buggy as hell getting on and off ladders, ducking seems to help...
+	if (IsPlayerOnos(pBot->pEdict))
+	{
+		pEdict->v.button |= IN_DUCK;
+	}
 
 
 	if (IsPlayerOnLadder(pEdict))
@@ -2327,7 +3289,7 @@ void LadderMove(bot_t* pBot, const Vector StartPoint, const Vector EndPoint, flo
 				pBot->desiredMovementDir = vForward;
 
 				Vector LookLocation = EndPoint;
-				LookLocation.z = pBot->CurrentEyePosition.z + 32.0f;
+				LookLocation.z = pBot->CurrentEyePosition.z + 64.0f;
 
 				BotMoveLookAt(pBot, LookLocation);
 
@@ -2335,6 +3297,19 @@ void LadderMove(bot_t* pBot, const Vector StartPoint, const Vector EndPoint, flo
 				if (UTIL_GetDotProduct(pBot->CurrentLadderNormal, vForward) > 0.75f)
 				{
 					BotJump(pBot);
+				}
+
+				if (!IsPlayerGorge(pEdict) && !IsPlayerLerk(pEdict) && !IsPlayerSkulk(pEdict))
+				{
+					Vector HeadTraceLocation = GetPlayerTopOfCollisionHull(pEdict, false);
+
+					bool bHittingHead = !UTIL_QuickTrace(pBot->pEdict, HeadTraceLocation, HeadTraceLocation + Vector(0.0f, 0.0f, 10.0f));
+					bool bClimbIntoVent = (NextArea == SAMPLE_POLYAREA_CROUCH);
+
+					if (bHittingHead || bClimbIntoVent)
+					{
+						pEdict->v.button |= IN_DUCK;
+					}
 				}
 
 				return;
@@ -2382,11 +3357,18 @@ void LadderMove(bot_t* pBot, const Vector StartPoint, const Vector EndPoint, flo
 				}
 
 				// Crouch if we're hitting our head on a ceiling
-				Vector HeadTraceLocation = GetPlayerTopOfCollisionHull(pEdict, false);
+				
 
-				if (!IsPlayerGorge(pEdict) && !IsPlayerLerk(pEdict) && !IsPlayerSkulk(pEdict) && !UTIL_QuickTrace(pBot->pEdict, HeadTraceLocation, HeadTraceLocation + Vector(0.0f, 0.0f, 10.0f)))
+				if (!IsPlayerGorge(pEdict) && !IsPlayerLerk(pEdict) && !IsPlayerSkulk(pEdict))
 				{
-					pEdict->v.button |= IN_DUCK;
+					Vector HeadTraceLocation = GetPlayerTopOfCollisionHull(pEdict, false);
+
+					bool bHittingHead = !UTIL_QuickTrace(pBot->pEdict, HeadTraceLocation, HeadTraceLocation + Vector(0.0f, 0.0f, 10.0f));
+
+					if (bHittingHead)
+					{
+						pEdict->v.button |= IN_DUCK;
+					}
 				}
 
 				// We're not blocked by anything
@@ -2530,6 +3512,12 @@ void PhaseGateMove(bot_t* pBot, const Vector StartPoint, const Vector EndPoint)
 		BotMoveLookAt(pBot, NearestPhaseGate->v.origin);
 		pBot->desiredMovementDir = ZERO_VECTOR;
 		BotUseObject(pBot, NearestPhaseGate, false);
+
+		if (vDist2DSq(pBot->pEdict->v.origin, NearestPhaseGate->v.origin) < sqrf(16.0f))
+		{
+			pBot->desiredMovementDir = UTIL_GetForwardVector2D(NearestPhaseGate->v.angles);
+		}
+
 		return;
 	}
 	else
@@ -2544,13 +3532,26 @@ bool IsBotOffPath(const bot_t* pBot)
 	if (pBot->BotNavInfo.PathSize == 0) { return false; }
 	
 
-	// Wall climbing and phase gates will cause all sorts of fuckery, don't even try and figure out if we're off-path...
+	// If we're trying to use a phase gate, then we're fine as long as there is a phase gate within reach at the start and end teleport points
 	if (pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].area == SAMPLE_POLYAREA_PHASEGATE)
 	{
+		if (!UTIL_StructureOfTypeExistsInLocation(STRUCTURE_MARINE_PHASEGATE, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(2.0f)))
+		{
+			return true;
+		}
+
+		// This checks to ensure the target phase gate hasn't been destroyed since the bot initially calculated its path. If so, then this will force it to calculate a new path
+		if (!UTIL_StructureOfTypeExistsInLocation(STRUCTURE_MARINE_PHASEGATE, pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].Location, UTIL_MetresToGoldSrcUnits(2.0f)))
+		{
+			return true;
+		}
+
 		return false;
 	}
 
 	edict_t* pEdict = pBot->pEdict;
+
+	Vector MoveTo = pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].Location;
 
 	Vector MoveFrom = pBot->CurrentFloorPosition;
 
@@ -2558,8 +3559,15 @@ bool IsBotOffPath(const bot_t* pBot)
 	{
 		MoveFrom = pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint - 1].Location;
 	}
+	else
+	{
+		if (!UTIL_PointIsDirectlyReachable(MoveFrom, MoveTo))
+		{
+			return true;
+		}
+	}
 
-	Vector MoveTo = pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].Location;
+	
 
 	float PlayerRadiusSq = sqrf(GetPlayerRadius(pBot->pEdict));
 	float PlayerHeight = GetPlayerHeight(pBot->pEdict, false);
@@ -2578,25 +3586,31 @@ bool IsBotOffPath(const bot_t* pBot)
 	if (!pBot->BotNavInfo.IsOnGround) { return false; }
 
 
-	
-
-
-
 	// TODO: This sucks
 	if (pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].area == SAMPLE_POLYAREA_GROUND || pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].area == SAMPLE_POLYAREA_CROUCH)
 	{
 
+		bool bAtMoveStart = vEquals(PointOnPath, MoveFrom, 2.0f);
+
+
 		// If we're on the from or to move points, but the height is significantly different, we must be under or over the path somehow
-		if (vEquals(PointOnPath, MoveFrom, 2.0f) && fabs(pBot->CurrentFloorPosition.z - MoveFrom.z) > PlayerHeight)
+		if (bAtMoveStart && fabs(pBot->CurrentFloorPosition.z - MoveFrom.z) > PlayerHeight)
 		{
 			return true;
 		}
 
-		if (vEquals(PointOnPath, MoveTo, 2.0f) && fabs(pBot->CurrentFloorPosition.z - MoveTo.z) > PlayerHeight)
+		bool bAtMoveEnd = vEquals(PointOnPath, MoveTo, 2.0f);
+
+		if (bAtMoveEnd && fabs(pBot->CurrentFloorPosition.z - MoveTo.z) > PlayerHeight)
 		{
 			return true;
+		}
 
+		float MaxDist = (bAtMoveStart || bAtMoveEnd) ? 50.0f : 200.0f;
 
+		if (vDistanceFromLine2D(MoveFrom, MoveTo, pBot->CurrentFloorPosition) > sqrf(MaxDist))
+		{ 
+			return true;
 		}
 
 		return false;
@@ -2625,11 +3639,70 @@ bool IsBotOffPath(const bot_t* pBot)
 	return false;
 }
 
-void WallClimbMove(bot_t* pBot, const Vector StartPoint, const Vector EndPoint, float RequiredClimbHeight)
+void BlinkClimbMove(bot_t* pBot, const Vector StartPoint, const Vector EndPoint, float RequiredClimbHeight)
 {
 	edict_t* pEdict = pBot->pEdict;
 
-	Vector CurrentMoveDest = pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].Location;
+	Vector vForward = UTIL_GetVectorNormal2D(EndPoint - StartPoint);
+	Vector CheckLine = StartPoint + (vForward * 1000.0f);
+	Vector MoveDir = UTIL_GetVectorNormal2D(EndPoint - pBot->pEdict->v.origin);
+
+	Vector PointOnMove = vClosestPointOnLine2D(StartPoint, EndPoint, pEdict->v.origin);
+	float DistFromLineSq = vDist2DSq(PointOnMove, pEdict->v.origin);
+
+	if (vEquals(PointOnMove, StartPoint, 2.0f) && DistFromLineSq > sqrf(8.0f))
+	{
+		pBot->desiredMovementDir = UTIL_GetVectorNormal2D(StartPoint - pBot->pEdict->v.origin);
+		return;
+	}
+
+	pBot->desiredMovementDir = MoveDir;
+
+	// Always duck. It doesn't have any downsides and means we don't have to separately handle vent climbing
+	pBot->pEdict->v.button |= IN_DUCK;
+
+	pBot->DesiredMoveWeapon = WEAPON_FADE_BLINK;
+
+	// Wait until we have blink equipped before proceeding
+	if (GetBotCurrentWeapon(pBot) != WEAPON_FADE_BLINK) { return; }
+
+	// Only blink if we're below the target climb height
+	if (pEdict->v.origin.z < RequiredClimbHeight)
+	{
+		Vector CurrVelocity = UTIL_GetVectorNormal2D(pBot->pEdict->v.velocity);
+
+		float Dot = UTIL_GetDotProduct2D(MoveDir, CurrVelocity);
+
+		Vector FaceDir = UTIL_GetForwardVector2D(pEdict->v.angles);
+
+		float FaceDot = UTIL_GetDotProduct2D(FaceDir, MoveDir);
+
+		// Don't start blinking unless we're already in the air, or we're moving in the correct direction. Stops fade shooting off sideways when approaching a climb point from the side
+		if (FaceDot > 0.9f)
+		{
+			float ZDiff = fabs(pEdict->v.origin.z - RequiredClimbHeight);
+
+			// We don't want to blast off like a rocket, so only apply enough blink until our upwards velocity is enough to carry us to the desired height
+			float DesiredZVelocity = sqrtf(2.0f * GOLDSRC_GRAVITY * (ZDiff + 10.0f));
+
+			if (pBot->pEdict->v.velocity.z < DesiredZVelocity || pBot->pEdict->v.velocity.z < 300.0f)
+			{
+				BotMoveLookAt(pBot, EndPoint + Vector(0.0f, 0.0f, 100.0f));
+				pBot->pEdict->v.button |= IN_ATTACK2;
+			}
+			else
+			{
+				Vector LookAtTarget = EndPoint;
+				LookAtTarget.z = pBot->CurrentEyePosition.z;
+				BotMoveLookAt(pBot, LookAtTarget);
+			}
+		}
+	}
+}
+
+void WallClimbMove(bot_t* pBot, const Vector StartPoint, const Vector EndPoint, float RequiredClimbHeight)
+{
+	edict_t* pEdict = pBot->pEdict;
 
 	Vector vForward = UTIL_GetVectorNormal2D(EndPoint - StartPoint);
 	Vector vRight = UTIL_GetVectorNormal(UTIL_GetCrossProduct(vForward, UP_VECTOR));
@@ -2666,8 +3739,6 @@ void WallClimbMove(bot_t* pBot, const Vector StartPoint, const Vector EndPoint, 
 	{
 		pBot->pEdict->v.button &= ~IN_DUCK;
 	}
-
-	bool bIsFade = PlayerHasWeapon(pBot->pEdict, WEAPON_FADE_BLINK);
 
 	float ZDiff = fabs(pEdict->v.origin.z - RequiredClimbHeight);
 	Vector AdjustedTargetLocation = EndPoint + (UTIL_GetVectorNormal2D(EndPoint - StartPoint) * 1000.0f);
@@ -2707,38 +3778,6 @@ void WallClimbMove(bot_t* pBot, const Vector StartPoint, const Vector EndPoint, 
 	}
 
 	BotMoveLookAt(pBot, LookLocation);
-
-	// If we're a fade blinking up a wall, handle the usage of blink here
-	if (bIsFade)
-	{
-		// Always duck. It doesn't have any downsides and means we don't have to separately handle vent climbing
-		pBot->pEdict->v.button |= IN_DUCK;
-
-		pBot->DesiredMoveWeapon = WEAPON_FADE_BLINK;
-
-		// Wait until we have blink equipped before proceeding
-		if (GetBotCurrentWeapon(pBot) != WEAPON_FADE_BLINK) { return; }
-
-		// Only blink if we're below the target climb height
-		if (pEdict->v.origin.z < RequiredClimbHeight)
-		{
-			Vector CurrVelocity = UTIL_GetVectorNormal2D(pBot->pEdict->v.velocity);
-
-			float Dot = UTIL_GetDotProduct2D(vForward, CurrVelocity);
-
-			// Don't start blinking unless we're already in the air, or we're moving in the correct direction. Stops fade shooting off sideways when approaching a climb point from the side
-			if (!pBot->BotNavInfo.IsOnGround || Dot > 0.8f || vSize2DSq(pBot->pEdict->v.velocity) < sqrf(5.0f))
-			{
-				// We don't want to blast off like a rocket, so only apply enough blink until our upwards velocity is enough to carry us to the desired height
-				float DesiredZVelocity = sqrtf(2.0f * GOLDSRC_GRAVITY * (ZDiff + 10.0f));
-
-				if (pBot->pEdict->v.velocity.z < DesiredZVelocity)
-				{
-					pBot->pEdict->v.button |= IN_ATTACK2;
-				}
-			}
-		}
-	}
 
 }
 
@@ -3125,6 +4164,90 @@ bool UTIL_TraceNav(const int NavProfileIndex, const Vector start, const Vector t
 	return (Height == 0.0f || Height == EndNearest[1]);
 }
 
+void UTIL_TraceNavLine(const int NavProfileIndex, const Vector Start, const Vector End, nav_hitresult* HitResult)
+{
+	const dtNavMeshQuery* m_navQuery = UTIL_GetNavMeshQueryForProfile(NavProfileIndex);
+	const dtNavMesh* m_navMesh = UTIL_GetNavMeshForProfile(NavProfileIndex);
+	const dtQueryFilter* m_Filter = UTIL_GetNavMeshFilterForProfile(NavProfileIndex);
+
+	if (!m_navQuery)
+	{
+		HitResult->flFraction = 0.0f;
+		HitResult->bStartOffMesh = true;
+		HitResult->TraceEndPoint = Start;
+		return;
+	}
+
+	float pStartPos[3] = { Start.x, Start.z, -Start.y };
+	float pEndPos[3] = { End.x, End.z, -End.y };
+
+	dtPolyRef StartPoly;
+	dtPolyRef EndPoly;
+	float StartNearest[3] = { 0.0f, 0.0f, 0.0f };
+	float EndNearest[3] = { 0.0f, 0.0f, 0.0f };
+
+	float hitDist;
+	float HitNormal[3];
+
+	dtPolyRef PolyPath[MAX_PATH_POLY];
+	int pathCount = 0;
+
+	float MaxReachableExtents[3] = { 18.0f, 32.0f, 18.0f };
+
+	dtStatus FoundStartPoly = m_navQuery->findNearestPoly(pStartPos, MaxReachableExtents, m_Filter, &StartPoly, StartNearest);
+
+	if (!dtStatusSucceed(FoundStartPoly))
+	{
+		HitResult->flFraction = 0.0f;
+		HitResult->bStartOffMesh = true;
+		HitResult->TraceEndPoint = Start;
+		return;
+	}
+
+	dtStatus FoundEndPoly = m_navQuery->findNearestPoly(pEndPos, MaxReachableExtents, m_Filter, &EndPoly, EndNearest);
+
+	if (!dtStatusSucceed(FoundEndPoly))
+	{
+		HitResult->flFraction = 0.0f;
+		HitResult->bStartOffMesh = true;
+		HitResult->TraceEndPoint = Start;
+		return;
+	}
+
+	// All polys are convex, therefore definitely reachable if start and end points are within the same poly
+	if (StartPoly == EndPoly)
+	{
+
+		HitResult->flFraction = 1.0f;
+		HitResult->bStartOffMesh = false;
+		HitResult->TraceEndPoint = Vector(EndNearest[0], -EndNearest[2], EndNearest[1]);
+		return;
+	}
+
+	
+
+	m_navQuery->raycast(StartPoly, StartNearest, EndNearest, m_Filter, &hitDist, HitNormal, PolyPath, &pathCount, MAX_PATH_SIZE);
+
+	HitResult->flFraction = hitDist;
+	HitResult->bStartOffMesh = false;
+
+	Vector HitLocation = ZERO_VECTOR;
+
+	if (hitDist >= 1.0f)
+	{
+		HitLocation = Vector(EndNearest[0], -EndNearest[2], EndNearest[1]);
+	}
+	else
+	{
+		Vector Dir = UTIL_GetVectorNormal(End - Start);
+		Vector Point = Start + (Dir * HitResult->flFraction);
+
+		HitLocation = UTIL_ProjectPointToNavmesh(Point, Vector(100.0f, 100.0f, 100.0f), NavProfileIndex);
+	}
+
+	HitResult->TraceEndPoint = HitLocation;
+}
+
 bool UTIL_PointIsDirectlyReachable(const Vector start, const Vector target)
 {
 	const dtNavMeshQuery* m_navQuery = UTIL_GetNavMeshQueryForProfile(ALL_NAV_PROFILE);
@@ -3490,7 +4613,15 @@ int UTIL_GetMoveProfileForGorge(const BotMoveStyle MoveStyle)
 
 int UTIL_GetMoveProfileForLerk(const BotMoveStyle MoveStyle)
 {
-	return MARINE_REGULAR_NAV_PROFILE;
+	switch (MoveStyle)
+	{
+	case MOVESTYLE_NORMAL:
+		return LERK_FLYING_NAV_PROFILE;
+	default:
+		return GORGE_REGULAR_NAV_PROFILE;
+	}
+
+	return GORGE_REGULAR_NAV_PROFILE;
 }
 
 int UTIL_GetMoveProfileForFade(const BotMoveStyle MoveStyle)
@@ -3532,16 +4663,19 @@ bool AbortCurrentMove(bot_t* pBot, const Vector NewDestination)
 {
 	if (pBot->BotNavInfo.PathSize == 0 || pBot->BotNavInfo.CurrentPathPoint == 0 || pBot->BotNavInfo.CurrentPathPoint == pBot->BotNavInfo.PathSize - 1) { return true; }
 
+	if (IsBotPermaStuck(pBot))
+	{
+		BotSuicide(pBot);
+		return false;
+	}
+
 	Vector MoveFrom = pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint - 1].Location;
 	Vector MoveTo = pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].Location;
 	unsigned char area = pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].area;
 
 	Vector ClosestPointOnLine = vClosestPointOnLine2D(MoveFrom, MoveTo, pBot->pEdict->v.origin);
 
-	Vector MoveFrom2D = Vector(MoveFrom.x, MoveFrom.y, 0.0f);
-	Vector MoveTo2D = Vector(MoveTo.x, MoveTo.y, 0.0f);
-
-	bool bAtOrPastMovement = (vEquals(ClosestPointOnLine, MoveFrom2D, 1.0f) || vEquals(ClosestPointOnLine, MoveTo2D, 1.0f));
+	bool bAtOrPastMovement = (vEquals2D(ClosestPointOnLine, MoveFrom, 1.0f) || vEquals2D(ClosestPointOnLine, MoveTo, 1.0f));
 
 	if ((pBot->pEdict->v.flags & FL_ONGROUND) && (bAtOrPastMovement || UTIL_PointIsDirectlyReachable(pBot->pEdict->v.origin, MoveFrom) || UTIL_PointIsDirectlyReachable(pBot->pEdict->v.origin, MoveTo)))
 	{
@@ -3554,7 +4688,6 @@ bool AbortCurrentMove(bot_t* pBot, const Vector NewDestination)
 
 	if (area == SAMPLE_POLYAREA_GROUND || area == SAMPLE_POLYAREA_CROUCH)
 	{
-
 		if (bReverseCourse)
 		{
 			GroundMove(pBot, MoveTo, MoveFrom);
@@ -3581,7 +4714,7 @@ bool AbortCurrentMove(bot_t* pBot, const Vector NewDestination)
 	{
 		if (bReverseCourse)
 		{
-			LadderMove(pBot, MoveTo, MoveFrom, pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].requiredZ);
+			LadderMove(pBot, MoveTo, MoveFrom, pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].requiredZ, (unsigned char)SAMPLE_POLYAREA_CROUCH);
 
 			// We're going DOWN the ladder
 			if (MoveTo.z > MoveFrom.z)
@@ -3594,7 +4727,7 @@ bool AbortCurrentMove(bot_t* pBot, const Vector NewDestination)
 		}
 		else
 		{
-			LadderMove(pBot, MoveFrom, MoveTo, pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].requiredZ);
+			LadderMove(pBot, MoveFrom, MoveTo, pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].requiredZ, (unsigned char)SAMPLE_POLYAREA_CROUCH);
 
 			// We're going DOWN the ladder
 			if (MoveFrom.z > MoveTo.z)
@@ -3658,12 +4791,29 @@ bool AbortCurrentMove(bot_t* pBot, const Vector NewDestination)
 	return false;
 }
 
-bool MoveTo(bot_t* pBot, const Vector Destination, const BotMoveStyle MoveStyle)
+bool IsBotPermaStuck(bot_t* pBot)
+{
+	if (CONFIG_GetMaxStuckTime() <= 0.1f) { return false; }
+
+	if (pBot->LastPosition == ZERO_VECTOR || vDist3DSq(pBot->pEdict->v.origin, pBot->LastPosition) > sqrf(32.0f))
+	{
+		pBot->TimeSinceLastMovement = 0.0f;
+		pBot->LastPosition = pBot->pEdict->v.origin;
+		return false;
+	}
+
+	pBot->TimeSinceLastMovement += GAME_GetBotDeltaTime();
+
+	return (pBot->TimeSinceLastMovement >= 30.0f);
+}
+
+bool MoveTo(bot_t* pBot, const Vector Destination, const BotMoveStyle MoveStyle, const float MaxAcceptableDist)
 {
 	// Invalid destination, or we're already there
 	if (!Destination || BotIsAtLocation(pBot, Destination))
 	{
 		ClearBotMovement(pBot);
+		
 		return true;
 	}
 
@@ -3674,9 +4824,19 @@ bool MoveTo(bot_t* pBot, const Vector Destination, const BotMoveStyle MoveStyle)
 	// If we are currently in the process of getting back on the navmesh, don't interrupt
 	if (BotNavInfo->UnstuckMoveLocation != ZERO_VECTOR)
 	{
+		if (IsBotPermaStuck(pBot))
+		{
+			BotSuicide(pBot);
+			return false;
+		}
+
+		Vector MoveTarget = BotNavInfo->UnstuckMoveStartLocation + (UTIL_GetVectorNormal2D(BotNavInfo->UnstuckMoveLocation - BotNavInfo->UnstuckMoveStartLocation) * 100.0f);
+
+		MoveDirectlyTo(pBot, MoveTarget);
+
 		Vector ClosestPoint = vClosestPointOnLine2D(BotNavInfo->UnstuckMoveStartLocation, BotNavInfo->UnstuckMoveLocation, pBot->pEdict->v.origin);
 
-		bool bAtOrPastMoveLocation = vEquals(ClosestPoint, BotNavInfo->UnstuckMoveLocation, 0.1f);
+		bool bAtOrPastMoveLocation = vEquals2D(ClosestPoint, BotNavInfo->UnstuckMoveLocation, 0.1f);
 
 		if (bAtOrPastMoveLocation)
 		{
@@ -3686,15 +4846,8 @@ bool MoveTo(bot_t* pBot, const Vector Destination, const BotMoveStyle MoveStyle)
 		else
 		{
 			// This should only be a short movement, if we don't get there in a few seconds then give up
-			if ((gpGlobals->time - BotNavInfo->UnstuckMoveLocationStartTime) > 3.0f)
+			if ((gpGlobals->time - BotNavInfo->UnstuckMoveLocationStartTime) > 10.0f)
 			{
-				ClearBotStuckMovement(pBot);
-				return true;
-			}
-
-			if (AreKeyPointsReachableForBot(pBot))
-			{
-				ClearBotPath(pBot);
 				ClearBotStuckMovement(pBot);
 				return true;
 			}
@@ -3710,28 +4863,34 @@ bool MoveTo(bot_t* pBot, const Vector Destination, const BotMoveStyle MoveStyle)
 				pBot->pEdict->v.button |= IN_DUCK;
 			}
 
-			MoveDirectlyTo(pBot, BotNavInfo->UnstuckMoveLocation);
+			
 
 			return true;
 		}
 	}
 
 	int MoveProfile = UTIL_GetMoveProfileForBot(pBot, pBot->BotNavInfo.MoveStyle);
+	bool bIsFlyingProfile = NavProfiles[MoveProfile].bFlyingProfile;
 
 	bool bMoveStyleChanged = (MoveStyle != pBot->BotNavInfo.MoveStyle);
 	bool bNavProfileChanged = (MoveProfile != pBot->BotNavInfo.LastMoveProfile);
 	bool bCanRecalculatePath = (gpGlobals->time - pBot->BotNavInfo.LastPathCalcTime > MIN_PATH_RECALC_TIME);
-	bool bDestinationChanged = (!vEquals(Destination, BotNavInfo->TargetDestination, 18.0f));
+	bool bDestinationChanged = (!vEquals(Destination, BotNavInfo->TargetDestination, GetPlayerRadius(pBot->pEdict)));
 
 	// Only recalculate the path if there isn't a path, or something has changed and enough time has elapsed since the last path calculation
-	bool bShouldCalculatePath = (BotNavInfo->PathSize == 0 || (bCanRecalculatePath && (bMoveStyleChanged || bNavProfileChanged || bDestinationChanged || BotNavInfo->bPendingRecalculation)));
+	bool bShouldCalculatePath = bCanRecalculatePath && (BotNavInfo->PathSize == 0 || (bMoveStyleChanged || bNavProfileChanged || bDestinationChanged || BotNavInfo->bPendingRecalculation));
 
 	if (bShouldCalculatePath)
 	{
 		// First abort our current move so we don't try to recalculate half-way up a wall or ladder
-		if (!AbortCurrentMove(pBot, Destination))
+		if (!bIsFlyingProfile && !AbortCurrentMove(pBot, Destination))
 		{
-			
+			return true;
+		}
+
+		if (IsPlayerOnLadder(pBot->pEdict))
+		{
+			BotJump(pBot);
 			return true;
 		}
 
@@ -3741,10 +4900,7 @@ bool MoveTo(bot_t* pBot, const Vector Destination, const BotMoveStyle MoveStyle)
 		pBot->BotNavInfo.MoveStyle = MoveStyle;
 		pBot->BotNavInfo.LastMoveProfile = MoveProfile;
 
-		if (IsPlayerOnLadder(pBot->pEdict))
-		{
-			BotJump(pBot);
-		}
+		
 
 		BotNavInfo->TargetDestination = Destination;
 
@@ -3757,7 +4913,18 @@ bool MoveTo(bot_t* pBot, const Vector Destination, const BotMoveStyle MoveStyle)
 			return false;
 		}
 
-		dtStatus PathFindingStatus = FindPathClosestToPoint(pBot, pBot->BotNavInfo.MoveStyle, pBot->CurrentFloorPosition, ValidNavmeshPoint, BotNavInfo->CurrentPath, &BotNavInfo->PathSize, max_player_use_reach);
+		dtStatus PathFindingStatus = DT_FAILURE;
+		
+		if (bIsFlyingProfile)
+		{
+			PathFindingStatus = FindFlightPathToPoint(MoveProfile, pBot->CurrentFloorPosition, ValidNavmeshPoint, BotNavInfo->CurrentPath, &BotNavInfo->PathSize, MaxAcceptableDist);
+		}
+		else
+		{
+			PathFindingStatus = FindPathClosestToPoint(pBot, pBot->BotNavInfo.MoveStyle, pBot->CurrentFloorPosition, ValidNavmeshPoint, BotNavInfo->CurrentPath, &BotNavInfo->PathSize, MaxAcceptableDist);
+		}
+		
+		
 
 		if (dtStatusSucceed(PathFindingStatus))
 		{
@@ -3807,7 +4974,20 @@ bool MoveTo(bot_t* pBot, const Vector Destination, const BotMoveStyle MoveStyle)
 
 	if (BotNavInfo->PathSize > 0)
 	{
-		BotFollowPath(pBot);
+		if (IsBotPermaStuck(pBot))
+		{
+			BotSuicide(pBot);
+			return false;
+		}
+
+		if (bIsFlyingProfile)
+		{
+			BotFollowFlightPath(pBot);
+		}
+		else
+		{
+			BotFollowPath(pBot);
+		}		
 
 		HandlePlayerAvoidance(pBot, BotNavInfo->CurrentPath[BotNavInfo->CurrentPathPoint].Location);
 		BotMovementInputs(pBot);
@@ -3855,7 +5035,7 @@ void DEBUG_DrawPath(const bot_path_node* Path, const int PathSize, const float D
 
 	Vector FromDraw = Path[0].Location;
 
-	UTIL_DrawLine(clients[0], Path[0].Location, Path[0].Location + Vector(0.0f, 0.0f, 50.0f), DrawTime, 255, 0, 0);
+	UTIL_DrawLine(GAME_GetListenServerEdict(), Path[0].Location, Path[0].Location + Vector(0.0f, 0.0f, 50.0f), DrawTime, 255, 0, 0);
 
 	unsigned char area = Path[0].area;
 	for (int i = 1; i < PathSize; i++)
@@ -3865,42 +5045,82 @@ void DEBUG_DrawPath(const bot_path_node* Path, const int PathSize, const float D
 
 		if (area == SAMPLE_POLYAREA_GROUND)
 		{
-			UTIL_DrawLine(clients[0], FromDraw, ToDraw, DrawTime);
+			UTIL_DrawLine(GAME_GetListenServerEdict(), FromDraw, ToDraw, DrawTime);
 		}
 		else if (area == SAMPLE_POLYAREA_CROUCH)
 		{
-			UTIL_DrawLine(clients[0], FromDraw, ToDraw, DrawTime, 255, 0, 0);
+			UTIL_DrawLine(GAME_GetListenServerEdict(), FromDraw, ToDraw, DrawTime, 255, 0, 0);
 		}
 		else if (area == SAMPLE_POLYAREA_JUMP || area == SAMPLE_POLYAREA_HIGHJUMP || area == SAMPLE_POLYAREA_BLOCKED)
 		{
-			UTIL_DrawLine(clients[0], FromDraw, ToDraw, DrawTime, 255, 255, 0);
+			UTIL_DrawLine(GAME_GetListenServerEdict(), FromDraw, ToDraw, DrawTime, 255, 255, 0);
 		}
 		else if (area == SAMPLE_POLYAREA_WALLCLIMB)
 		{
-			UTIL_DrawLine(clients[0], FromDraw, ToDraw, DrawTime, 0, 128, 0);
+			UTIL_DrawLine(GAME_GetListenServerEdict(), FromDraw, ToDraw, DrawTime, 0, 128, 0);
 		}
 		else if (area == SAMPLE_POLYAREA_LADDER)
 		{
-			UTIL_DrawLine(clients[0], FromDraw, ToDraw, DrawTime, 0, 0, 255);
+			UTIL_DrawLine(GAME_GetListenServerEdict(), FromDraw, ToDraw, DrawTime, 0, 0, 255);
 		}
 		else if (area == SAMPLE_POLYAREA_FALL || area == SAMPLE_POLYAREA_HIGHFALL)
 		{
-			UTIL_DrawLine(clients[0], FromDraw, ToDraw, DrawTime, 255, 0, 255);
+			UTIL_DrawLine(GAME_GetListenServerEdict(), FromDraw, ToDraw, DrawTime, 255, 0, 255);
 		}
 		else if (area == SAMPLE_POLYAREA_PHASEGATE)
 		{
-			UTIL_DrawLine(clients[0], FromDraw, ToDraw, DrawTime, 64, 0, 0);
+			UTIL_DrawLine(GAME_GetListenServerEdict(), FromDraw, ToDraw, DrawTime, 64, 0, 0);
 		}
 		else
 		{
-			UTIL_DrawLine(clients[0], FromDraw, ToDraw, DrawTime);
+			UTIL_DrawLine(GAME_GetListenServerEdict(), FromDraw, ToDraw, DrawTime);
 		}
 
 		FromDraw = ToDraw;
 
 	}
 
-	UTIL_DrawLine(clients[0], Path[PathSize - 1].Location, Path[PathSize - 1].Location + Vector(0.0f, 0.0f, 50.0f), DrawTime, 0, 0, 255);
+	UTIL_DrawLine(GAME_GetListenServerEdict(), Path[PathSize - 1].Location, Path[PathSize - 1].Location + Vector(0.0f, 0.0f, 50.0f), DrawTime, 0, 0, 255);
+}
+
+Vector DEBUG_FindClosestPointBackOnPath(edict_t* Player)
+{
+
+	Vector ValidNavmeshPoint = UTIL_GetNearestPointOfInterestToLocation(Player->v.origin, false);
+
+
+	ValidNavmeshPoint = UTIL_ProjectPointToNavmesh(ValidNavmeshPoint, MARINE_REGULAR_NAV_PROFILE);
+
+	if (!ValidNavmeshPoint)
+	{
+		return ZERO_VECTOR;
+	}
+
+	bot_path_node BackwardsPath[MAX_PATH_SIZE];
+	memset(BackwardsPath, 0, sizeof(BackwardsPath));
+	int BackwardsPathSize = 0;
+
+	// Now we find a path backwards from the valid nav mesh point to our location, trying to get as close as we can to it
+
+	dtStatus BackwardFindingStatus = FindPathClosestToPoint(MARINE_REGULAR_NAV_PROFILE, ValidNavmeshPoint, UTIL_GetEntityGroundLocation(Player), BackwardsPath, &BackwardsPathSize, 500.0f);
+
+	if (dtStatusSucceed(BackwardFindingStatus))
+	{
+		int PathIndex = BackwardsPathSize - 1;
+
+		Vector NewMoveLocation = BackwardsPath[PathIndex].Location;
+
+		// The end point of this backwards path might not actually be reachable (e.g. behind a wall). Try and find any point along this path we can see ourselves
+		while (!UTIL_QuickTrace(Player, Player->v.origin, NewMoveLocation + Vector(0.0f, 0.0f, 5.0f)) && PathIndex > 0)
+		{
+			PathIndex--;
+			NewMoveLocation = BackwardsPath[PathIndex].Location;
+		}
+
+		return NewMoveLocation;
+	}
+
+	return ZERO_VECTOR;
 }
 
 Vector FindClosestPointBackOnPath(bot_t* pBot)
@@ -3908,16 +5128,6 @@ Vector FindClosestPointBackOnPath(bot_t* pBot)
 	int NavProfileIndex = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
 
 	Vector ValidNavmeshPoint = UTIL_GetNearestPointOfInterestToLocation(pBot->pEdict->v.origin, false);
-
-	// If we have a location where we know we were last on the nav mesh and following a path, use that. Otherwise, use the comm chair location
-	/*if (pBot->BotNavInfo.LastPathFollowPosition != ZERO_VECTOR && vDist2DSq(pBot->BotNavInfo.LastPathFollowPosition, pBot->pEdict->v.origin) > GetPlayerRadius(pBot->pEdict))
-	{
-		ValidNavmeshPoint = pBot->BotNavInfo.LastPathFollowPosition;
-	}
-	else
-	{
-		ValidNavmeshPoint = UTIL_GetNearestPointOfInterestToLocation(pBot->pEdict->v.origin, false);
-	}*/
 
 
 	ValidNavmeshPoint = UTIL_ProjectPointToNavmesh(ValidNavmeshPoint, NavProfileIndex);
@@ -3948,16 +5158,6 @@ Vector FindClosestPointBackOnPath(bot_t* pBot)
 			NewMoveLocation = BackwardsPath[PathIndex].Location;
 		}
 
-		Vector MoveDir = UTIL_GetVectorNormal2D(pBot->pEdict->v.origin - NewMoveLocation);
-
-		if (isnan(MoveDir.x) || MoveDir == ZERO_VECTOR)
-		{
-			MoveDir = UTIL_GetVectorNormal2D(BackwardsPath[BackwardsPathSize - 1].Location - BackwardsPath[PathIndex].Location);
-		}
-
-		// Just move 100 units in the direction of our escape point, not all the way to the escape point itself
-		NewMoveLocation = (pBot->pEdict->v.origin - (MoveDir * 100.0f));
-
 		return NewMoveLocation;
 	}
 
@@ -3980,6 +5180,37 @@ Vector FindClosestNavigablePointToDestination(const int NavProfileIndex, const V
 	}
 
 	return ZERO_VECTOR;
+}
+
+void DEBUG_TestFlightPathFind(edict_t* pEdict, const Vector Destination)
+{
+	if (!NavmeshLoaded())
+	{
+		if (!loadNavigationData(STRING(gpGlobals->mapname)))
+		{
+			return;
+		}
+	}
+
+	Vector ValidNavmeshPoint = UTIL_ProjectPointToNavmesh(Destination, Vector(max_player_use_reach, max_player_use_reach, max_player_use_reach), SKULK_REGULAR_NAV_PROFILE);
+
+	// We can't actually get close enough to this point to consider it "reachable"
+	if (!ValidNavmeshPoint)
+	{
+		UTIL_SayText("Couldn't project point to mesh!\n", pEdict);
+		return;
+	}
+
+	bot_path_node FlightPath[MAX_PATH_SIZE];
+	memset(FlightPath, 0, sizeof(FlightPath));
+	int FlightPathSize = 0;
+
+	dtStatus FlightFindingStatus = FindFlightPathToPoint(SKULK_REGULAR_NAV_PROFILE, UTIL_GetEntityGroundLocation(pEdict), ValidNavmeshPoint, FlightPath, &FlightPathSize, 500.0f);
+
+	if (dtStatusSucceed(FlightFindingStatus))
+	{
+		DEBUG_DrawPath(FlightPath, FlightPathSize, 10.0f);
+	}
 }
 
 void DEBUG_TestBackwardsPathFind(edict_t* pEdict, const Vector Destination)
@@ -4041,6 +5272,203 @@ void DEBUG_TestBackwardsPathFind(edict_t* pEdict, const Vector Destination)
 	}
 }
 
+int GetNextDirectFlightPath(bot_t* pBot)
+{
+	if (pBot->BotNavInfo.PathSize == 0) { return -1; }
+
+	nav_status* BotNavInfo = &pBot->BotNavInfo;
+
+	for (int i = BotNavInfo->PathSize - 2; i > pBot->BotNavInfo.CurrentPathPoint; i--)
+	{
+		Vector ThisPoint = BotNavInfo->CurrentPath[i].Location;
+
+		
+
+		if (UTIL_QuickTrace(pBot->pEdict, pBot->pEdict->v.origin, ThisPoint))
+		{
+			if (BotNavInfo->CurrentPath[i].area != SAMPLE_POLYAREA_CROUCH && BotNavInfo->CurrentPath[i + 1].area != SAMPLE_POLYAREA_CROUCH)
+			{
+
+				Vector NewPoint = UTIL_FindHighestSuccessfulTracePoint(pBot->pEdict->v.origin, ThisPoint, BotNavInfo->CurrentPath[i + 1].Location, 10.0f, 50.0f, 200.0f);
+
+				if (NewPoint != ZERO_VECTOR)
+				{
+					BotNavInfo->CurrentPath[i].Location = NewPoint;
+					return i;
+				}
+			}
+			else
+			{
+				if (UTIL_QuickHullTrace(pBot->pEdict, pBot->pEdict->v.origin, ThisPoint))
+				{
+					return i;
+				}
+			}
+		}
+	}
+
+	return pBot->BotNavInfo.CurrentPathPoint;
+}
+
+void BotFollowFlightPath(bot_t* pBot)
+{
+	if (pBot->BotNavInfo.PathSize == 0)
+	{
+		return;
+	}
+
+	nav_status* BotNavInfo = &pBot->BotNavInfo;
+	edict_t* pEdict = pBot->pEdict;
+
+	Vector CurrentMoveDest = pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].Location;
+	Vector NextPoint = pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint + 1].Location;
+	unsigned char CurrentMoveArea = pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].area;
+
+
+	//if ((CurrentMoveArea == SAMPLE_POLYAREA_GROUND || CurrentMoveArea == SAMPLE_POLYAREA_CROUCH) && !UTIL_QuickTrace(pBot->pEdict, pBot->pEdict->v.origin, CurrentMoveDest))
+	//{
+	//	BotRecalcPath(pBot, BotNavInfo->ActualMoveDestination);
+	//	return;
+	//}
+
+	Vector ClosestPointToPath = vClosestPointOnLine(pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint - 1].Location, CurrentMoveDest, pEdict->v.origin);
+
+	bool bAtOrPastDestination = vEquals(ClosestPointToPath, CurrentMoveDest, 32.0f);
+
+	Vector MoveFrom = ZERO_VECTOR;
+
+	if (BotNavInfo->CurrentPathPoint > 0)
+	{
+		MoveFrom = BotNavInfo->CurrentPath[BotNavInfo->CurrentPathPoint - 1].Location;
+	}
+	else
+	{
+		MoveFrom = pBot->pEdict->v.origin;
+	}
+
+	// If we've reached our current path point
+	if (bAtOrPastDestination || UTIL_QuickHullTrace(pEdict, pEdict->v.origin, NextPoint, head_hull))
+	{
+		// End of the whole path, stop all movement
+		if (BotNavInfo->CurrentPathPoint == (pBot->BotNavInfo.PathSize - 1))
+		{
+			ClearBotPath(pBot);
+			ClearBotStuck(pBot);
+			return;
+		}
+		else
+		{
+			// Pick the next point in the path
+			BotNavInfo->CurrentPathPoint++;
+
+			if (BotNavInfo->CurrentPath[BotNavInfo->CurrentPathPoint].area != SAMPLE_POLYAREA_CROUCH && BotNavInfo->CurrentPath[BotNavInfo->CurrentPathPoint + 1].area != SAMPLE_POLYAREA_CROUCH)
+			{
+				BotNavInfo->CurrentPathPoint = GetNextDirectFlightPath(pBot);
+			}
+
+			pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint - 1].Location = pBot->pEdict->v.origin;
+
+			CurrentMoveDest = pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].Location;
+			NextPoint = pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint + 1].Location;
+			ClosestPointToPath = vClosestPointOnLine(pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint - 1].Location, CurrentMoveDest, pEdict->v.origin);
+
+			MoveFrom = pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint - 1].Location;
+
+			ClearBotStuck(pBot);
+		}
+	}
+
+	if (vDist3DSq(pBot->pEdict->v.origin, ClosestPointToPath) > sqrf(100.0f) || !UTIL_QuickTrace(pBot->pEdict, pBot->pEdict->v.origin, ClosestPointToPath))
+	{
+		BotRecalcPath(pBot, BotNavInfo->ActualMoveDestination);
+		return;
+	}
+
+
+	if (IsBotStuck(pBot, CurrentMoveDest))
+	{
+		if (BotNavInfo->TotalStuckTime > 3.0f)
+		{
+			ClearBotPath(pBot);
+			return;
+		}
+	}
+
+	float Velocity = vSize2DSq(pBot->pEdict->v.velocity);
+
+	bool bMustHugGround = (pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].area == SAMPLE_POLYAREA_CROUCH || pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint + 1].area == SAMPLE_POLYAREA_CROUCH);
+
+	if (!bMustHugGround || pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint - 1].Location.z <= pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].Location.z)
+	{
+		if (Velocity < sqrf(500.f))
+		{
+			if (!(pBot->pEdict->v.oldbuttons & IN_JUMP))
+			{
+				pBot->pEdict->v.button |= IN_JUMP;
+			}
+			else
+			{
+				if (gpGlobals->time - BotNavInfo->LastFlapTime < 0.2f)
+				{
+					pBot->pEdict->v.button |= IN_JUMP;
+				}
+				else
+				{
+					BotNavInfo->LastFlapTime = gpGlobals->time;
+				}
+			}
+		}
+		else
+		{
+			pBot->pEdict->v.button |= IN_JUMP;
+		}
+	}
+
+
+
+	pBot->desiredMovementDir = UTIL_GetForwardVector2D(pBot->pEdict->v.v_angle);
+
+	Vector LookLocation = CurrentMoveDest;
+
+
+	if (ClosestPointToPath.z - pBot->pEdict->v.origin.z > 8.0f)
+	{
+		LookLocation.z += 50.0f;
+	}
+	else
+	{
+		// Crouch areas need the lerk to stick close to the ground to avoid missing the crouch entry point
+		
+		bool bIsFinalPoint = pBot->BotNavInfo.CurrentPathPoint == pBot->BotNavInfo.PathSize - 1;
+
+		if (bMustHugGround || bIsFinalPoint)
+		{
+			if (pBot->pEdict->v.origin.z - CurrentMoveDest.z > 8.0f)
+			{
+				LookLocation.z -= 50.0f;
+			}
+		}
+		else
+		{
+			if (UTIL_QuickHullTrace(pBot->pEdict, pBot->pEdict->v.origin, CurrentMoveDest + Vector(0.0f, 0.0f, 50.0f)))
+			{
+				LookLocation.z += 50.0f;
+			}
+		}
+	}
+
+
+	
+	BotMoveLookAt(pBot, LookLocation);
+
+	CheckAndHandleBreakableObstruction(pBot, MoveFrom, CurrentMoveDest);
+
+	if (gpGlobals->time - pBot->LastUseTime >= 3.0f)
+	{
+		CheckAndHandleDoorObstruction(pBot, MoveFrom, CurrentMoveDest);
+	}
+}
+
 void BotFollowPath(bot_t* pBot)
 {
 	if (pBot->BotNavInfo.PathSize == 0)
@@ -4054,22 +5482,20 @@ void BotFollowPath(bot_t* pBot)
 	// If we've reached our current path point
 	if (HasBotReachedPathPoint(pBot))
 	{
+		ClearBotStuck(pBot);
+
 		// End of the whole path, stop all movement
 		if (pBot->BotNavInfo.CurrentPathPoint == (pBot->BotNavInfo.PathSize - 1))
 		{
 			ClearBotPath(pBot);
-			ClearBotStuck(pBot);
 			return;
 		}
 		else
 		{
 			// Pick the next point in the path
 			pBot->BotNavInfo.CurrentPathPoint++;
-
-			ClearBotStuck(pBot);
 		}
 	}
-
 
 	if (IsBotOffPath(pBot))
 	{
@@ -4079,7 +5505,9 @@ void BotFollowPath(bot_t* pBot)
 
 	Vector TargetMoveLocation = BotNavInfo->CurrentPath[BotNavInfo->CurrentPathPoint].Location;
 
-	if (IsBotStuck(pBot, TargetMoveLocation))
+	bool bIsUsingPhaseGate = (BotNavInfo->CurrentPath[BotNavInfo->CurrentPathPoint].area == SAMPLE_POLYAREA_PHASEGATE);
+
+	if (!bIsUsingPhaseGate && IsBotStuck(pBot, TargetMoveLocation))
 	{
 		if (BotNavInfo->TotalStuckTime > 3.0f)
 		{
@@ -4087,12 +5515,17 @@ void BotFollowPath(bot_t* pBot)
 			return;
 		}
 
+		// If onos, ducking is usually a good way to get unstuck...
+		if (IsPlayerOnos(pBot->pEdict))
+		{
+			pEdict->v.button |= IN_DUCK;
+		}
+
 		if (!IsPlayerClimbingWall(pBot->pEdict) && !IsPlayerOnLadder(pBot->pEdict))
 		{
 			PerformUnstuckMove(pBot, TargetMoveLocation);
 			return;
 		}
-
 	}
 
 	NewMove(pBot);
@@ -4322,18 +5755,14 @@ Vector UTIL_ProjectPointToNavmesh(const Vector Location, const Vector Extents, c
 
 	if (!m_navQuery) { return ZERO_VECTOR; }
 
-	Vector TraceHit = UTIL_GetTraceHitLocation(Location + Vector(0.0f, 0.0f, 10.0f), Location - Vector(0.0f, 0.0f, 500.0f));
-
-	Vector PointToProject = (TraceHit != ZERO_VECTOR) ? TraceHit : Location;
-
-	float pCheckLoc[3] = { PointToProject.x, PointToProject.z, -PointToProject.y };
+	float pCheckLoc[3] = { Location.x, Location.z, -Location.y };
 
 	dtPolyRef FoundPoly;
 	float NavNearest[3];
 
-	float NewExtents[3] = { Extents.x, Extents.z, Extents.y };
+	float fExtents[3] = { Extents.x, Extents.z, Extents.y };
 
-	dtStatus success = m_navQuery->findNearestPoly(pCheckLoc, NewExtents, m_navFilter, &FoundPoly, NavNearest);
+	dtStatus success = m_navQuery->findNearestPoly(pCheckLoc, fExtents, m_navFilter, &FoundPoly, NavNearest);
 
 	if (dtStatusSucceed(success))
 	{
@@ -4405,19 +5834,16 @@ void HandlePlayerAvoidance(bot_t* pBot, const Vector MoveDestination)
 			// Don't do avoidance for a player if they're moving in broadly the same direction as us
 			Vector OtherMoveDir = GetPlayerAttemptedMoveDirection(clients[i]);
 
-			// Other player is moving in the same general direction, no need to do avoidance
-			if (UTIL_GetDotProduct2D(MoveDir, OtherMoveDir) > 0.0f) { continue; }
-
 			if (vDist3DSq(BotLocation, clients[i]->v.origin) <= avoidDistSq)
 			{
 				Vector BlockAngle = UTIL_GetVectorNormal2D(clients[i]->v.origin - BotLocation);
 				float MoveBlockDot = UTIL_GetDotProduct2D(MoveDir, BlockAngle);
 
-				// If other players is between us and our destination
+				// If other player is between us and our destination
 				if (MoveBlockDot > 0.0f)
 				{
-					// If the other player is in the air, back up and let them land
-					if (!(clients[i]->v.flags & FL_ONGROUND))
+					// If the other player is in the air or on top of us, back up and let them land
+					if (!(clients[i]->v.flags & FL_ONGROUND) || clients[i]->v.groundentity == pBot->pEdict)
 					{
 						pBot->desiredMovementDir = UTIL_GetVectorNormal2D(BotLocation - clients[i]->v.origin);
 						return;
@@ -4433,7 +5859,7 @@ void HandlePlayerAvoidance(bot_t* pBot, const Vector MoveDestination)
 					Vector PreferredMoveDir = (MoveRightVector * modifier);
 
 					// First see if we have enough room to move in our preferred avoidance direction
-					if (UTIL_TraceNav(NavProfileIndex, BotLocation, BotLocation + (PreferredMoveDir * 32.0f), 2.0f))//  UTIL_PointIsDirectlyReachable(BotLocation, BotLocation + (PreferredMoveDir * 32.0f)))
+					if (UTIL_TraceNav(NavProfileIndex, BotLocation, BotLocation + (PreferredMoveDir * 32.0f), 2.0f))
 					{
 						pBot->desiredMovementDir = PreferredMoveDir;
 						return;
@@ -4447,7 +5873,10 @@ void HandlePlayerAvoidance(bot_t* pBot, const Vector MoveDestination)
 					}
 
 					// Back up since we can't go either side
-					pBot->desiredMovementDir = MoveDir * -1.0f;
+					if (UTIL_GetDotProduct2D(MoveDir, OtherMoveDir) < 0.0f)
+					{
+						pBot->desiredMovementDir = MoveDir * -1.0f;
+					}
 				}
 			}
 		}
@@ -4459,7 +5888,7 @@ float UTIL_GetPathCostBetweenLocations(const int NavProfileIndex, const Vector F
 	bot_path_node path[MAX_PATH_SIZE];
 	int pathSize;
 
-	dtStatus pathFindResult = FindPathToPoint(NavProfileIndex, FromLocation, ToLocation, path, &pathSize, false);
+	dtStatus pathFindResult = FindPathClosestToPoint(NavProfileIndex, FromLocation, ToLocation, path, &pathSize, max_player_use_reach);
 
 	if (!dtStatusSucceed(pathFindResult)) { return 0.0f; }
 
@@ -4484,6 +5913,9 @@ void ClearBotMovement(bot_t* pBot)
 	ClearBotPath(pBot);
 	ClearBotStuck(pBot);
 	ClearBotStuckMovement(pBot);
+
+	pBot->LastPosition = pBot->pEdict->v.origin;
+	pBot->TimeSinceLastMovement = 0.0f;
 }
 
 void ClearBotStuck(bot_t* pBot)
@@ -4755,10 +6187,12 @@ void ClearBotStuckMovement(bot_t* pBot)
 	//pBot->BotNavInfo.TotalStuckTime = 0.0f;
 }
 
-void DEBUG_DrawBotNextPathPoint(bot_t* pBot)
+void DEBUG_DrawBotNextPathPoint(bot_t* pBot, float TimeInSeconds)
 {
 	if (pBot->BotNavInfo.PathSize > 0)
 	{
+		float DrawTime = fmaxf(TimeInSeconds, 0.1f);
+
 		edict_t* pEdict = pBot->pEdict;
 		int area = pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].area;
 
@@ -4768,28 +6202,28 @@ void DEBUG_DrawBotNextPathPoint(bot_t* pBot)
 		switch (area)
 		{
 		case SAMPLE_POLYAREA_GROUND:
-			UTIL_DrawLine(clients[0], StartLine, EndLine, 255, 255, 255);
+			UTIL_DrawLine(GAME_GetListenServerEdict(), StartLine, EndLine, DrawTime, 255, 255, 255);
 			break;
 		case SAMPLE_POLYAREA_CROUCH:
-			UTIL_DrawLine(clients[0], StartLine, EndLine, 255, 0, 0);
+			UTIL_DrawLine(GAME_GetListenServerEdict(), StartLine, EndLine, DrawTime, 255, 0, 0);
 			break;
 		case SAMPLE_POLYAREA_LADDER:
-			UTIL_DrawLine(clients[0], StartLine, EndLine, 0, 0, 255);
+			UTIL_DrawLine(GAME_GetListenServerEdict(), StartLine, EndLine, DrawTime, 0, 0, 255);
 			break;
 		case SAMPLE_POLYAREA_WALLCLIMB:
-			UTIL_DrawLine(clients[0], StartLine, EndLine, 0, 128, 0);
+			UTIL_DrawLine(GAME_GetListenServerEdict(), StartLine, EndLine, DrawTime, 0, 128, 0);
 			break;
 		case SAMPLE_POLYAREA_JUMP:
 		case SAMPLE_POLYAREA_HIGHJUMP:
 		case SAMPLE_POLYAREA_BLOCKED:
-			UTIL_DrawLine(clients[0], StartLine, EndLine, 255, 255, 0);
+			UTIL_DrawLine(GAME_GetListenServerEdict(), StartLine, EndLine, DrawTime, 255, 255, 0);
 			break;
 		case SAMPLE_POLYAREA_FALL:
 		case SAMPLE_POLYAREA_HIGHFALL:
-			UTIL_DrawLine(clients[0], StartLine, EndLine, 0, 255, 255);
+			UTIL_DrawLine(GAME_GetListenServerEdict(), StartLine, EndLine, DrawTime, 0, 255, 255);
 			break;
 		default:
-			UTIL_DrawLine(clients[0], StartLine, EndLine, 0, 0, 0);
+			UTIL_DrawLine(GAME_GetListenServerEdict(), StartLine, EndLine, DrawTime, 0, 0, 0);
 			break;
 		}
 	}
@@ -4807,7 +6241,7 @@ void BotDrawPath(bot_t* pBot, float DrawTimeInSeconds, bool bShort)
 
 		Vector FromDraw = pBot->BotNavInfo.CurrentPath[0].Location;
 
-		UTIL_DrawLine(clients[0], pBot->BotNavInfo.CurrentPath[0].Location, pBot->BotNavInfo.CurrentPath[0].Location + Vector(0.0f, 0.0f, 50.0f), DrawTime, 255, 0, 0);
+		UTIL_DrawLine(GAME_GetListenServerEdict(), pBot->BotNavInfo.CurrentPath[0].Location, pBot->BotNavInfo.CurrentPath[0].Location + Vector(0.0f, 0.0f, 50.0f), DrawTime, 255, 0, 0);
 
 		unsigned char area = pBot->BotNavInfo.CurrentPath[0].area;
 		for (int i = 1; i < pBot->BotNavInfo.PathSize; i++)
@@ -4815,42 +6249,42 @@ void BotDrawPath(bot_t* pBot, float DrawTimeInSeconds, bool bShort)
 			area = pBot->BotNavInfo.CurrentPath[i].area;
 			if (area == SAMPLE_POLYAREA_GROUND)
 			{
-				UTIL_DrawLine(clients[0], FromDraw, pBot->BotNavInfo.CurrentPath[i].Location, DrawTime);
+				UTIL_DrawLine(GAME_GetListenServerEdict(), FromDraw, pBot->BotNavInfo.CurrentPath[i].Location, DrawTime);
 			}
 			else if (area == SAMPLE_POLYAREA_CROUCH)
 			{
-				UTIL_DrawLine(clients[0], FromDraw, pBot->BotNavInfo.CurrentPath[i].Location, DrawTime, 255, 0, 0);
+				UTIL_DrawLine(GAME_GetListenServerEdict(), FromDraw, pBot->BotNavInfo.CurrentPath[i].Location, DrawTime, 255, 0, 0);
 			}
 			else if (area == SAMPLE_POLYAREA_JUMP || area == SAMPLE_POLYAREA_HIGHJUMP || area == SAMPLE_POLYAREA_BLOCKED)
 			{
-				UTIL_DrawLine(clients[0], FromDraw, pBot->BotNavInfo.CurrentPath[i].Location, DrawTime, 255, 255, 0);
+				UTIL_DrawLine(GAME_GetListenServerEdict(), FromDraw, pBot->BotNavInfo.CurrentPath[i].Location, DrawTime, 255, 255, 0);
 			}
 			else if (area == SAMPLE_POLYAREA_WALLCLIMB)
 			{
-				UTIL_DrawLine(clients[0], FromDraw, pBot->BotNavInfo.CurrentPath[i].Location, DrawTime, 0, 128, 0);
+				UTIL_DrawLine(GAME_GetListenServerEdict(), FromDraw, pBot->BotNavInfo.CurrentPath[i].Location, DrawTime, 0, 128, 0);
 			}
 			else if (area == SAMPLE_POLYAREA_LADDER)
 			{
-				UTIL_DrawLine(clients[0], FromDraw, pBot->BotNavInfo.CurrentPath[i].Location, DrawTime, 0, 0, 255);
+				UTIL_DrawLine(GAME_GetListenServerEdict(), FromDraw, pBot->BotNavInfo.CurrentPath[i].Location, DrawTime, 0, 0, 255);
 			}
 			else if (area == SAMPLE_POLYAREA_FALL || area == SAMPLE_POLYAREA_HIGHFALL)
 			{
-				UTIL_DrawLine(clients[0], FromDraw, pBot->BotNavInfo.CurrentPath[i].Location, DrawTime, 255, 0, 255);
+				UTIL_DrawLine(GAME_GetListenServerEdict(), FromDraw, pBot->BotNavInfo.CurrentPath[i].Location, DrawTime, 255, 0, 255);
 			}
 			else if (area == SAMPLE_POLYAREA_PHASEGATE)
 			{
-				UTIL_DrawLine(clients[0], FromDraw, pBot->BotNavInfo.CurrentPath[i].Location, DrawTime, 64, 0, 0);
+				UTIL_DrawLine(GAME_GetListenServerEdict(), FromDraw, pBot->BotNavInfo.CurrentPath[i].Location, DrawTime, 64, 0, 0);
 			}
 			else
 			{
-				UTIL_DrawLine(clients[0], FromDraw, pBot->BotNavInfo.CurrentPath[i].Location, DrawTime);
+				UTIL_DrawLine(GAME_GetListenServerEdict(), FromDraw, pBot->BotNavInfo.CurrentPath[i].Location, DrawTime);
 			}
 
 			FromDraw = pBot->BotNavInfo.CurrentPath[i].Location;
 
 		}
 
-		UTIL_DrawLine(clients[0], pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.PathSize - 1].Location, pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.PathSize - 1].Location + Vector(0.0f, 0.0f, 50.0f), DrawTime, 0, 0, 255);
+		UTIL_DrawLine(GAME_GetListenServerEdict(), pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.PathSize - 1].Location, pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.PathSize - 1].Location + Vector(0.0f, 0.0f, 50.0f), DrawTime, 0, 0, 255);
 	}
 
 }
@@ -4992,29 +6426,66 @@ Vector UTIL_GetFurthestVisiblePointOnPath(const Vector ViewerLocation, const bot
 	return ZERO_VECTOR;
 }
 
+Vector UTIL_GetButtonFloorLocation(const Vector UserLocation, edict_t* ButtonEdict)
+{
+	Vector ClosestPoint = UTIL_GetClosestPointOnEntityToLocation(UserLocation, ButtonEdict);
 
+	Vector ButtonAccessPoint = UTIL_ProjectPointToNavmesh(ClosestPoint, Vector(100.0f, 100.0f, 100.0f), MARINE_REGULAR_NAV_PROFILE);
+
+	if (ButtonAccessPoint == ZERO_VECTOR)
+	{
+		ButtonAccessPoint = ClosestPoint;
+	}
+
+	Vector PlayerAccessLoc = ButtonAccessPoint;
+
+	if (ButtonAccessPoint.z > ClosestPoint.z)
+	{
+		PlayerAccessLoc.z += 18.0f;
+	}
+	else
+	{
+		PlayerAccessLoc.z += 36.0f;
+	}
+	
+	if (fabsf(PlayerAccessLoc.z - ClosestPoint.z) <= 60.0f)
+	{
+		return ButtonAccessPoint;
+	}
+
+	Vector NewProjection = ClosestPoint;
+
+	if (ButtonAccessPoint.z > ClosestPoint.z)
+	{
+		NewProjection = ClosestPoint - Vector(0.0f, 0.0f, 100.0f);
+	}
+	else
+	{
+		NewProjection = ClosestPoint + Vector(0.0f, 0.0f, 100.0f);
+	}
+
+	Vector NewButtonAccessPoint = UTIL_ProjectPointToNavmesh(NewProjection, MARINE_REGULAR_NAV_PROFILE);
+
+	if (NewButtonAccessPoint == ZERO_VECTOR)
+	{
+		NewButtonAccessPoint = ClosestPoint;
+	}
+
+	return NewButtonAccessPoint;
+}
 
 void UTIL_LinkTriggerToDoor(const edict_t* DoorEdict, nav_door* DoorRef)
 {
+
 	edict_t* currTrigger = NULL;
 	while (((currTrigger = UTIL_FindEntityByClassname(currTrigger, "trigger_multiple")) != NULL) && (!FNullEnt(currTrigger)))
 	{
 		if (FStrEq(STRING(currTrigger->v.target), STRING(DoorEdict->v.targetname)))
 		{
-			DoorRef->TriggerEdict = currTrigger;
+			DoorRef->TriggerEdicts[DoorRef->NumTriggers++] = currTrigger;
 			DoorRef->ActivationType = DOOR_TRIGGER;
-			return;
-		}
-	}
 
-	currTrigger = NULL;
-	while (((currTrigger = UTIL_FindEntityByClassname(currTrigger, "func_weldable")) != NULL) && (!FNullEnt(currTrigger)))
-	{
-		if (FStrEq(STRING(currTrigger->v.target), STRING(DoorEdict->v.targetname)))
-		{
-			DoorRef->TriggerEdict = currTrigger;
-			DoorRef->ActivationType = DOOR_WELD;
-			return;
+			if (DoorRef->NumTriggers >= 8) { return; }
 		}
 	}
 
@@ -5023,9 +6494,10 @@ void UTIL_LinkTriggerToDoor(const edict_t* DoorEdict, nav_door* DoorRef)
 	{
 		if (FStrEq(STRING(currTrigger->v.target), STRING(DoorEdict->v.targetname)))
 		{
-			DoorRef->TriggerEdict = currTrigger;
+			DoorRef->TriggerEdicts[DoorRef->NumTriggers++] = currTrigger;
 			DoorRef->ActivationType = DOOR_BUTTON;
-			return;
+
+			if (DoorRef->NumTriggers >= 8) { return; }
 		}
 	}
 
@@ -5034,12 +6506,246 @@ void UTIL_LinkTriggerToDoor(const edict_t* DoorEdict, nav_door* DoorRef)
 	{
 		if (FStrEq(STRING(currTrigger->v.target), STRING(DoorEdict->v.targetname)))
 		{
-			DoorRef->TriggerEdict = currTrigger;
+			DoorRef->TriggerEdicts[DoorRef->NumTriggers++] = currTrigger;
 			DoorRef->ActivationType = DOOR_TRIGGER;
-			return;
+
+			if (DoorRef->NumTriggers >= 8) { return; }
 		}
 	}
 
+}
+
+void UTIL_PopulateWeldableObstacles()
+{
+	memset(NavWeldableObstacles, 0, sizeof(NavWeldableObstacles));
+	NumWeldableObstacles = 0;
+
+	edict_t* currWeldable = NULL;
+	while (((currWeldable = UTIL_FindEntityByClassname(currWeldable, "avhweldable")) != NULL) && (!FNullEnt(currWeldable)))
+	{
+		if (currWeldable->v.solid == SOLID_BSP)
+		{
+			NavWeldableObstacles[NumWeldableObstacles].WeldableEdict = currWeldable;
+
+			float SizeX = currWeldable->v.size.x;
+			float SizeY = currWeldable->v.size.y;
+			float SizeZ = currWeldable->v.size.z;
+
+			bool bUseXAxis = (SizeX >= SizeY);
+
+			float CylinderRadius = fminf(SizeX, SizeY) * 0.5f;
+
+			CylinderRadius = fmaxf(CylinderRadius, 16.0f);
+
+			float Ratio = (bUseXAxis) ? (SizeX / (CylinderRadius * 2.0f)) : (SizeY / (CylinderRadius * 2.0f));
+
+			int NumObstacles = (int)ceil(Ratio);
+
+			if (NumObstacles > 32) { NumObstacles = 32; }
+
+			Vector Dir = (bUseXAxis) ? RIGHT_VECTOR : FWD_VECTOR;
+
+			Vector StartPoint = UTIL_GetCentreOfEntity(currWeldable);
+
+			if (bUseXAxis)
+			{
+				StartPoint.x = currWeldable->v.absmin.x + CylinderRadius;
+			}
+			else
+			{
+				StartPoint.y = currWeldable->v.absmin.y + CylinderRadius;
+			}
+
+			StartPoint.z -= 2.0f;
+
+			Vector CurrentPoint = StartPoint;
+
+			NavWeldableObstacles[NumWeldableObstacles].NumObstacles = NumObstacles;
+
+			for (int ii = 0; ii < NumObstacles; ii++)
+			{
+				UTIL_AddTemporaryObstacles(CurrentPoint, CylinderRadius, SizeZ, DT_TILECACHE_NULL_AREA, NavWeldableObstacles[NumWeldableObstacles].ObstacleRefs[ii]);
+
+				if (bUseXAxis)
+				{
+					CurrentPoint.x += CylinderRadius * 2.0f;
+				}
+				else
+				{
+					CurrentPoint.y += CylinderRadius * 2.0f;
+				}
+			}
+
+			NumWeldableObstacles++;
+		}
+	}
+}
+
+void UTIL_MarkDoorWeldable(const char* DoorTargetName)
+{
+	for (int i = 0; i < NumDoors; i++)
+	{
+		if (FStrEq(STRING(NavDoors[i].DoorEdict->v.targetname), DoorTargetName))
+		{
+			NavDoors[i].ActivationType = DOOR_WELD;
+
+			if (NavDoors[i].NumObstacles > 0)
+			{
+				for (int ii = 0; ii < NavDoors[i].NumObstacles; ii++)
+				{
+					UTIL_RemoveTemporaryObstacles(NavDoors[i].ObstacleRefs[ii]);
+				}
+				NavDoors[i].NumObstacles = 0;
+			}
+
+			float SizeX = NavDoors[i].DoorEdict->v.size.x;
+			float SizeY = NavDoors[i].DoorEdict->v.size.y;
+			float SizeZ = NavDoors[i].DoorEdict->v.size.z;
+
+			bool bUseXAxis = (SizeX >= SizeY);
+
+			float CylinderRadius = fminf(SizeX, SizeY) * 0.5f;
+
+			float Ratio = (bUseXAxis) ? (SizeX / (CylinderRadius * 2.0f)) : (SizeY / (CylinderRadius * 2.0f));
+
+			int NumObstacles = (int)ceil(Ratio);
+
+			if (NumObstacles > 32) { NumObstacles = 32; }
+
+			Vector Dir = (bUseXAxis) ? RIGHT_VECTOR : FWD_VECTOR;
+
+			Vector StartPoint = UTIL_GetCentreOfEntity(NavDoors[i].DoorEdict);
+
+			if (bUseXAxis)
+			{
+				StartPoint.x = NavDoors[i].DoorEdict->v.absmin.x + CylinderRadius;
+			}
+			else
+			{
+				StartPoint.y = NavDoors[i].DoorEdict->v.absmin.y + CylinderRadius;
+			}
+
+			StartPoint.z -= 25.0f;
+
+			Vector CurrentPoint = StartPoint;
+
+			NavDoors[i].NumObstacles = NumObstacles;
+
+			for (int ii = 0; ii < NumObstacles; ii++)
+			{
+				UTIL_AddTemporaryObstacles(CurrentPoint, CylinderRadius, SizeZ, DT_TILECACHE_NULL_AREA, NavDoors[i].ObstacleRefs[ii]);
+
+				if (bUseXAxis)
+				{
+					CurrentPoint.x += CylinderRadius * 2.0f;
+				}
+				else
+				{
+					CurrentPoint.y += CylinderRadius * 2.0f;
+				}
+			}
+
+
+		}
+	}
+}
+
+void UTIL_UpdateWeldableObstacles()
+{
+	for (int i = 0; i < NumWeldableObstacles; i++)
+	{
+		if (NavWeldableObstacles[i].NumObstacles == 0) { continue; }
+
+		edict_t* WeldableEdict = NavWeldableObstacles[i].WeldableEdict;
+
+		if (FNullEnt(WeldableEdict) || WeldableEdict->v.deadflag != DEAD_NO || WeldableEdict->v.solid != SOLID_BSP)
+		{
+			for (int ii = 0; ii < NavWeldableObstacles[i].NumObstacles; ii++)
+			{
+				UTIL_RemoveTemporaryObstacles(NavWeldableObstacles[i].ObstacleRefs[ii]);
+			}
+
+			NavWeldableObstacles[i].NumObstacles = 0;
+		}
+	}
+}
+
+void UTIL_UpdateWeldableDoors()
+{
+	for (int i = 0; i < NumDoors; i++)
+	{
+		if (NavDoors[i].ActivationType == DOOR_WELD)
+		{
+			if (NavDoors[i].DoorEdict->v.velocity != ZERO_VECTOR || NavDoors[i].DoorEdict->v.avelocity != ZERO_VECTOR)
+			{
+				if (NavDoors[i].NumObstacles > 0)
+				{
+					for (int ii = 0; ii < NavDoors[i].NumObstacles; ii++)
+					{
+						UTIL_RemoveTemporaryObstacles(NavDoors[i].ObstacleRefs[ii]);
+					}
+
+					NavDoors[i].NumObstacles = 0;
+
+				}
+				continue;
+			}
+
+			Vector ThisLocation = UTIL_GetCentreOfEntity(NavDoors[i].DoorEdict);
+
+			if (ThisLocation != NavDoors[i].CurrentPosition)
+			{
+				float SizeX = NavDoors[i].DoorEdict->v.size.x;
+				float SizeY = NavDoors[i].DoorEdict->v.size.y;
+				float SizeZ = NavDoors[i].DoorEdict->v.size.z;
+
+				bool bUseXAxis = (SizeX >= SizeY);
+
+				float CylinderRadius = fminf(SizeX, SizeY) * 0.5f;
+
+				float Ratio = (bUseXAxis) ? (SizeX / (CylinderRadius * 2.0f)) : (SizeY / (CylinderRadius * 2.0f));
+
+				int NumObstacles = (int)ceil(Ratio);
+
+				if (NumObstacles > 32) { NumObstacles = 32; }
+
+				Vector Dir = (bUseXAxis) ? RIGHT_VECTOR : FWD_VECTOR;
+
+				Vector StartPoint = UTIL_GetCentreOfEntity(NavDoors[i].DoorEdict);
+
+				if (bUseXAxis)
+				{
+					StartPoint.x = NavDoors[i].DoorEdict->v.absmin.x + CylinderRadius;
+				}
+				else
+				{
+					StartPoint.y = NavDoors[i].DoorEdict->v.absmin.y + CylinderRadius;
+				}
+
+				StartPoint.z -= 25.0f;
+
+				Vector CurrentPoint = StartPoint;
+
+				NavDoors[i].NumObstacles = NumObstacles;
+
+				for (int ii = 0; ii < NumObstacles; ii++)
+				{
+					UTIL_AddTemporaryObstacles(CurrentPoint, CylinderRadius, SizeZ, DT_TILECACHE_NULL_AREA, NavDoors[i].ObstacleRefs[ii]);
+
+					if (bUseXAxis)
+					{
+						CurrentPoint.x += CylinderRadius * 2.0f;
+					}
+					else
+					{
+						CurrentPoint.y += CylinderRadius * 2.0f;
+					}
+				}
+
+				NavDoors[i].CurrentPosition = ThisLocation;
+			}
+		}
+	}
 }
 
 // TODO: Need to add orientated box obstacle for door
@@ -5055,8 +6761,9 @@ void UTIL_PopulateDoors()
 		NavDoors[NumDoors].PositionOne = UTIL_GetCentreOfEntity(currDoor);
 		NavDoors[NumDoors].PositionTwo = UTIL_GetCentreOfEntity(currDoor) + (currDoor->v.movedir * (fabs(currDoor->v.movedir.x * (currDoor->v.size.x - 2)) + fabs(currDoor->v.movedir.y * (currDoor->v.size.y - 2)) + fabs(currDoor->v.movedir.z * (currDoor->v.size.z - 2)) - 0.0f));
 		NavDoors[NumDoors].CurrentPosition = NavDoors[NumDoors].PositionOne;
+		NavDoors[NumDoors].bStartOpen = (currDoor->v.flags & DOOR_START_OPEN);
 
-		if (currDoor->v.flags & DOOR_USE_ONLY)
+		if (currDoor->v.spawnflags & DOOR_USE_ONLY)
 		{
 			NavDoors[NumDoors].ActivationType = DOOR_USE;
 		}
@@ -5068,4 +6775,74 @@ void UTIL_PopulateDoors()
 
 		NumDoors++;
 	}
+
+	currDoor = NULL;
+	while (((currDoor = UTIL_FindEntityByClassname(currDoor, "func_seethroughdoor")) != NULL) && (!FNullEnt(currDoor)))
+	{
+		NavDoors[NumDoors].DoorEdict = currDoor;
+		NavDoors[NumDoors].PositionOne = UTIL_GetCentreOfEntity(currDoor);
+		NavDoors[NumDoors].PositionTwo = UTIL_GetCentreOfEntity(currDoor) + (currDoor->v.movedir * (fabs(currDoor->v.movedir.x * (currDoor->v.size.x - 2)) + fabs(currDoor->v.movedir.y * (currDoor->v.size.y - 2)) + fabs(currDoor->v.movedir.z * (currDoor->v.size.z - 2)) - 0.0f));
+		NavDoors[NumDoors].CurrentPosition = NavDoors[NumDoors].PositionOne;
+
+		if (currDoor->v.spawnflags & DOOR_USE_ONLY)
+		{
+			NavDoors[NumDoors].ActivationType = DOOR_USE;
+		}
+		else
+		{
+			UTIL_LinkTriggerToDoor(currDoor, &NavDoors[NumDoors]);
+		}
+
+		NumDoors++;
+	}
+
+	currDoor = NULL;
+	while (((currDoor = UTIL_FindEntityByClassname(currDoor, "func_door_rotating")) != NULL) && (!FNullEnt(currDoor)))
+	{
+		NavDoors[NumDoors].DoorEdict = currDoor;
+		NavDoors[NumDoors].PositionOne = UTIL_GetCentreOfEntity(currDoor);
+		NavDoors[NumDoors].PositionTwo = UTIL_GetCentreOfEntity(currDoor) + (currDoor->v.movedir * (fabs(currDoor->v.movedir.x * (currDoor->v.size.x - 2)) + fabs(currDoor->v.movedir.y * (currDoor->v.size.y - 2)) + fabs(currDoor->v.movedir.z * (currDoor->v.size.z - 2)) - 0.0f));
+		NavDoors[NumDoors].CurrentPosition = NavDoors[NumDoors].PositionOne;
+
+		if (currDoor->v.spawnflags & DOOR_USE_ONLY)
+		{
+			NavDoors[NumDoors].ActivationType = DOOR_USE;
+		}
+		else
+		{
+			UTIL_LinkTriggerToDoor(currDoor, &NavDoors[NumDoors]);
+
+		}
+
+		NumDoors++;
+	}
+
+	BSP_RegisterWeldables();
+}
+
+const nav_door* UTIL_GetNavDoorByEdict(const edict_t* DoorEdict)
+{
+	for (int i = 0; i < NumDoors; i++)
+	{
+		if (NavDoors[i].DoorEdict == DoorEdict)
+		{
+			return &NavDoors[i];
+		}
+	}
+
+	return nullptr;
+}
+
+unsigned char UTIL_GetBotCurrentPathArea(bot_t* pBot)
+{
+	if (pBot->BotNavInfo.PathSize == 0) { return SAMPLE_POLYAREA_GROUND; }
+
+	return pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].area;
+}
+
+unsigned char UTIL_GetNextBotCurrentPathArea(bot_t* pBot)
+{
+	if (pBot->BotNavInfo.PathSize == 0 || pBot->BotNavInfo.CurrentPathPoint >= pBot->BotNavInfo.PathSize - 1) { return SAMPLE_POLYAREA_GROUND; }
+
+	return pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint + 1].area;
 }

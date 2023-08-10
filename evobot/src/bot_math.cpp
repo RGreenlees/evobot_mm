@@ -183,16 +183,7 @@ void UTIL_NormalizeVector2D(Vector* vec)
 // Returns a normalized copy of the supplied Vector. Original value is unmodified
 Vector UTIL_GetVectorNormal(const Vector vec)
 {
-	Vector result;
-	float len = sqrt((vec.x * vec.x) + (vec.y * vec.y) + (vec.z * vec.z));
-
-	float div = 1.0f / len;
-
-	result.x = vec.x * div;
-	result.y = vec.y * div;
-	result.z = vec.z * div;
-
-	return result;
+	return vec.Normalize();
 }
 
 // Returns a 2D (Z axis is 0) normalized copy of the supplied Vector. Original value is unmodified
@@ -277,13 +268,23 @@ float vSize2D(const Vector V)
 // Returns true if the two vectors are the same (all components are within 0.01f of each other)
 bool vEquals(const Vector v1, const Vector v2)
 {
-	return fabs(v1.x - v2.x) <= 0.01f && fabs(v1.y - v2.y) <= 0.01f && fabs(v1.z - v2.z) <= 0.01f;
+	return fabsf(v1.x - v2.x) <= 0.01f && fabsf(v1.y - v2.y) <= 0.01f && fabsf(v1.z - v2.z) <= 0.01f;
+}
+
+bool vEquals2D(const Vector v1, const Vector v2)
+{
+	return fabsf(v1.x - v2.x) <= 0.01f && fabsf(v1.y - v2.y) <= 0.01f;
 }
 
 // Returns true if the two vectors are the same (all components are within epsilon of each other)
 bool vEquals(const Vector v1, const Vector v2, const float epsilon)
 {
-	return fabs(v1.x - v2.x) <= epsilon && fabs(v1.y - v2.y) <= epsilon && fabs(v1.z - v2.z) <= epsilon;
+	return fabsf(v1.x - v2.x) <= epsilon && fabsf(v1.y - v2.y) <= epsilon && fabsf(v1.z - v2.z) <= epsilon;
+}
+
+bool vEquals2D(const Vector v1, const Vector v2, const float epsilon)
+{
+	return fabsf(v1.x - v2.x) <= epsilon && fabsf(v1.y - v2.y) <= epsilon;
 }
 
 bool fNearlyEqual(const float f1, const float f2)
@@ -293,10 +294,10 @@ bool fNearlyEqual(const float f1, const float f2)
 
 
 // Returns the dot product of two vectors (1.0f if both vectors pointing exactly the same direction, -1.0f if opposites, 0.0f if perpendicular)
-float UTIL_GetDotProduct(const Vector v1, const Vector v2)
-{
-	return ((v1.x * v2.x) + (v1.y * v2.y) + (v1.z * v2.z));
-}
+//float UTIL_GetDotProduct(const Vector v1, const Vector v2)
+//{
+//	return ((v1.x * v2.x) + (v1.y * v2.y) + (v1.z * v2.z));
+//}
 
 // Returns the 2D dot product (Z axis ignored) of two vectors (1.0f if both vectors pointing exactly the same direction, -1.0f if opposites, 0.0f if perpendicular)
 float UTIL_GetDotProduct2D(const Vector v1, const Vector v2)
@@ -331,8 +332,8 @@ bool UTIL_CylinderInsidePlane(const frustum_plane_t* plane, const Vector centre,
 	Vector testNormal = plane->normal;
 	testNormal.z = 0;
 
-	Vector topPoint = centre + Vector(0, 0, height / 2.0f) + (testNormal * radius);
-	Vector bottomPoint = centre - Vector(0, 0, height / 2.0f) + (testNormal * radius);
+	Vector topPoint = centre + Vector(0, 0, height * 0.5f) + (testNormal * radius);
+	Vector bottomPoint = centre - Vector(0, 0, height * 0.5f) + (testNormal * radius);
 
 	return (UTIL_PointInsidePlane(plane, topPoint) || UTIL_PointInsidePlane(plane, bottomPoint));
 }
@@ -373,9 +374,19 @@ int imaxi(const int a, const int b)
 	return (a > b) ? a : b;
 }
 
+int imini(const int a, const int b)
+{
+	return (a < b) ? a : b;
+}
+
 float clampf(float input, float inMin, float inMax)
 {
 	return fmaxf(fminf(input, inMax), inMin);
+}
+
+float clampi(int input, int inMin, int inMax)
+{
+	return imaxi(imini(input, inMax), inMin);
 }
 
 Vector GetPitchForProjectile(Vector LaunchPoint, Vector TargetPoint, const float ProjectileSpeed, const float Gravity)
@@ -434,11 +445,7 @@ Vector GetPitchForProjectile(Vector LaunchPoint, Vector TargetPoint, const float
 
 void UTIL_AnglesToVector(const Vector angles, Vector* fwd, Vector* right, Vector* up)
 {
-
 	g_engfuncs.pfnAngleVectors(angles, (float*)fwd, (float*)right, (float*)up);
-	UTIL_NormalizeVector(fwd);
-	UTIL_NormalizeVector(right);
-	UTIL_NormalizeVector(up);
 }
 
 void ClampAngle(float& angle)
@@ -600,7 +607,7 @@ Vector UTIL_GetForwardVector(const Vector angles)
 	Vector fwd, right, up;
 
 	UTIL_AnglesToVector(angles, &fwd, &right, &up);
-	return UTIL_GetVectorNormal(fwd);
+	return fwd;
 }
 
 Vector UTIL_GetForwardVector2D(const Vector angles)
@@ -608,8 +615,7 @@ Vector UTIL_GetForwardVector2D(const Vector angles)
 	Vector fwd, right, up;
 
 	UTIL_AnglesToVector(angles, &fwd, &right, &up);
-	fwd.z = 0.0f;
-	return UTIL_GetVectorNormal(fwd);
+	return UTIL_GetVectorNormal2D(fwd);
 }
 
 float UTIL_GetDistanceToPolygon2DSq(const Vector TestPoint, const Vector* Points, const int NumPoints)
@@ -684,4 +690,53 @@ Vector UTIL_GetRandomPointInBoundingBox(const Vector BoxMin, const Vector BoxMax
 	float RandZ = frandrange(BoxMin.z, BoxMax.z);
 
 	return Vector(RandX, RandY, RandZ);
+}
+
+/* Function to get no of set bits in binary
+   representation of positive integer n */
+unsigned int UTIL_CountSetBitsInInteger(unsigned int n)
+{
+	unsigned int count = 0;
+	while (n)
+	{
+		count += n & 1;
+		n >>= 1;
+	}
+	return count;
+}
+
+float UTIL_CalculateSlopeAngleBetweenPoints(const Vector StartPoint, const Vector EndPoint)
+{
+	float Run = vDist2DSq(StartPoint, EndPoint);
+	float Rise = fabsf(StartPoint.z - EndPoint.z);
+
+	return atanf(Rise / Run);
+}
+
+Vector UTIL_ClampVectorToBox(const Vector& input, const Vector& clampSize)
+{
+	Vector sourceVector = input;
+
+	if (sourceVector.x > clampSize.x)
+		sourceVector.x -= clampSize.x;
+	else if (sourceVector.x < -clampSize.x)
+		sourceVector.x += clampSize.x;
+	else
+		sourceVector.x = 0;
+
+	if (sourceVector.y > clampSize.y)
+		sourceVector.y -= clampSize.y;
+	else if (sourceVector.y < -clampSize.y)
+		sourceVector.y += clampSize.y;
+	else
+		sourceVector.y = 0;
+
+	if (sourceVector.z > clampSize.z)
+		sourceVector.z -= clampSize.z;
+	else if (sourceVector.z < -clampSize.z)
+		sourceVector.z += clampSize.z;
+	else
+		sourceVector.z = 0;
+
+	return sourceVector.Normalize();
 }

@@ -48,6 +48,9 @@ float CONFIG_GetCommanderWaitTime();
 // Returns the current commander mode (see CommanderMode enum)
 CommanderMode CONFIG_GetCommanderMode();
 
+// Returns the max time a bot is allowed to be stuck before suiciding (0 means forever)
+float CONFIG_GetMaxStuckTime();
+
 // Returns the desired marine team size for the given map, indexes into TeamSizeMap
 int CONFIG_GetMarineTeamSizeForMap(const char* MapName);
 // Returns the desired alien team size for the given map, indexes into TeamSizeMap
@@ -75,7 +78,7 @@ void CONFIG_GetBotName(char* BotName);
 void CONFIG_PopulateBotNames();
 
 // Some official NS maps use a lookup system to resolve location names held in the BSP file to descriptive names held in titles.txt. This performs that lookup
-const char* UTIL_LookUpLocationName(const char* InputName);
+void UTIL_LookUpLocationName(const char* InputName, char* Result);
 
 // Returns the configured hive tech at that index (chamber build sequence)
 int CONFIG_GetHiveTechAtIndex(const int Index);

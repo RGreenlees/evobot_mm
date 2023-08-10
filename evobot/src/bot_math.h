@@ -42,8 +42,10 @@ bool isFloat(const char* line);
 float sqrf(float input);
 // Return the sign (-1 if number is negative, 1 if positive, 0 if 0)
 float signf(float input);
-// Clamp value between min and max
+// Clamp float value between min and max
 float clampf(float input, float inMin, float inMax);
+// Clamp int value between min and max
+float clampi(int input, int inMin, int inMax);
 // Clamp the angle to a valid GoldSrc angle (-180 to 180)
 void ClampAngle(float& angle);
 // Spherical linear interpolation of float from start to end at interp speed
@@ -60,6 +62,8 @@ float fDegreesToRadians(const float Degrees);
 bool randbool();
 // Returns the max of two integers
 int imaxi(const int a, const int b);
+// Returns the min of two integers
+int imini(const int a, const int b);
 
 // VECTOR MATH
 
@@ -83,13 +87,15 @@ float vSize2DSq(const Vector V);
 
 // Are two vectors equal, using default epsilon of 0.1f
 bool vEquals(const Vector v1, const Vector v2);
+bool vEquals2D(const Vector v1, const Vector v2);
 // Are two vectors equal, using custom epsilon
 bool vEquals(const Vector v1, const Vector v2, const float epsilon);
+bool vEquals2D(const Vector v1, const Vector v2, const float epsilon);
 
 bool fNearlyEqual(const float f1, const float f2);
 
 // Returns the dot product of two unit vectors
-float UTIL_GetDotProduct(const Vector v1, const Vector v2);
+inline float UTIL_GetDotProduct(const Vector v1, const Vector v2) { return ((v1.x * v2.x) + (v1.y * v2.y) + (v1.z * v2.z)); }
 // Returns the dot product of two unit vectors excluding Z axis
 float UTIL_GetDotProduct2D(const Vector v1, const Vector v2);
 
@@ -177,5 +183,12 @@ Vector UTIL_GetAimLocationToLeadTarget(const Vector ShooterLocation, const Vecto
 float UTIL_GetVelocityRequiredToReachTarget(const Vector StartLocation, const Vector TargetLocation, float Gravity);
 
 Vector UTIL_GetRandomPointInBoundingBox(const Vector BoxMin, const Vector BoxMax);
+
+// OTHER STUFF
+
+// Function to get number of set bits in a positive integer n
+unsigned int UTIL_CountSetBitsInInteger(unsigned int n);
+
+float UTIL_CalculateSlopeAngleBetweenPoints(const Vector StartPoint, const Vector EndPoint);
 
 #endif

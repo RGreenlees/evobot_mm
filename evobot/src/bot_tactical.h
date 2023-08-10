@@ -13,16 +13,7 @@
 
 #include "bot_structs.h"
 
-// Data structure used to track resource nodes in the map
-typedef struct _RESOURCE_NODE
-{
-	edict_t* edict = nullptr; // The func_resource edict reference
-	Vector origin = ZERO_VECTOR; // origin of the func_resource edict (not the tower itself)
-	bool bIsOccupied = false; // True if there is any resource tower on it
-	bool bIsOwnedByMarines = false; // True if capped and has a marine res tower on it
-	edict_t* TowerEdict = nullptr; // Reference to the resource tower edict (if capped)
-	bool bIsMarineBaseNode = false; // Is this the pre-capped node that appears in the marine base?
-} resource_node;
+
 
 // Defines a named location on the map. Used by the bot to communicate with humans (e.g. "I want to place hive at X")
 typedef struct _MAP_LOCATION
@@ -41,17 +32,17 @@ typedef struct _BUILDABLE_STRUCTURE
 	float healthPercent = 0.0f; // Current health of the building
 	float lastDamagedTime = 0.0f; // When it was last damaged by something. Used by bots to determine if still needs defending
 	bool bUnderAttack = false; // If last damaged time < certain amount of time ago
-	bool bDead = false; // Has structure just been destroyed, but edict not yet freed up
 	bool bFullyConstructed = false; // Has the structure been fully built, or under construction?
 	bool bIsParasited = false; // Has been parasited by skulk
 	bool bIsElectrified = false; // Is electrified or not
 	Vector Location = ZERO_VECTOR; // origin of the structure edict
 	NSStructureType StructureType = STRUCTURE_NONE; // Type of structure it is (e.g. hive, comm chair, infantry portal, defence chamber etc.)
 	int LastSeen = 0; // Which refresh cycle was this last seen on? Used to determine if the building has been removed from play
-	unsigned int ObstacleRef = 0; // If the building places an obstacle on the nav mesh, hold the reference so it can be removed if building is destroyed
+	unsigned int ObstacleRefs[8]; // References to this structure's obstacles across each nav mesh
 	bool bOnNavmesh = false; // Is the building on the nav mesh? Used to determine if the building ended up out of play or sinking into the floor somehow
-	bool bIsReachableMarine = false; // Is the building reachable by marines? Checks from the comm chair location
-	bool bIsReachableAlien = false; // Is the building reachable by aliens? Checks from the comm chair location
+	bool bIsReachableMarine = false; // Is the building reachable by Marines/Gorge? Checks from the comm chair location
+	bool bIsReachableAlien = false; // Is the building reachable by Skulk/Fade/Lerk? Checks from the comm chair location
+	bool bIsReachableOnos = false; // Is the building reachable by Onos? Checks from the comm chair location
 	Vector LastSuccessfulCommanderLocation = ZERO_VECTOR; // Tracks the last commander view location where it successfully placed or selected the building
 	Vector LastSuccessfulCommanderAngle = ZERO_VECTOR; // Tracks the last commander input angle ("click" location) used to successfully place or select building
 
@@ -62,37 +53,20 @@ typedef struct _DROPPED_MARINE_ITEM
 {
 	edict_t* edict = nullptr; // Reference to the item edict
 	Vector Location = ZERO_VECTOR; // Origin of the entity
-	NSDeployableItem ItemType = ITEM_NONE; // Is it a weapon, health pack, ammo pack etc?
+	NSStructureType ItemType = STRUCTURE_NONE; // Is it a weapon, health pack, ammo pack etc?
 	bool bOnNavMesh = false; // Is it on the nav mesh? Important to prevent bots trying to grab stuff that's inaccessible
 	bool bIsReachableMarine = false; // Is the item reachable by marines? Checks from the comm chair location
 	int LastSeen = 0; // Which refresh cycle was this last seen on? Used to determine if the item has been removed from play
 } dropped_marine_item;
 
-// Data structure to hold information about each hive in the map
-typedef struct _HIVE_DEFINITION_T
-{
-	bool bIsValid = false; // Doesn't exist. Array holds up to 10 hives even though usually only 3 exist
-	edict_t* edict = NULL; // Refers to the hive edict. Always exists even if not built yet
-	Vector Location = ZERO_VECTOR; // Origin of the hive
-	Vector FloorLocation = ZERO_VECTOR; // Some hives are suspended in the air, this is the floor location directly beneath it
-	HiveStatusType Status = HIVE_STATUS_UNBUILT; // Can be unbuilt, in progress, or fully built
-	HiveTechStatus TechStatus = HIVE_TECH_NONE; // What tech (if any) is assigned to this hive right now
-	float HealthPercent = 0.0f; // How much health it has
-	bool bIsUnderAttack = false; // Is the hive currently under attack? Becomes false if not taken damage for more than 10 seconds
-	int HiveResNodeIndex = -1; // Which resource node (indexes into ResourceNodes array) belongs to this hive?
-	unsigned int ObstacleRef = 0; // When in progress or built, will place an obstacle so bots don't try to walk through it
 
-} hive_definition;
 
-// How frequently to update the global list of built structures (in seconds)
+// How frequently to update the global list of built structures (in seconds). 0 = every frame
 static const float structure_inventory_refresh_rate = 0.2f;
 
-// Increments by 1 every time the structure list is refreshed. Used to detect if structures have been destroyed and no longer show up
-static int StructureRefreshFrame = 0;
-// Increments by 1 every time the item list is refreshed. Used to detect if items have been removed from play and no longer show up
-static int ItemRefreshFrame = 0;
 
-// How frequently to update the global list of dropped marine items (in seconds)
+
+// How frequently to update the global list of dropped marine items (in seconds). 0 = every frame
 static const float item_inventory_refresh_rate = 0.1f;
 
 
@@ -116,10 +90,17 @@ unsigned char UTIL_GetAreaForObstruction(NSStructureType StructureType);
 float UTIL_GetStructureRadiusForObstruction(NSStructureType StructureType);
 bool UTIL_ShouldStructureCollide(NSStructureType StructureType);
 void UTIL_UpdateBuildableStructure(edict_t* Structure);
-void UTIL_UpdateMarineItem(edict_t* Item, NSDeployableItem ItemType);
+void UTIL_UpdateMarineItem(edict_t* Item, NSStructureType ItemType);
 
 // Will cycle through all structures in the map and update the marine and alien buildable structure maps
 void UTIL_RefreshBuildableStructures();
+void UTIL_RefreshResourceNodes();
+
+void UTIL_RegisterNewMarineStructure(edict_t* Structure);
+void UTIL_UpdateMarineStructureDetails(edict_t* Structure);
+void UTIL_RegisterNewAlienStructure(edict_t* Structure);
+void UTIL_UpdateAlienStructureDetails(edict_t* Structure);
+
 // Will cycle through all dropped items in the map and update the marine items array
 void UTIL_RefreshMarineItems();
 // Will cycle through all func_resource entities and populate the ResourceNodes array
@@ -129,24 +110,25 @@ int UTIL_GetStructureCountOfType(const NSStructureType StructureType);
 
 bool UTIL_StructureIsFullyBuilt(const edict_t* Structure);
 
-int UTIL_GetItemCountOfTypeInArea(const NSDeployableItem ItemType, const Vector& SearchLocation, const float Radius);
+int UTIL_GetItemCountOfTypeInArea(const NSStructureType ItemType, const Vector& SearchLocation, const float Radius);
 
-NSDeployableItem UTIL_GetItemTypeFromEdict(const edict_t* ItemEdict);
+NSStructureType UTIL_GetItemTypeFromEdict(const edict_t* ItemEdict);
 NSWeapon UTIL_GetWeaponTypeFromEdict(const edict_t* ItemEdict);
 
 void UTIL_OnStructureCreated(buildable_structure* NewStructure);
 void UTIL_OnStructureDestroyed(const NSStructureType Structure, const Vector Location);
 void UTIL_OnItemDropped(const dropped_marine_item* NewItem);
 
-void UTIL_LinkPlacedStructureToAction(bot_t* CommanderBot, buildable_structure* NewStructure);
-void UTIL_LinkDroppedItemToAction(bot_t* CommanderBot, const dropped_marine_item* NewItem);
+void UTIL_LinkDeployedObjectToAction(bot_t* CommanderBot, edict_t* NewObject, NSStructureType ObjectType);
 
 // Is there a hive with the alien tech (Defence, Sensory, Movement) assigned to it?
 bool UTIL_ActiveHiveWithTechExists(HiveTechStatus Tech);
 
+bool UTIL_ActiveHiveWithoutTechExists();
+
 char* UTIL_BotRoleToChar(const BotRole Role);
 const char* UTIL_StructTypeToChar(const NSStructureType StructureType);
-const char* UTIL_DroppableItemTypeToChar(const NSDeployableItem ItemType);
+const char* UTIL_DroppableItemTypeToChar(const NSStructureType ItemType);
 const char* UTIL_ResearchTypeToChar(const NSResearch ResearchType);
 
 const hive_definition* UTIL_GetActiveHiveWithoutChambers(HiveTechStatus ChamberType, int NumDesiredChambers);
@@ -171,7 +153,7 @@ void SetHiveLocation(int HiveIndex, const Vector NewLocation);
 void SetHiveStatus(int HiveIndex, int NewStatus);
 void SetHiveTechStatus(int HiveIndex, int NewTechStatus);
 void SetHiveUnderAttack(int HiveIndex, bool bNewUnderAttack);
-void SetHiveHealthPercent(int HiveIndex, float NewHealthPercent);
+void SetHiveHealthPercent(int HiveIndex, int NewHealthPercent);
 
 int UTIL_GetNumResNodes();
 
@@ -190,16 +172,21 @@ buildable_structure* UTIL_GetBuildableStructureRefFromEdict(const edict_t* Struc
 
 edict_t* UTIL_GetClosestStructureAtLocation(const Vector& Location, bool bMarineStructures);
 
-edict_t* UTIL_GetNearestItemOfType(const NSDeployableItem ItemType, const Vector Location, const float SearchDist);
+edict_t* UTIL_GetNearestItemOfType(const NSStructureType ItemType, const Vector Location, const float SearchDist);
 
-edict_t* UTIL_GetNearestItemIndexOfType(const NSDeployableItem ItemType, const Vector Location, const float SearchDist);
-edict_t* UTIL_GetNearestSpecialPrimaryWeapon(const Vector Location, const NSDeployableItem ExcludeItem, const float SearchDist, bool bUsePhaseDist);
+edict_t* UTIL_GetNearestItemIndexOfType(const NSStructureType ItemType, const Vector Location, const float SearchDist);
+edict_t* UTIL_GetNearestSpecialPrimaryWeapon(const Vector Location, const NSStructureType ExcludeItem, const float SearchDist, bool bUsePhaseDist);
 edict_t* UTIL_GetNearestEquipment(const Vector Location, const float SearchDist, bool bUsePhaseDist);
 
+edict_t* UTIL_GetNearestUnbuiltStructureOfTeamInArea(const Vector Location, const float SearchDist, const int Team);
 edict_t* UTIL_GetNearestUnbuiltStructureWithLOS(bot_t* pBot, const Vector Location, const float SearchDist, const int Team);
+
+const resource_node* UTIL_GetNearestResNodeNeedsReinforcing(bot_t* pBot, const Vector SearchLocation);
+const hive_definition* UTIL_GetNearestUnbuiltHiveNeedsReinforcing(bot_t* pBot);
 
 edict_t* UTIL_GetNearestPlayerOfTeamInArea(const Vector Location, const float SearchRadius, const int Team, edict_t* IgnorePlayer, NSPlayerClass IgnoreClass);
 int UTIL_GetNumPlayersOfTeamInArea(const Vector Location, const float SearchRadius, const int Team, edict_t* IgnorePlayer, NSPlayerClass IgnoreClass, bool bUsePhaseDist);
+int UTIL_GetNumPlayersOfTeamOfClassInArea(const Vector Location, const float SearchRadius, const int Team, edict_t* IgnorePlayer, NSPlayerClass IgnoreClass, bool bUsePhaseDist);
 bool UTIL_IsPlayerOfTeamInArea(const Vector Location, const float SearchRadius, const int Team, edict_t* IgnorePlayer, NSPlayerClass IgnoreClas);
 bool UTIL_IsAlienPlayerInArea(const Vector Location, float SearchRadius);
 bool UTIL_IsAlienPlayerInArea(const Vector Location, float SearchRadius, edict_t* IgnorePlayer);
@@ -213,6 +200,7 @@ int UTIL_GetNumPlacedStructuresOfType(const NSStructureType StructureType);
 int UTIL_GetNumPlacedStructuresOfTypeInRadius(const NSStructureType StructureType, const Vector Location, const float MaxRadius);
 int UTIL_GetNumBuiltStructuresOfTypeInRadius(const NSStructureType StructureType, const Vector Location, const float MaxRadius);
 int UTIL_GetNumBuiltStructuresOfType(const NSStructureType StructureType);
+int UTIL_GetNumUnbuiltStructuresOfTeamInArea(const int Team, const Vector SearchLocation, const float SearchRadius);
 
 int UTIL_GetNearestAvailableResourcePointIndex(const Vector& SearchPoint);
 int UTIL_GetNearestOccupiedResourcePointIndex(const Vector& SearchPoint);
@@ -226,10 +214,13 @@ const resource_node* UTIL_FindEligibleResNodeFurthestFromLocation(const Vector& 
 const resource_node* UTIL_MarineFindUnclaimedResNodeNearestLocation(const bot_t* pBot, const Vector& Location, float MinDist);
 const resource_node* UTIL_AlienFindUnclaimedResNodeFurthestFromLocation(const bot_t* pBot, const Vector& Location, bool bIgnoreElectrified);
 
-edict_t* UTIL_GetNearestUndefendedStructureOfTypeUnderAttack(bot_t* pBot, const NSStructureType StructureType);
+edict_t* UTIL_GetNearestUndefendedStructureOfType(bot_t* pBot, const NSStructureType StructureType);
+edict_t* UTIL_GetNearestUndefendedStructureOfTypeUnderAttack(bot_t* pBot, const NSStructureType StructureType, bool bByPlayersOnly);
 edict_t* UTIL_GetNearestStructureOfTypeInLocation(const NSStructureType StructureType, const Vector& Location, const float SearchRadius, bool bAllowElectrified, bool bUsePhaseDistance);
+edict_t* UTIL_GetFurthestStructureOfTypeFromLocation(const NSStructureType StructureType, const Vector& Location, bool bAllowElectrified);
 edict_t* UTIL_GetNearestUnbuiltStructureOfTypeInLocation(const NSStructureType StructureType, const Vector& Location, const float SearchRadius);
 bool UTIL_StructureOfTypeExistsInLocation(const NSStructureType StructureType, const Vector& Location, const float SearchRadius);
+bool UTIL_StructureOfTypeExistsInLocation(const NSStructureType StructureType, const Vector& Location, const float SearchRadius, const bool bFullyConstructedOnly);
 
 edict_t* UTIL_GetNearestUnattackedStructureOfTeamInLocation(const Vector Location, edict_t* IgnoreStructure, const int Team, const float SearchRadius);
 
@@ -248,6 +239,7 @@ edict_t* UTIL_GetNearestPlayerOfClass(const Vector Location, const NSPlayerClass
 
 // Returns the index of the closest hive to the search location that has a phase gate within siege range of it (-1 if no hive found)
 const hive_definition* UTIL_GetNearestHiveUnderSiege(const Vector SearchLocation);
+const hive_definition* UTIL_GetNearestHiveUnderActiveSiege(const Vector SearchLocation);
 
 bool UTIL_IsAnyHumanNearLocation(const Vector& Location, const float SearchDist);
 bool UTIL_IsAnyHumanNearLocationWithoutEquipment(const Vector& Location, const float SearchDist);
@@ -263,8 +255,12 @@ edict_t* UTIL_FindClosestMarineStructureToLocation(const Vector& Location, const
 
 bool UTIL_AnyMarinePlayerNearLocation(const Vector& Location, float SearchRadius);
 bool UTIL_AnyPlayerOnTeamWithLOS(const Vector& Location, const int Team, float SearchRadius);
+int UTIL_GetNumPlayersOnTeamWithLOS(const Vector& Location, const int Team, float SearchRadius, edict_t* IgnorePlayer);
+
+bool UTIL_AnyPlayerOnTeamHasLOSToLocation(const int Team, const Vector Target, const float MaxRange);
 
 edict_t* UTIL_GetClosestPlayerOnTeamWithLOS(const Vector& Location, const int Team, float SearchRadius, edict_t* IgnorePlayer);
+
 
 edict_t* UTIL_FindClosestMarineStructureUnbuilt(const Vector& SearchLocation, float SearchRadius, bool bUsePhaseDistance);
 edict_t* UTIL_FindClosestMarineStructureUnbuiltWithoutBuilders(bot_t* pBot, const int MaxBuilders, const Vector& SearchLocation, float SearchRadius, bool bUsePhaseDistance);
@@ -276,14 +272,18 @@ HiveStatusType UTIL_GetHiveStatus(const edict_t* Hive);
 
 edict_t* UTIL_FindSafePlayerInArea(const int Team, const Vector SearchLocation, float MinRadius, float MaxRadius);
 
+const resource_node* UTIL_GetResourceNodeAtIndex(int Index);
+const resource_node* UTIL_GetResourceNodeFromEdict(edict_t* ResNodeEdict);
+
 const hive_definition* UTIL_GetHiveAtIndex(int Index);
+const hive_definition* UTIL_GetHiveFromEdict(const edict_t* HiveEdict);
 int UTIL_GetNumTotalHives();
 int UTIL_GetNumActiveHives();
 int UTIL_GetNumUnbuiltHives();
 
 const hive_definition* UTIL_GetNearestHiveAtLocation(const Vector Location);
 
-// Will find the nearest gorge, defence chamber or hive, whichever is closest to SearchLocation
+// Will find the nearest gorge, defence chamber or hive, whichever is closest to SearchLocation. Weighted so it favours hives and chambers over gorges
 edict_t* UTIL_AlienFindNearestHealingSpot(bot_t* pBot, const Vector SearchLocation);
 
 /*	A resource node needs reinforcing if:
@@ -292,6 +292,8 @@ edict_t* UTIL_AlienFindNearestHealingSpot(bot_t* pBot, const Vector SearchLocati
 	3) Movement chambers are available and it doesn't have one near it
 */
 bool UTIL_AlienResNodeNeedsReinforcing(int ResNodeIndex);
+
+bool UTIL_AlienHiveNeedsReinforcing(int HiveIndex);
 
 // Returns the nearest alien resource node that needs reinforcing (see UTIL_AlienResNodeNeedsReinforcing())
 const resource_node* UTIL_GetNearestUnprotectedResNode(const Vector Location);
@@ -316,7 +318,7 @@ edict_t* BotGetNearestDangerTurret(bot_t* pBot, float MaxDistance);
 edict_t* PlayerGetNearestDangerTurret(const edict_t* Player, float MaxDistance);
 
 // Checks if the item lying on the floor is a primary weapon (MG, HMG, GL, Shotgun)
-bool UTIL_DroppedItemIsPrimaryWeapon(NSDeployableItem ItemType);
+bool UTIL_DroppedItemIsPrimaryWeapon(NSStructureType ItemType);
 
 // Is the input edict a valid marine structure?
 bool UTIL_IsMarineStructure(const edict_t* Structure);
@@ -366,7 +368,7 @@ bool UTIL_StructureIsResearching(const edict_t* Structure);
 bool UTIL_StructureIsResearching(const edict_t* Structure, const NSResearch Research);
 bool UTIL_IsStructureElectrified(const edict_t* Structure);
 
-NSDeployableItem UTIL_WeaponTypeToDeployableItem(const NSWeapon WeaponType);
+NSStructureType UTIL_WeaponTypeToDeployableItem(const NSWeapon WeaponType);
 
 AvHUpgradeMask UTIL_GetResearchMask(const NSResearch Research);
 
@@ -375,5 +377,14 @@ int UTIL_GetCostOfStructureType(NSStructureType StructureType);
 int UTIL_StructureTypeToImpulseCommand(const NSStructureType StructureType);
 
 bool UTIL_IsThereACommander();
+
+bool UTIL_IsAreaAffectedBySpores(const Vector Location);
+bool UTIL_IsAreaAffectedByUmbra(const Vector Location);
+
+Vector UTIL_GetAmbushPositionForTarget(bot_t* pBot, edict_t* Target);
+Vector UTIL_GetAmbushPositionForTarget2(bot_t* pBot, edict_t* Target);
+
+bool UTIL_IsHiveFullySecuredByMarines(bot_t* CommanderBot, const hive_definition* Hive);
+
 
 #endif

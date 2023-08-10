@@ -8,6 +8,7 @@
 #include "general_util.h"
 #include "game_state.h"
 #include "bot_tactical.h"
+#include "bot_util.h"
 
 extern edict_t* clients[MAX_CLIENTS];
 
@@ -84,13 +85,13 @@ bool IsPlayerHuman(const edict_t* Player)
 bool IsPlayerBot(const edict_t* Player)
 {
 	if (FNullEnt(Player)) { return false; }
-	return Player && ((Player->v.flags & FL_FAKECLIENT) || (Player->v.flags & FL_THIRDPARTYBOT));
+	return ((Player->v.flags & FL_FAKECLIENT) || (Player->v.flags & FL_THIRDPARTYBOT));
 }
 
 bool IsPlayerDead(const edict_t* Player)
 {
 	if (FNullEnt(Player)) { return true; }
-	return (Player->v.deadflag != DEAD_NO);
+	return (Player->v.deadflag != DEAD_NO || Player->v.health <= 0.0f);
 }
 
 bool IsPlayerStunned(const edict_t* Player)
@@ -125,6 +126,12 @@ bool IsPlayerCharging(const edict_t* Player)
 {
 	if (FNullEnt(Player)) { return false; }
 	return (Player->v.iuser4 & MASK_ALIEN_MOVEMENT);
+}
+
+bool IsPlayerBuffed(const edict_t* Player)
+{
+	if (FNullEnt(Player)) { return false; }
+	return (Player->v.iuser4 & MASK_BUFFED);
 }
 
 bool IsPlayerOnLadder(const edict_t* Player)
@@ -163,6 +170,7 @@ float GetPlayerEnergy(const edict_t* Player)
 
 int GetPlayerMaxArmour(const edict_t* Player)
 {
+	if (IsEdictStructure(Player)) { return 0; }
 
 	if (IsPlayerMarine(Player))
 	{
@@ -268,6 +276,38 @@ int GetPlayerResources(const edict_t* Player)
 	if (FNullEnt(Player)) { return 0; }
 
 	return (int)ceil(Player->v.vuser4.z / kNumericNetworkConstant);
+}
+
+int GetPlayerCombatExperience(const edict_t* Player)
+{
+	if (FNullEnt(Player)) { return 0; }
+
+	return (int)ceil(Player->v.vuser4.z / kNumericNetworkConstant);
+}
+
+int GetPlayerCombatLevel(const edict_t* Player)
+{
+	// This is taken from the NS source, so should be fully accurate
+	int thePlayerLevel = 1;
+
+	int theCombatBaseExperience = 100;
+	float theCombatLevelExperienceModifier = 0.5f;
+
+	float CurrentExperience = (float)GetPlayerCombatExperience(Player);
+
+	while ((CurrentExperience > 0) && (theCombatLevelExperienceModifier > 0))
+	{
+		CurrentExperience -= (1.0f + (thePlayerLevel - 1) * theCombatLevelExperienceModifier) * theCombatBaseExperience;
+
+		if (CurrentExperience > 0)
+		{
+			thePlayerLevel++;
+		}
+	}
+
+	thePlayerLevel = imaxi(imini(thePlayerLevel, 10), 1);
+
+	return thePlayerLevel;
 }
 
 float GetPlayerRadius(const edict_t* pEdict)
@@ -381,6 +421,8 @@ float GetPlayerEnergyRegenPerSecond(edict_t* Player)
 
 float GetPlayerOverallHealthPercent(const edict_t* Player)
 {
+	if (IsEdictStructure(Player)) { return (Player->v.health / Player->v.max_health); }
+
 	float MaxHealthAndArmour = Player->v.max_health + GetPlayerMaxArmour(Player);
 	float CurrentHealthAndArmour = Player->v.health + Player->v.armorvalue;
 
@@ -512,6 +554,14 @@ Vector GetPlayerTopOfCollisionHull(const edict_t* pEdict)
 {
 	if (FNullEnt(pEdict)) { return ZERO_VECTOR; }
 
+	if (!IsEdictPlayer(pEdict))
+	{
+		Vector Centre = UTIL_GetCentreOfEntity(pEdict);
+		Centre.z = pEdict->v.absmax.z;
+
+		return Centre;
+	}
+
 	int iuser3 = pEdict->v.iuser3;
 	bool bIsCrouching = (pEdict->v.flags & FL_DUCKING);
 	Vector origin = pEdict->v.origin;
@@ -606,65 +656,87 @@ bool IsEdictPlayer(const edict_t* edict)
 {
 	if (FNullEnt(edict)) { return false; }
 
-	return (edict->v.flags & FL_CLIENT) || (edict->v.flags & FL_FAKECLIENT);
+	return (edict->v.flags & FL_CLIENT) || (edict->v.flags & FL_FAKECLIENT) || (edict->v.flags & FL_THIRDPARTYBOT);
+}
+
+bool IsPlayerTouchingEntity(const edict_t* Player, const edict_t* TargetEntity)
+{
+	edict_t* TouchingEdict = nullptr;
+
+	while ((TouchingEdict = UTIL_FindEntityInSphere(TouchingEdict, Player->v.origin, 5.0f)) != NULL)
+	{
+		if (TouchingEdict == TargetEntity) { return true; }
+	}
+
+	return false;
 }
 
 bool IsPlayerInUseRange(const edict_t* Player, const edict_t* Target)
 {
 	if (FNullEnt(Player) || FNullEnt(Target)) { return false; }
-	Vector StartTrace = GetPlayerEyePosition(Player);
+	
+	if (vDist3DSq(Player->v.origin, UTIL_GetCentreOfEntity(Target)) > sqrf(vSize3D(Target->v.size) + vSize3D(Player->v.size))) { return false; }
+
+	edict_t* UseObject = nullptr;
+
+	while ((UseObject = UTIL_FindEntityInSphere(UseObject, Player->v.origin, 60.0f)) != NULL)
+	{
+		if (UseObject == Target) { return true; }
+	}
+
+	return false;
+	
+	/*Vector StartTrace = GetPlayerEyePosition(Player);
 	Vector UseDir = UTIL_GetVectorNormal(UTIL_GetCentreOfEntity(Target) - StartTrace);
 	// Sometimes if the bot is REALLY close to the target, the trace fails. Give it 5 units extra of room to avoid this and compensate during the trace.
 	StartTrace = StartTrace - (UseDir * 5.0f);
-	Vector EndTrace = StartTrace + (UseDir * (max_player_use_reach + 5.0f)); // Add back the 5 units we took away
+		
+	Vector EndTrace = StartTrace + (UseDir * (max_player_use_reach + 5.0f));
 
 	TraceResult hit;
 
 	UTIL_TraceLine(StartTrace, EndTrace, dont_ignore_monsters, dont_ignore_glass, Player->v.pContainingEntity, &hit);
 
-	if (hit.flFraction < 1.0f)
+	if (!FNullEnt(hit.pHit))
 	{
-		return hit.pHit == Target;
+		const char* HitName = STRING(hit.pHit->v.classname);
 	}
-	else
-	{
-		return false;
-	}
+	
+
+	return hit.pHit == Target;*/
 }
 
 bool PlayerHasHeavyArmour(const edict_t* Player)
 {
+	if (!IsPlayerMarine(Player)) { return false; }
 	return (Player->v.iuser4 & MASK_UPGRADE_13);
 }
 
 bool PlayerHasJetpack(edict_t* Player)
 {
+	if (!IsPlayerMarine(Player)) { return false; }
 	return (Player->v.iuser4 & MASK_UPGRADE_7);
 }
 
 bool PlayerHasEquipment(edict_t* Player)
 {
+	if (!IsPlayerMarine(Player)) { return false; }
 	return PlayerHasHeavyArmour(Player) || PlayerHasJetpack(Player);
 }
 
 bool PlayerHasSpecialWeapon(edict_t* Player)
 {
+	if (!IsPlayerMarine(Player)) { return false; }
 	return !PlayerHasWeapon(Player, WEAPON_MARINE_MG);
-}
-
-bool PlayerHasWeapon(edict_t* Player, NSWeapon WeaponType)
-{
-	return (Player->v.weapons & (1 << WeaponType));
 }
 
 bool UTIL_PlayerHasLOSToEntity(const edict_t* Player, const edict_t* Target, const float MaxRange, const bool bUseHullSweep)
 {
 	if (FNullEnt(Player) || FNullEnt(Target)) { return false; }
 	Vector StartTrace = GetPlayerEyePosition(Player);
+	Vector EndTrace = UTIL_GetCentreOfEntity(Target);
 
-	Vector LookDirection = UTIL_GetVectorNormal(UTIL_GetCentreOfEntity(Target) - StartTrace);
-	StartTrace = StartTrace - (LookDirection * 5.0f);
-	Vector EndTrace = StartTrace + (LookDirection * (MaxRange + 5.0f));
+	float Dist = vDist3D(StartTrace, EndTrace);
 
 	TraceResult hit;
 
@@ -677,7 +749,9 @@ bool UTIL_PlayerHasLOSToEntity(const edict_t* Player, const edict_t* Target, con
 		UTIL_TraceLine(StartTrace, EndTrace, dont_ignore_monsters, dont_ignore_glass, Player->v.pContainingEntity, &hit);
 	}
 
-	if (hit.flFraction < 1.0f)
+	
+
+	if (hit.fStartSolid || (hit.flFraction < 1.0f && ((Dist * hit.flFraction) <= MaxRange)))
 	{
 		return (hit.pHit == Target);
 	}
@@ -692,14 +766,11 @@ bool UTIL_PlayerHasLOSToLocation(const edict_t* Player, const Vector Target, con
 	if (FNullEnt(Player)) { return false; }
 	Vector StartTrace = GetPlayerEyePosition(Player);
 
-	Vector LookDirection = UTIL_GetVectorNormal(Target - StartTrace);
-	float dist = vDist3DSq(StartTrace, Target);
-	dist = fminf(dist, sqrf(MaxRange));
-	Vector EndTrace = StartTrace + (LookDirection * sqrtf(dist));
+	if (vDist3DSq(StartTrace, Target) > sqrf(MaxRange)) { return false; }
 
 	TraceResult hit;
 
-	UTIL_TraceLine(StartTrace, EndTrace, dont_ignore_monsters, dont_ignore_glass, Player->v.pContainingEntity, &hit);
+	UTIL_TraceLine(StartTrace, Target, ignore_monsters, ignore_glass, Player->v.pContainingEntity, &hit);
 
 	return (hit.flFraction >= 1.0f);
 
@@ -707,6 +778,23 @@ bool UTIL_PlayerHasLOSToLocation(const edict_t* Player, const Vector Target, con
 
 bool PlayerHasWeapon(const edict_t* Player, const NSWeapon DesiredCombatWeapon)
 {
+
+	bool bIsCombatMode = (GAME_GetGameMode() == GAME_MODE_COMBAT);
+	bool bUnlockedAbility3 = false;
+	bool bUnlockedAbility4 = false;
+
+	if (bIsCombatMode)
+	{
+		bot_t* BotRef = GetBotPointer(Player);
+
+		if (BotRef)
+		{
+			bUnlockedAbility3 = (BotRef->CombatUpgradeMask & COMBAT_ALIEN_UPGRADE_ABILITY3);
+			bUnlockedAbility4 = (BotRef->CombatUpgradeMask & COMBAT_ALIEN_UPGRADE_ABILITY4);
+		}
+	}
+
+
 	switch (DesiredCombatWeapon)
 	{
 	case WEAPON_MARINE_MG:
@@ -724,41 +812,41 @@ bool PlayerHasWeapon(const edict_t* Player, const NSWeapon DesiredCombatWeapon)
 	case WEAPON_SKULK_PARASITE:
 		return IsPlayerSkulk(Player);
 	case WEAPON_SKULK_LEAP:
-		return (IsPlayerSkulk(Player) && UTIL_GetNumActiveHives() >= 2);
+		return (IsPlayerSkulk(Player) && ((bIsCombatMode) ? bUnlockedAbility3 : (UTIL_GetNumActiveHives() >= 2)));
 	case WEAPON_SKULK_XENOCIDE:
-		return (IsPlayerSkulk(Player) && UTIL_GetNumActiveHives() >= 3);
+		return (IsPlayerSkulk(Player) && ((bIsCombatMode) ? bUnlockedAbility4 : (UTIL_GetNumActiveHives() >= 3)));
 
 	case WEAPON_GORGE_SPIT:
 	case WEAPON_GORGE_HEALINGSPRAY:
 		return IsPlayerGorge(Player);
 	case WEAPON_GORGE_BILEBOMB:
-		return (IsPlayerGorge(Player) && UTIL_GetNumActiveHives() >= 2);
+		return (IsPlayerGorge(Player) && ((bIsCombatMode) ? bUnlockedAbility3 : (UTIL_GetNumActiveHives() >= 2)));
 	case WEAPON_GORGE_WEB:
-		return (IsPlayerGorge(Player) && UTIL_GetNumActiveHives() >= 3);
+		return (IsPlayerGorge(Player) && ((bIsCombatMode) ? bUnlockedAbility4 : (UTIL_GetNumActiveHives() >= 3)));
 
 	case WEAPON_LERK_BITE:
 	case WEAPON_LERK_SPORES:
 		return IsPlayerLerk(Player);
 	case WEAPON_LERK_UMBRA:
-		return (IsPlayerLerk(Player) && UTIL_GetNumActiveHives() >= 2);
+		return (IsPlayerLerk(Player) && ((bIsCombatMode) ? bUnlockedAbility3 : (UTIL_GetNumActiveHives() >= 2)));
 	case WEAPON_LERK_PRIMALSCREAM:
-		return (IsPlayerLerk(Player) && UTIL_GetNumActiveHives() >= 3);
+		return (IsPlayerLerk(Player) && ((bIsCombatMode) ? bUnlockedAbility4 : (UTIL_GetNumActiveHives() >= 3)));
 
 	case WEAPON_FADE_SWIPE:
 	case WEAPON_FADE_BLINK:
 		return IsPlayerFade(Player);
 	case WEAPON_FADE_METABOLIZE:
-		return (IsPlayerFade(Player) && UTIL_GetNumActiveHives() >= 2);
+		return (IsPlayerFade(Player) && ((bIsCombatMode) ? bUnlockedAbility3 : (UTIL_GetNumActiveHives() >= 2)));
 	case WEAPON_FADE_ACIDROCKET:
-		return (IsPlayerFade(Player) && UTIL_GetNumActiveHives() >= 3);
+		return (IsPlayerFade(Player) && ((bIsCombatMode) ? bUnlockedAbility4 : (UTIL_GetNumActiveHives() >= 3)));
 
 	case WEAPON_ONOS_GORE:
 	case WEAPON_ONOS_DEVOUR:
 		return IsPlayerOnos(Player);
 	case WEAPON_ONOS_STOMP:
-		return (IsPlayerOnos(Player) && UTIL_GetNumActiveHives() >= 2);
+		return (IsPlayerOnos(Player) && (bIsCombatMode) ? bUnlockedAbility3 : (UTIL_GetNumActiveHives() >= 2));
 	case WEAPON_ONOS_CHARGE:
-		return (IsPlayerOnos(Player) && UTIL_GetNumActiveHives() >= 3);
+		return (IsPlayerOnos(Player) && (bIsCombatMode) ? bUnlockedAbility4 : (UTIL_GetNumActiveHives() >= 3));
 
 	}
 

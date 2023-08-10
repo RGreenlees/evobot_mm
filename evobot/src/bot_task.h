@@ -4,6 +4,7 @@
 #define BOT_TASK_H
 
 #include "bot_structs.h"
+#include "bot_tactical.h"
 
 void UTIL_ClearAllBotTasks(bot_t* pBot);
 void UTIL_ClearBotTask(bot_t* pBot, bot_task* Task);
@@ -42,14 +43,35 @@ bool UTIL_IsMarineCapResNodeTaskStillValid(bot_t* pBot, bot_task* Task);
 bool UTIL_IsDefendTaskStillValid(bot_t* pBot, bot_task* Task);
 bool UTIL_IsEvolveTaskStillValid(bot_t* pBot, bot_task* Task);
 
+bool UTIL_IsReinforceStructureTaskStillValid(bot_t* pBot, bot_task* Task);
+bool UTIL_IsReinforceHiveTaskStillValid(bot_t* pBot, bot_task* Task);
+
 bool UTIL_IsAlienGetHealthTaskStillValid(bot_t* pBot, bot_task* Task);
 bool UTIL_IsAlienHealTaskStillValid(bot_t* pBot, bot_task* Task);
+bool UTIL_IsSecureHiveTaskStillValid(bot_t* pBot, bot_task* Task);
 
 char* UTIL_TaskTypeToChar(const BotTaskType TaskType);
+
+void TASK_SetAttackTask(bot_t* pBot, bot_task* Task, edict_t* Target, const bool bIsUrgent);
+void TASK_SetMoveTask(bot_t* pBot, bot_task* Task, const Vector Location, const bool bIsUrgent);
+void TASK_SetBuildTask(bot_t* pBot, bot_task* Task, const NSStructureType StructureType, const Vector Location, const bool bIsUrgent);
+void TASK_SetBuildTask(bot_t* pBot, bot_task* Task, edict_t* StructureToBuild, const bool bIsUrgent);
+void TASK_SetCapResNodeTask(bot_t* pBot, bot_task* Task, const resource_node* NodeRef, const bool bIsUrgent);
+void TASK_SetDefendTask(bot_t* pBot, bot_task* Task, edict_t* Target, const bool bIsUrgent);
+void TASK_SetEvolveTask(bot_t* pBot, bot_task* Task, const Vector EvolveLocation, const int EvolveImpulse, const bool bIsUrgent);
+void TASK_SetEvolveTask(bot_t* pBot, bot_task* Task, edict_t* EvolveHive, const int EvolveImpulse, const bool bIsUrgent);
+void TASK_SetUseTask(bot_t* pBot, bot_task* Task, edict_t* Target, const bool bIsUrgent);
+void TASK_SetUseTask(bot_t* pBot, bot_task* Task, edict_t* Target, const Vector UseLocation, const bool bIsUrgent);
+void TASK_SetTouchTask(bot_t* pBot, bot_task* Task, edict_t* Target, bool bIsUrgent);
+void TASK_SetReinforceStructureTask(bot_t* pBot, bot_task* Task, edict_t* Target, bool bIsUrgent);
+void TASK_SetReinforceStructureTask(bot_t* pBot, bot_task* Task, edict_t* Target, const NSStructureType FirstStructureType, bool bIsUrgent);
+void TASK_SetSecureHiveTask(bot_t* pBot, bot_task* Task, edict_t* Target, const Vector WaitLocation, bool bIsUrgent);
 
 void BotProgressTask(bot_t* pBot, bot_task* Task);
 
 void BotProgressMoveTask(bot_t* pBot, bot_task* Task);
+void BotProgressUseTask(bot_t* pBot, bot_task* Task);
+void BotProgressTouchTask(bot_t* pBot, bot_task* Task);
 void BotProgressPickupTask(bot_t* pBot, bot_task* Task);
 void BotProgressGuardTask(bot_t* pBot, bot_task* Task);
 
@@ -63,15 +85,21 @@ void MarineProgressBuildTask(bot_t* pBot, bot_task* Task);
 void MarineProgressCapResNodeTask(bot_t* pBot, bot_task* Task);
 void MarineProgressWeldTask(bot_t* pBot, bot_task* Task);
 
+void MarineProgressSecureHiveTask(bot_t* pBot, bot_task* Task);
+
 void AlienProgressGetHealthTask(bot_t* pBot, bot_task* Task);
 void AlienProgressHealTask(bot_t* pBot, bot_task* Task);
 void AlienProgressBuildTask(bot_t* pBot, bot_task* Task);
 void AlienProgressCapResNodeTask(bot_t* pBot, bot_task* Task);
+
+void BotProgressReinforceStructureTask(bot_t* pBot, bot_task* Task);
 
 void BotGuardLocation(bot_t* pBot, const Vector GuardLocation);
 
 void UTIL_GenerateGuardWatchPoints(bot_t* pBot, const Vector& GuardLocation);
 
 bool BotWithBuildTaskExists(NSStructureType StructureType);
+bot_t* GetFirstBotWithBuildTask(NSStructureType StructureType, edict_t* IgnorePlayer);
+bot_t* GetFirstBotWithReinforceTask(edict_t* ReinforceStructure, edict_t* IgnorePlayer);
 
 #endif

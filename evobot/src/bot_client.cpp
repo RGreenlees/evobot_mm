@@ -10,10 +10,13 @@
 #include <string.h>
 #endif
 
+#include "bot_client.h"
+
 #include <extdll.h>
 #include <dllapi.h>
 #include <h_export.h>
 #include <meta_api.h>
+
 
 #include "game_state.h"
 #include "bot_tactical.h"
@@ -48,6 +51,16 @@ extern edict_t* clients[MAX_CLIENTS];
 extern bool bGameIsActive;
 extern int GameStatus;
 
+hive_info_msg HiveInfo;
+alert_msg AlertInfo;
+setup_map_msg MapInfo;
+receive_order_msg OrderInfo;
+game_status_msg GameInfo;
+selection_msg SelectionInfo;
+damage_msg DamageInfo;
+death_msg DeathInfo;
+current_weapon_msg CurrentWeaponInfo;
+ammox_msg AmmoXInfo;
 
 // This message is sent when a client joins the game.  All of the weapons
 // are sent with the weapon ID and information about what ammo is used.
@@ -93,7 +106,15 @@ void BotClient_Valve_WeaponList(void* p, int bot_index)
 		{
 			bot_weapon.MinRefireTime = 0.5f;
 		}
+		else if (!strcmp(bot_weapon.szClassname, "weapon_umbra"))
+		{
+			bot_weapon.MinRefireTime = 0.5f;
+		}
 		else if (!strcmp(bot_weapon.szClassname, "weapon_stomp"))
+		{
+			bot_weapon.MinRefireTime = 1.0f;
+		}
+		else if (!strcmp(bot_weapon.szClassname, "weapon_spore"))
 		{
 			bot_weapon.MinRefireTime = 1.0f;
 		}
@@ -146,32 +167,32 @@ void BotClient_Valve_WeaponList(void* p, int bot_index)
 	}
 }
 
+void BotClient_NS_Alert_Reset()
+{
+	memset(&AlertInfo, 0, sizeof(alert_msg));
+}
+
 void BotClient_NS_Alert_32(void* p, int bot_index)
 {
-	static int state = 0;
-	static int flag = 0;
-	static int AlertType = 0;
-	static float LocationX = 0.0f;
-	static float LocationY = 0.0f;
 
-	if (state == 0)
+	if (AlertInfo.state == 0)
 	{
-		flag = *(int*)p;
-		state++;
+		AlertInfo.flag = *(int*)p;
+		AlertInfo.state++;
 	}
-	else if (state == 1)
+	else if (AlertInfo.state == 1)
 	{
-		AlertType = *(int*)p;
-		state++;
+		AlertInfo.AlertType = *(int*)p;
+		AlertInfo.state++;
 	}
-	else if (state == 2)
+	else if (AlertInfo.state == 2)
 	{
-		LocationX = *(float*)p;
-		state++;
+		AlertInfo.LocationX = *(float*)p;
+		AlertInfo.state++;
 	}
-	else if (state == 3)
+	else if (AlertInfo.state == 3)
 	{
-		LocationY = *(float*)p;
+		AlertInfo.LocationY = *(float*)p;
 
 		bot_t* pBot = &bots[bot_index];
 
@@ -180,147 +201,134 @@ void BotClient_NS_Alert_32(void* p, int bot_index)
 
 			if (IsPlayerCommander(pBot->pEdict))
 			{
-				CommanderReceiveAlert(pBot, Vector(LocationX, LocationY, 0.0f), (PlayerAlertType)AlertType);
+				CommanderReceiveAlert(pBot, Vector(AlertInfo.LocationX, AlertInfo.LocationY, 0.0f), (PlayerAlertType)AlertInfo.AlertType);
 			}
 			else if (IsPlayerOnAlienTeam(pBot->pEdict))
 			{
-				if (flag == 0)
+				if (AlertInfo.flag == 0)
 				{
 					//AlienReceiveAlert(pBot, Vector(LocationX, LocationY, 0.0f), (PlayerAlertType)AlertType);
 				}
 			}
 		}
 
-		state = 0;
+		AlertInfo.state = 0;
 	}
 }
 
 void BotClient_NS_Alert_33(void* p, int bot_index)
 {
-	static int state = 0;
-	static int flag = 0;
-	static int AlertType = 0;
-	static float LocationX = 0.0f;
-	static float LocationY = 0.0f;
-	static bool bIsRequest;
-	static int NumResearch = 0;
-	static int ResearchId = 0;
-	static int ResearchProgress = 0;
-	static int ResearchCounter = 0;
 
-	if (state == 0)
+
+	if (AlertInfo.state == 0)
 	{
-		flag = *(int*)p;
-		bIsRequest = (flag == 0 || flag == 1);
-		state++;
+		AlertInfo.flag = *(int*)p;
+		AlertInfo.bIsRequest = (AlertInfo.flag == 0 || AlertInfo.flag == 1);
+		AlertInfo.state++;
 	}
-	else if (state == 1)
+	else if (AlertInfo.state == 1)
 	{
-		if (bIsRequest)
+		if (AlertInfo.bIsRequest)
 		{
-			AlertType = *(int*)p;
+			AlertInfo.AlertType = *(int*)p;
 		}
 		else
 		{
-			NumResearch = *(int*)p;
-			ResearchCounter = 0;
+			AlertInfo.NumResearch = *(int*)p;
+			AlertInfo.ResearchCounter = 0;
 		}
-		state++;
+		AlertInfo.state++;
 	}
-	else if (state == 2)
+	else if (AlertInfo.state == 2)
 	{
-		if (bIsRequest)
+		if (AlertInfo.bIsRequest)
 		{
-			LocationX = *(float*)p;
+			AlertInfo.LocationX = *(float*)p;
 		}
 		else
 		{
-			ResearchId = *(int*)p;
+			AlertInfo.ResearchId = *(int*)p;
 		}
-		state++;
+		AlertInfo.state++;
 	}
-	else if (state == 3)
+	else if (AlertInfo.state == 3)
 	{
 		bot_t* pBot = &bots[bot_index];
 
-		if (bIsRequest)
+		if (AlertInfo.bIsRequest)
 		{
-			LocationY = *(float*)p;
+			AlertInfo.LocationY = *(float*)p;
 
 			if (pBot->is_used && !FNullEnt(pBot->pEdict))
 			{
 
 				if (IsPlayerCommander(pBot->pEdict))
 				{
-					CommanderReceiveAlert(pBot, Vector(LocationX, LocationY, 0.0f), (PlayerAlertType)AlertType);
+					CommanderReceiveAlert(pBot, Vector(AlertInfo.LocationX, AlertInfo.LocationY, 0.0f), (PlayerAlertType)AlertInfo.AlertType);
 				}
 				else if (IsPlayerOnAlienTeam(pBot->pEdict))
 				{
-					if (flag == 0)
+					if (AlertInfo.flag == 0)
 					{
 						//AlienReceiveAlert(pBot, Vector(LocationX, LocationY, 0.0f), (PlayerAlertType)AlertType);
 					}
 				}
 			}
 
-			state = 0;
+			AlertInfo.state = 0;
 
 
 		}
 		else
 		{
-			ResearchProgress = *(int*)p;
-			ResearchCounter++;
+			AlertInfo.ResearchProgress = *(int*)p;
+			AlertInfo.ResearchCounter++;
 
-			if (ResearchCounter >= NumResearch)
+			if (AlertInfo.ResearchCounter >= AlertInfo.NumResearch)
 			{
-				state = 0;
+				AlertInfo.state = 0;
 			}
 			else
 			{
-				state = 2;
+				AlertInfo.state = 2;
 			}
 		}
 
 	}
 }
 
+void BotClient_NS_SetSelect_Reset()
+{
+	memset(&SelectionInfo, 0, sizeof(selection_msg));
+}
+
 void BotClient_NS_SetSelect(void* p, int bot_index)
 {
-	static int state = 0;
-	static int group_number = 0;
-	static int selected_entity_count = 0;
-	static int counted_entities = 0;
-	static int SelectedEntities[32];
-	static int TrackingEntity = 0;
-	static int group_type = 0;
-	static int group_alert = 0;
-
-	if (state == 0)
+	if (SelectionInfo.state == 0)
 	{
 
-		memset(SelectedEntities, 0, sizeof(SelectedEntities));
-		group_number = *(int*)p;
+		memset(SelectionInfo.SelectedEntities, 0, sizeof(SelectionInfo.SelectedEntities));
+		SelectionInfo.group_number = *(int*)p;
 
 
-		state++;
+		SelectionInfo.state++;
 	}
-	else if (state == 1)
+	else if (SelectionInfo.state == 1)
 	{
-		selected_entity_count = *(int*)p;
+		SelectionInfo.selected_entity_count = *(int*)p;
 
-		if (selected_entity_count == 0)
+		if (SelectionInfo.selected_entity_count == 0)
 		{
 			bots[bot_index].CommanderCurrentlySelectedBuilding = nullptr;
-			state++;
+			SelectionInfo.state++;
 		}
 
-		counted_entities = 0;
-		state++;
+		SelectionInfo.counted_entities = 0;
+		SelectionInfo.state++;
 	}
-	else if (state == 2)
+	else if (SelectionInfo.state == 2)
 	{
-		SelectedEntities[counted_entities++] = *(int*)p;
+		SelectionInfo.SelectedEntities[SelectionInfo.counted_entities++] = *(int*)p;
 
 		edict_t* SelectedEntity = INDEXENT(*(int*)p);
 
@@ -333,218 +341,173 @@ void BotClient_NS_SetSelect(void* p, int bot_index)
 			bots[bot_index].CommanderCurrentlySelectedBuilding = nullptr;
 		}
 
-		if (counted_entities >= selected_entity_count)
+		if (SelectionInfo.counted_entities >= SelectionInfo.selected_entity_count)
 		{
-			state++;
+			SelectionInfo.state++;
 		}
 	}
-	else if (state == 3)
+	else if (SelectionInfo.state == 3)
 	{
-		switch (group_number)
+		switch (SelectionInfo.group_number)
 		{
 		case 0:
 		{
-			TrackingEntity = *(int*)p;
+			SelectionInfo.TrackingEntity = *(int*)p;
 
-			state = 0;
+			SelectionInfo.state = 0;
 		}
 		break;
 		case kSelectAllHotGroup:
 		{
-			state = 0;
+			SelectionInfo.state = 0;
 		}
 		break;
 		default:
 		{
-			group_type = *(int*)p;
-			TrackingEntity = *(int*)p;
+			SelectionInfo.group_type = *(int*)p;
+			SelectionInfo.TrackingEntity = *(int*)p;
 
-			state++;
+			SelectionInfo.state++;
 		}
 		break;
 		}
 	}
-	else if (state == 4)
+	else if (SelectionInfo.state == 4)
 	{
-		group_alert = *(int*)p;
+		SelectionInfo.group_alert = *(int*)p;
 
-		state = 0;
+		SelectionInfo.state = 0;
 	}
 
 }
 
+void BotClient_Valve_CurrentWeapon_Reset()
+{
+	memset(&CurrentWeaponInfo, 0, sizeof(current_weapon_msg));
+}
+
 void BotClient_Valve_CurrentWeapon(void* p, int bot_index)
 {
-	static int state = 0;   // current state machine state
-	static int iState;
-	static int iId;
-	static int iClip;
-
-	if (state == 0)
+	if (CurrentWeaponInfo.state == 0)
 	{
-		state++;
-		iState = *(int*)p;  // state of the current weapon
+		CurrentWeaponInfo.state++;
+		CurrentWeaponInfo.iState = *(int*)p;  // state of the current weapon
 	}
-	else if (state == 1)
+	else if (CurrentWeaponInfo.state == 1)
 	{
-		state++;
-		iId = *(int*)p;  // weapon ID of current weapon
+		CurrentWeaponInfo.state++;
+		CurrentWeaponInfo.iId = *(int*)p;  // weapon ID of current weapon
 	}
-	else if (state == 2)
+	else if (CurrentWeaponInfo.state == 2)
 	{
-		state = 0;
+		CurrentWeaponInfo.state = 0;
 
-		iClip = *(int*)p;  // ammo currently in the clip for this weapon
+		CurrentWeaponInfo.iClip = *(int*)p;  // ammo currently in the clip for this weapon
 
-		if (iId <= 31)
+		if (CurrentWeaponInfo.iId <= 31)
 		{
-			if ((iState & WEAPON_IS_CURRENT))
+			if ((CurrentWeaponInfo.iState & WEAPON_IS_CURRENT))
 			{
-				bots[bot_index].current_weapon.iId = iId;
-				bots[bot_index].current_weapon.iClip = iClip;
-				bots[bot_index].current_weapon.MinRefireTime = weapon_defs[iId].MinRefireTime;
+				bots[bot_index].current_weapon.iId = CurrentWeaponInfo.iId;
+				bots[bot_index].current_weapon.iClip = CurrentWeaponInfo.iClip;
+				bots[bot_index].current_weapon.MinRefireTime = weapon_defs[CurrentWeaponInfo.iId].MinRefireTime;
 
-				bots[bot_index].m_clipAmmo[iId] = iClip;
+				bots[bot_index].m_clipAmmo[CurrentWeaponInfo.iId] = CurrentWeaponInfo.iClip;
 
 				// update the ammo counts for this weapon...
 				bots[bot_index].current_weapon.iAmmo1 =
-					bots[bot_index].m_rgAmmo[weapon_defs[iId].iAmmo1];
+					bots[bot_index].m_rgAmmo[weapon_defs[CurrentWeaponInfo.iId].iAmmo1];
 				bots[bot_index].current_weapon.iAmmo1Max =
-					weapon_defs[iId].iAmmo1Max;
+					weapon_defs[CurrentWeaponInfo.iId].iAmmo1Max;
 				bots[bot_index].current_weapon.iAmmo2 =
-					bots[bot_index].m_rgAmmo[weapon_defs[iId].iAmmo2];
+					bots[bot_index].m_rgAmmo[weapon_defs[CurrentWeaponInfo.iId].iAmmo2];
 				bots[bot_index].current_weapon.iAmmo2Max =
-					weapon_defs[iId].iAmmo2Max;
+					weapon_defs[CurrentWeaponInfo.iId].iAmmo2Max;
 				bots[bot_index].current_weapon.iClipMax =
-					weapon_defs[iId].iClipSize;
+					weapon_defs[CurrentWeaponInfo.iId].iClipSize;
 			}
 		}
 
 	}
 }
 
+void BotClient_Valve_AmmoX_Reset()
+{
+	memset(&AmmoXInfo, 0, sizeof(ammox_msg));
+}
 
 // This message is sent whenever ammo ammounts are adjusted (up or down).
 void BotClient_Valve_AmmoX(void* p, int bot_index)
 {
-	static int state = 0;   // current state machine state
-	static int index;
-	static int amount;
-	int ammo_index;
 
-	if (state == 0)
+	if (AmmoXInfo.state == 0)
 	{
-		state++;
-		index = *(int*)p;  // ammo index (for type of ammo)
+		AmmoXInfo.state++;
+		AmmoXInfo.index = *(int*)p;  // ammo index (for type of ammo)
 	}
-	else if (state == 1)
+	else if (AmmoXInfo.state == 1)
 	{
-		state = 0;
+		AmmoXInfo.state = 0;
 
-		amount = *(int*)p;  // the ammount of ammo currently available
+		AmmoXInfo.amount = *(int*)p;  // the ammount of ammo currently available
 
-		bots[bot_index].m_rgAmmo[index] = amount;  // store it away
+		bots[bot_index].m_rgAmmo[AmmoXInfo.index] = AmmoXInfo.amount;  // store it away
 
-		ammo_index = bots[bot_index].current_weapon.iId;
+		AmmoXInfo.ammo_index = bots[bot_index].current_weapon.iId;
 
 		// update the ammo counts for this weapon...
 		bots[bot_index].current_weapon.iAmmo1 =
-			bots[bot_index].m_rgAmmo[weapon_defs[ammo_index].iAmmo1];
+			bots[bot_index].m_rgAmmo[weapon_defs[AmmoXInfo.ammo_index].iAmmo1];
 		bots[bot_index].current_weapon.iAmmo2 =
-			bots[bot_index].m_rgAmmo[weapon_defs[ammo_index].iAmmo2];
+			bots[bot_index].m_rgAmmo[weapon_defs[AmmoXInfo.ammo_index].iAmmo2];
 		bots[bot_index].current_weapon.iAmmo1Max =
-			weapon_defs[ammo_index].iAmmo1Max;
+			weapon_defs[AmmoXInfo.ammo_index].iAmmo1Max;
 		bots[bot_index].current_weapon.iAmmo2Max =
-			weapon_defs[ammo_index].iAmmo2Max;
+			weapon_defs[AmmoXInfo.ammo_index].iAmmo2Max;
 		bots[bot_index].current_weapon.iClipMax =
-			weapon_defs[ammo_index].iClipSize;
+			weapon_defs[AmmoXInfo.ammo_index].iClipSize;
 
 	}
 }
 
-// This message is sent when the bot picks up some ammo (AmmoX messages are
-// also sent so this message is probably not really necessary except it
-// allows the HUD to draw pictures of ammo that have been picked up.  The
-// bots don't really need pictures since they don't have any eyes anyway.
-void BotClient_Valve_AmmoPickup(void* p, int bot_index)
+void BotClient_NS_Damage_Reset()
 {
-	static int state = 0;   // current state machine state
-	static int index;
-	static int ammount;
-	int ammo_index;
-
-	if (state == 0)
-	{
-		state++;
-		index = *(int*)p;
-	}
-	else if (state == 1)
-	{
-		state = 0;
-
-		ammount = *(int*)p;
-
-		bots[bot_index].m_rgAmmo[index] = ammount;
-
-		ammo_index = bots[bot_index].current_weapon.iId;
-
-		// update the ammo counts for this weapon...
-		bots[bot_index].current_weapon.iAmmo1 =
-			bots[bot_index].m_rgAmmo[weapon_defs[ammo_index].iAmmo1];
-		bots[bot_index].current_weapon.iAmmo1Max =
-			weapon_defs[ammo_index].iAmmo1Max;
-		bots[bot_index].current_weapon.iAmmo2 =
-			bots[bot_index].m_rgAmmo[weapon_defs[ammo_index].iAmmo2];
-		bots[bot_index].current_weapon.iAmmo2Max =
-			weapon_defs[ammo_index].iAmmo2Max;
-		bots[bot_index].current_weapon.iClipMax =
-			weapon_defs[ammo_index].iClipSize;
-
-
-	}
+	memset(&DamageInfo, 0, sizeof(damage_msg));
 }
-
 
 void BotClient_NS_Damage(void* p, int bot_index)
 {
-	static int state = 0;   // current state machine state
-	static int damage_armor;
-	static int damage_taken;
-	static int damage_bits;  // type of damage being done
-	static Vector damage_origin;
 
-	if (state == 0)
+	if (DamageInfo.state == 0)
 	{
-		state++;
-		damage_armor = *(int*)p;
+		DamageInfo.state++;
+		DamageInfo.damage_armor = *(int*)p;
 	}
-	else if (state == 1)
+	else if (DamageInfo.state == 1)
 	{
-		state++;
-		damage_taken = *(int*)p;
+		DamageInfo.state++;
+		DamageInfo.damage_taken = *(int*)p;
 	}
-	else if (state == 2)
+	else if (DamageInfo.state == 2)
 	{
-		state++;
-		damage_bits = *(int*)p;
+		DamageInfo.state++;
+		DamageInfo.damage_bits = *(int*)p;
 	}
-	else if (state == 3)
+	else if (DamageInfo.state == 3)
 	{
-		state++;
-		damage_origin.x = *(float*)p;
+		DamageInfo.state++;
+		DamageInfo.damage_origin.x = *(float*)p;
 	}
-	else if (state == 4)
+	else if (DamageInfo.state == 4)
 	{
-		state++;
-		damage_origin.y = *(float*)p;
+		DamageInfo.state++;
+		DamageInfo.damage_origin.y = *(float*)p;
 	}
-	else if (state == 5)
+	else if (DamageInfo.state == 5)
 	{
-		state = 0;
+		DamageInfo.damage_origin.z = *(float*)p;
 
-		damage_origin.z = *(float*)p;
-
-		if (damage_taken > 0)
+		if (DamageInfo.damage_taken > 0)
 		{
 
 			edict_t* aggressor = nullptr;
@@ -555,7 +518,7 @@ void BotClient_NS_Damage(void* p, int bot_index)
 			{
 				if (clients[i] != NULL && !IsPlayerDead(clients[i]) && !IsPlayerBeingDigested(clients[i]) && !IsPlayerCommander(clients[i]))
 				{
-					float Dist = vDist3DSq(clients[i]->v.origin, damage_origin);
+					float Dist = vDist3DSq(clients[i]->v.origin, DamageInfo.damage_origin);
 
 					if (Dist <= MaxDistSq)
 					{
@@ -568,28 +531,31 @@ void BotClient_NS_Damage(void* p, int bot_index)
 				}
 			}
 
-			if (aggressor)
+			if (!FNullEnt(aggressor))
 			{
-				BotTakeDamage(&bots[bot_index], damage_taken, aggressor);
+				BotTakeDamage(&bots[bot_index], DamageInfo.damage_taken, aggressor);
 			}
 		}
+
+		DamageInfo.state = 0;
 	}
 }
 
+void BotClient_NS_GameStatus_Reset()
+{
+	memset(&GameInfo, 0, sizeof(game_status_msg));
+}
 
 // This message gets sent when the bots money ammount changes (for CS)
 void BotClient_NS_GameStatus(void* p, int bot_index)
 {
-	static int state = 0;   // current state machine state
-	static int StatusCode = 0;
-
-	if (state == 0)
+	if (GameInfo.state == 0)
 	{
-		StatusCode = *(int*)p;
+		GameInfo.StatusCode = *(int*)p;
 
 		GameStatus = *(int*)p;
 
-		if (StatusCode == kGameStatusGameTime)
+		if (GameInfo.StatusCode == kGameStatusGameTime)
 		{
 			bGameIsActive = true;
 		}
@@ -598,284 +564,273 @@ void BotClient_NS_GameStatus(void* p, int bot_index)
 			bGameIsActive = false;
 		}
 
-		state++;
+		GameInfo.state++;
 	}
-	else if (state == 1)
+	else if (GameInfo.state == 1)
 	{
-		if (StatusCode == kGameStatusReset || StatusCode == kGameStatusResetNewMap || StatusCode == kGameStatusEnded)
+		if (GameInfo.StatusCode == kGameStatusReset || GameInfo.StatusCode == kGameStatusResetNewMap || GameInfo.StatusCode == kGameStatusEnded)
 		{
-			state = 0;
+			GameInfo.state = 0;
 		}
 		else
 		{
-			state++;
+			GameInfo.state++;
 		}
 	}
-	else if (state == 2)
+	else if (GameInfo.state == 2)
 	{
-		if (StatusCode == kGameStatusUnspentLevels)
+		if (GameInfo.StatusCode == kGameStatusUnspentLevels)
 		{
-			state = 0;
+			GameInfo.state = 0;
 		}
 		else
 		{
-			state++;
+			GameInfo.state++;
 		}
 	}
 	else
 	{
-		state++;
+		GameInfo.state++;
 
-		if (state > 4)
+		if (GameInfo.state > 4)
 		{
-			state = 0;
+			GameInfo.state = 0;
 		}
 	}
 }
 
+void BotClient_NS_SetupMap_Reset()
+{
+	memset(&MapInfo, 0, sizeof(setup_map_msg));
+}
+
 void BotClient_NS_SetupMap(void* p, int bot_index)
 {
-	static int state = 0;
-	static bool IsLocation;
-	static char LocationName[64];
-	static float LocationMinX;
-	static float LocationMaxX;
-	static float LocationMinY;
-	static float LocationMaxY;
 
-	if (state == 0)
+	if (MapInfo.state == 0)
 	{
-		IsLocation = *(bool*)p;
-		state++;
+		MapInfo.IsLocation = *(bool*)p;
+		MapInfo.state++;
 	}
-	else if (state == 1)
+	else if (MapInfo.state == 1)
 	{
-		if (IsLocation)
+		if (MapInfo.IsLocation)
 		{
-			sprintf(LocationName, "%s", (char*)p);
+			sprintf(MapInfo.LocationName, "%s", (char*)p);
 		}
 
-		state++;
+		MapInfo.state++;
 	}
-	else if (state == 2)
+	else if (MapInfo.state == 2)
 	{
-		if (IsLocation)
+		if (MapInfo.IsLocation)
 		{
-			LocationMaxX = *(float*)p;
+			MapInfo.LocationMaxX = *(float*)p;
 		}
 
-		state++;
+		MapInfo.state++;
 	}
-	else if (state == 3)
+	else if (MapInfo.state == 3)
 	{
-		if (!IsLocation)
+		if (!MapInfo.IsLocation)
 		{
 			SetCommanderViewZHeight(*(float*)p);
 		}
 		else
 		{
-			LocationMaxY = *(float*)p;
+			MapInfo.LocationMaxY = *(float*)p;
 		}
 
-		state++;
+		MapInfo.state++;
 	}
-	else if (state == 4)
+	else if (MapInfo.state == 4)
 	{
-		if (IsLocation)
+		if (MapInfo.IsLocation)
 		{
-			LocationMinX = *(float*)p;
+			MapInfo.LocationMinX = *(float*)p;
 		}
 
-		state++;
+		MapInfo.state++;
 	}
-	else if (state == 5)
+	else if (MapInfo.state == 5)
 	{
-		if (IsLocation)
+		if (MapInfo.IsLocation)
 		{
-			LocationMinY = *(float*)p;
+			MapInfo.LocationMinY = *(float*)p;
 
-			AddMapLocation(LocationName, Vector(LocationMinX, LocationMinY, 0.0f), Vector(LocationMaxX, LocationMaxY, 0.0f));
+			AddMapLocation(MapInfo.LocationName, Vector(MapInfo.LocationMinX, MapInfo.LocationMinY, 0.0f), Vector(MapInfo.LocationMaxX, MapInfo.LocationMaxY, 0.0f));
 
-			state = 0;
+			MapInfo.state = 0;
 		}
 		else
 		{
-			state++;
+			MapInfo.state++;
 		}
 	}
-	else if (state == 8)
+	else if (MapInfo.state == 8)
 	{
-		state = 0;
+		MapInfo.state = 0;
 	}
 	else
 	{
-		state++;
+		MapInfo.state++;
 	}
 
 }
 
+void BotClient_NS_DeathMessage_Reset()
+{
+	memset(&DeathInfo, 0, sizeof(death_msg));
+}
 
 // This message gets sent when the bots get killed
 void BotClient_NS_DeathMsg(void* p, int bot_index)
 {
-	static int state = 0;   // current state machine state
-	static int killer_index;
-	static int victim_index;
-	static edict_t* killer_edict;
-	static edict_t* victim_edict;
-	static int index;
-
-	if (state == 0)
+	if (DeathInfo.state == 0)
 	{
-		state++;
-		killer_index = *(int*)p;  // ENTINDEX() of killer
+		DeathInfo.state++;
+		DeathInfo.killer_index = *(int*)p;  // ENTINDEX() of killer
 	}
-	else if (state == 1)
+	else if (DeathInfo.state == 1)
 	{
-		state++;
-		victim_index = *(int*)p;  // ENTINDEX() of victim
+		DeathInfo.state++;
+		DeathInfo.victim_index = *(int*)p;  // ENTINDEX() of victim
 	}
-	else if (state == 2)
+	else if (DeathInfo.state == 2)
 	{
-		state = 0;
+		DeathInfo.state = 0;
 
-		killer_edict = INDEXENT(killer_index);
-		victim_edict = INDEXENT(victim_index);
+		DeathInfo.killer_edict = INDEXENT(DeathInfo.killer_index);
+		DeathInfo.victim_edict = INDEXENT(DeathInfo.victim_index);
 
 		// get the bot index of the killer...
-		index = GetBotIndex(killer_edict);
+		DeathInfo.index = GetBotIndex(DeathInfo.killer_edict);
 
 		// get the bot index of the victim...
-		index = GetBotIndex(victim_edict);
+		DeathInfo.index = GetBotIndex(DeathInfo.victim_edict);
 
 		// is this message about a bot being killed?
-		if (index != -1)
+		if (DeathInfo.index != -1)
 		{
 
-			bot_t* botVictim = GetBotPointer(victim_edict);
-			bot_t* botKiller = GetBotPointer(killer_edict);
+			bot_t* botVictim = GetBotPointer(DeathInfo.victim_edict);
+			bot_t* botKiller = GetBotPointer(DeathInfo.killer_edict);
 
 			if (botVictim)
 			{
-				BotDied(botVictim, killer_edict);
+				BotDied(botVictim, DeathInfo.killer_edict);
 			}
 
 			if (botKiller)
 			{
-				BotKilledPlayer(botKiller, victim_edict);
+				BotKilledPlayer(botKiller, DeathInfo.victim_edict);
 			}
 
 		}
 	}
+}
+
+void BotClient_NS_ReceiveOrder_Reset()
+{
+	memset(&OrderInfo, 0, sizeof(receive_order_msg));
 }
 
 void BotClient_NS_ReceiveOrder(void* p, int bot_index)
 {
-	static int state = 0;   // current state machine state
-	static bool isMovementOrder = true;
-	static AvHOrderType orderType;
-	static Vector moveDestination;
-	static int players;
-	static edict_t* recipient;
-	static edict_t* orderTarget;
-	static byte OrderCompleted;
-	static byte OrderNotificationType;
-	static byte targetType;
-
-	if (state == 0)
+	if (OrderInfo.state == 0)
 	{
 		int recipientIndex = *(int*)p;
-		recipient = INDEXENT(recipientIndex);
-		state++;
+		OrderInfo.recipient = INDEXENT(recipientIndex);
+		OrderInfo.state++;
 	}
-	else if (state == 1)
+	else if (OrderInfo.state == 1)
 	{
-		orderType = *((AvHOrderType*)p);
-		isMovementOrder = true;
-		state++;
+		OrderInfo.orderType = *((AvHOrderType*)p);
+		OrderInfo.isMovementOrder = true;
+		OrderInfo.state++;
 	}
-	else if (state == 2)
+	else if (OrderInfo.state == 2)
 	{
-		if (isMovementOrder)
+		if (OrderInfo.isMovementOrder)
 		{
-			moveDestination.x = *(float*)p;
+			OrderInfo.moveDestination.x = *(float*)p;
 		}
 		else
 		{
 			int entityIndex = *(unsigned short*)p;
-			orderTarget = INDEXENT(entityIndex);
+			OrderInfo.orderTarget = INDEXENT(entityIndex);
 		}
-		state++;
+		OrderInfo.state++;
 	}
-	else if (state == 3)
+	else if (OrderInfo.state == 3)
 	{
-		if (isMovementOrder)
+		if (OrderInfo.isMovementOrder)
 		{
-			moveDestination.y = *(float*)p;
+			OrderInfo.moveDestination.y = *(float*)p;
 		}
 		else
 		{
-			targetType = *(byte*)p;
+			OrderInfo.targetType = *(byte*)p;
 		}
-		state++;
+		OrderInfo.state++;
 	}
-	else if (state == 4)
+	else if (OrderInfo.state == 4)
 	{
-		if (isMovementOrder)
+		if (OrderInfo.isMovementOrder)
 		{
-			moveDestination.z = *(float*)p;
+			OrderInfo.moveDestination.z = *(float*)p;
 
 		}
 		else
 		{
-			OrderCompleted = *(byte*)p;
+			OrderInfo.OrderCompleted = *(byte*)p;
 		}
 
-		state++;
+		OrderInfo.state++;
 	}
-	else if (state == 5)
+	else if (OrderInfo.state == 5)
 	{
 
-		if (isMovementOrder)
+		if (OrderInfo.isMovementOrder)
 		{
-			targetType = *(byte*)p;
-			state++;
+			OrderInfo.targetType = *(byte*)p;
+			OrderInfo.state++;
 		}
 		else
 		{
-			OrderNotificationType = *(byte*)p;
+			OrderInfo.OrderNotificationType = *(byte*)p;
 
 			for (int i = 0; i < 32; i++)
 			{
-				if (bots[i].is_used && bots[i].pEdict == recipient)
+				if (bots[i].is_used && bots[i].pEdict == OrderInfo.recipient)
 				{
-					if (OrderNotificationType == kOrderStatusActive)
+					if (OrderInfo.OrderNotificationType == kOrderStatusActive)
 					{
 
 					}
 				}
 			}
 
-			state = 0;
+			OrderInfo.state = 0;
 		}
 	}
-	else if (state == 6)
+	else if (OrderInfo.state == 6)
 	{
-		OrderCompleted = *(byte*)p;
-		state++;
+		OrderInfo.OrderCompleted = *(byte*)p;
+		OrderInfo.state++;
 	}
-	else if (state == 7)
+	else if (OrderInfo.state == 7)
 	{
-		OrderNotificationType = *(byte*)p;
-		state = 0;
+		OrderInfo.OrderNotificationType = *(byte*)p;
+		OrderInfo.state = 0;
 
 		for (int i = 0; i < 32; i++)
 		{
-			if (bots[i].is_used && bots[i].pEdict == recipient)
+			if (bots[i].is_used && bots[i].pEdict == OrderInfo.recipient)
 			{
-				if (OrderNotificationType == kOrderStatusActive)
+				if (OrderInfo.OrderNotificationType == kOrderStatusActive)
 				{
-					BotReceiveCommanderOrder(&bots[i], orderType, (AvHUser3)targetType, moveDestination);
+					BotReceiveCommanderOrder(&bots[i], OrderInfo.orderType, (AvHUser3)OrderInfo.targetType, OrderInfo.moveDestination);
 
 				}
 			}
@@ -884,81 +839,70 @@ void BotClient_NS_ReceiveOrder(void* p, int bot_index)
 	}
 }
 
+void BotClient_NS_AlienInfo_Reset()
+{
+	memset(&HiveInfo, 0, sizeof(hive_info_msg));
+}
+
 void BotClient_NS_AlienInfo_32(void* p, int bot_index)
 {
-	static int state = 0;
-	static int Header;
-	static bool bHiveInfo;
-	static int NumUpgrades;
-	static int currUpgrade;
-	static int Upgrades[32];
-	static int NumHives;
-	static int HiveCounter;
-	static int HiveStatus;
-	static int HiveHealthPercent;
-	static int HiveBuildTime;
-	static AlienInfo_ChangeFlags Changes;
-	static Vector HiveLocation;
-	static int CoordsRead;
-	static bool bReadHeader;
 
-	if (state == 0)
+	if (HiveInfo.state == 0)
 	{
-		bReadHeader = false;
-		Header = *(int*)p;
-		HiveCounter = 0;
-		CoordsRead = 0;
+		HiveInfo.Header = *(int*)p;
+		HiveInfo.HiveCounter = 0;
+		HiveInfo.CoordsRead = 0;
 
-		bHiveInfo = !(Header & 0x80);
+		HiveInfo.bHiveInfo = !(HiveInfo.Header & 0x80);
 
-		state++;
+		HiveInfo.state++;
 	}
-	else if (state == 1)
+	else if (HiveInfo.state == 1)
 	{
-		if (!bHiveInfo)
+		if (!HiveInfo.bHiveInfo)
 		{
 
-			NumUpgrades = *(int*)p;
-			currUpgrade = 0;
-			state++;
+			HiveInfo.NumUpgrades = *(int*)p;
+			HiveInfo.currUpgrade = 0;
+			HiveInfo.state++;
 		}
 		else
 		{
 
-			CoordsRead = 0;
-			NumHives = Header;
-			SetNumberofHives(NumHives);
-			Changes = *(AlienInfo_ChangeFlags*)p;
+			HiveInfo.CoordsRead = 0;
+			HiveInfo.NumHives = HiveInfo.Header;
+			SetNumberofHives(HiveInfo.NumHives);
+			HiveInfo.Changes = *(AlienInfo_ChangeFlags*)p;
 
-			if (NumHives == 0)
+			if (HiveInfo.NumHives == 0)
 			{
-				state = 0;
+				HiveInfo.state = 0;
 			}
 			else
 			{
-				if (Changes & COORDS_CHANGED)
+				if (HiveInfo.Changes & COORDS_CHANGED)
 				{
-					state = 2;
+					HiveInfo.state = 2;
 				}
-				else if (Changes & STATUS_CHANGED)
+				else if (HiveInfo.Changes & STATUS_CHANGED)
 				{
-					state = 3;
+					HiveInfo.state = 3;
 				}
-				else if (Changes & HEALTH_CHANGED)
+				else if (HiveInfo.Changes & HEALTH_CHANGED)
 				{
-					state = 4;
+					HiveInfo.state = 4;
 				}
 				else
 				{
-					HiveCounter++;
+					HiveInfo.HiveCounter++;
 
-					if (HiveCounter >= NumHives)
+					if (HiveInfo.HiveCounter >= HiveInfo.NumHives)
 					{
-						state = 0;
+						HiveInfo.state = 0;
 					}
 					else
 					{
-						state = 1;
+						HiveInfo.state = 1;
 					}
 				}
 			}
@@ -966,183 +910,167 @@ void BotClient_NS_AlienInfo_32(void* p, int bot_index)
 
 
 	}
-	else if (state == 2)
+	else if (HiveInfo.state == 2)
 	{
-		if (!bHiveInfo)
+		if (!HiveInfo.bHiveInfo)
 		{
-			Upgrades[currUpgrade++] = *(int*)p;
+			HiveInfo.Upgrades[HiveInfo.currUpgrade++] = *(int*)p;
 
-			if (currUpgrade >= NumUpgrades)
+			if (HiveInfo.currUpgrade >= HiveInfo.NumUpgrades)
 			{
-				state = 0;
+				HiveInfo.state = 0;
 			}
 		}
 		else
 		{
-			if (CoordsRead == 0)
+			if (HiveInfo.CoordsRead == 0)
 			{
-				HiveLocation.x = *(float*)p;
-				CoordsRead++;
+				HiveInfo.HiveLocation.x = *(float*)p;
+				HiveInfo.CoordsRead++;
 			}
-			else if (CoordsRead == 1)
+			else if (HiveInfo.CoordsRead == 1)
 			{
-				HiveLocation.y = *(float*)p;
-				CoordsRead++;
+				HiveInfo.HiveLocation.y = *(float*)p;
+				HiveInfo.CoordsRead++;
 			}
-			else if (CoordsRead == 2)
+			else if (HiveInfo.CoordsRead == 2)
 			{
-				HiveLocation.z = *(float*)p;
+				HiveInfo.HiveLocation.z = *(float*)p;
 
-				SetHiveLocation(HiveCounter, HiveLocation);
+				SetHiveLocation(HiveInfo.HiveCounter, HiveInfo.HiveLocation);
 
-				CoordsRead = 0;
-				if (Changes & STATUS_CHANGED)
+				HiveInfo.CoordsRead = 0;
+				if (HiveInfo.Changes & STATUS_CHANGED)
 				{
-					state = 3;
+					HiveInfo.state = 3;
 				}
-				else if (Changes & HEALTH_CHANGED)
+				else if (HiveInfo.Changes & HEALTH_CHANGED)
 				{
-					state = 4;
+					HiveInfo.state = 4;
 				}
 				else
 				{
-					HiveCounter++;
+					HiveInfo.HiveCounter++;
 
-					if (HiveCounter >= NumHives)
+					if (HiveInfo.HiveCounter >= HiveInfo.NumHives)
 					{
-						state = 0;
+						HiveInfo.state = 0;
 					}
 					else
 					{
-						state = 1;
+						HiveInfo.state = 1;
 					}
 				}
 			}
 		}
 	}
-	else if (state == 3)
+	else if (HiveInfo.state == 3)
 	{
-		HiveStatus = *(int*)p;
+		HiveInfo.HiveStatus = *(int*)p;
 
-		int StatusType = (HiveStatus >> 3) & 0x03;
+		int StatusType = (HiveInfo.HiveStatus >> 3) & 0x03;
 
-		bool bUnderAttack = (HiveStatus & 0x80) != 0;
-		int HivemStatus = HiveStatus & 0x07;
+		bool bUnderAttack = (HiveInfo.HiveStatus & 0x80) != 0;
+		int HivemStatus = HiveInfo.HiveStatus & 0x07;
 
-		SetHiveStatus(HiveCounter, HivemStatus);
-		SetHiveTechStatus(HiveCounter, StatusType);
-		SetHiveUnderAttack(HiveCounter, bUnderAttack);
+		SetHiveStatus(HiveInfo.HiveCounter, HivemStatus);
+		SetHiveTechStatus(HiveInfo.HiveCounter, StatusType);
+		SetHiveUnderAttack(HiveInfo.HiveCounter, bUnderAttack);
 
-		if (Changes & HEALTH_CHANGED)
+		if (HiveInfo.Changes & HEALTH_CHANGED)
 		{
-			state = 4;
+			HiveInfo.state = 4;
 		}
 		else
 		{
-			HiveCounter++;
+			HiveInfo.HiveCounter++;
 
-			if (HiveCounter >= NumHives)
+			if (HiveInfo.HiveCounter >= HiveInfo.NumHives)
 			{
-				state = 0;
+				HiveInfo.state = 0;
 			}
 			else
 			{
-				state = 1;
+				HiveInfo.state = 1;
 			}
 		}
 
 	}
-	else if (state == 4)
+	else if (HiveInfo.state == 4)
 	{
-		HiveHealthPercent = *(int*)p;
-		SetHiveHealthPercent(HiveCounter, HiveHealthPercent);
-		HiveCounter++;
+		HiveInfo.HiveHealthPercent = *(int*)p;
+		SetHiveHealthPercent(HiveInfo.HiveCounter, HiveInfo.HiveHealthPercent);
+		HiveInfo.HiveCounter++;
 
-		if (HiveCounter >= NumHives)
+		if (HiveInfo.HiveCounter >= HiveInfo.NumHives)
 		{
-			state = 0;
+			HiveInfo.state = 0;
 		}
 		else
 		{
-			state = 1;
+			HiveInfo.state = 1;
 		}
 	}
 }
 
 void BotClient_NS_AlienInfo_33(void* p, int bot_index)
 {
-	static int state = 0;
-	static int Header;
-	static bool bHiveInfo;
-	static int NumUpgrades;
-	static int currUpgrade;
-	static int Upgrades[32];
-	static int NumHives;
-	static int HiveCounter;
-	static int HiveStatus;
-	static int HiveHealthPercent;
-	static int HiveBuildTime;
-	static AlienInfo_ChangeFlags Changes;
-	static Vector HiveLocation;
-	static int CoordsRead;
-	static bool bReadHeader;
 
-	if (state == 0)
+	if (HiveInfo.state == 0)
 	{
-		bReadHeader = false;
-		Header = *(int*)p;
-		HiveCounter = 0;
-		CoordsRead = 0;
+		HiveInfo.Header = *(int*)p;
+		HiveInfo.HiveCounter = 0;
+		HiveInfo.CoordsRead = 0;
 
-		bHiveInfo = !(Header & 0x80);
+		HiveInfo.bHiveInfo = !(HiveInfo.Header & 0x80);
 
-		state++;
+		HiveInfo.state++;
 	}
-	else if (state == 1)
+	else if (HiveInfo.state == 1)
 	{
-		if (!bHiveInfo)
+		if (!HiveInfo.bHiveInfo)
 		{
-			NumUpgrades = *(int*)p;
-			currUpgrade = 0;
-			state++;
+			HiveInfo.NumUpgrades = *(int*)p;
+			HiveInfo.currUpgrade = 0;
+			HiveInfo.state++;
 		}
 		else
 		{
 
-			CoordsRead = 0;
-			NumHives = Header;
-			SetNumberofHives(NumHives);
-			Changes = *(AlienInfo_ChangeFlags*)p;
+			HiveInfo.CoordsRead = 0;
+			HiveInfo.NumHives = HiveInfo.Header;
+			SetNumberofHives(HiveInfo.NumHives);
+			HiveInfo.Changes = *(AlienInfo_ChangeFlags*)p;
 
-			if (NumHives == 0)
+			if (HiveInfo.NumHives == 0)
 			{
-				state = 0;
+				HiveInfo.state = 0;
 			}
 			else
 			{
-				if (Changes & COORDS_CHANGED)
+				if (HiveInfo.Changes & COORDS_CHANGED)
 				{
-					state = 2;
+					HiveInfo.state = 2;
 				}
-				else if (Changes & STATUS_CHANGED)
+				else if (HiveInfo.Changes & STATUS_CHANGED)
 				{
-					state = 3;
+					HiveInfo.state = 3;
 				}
-				else if (Changes & HEALTH_CHANGED)
+				else if (HiveInfo.Changes & HEALTH_CHANGED)
 				{
-					state = 4;
+					HiveInfo.state = 4;
 				}
 				else
 				{
-					HiveCounter++;
+					HiveInfo.HiveCounter++;
 
-					if (HiveCounter >= NumHives)
+					if (HiveInfo.HiveCounter >= HiveInfo.NumHives)
 					{
-						state = 0;
+						HiveInfo.state = 0;
 					}
 					else
 					{
-						state = 1;
+						HiveInfo.state = 1;
 					}
 				}
 			}
@@ -1150,111 +1078,111 @@ void BotClient_NS_AlienInfo_33(void* p, int bot_index)
 
 
 	}
-	else if (state == 2)
+	else if (HiveInfo.state == 2)
 	{
-		if (!bHiveInfo)
+		if (!HiveInfo.bHiveInfo)
 		{
-			Upgrades[currUpgrade++] = *(int*)p;
+			HiveInfo.Upgrades[HiveInfo.currUpgrade++] = *(int*)p;
 
-			if (currUpgrade >= NumUpgrades)
+			if (HiveInfo.currUpgrade >= HiveInfo.NumUpgrades)
 			{
-				state = 0;
+				HiveInfo.state = 0;
 			}
 		}
 		else
 		{
-			if (CoordsRead == 0)
+			if (HiveInfo.CoordsRead == 0)
 			{
-				HiveLocation.x = *(float*)p;
-				CoordsRead++;
+				HiveInfo.HiveLocation.x = *(float*)p;
+				HiveInfo.CoordsRead++;
 			}
-			else if (CoordsRead == 1)
+			else if (HiveInfo.CoordsRead == 1)
 			{
-				HiveLocation.y = *(float*)p;
-				CoordsRead++;
+				HiveInfo.HiveLocation.y = *(float*)p;
+				HiveInfo.CoordsRead++;
 			}
-			else if (CoordsRead == 2)
+			else if (HiveInfo.CoordsRead == 2)
 			{
-				HiveLocation.z = *(float*)p;
+				HiveInfo.HiveLocation.z = *(float*)p;
 
-				SetHiveLocation(HiveCounter, HiveLocation);
+				SetHiveLocation(HiveInfo.HiveCounter, HiveInfo.HiveLocation);
 
-				CoordsRead = 0;
-				if (Changes & STATUS_CHANGED)
+				HiveInfo.CoordsRead = 0;
+				if (HiveInfo.Changes & STATUS_CHANGED)
 				{
-					state = 3;
+					HiveInfo.state = 3;
 				}
-				else if (Changes & HEALTH_CHANGED)
+				else if (HiveInfo.Changes & HEALTH_CHANGED)
 				{
-					state = 4;
+					HiveInfo.state = 4;
 				}
 				else
 				{
-					HiveCounter++;
+					HiveInfo.HiveCounter++;
 
-					if (HiveCounter >= NumHives)
+					if (HiveInfo.HiveCounter >= HiveInfo.NumHives)
 					{
-						state = 0;
+						HiveInfo.state = 0;
 					}
 					else
 					{
-						state = 1;
+						HiveInfo.state = 1;
 					}
 				}
 			}
 		}
 	}
-	else if (state == 3)
+	else if (HiveInfo.state == 3)
 	{
-		HiveStatus = *(int*)p;
+		HiveInfo.HiveStatus = *(int*)p;
 
-		int StatusType = (HiveStatus >> 3) & 0x03;
+		int StatusType = (HiveInfo.HiveStatus >> 3) & 0x03;
 
-		bool bUnderAttack = (HiveStatus & 0x80) != 0;
-		int HivemStatus = HiveStatus & 0x07;
+		bool bUnderAttack = (HiveInfo.HiveStatus & 0x80) != 0;
+		int HivemStatus = HiveInfo.HiveStatus & 0x07;
 
-		SetHiveStatus(HiveCounter, HivemStatus);
-		SetHiveTechStatus(HiveCounter, StatusType);
-		SetHiveUnderAttack(HiveCounter, bUnderAttack);
+		SetHiveStatus(HiveInfo.HiveCounter, HivemStatus);
+		SetHiveTechStatus(HiveInfo.HiveCounter, StatusType);
+		SetHiveUnderAttack(HiveInfo.HiveCounter, bUnderAttack);
 
-		if (Changes & HEALTH_CHANGED)
+		if (HiveInfo.Changes & HEALTH_CHANGED)
 		{
-			state = 4;
+			HiveInfo.state = 4;
 		}
 		else
 		{
-			HiveCounter++;
+			HiveInfo.HiveCounter++;
 
-			if (HiveCounter >= NumHives)
+			if (HiveInfo.HiveCounter >= HiveInfo.NumHives)
 			{
-				state = 0;
+				HiveInfo.state = 0;
 			}
 			else
 			{
-				state = 1;
+				HiveInfo.state = 1;
 			}
 		}
 
 	}
-	else if (state == 4)
+	else if (HiveInfo.state == 4)
 	{
-		HiveHealthPercent = *(int*)p;
-		SetHiveHealthPercent(HiveCounter, HiveHealthPercent);
-		state = 5;
+		HiveInfo.HiveHealthPercent = *(int*)p;
+		SetHiveHealthPercent(HiveInfo.HiveCounter, HiveInfo.HiveHealthPercent);
+		HiveInfo.state = 5;
 	}
-	else if (state == 5)
+	else if (HiveInfo.state == 5)
 	{
-		HiveBuildTime = *(int*)p;
+		HiveInfo.HiveBuildTime = *(int*)p;
 
-		HiveCounter++;
+		HiveInfo.HiveCounter++;
 
-		if (HiveCounter >= NumHives)
+		if (HiveInfo.HiveCounter >= HiveInfo.NumHives)
 		{
-			state = 0;
+			HiveInfo.state = 0;
 		}
 		else
 		{
-			state = 1;
+			HiveInfo.state = 1;
 		}
 	}
 }

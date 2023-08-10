@@ -10,6 +10,8 @@ int BotGetCurrentWeaponMaxClipAmmo(const bot_t* pBot);
 int BotGetCurrentWeaponReserveAmmo(const bot_t* pBot);
 NSWeapon GetBotCurrentWeapon(const bot_t* pBot);
 
+NSWeapon GetBotPrimaryWeapon(const bot_t* pBot);
+
 NSWeapon GetBotMarinePrimaryWeapon(const bot_t* pBot);
 int BotGetPrimaryWeaponClipAmmo(const bot_t* pBot);
 int BotGetPrimaryWeaponMaxClipSize(const bot_t* pBot);
@@ -44,5 +46,15 @@ NSWeapon BotMarineChooseBestWeapon(bot_t* pBot, edict_t* target);
 NSWeapon FadeGetBestWeaponForCombatTarget(bot_t* pBot, edict_t* Target);
 NSWeapon OnosGetBestWeaponForCombatTarget(bot_t* pBot, edict_t* Target);
 NSWeapon SkulkGetBestWeaponForCombatTarget(bot_t* pBot, edict_t* Target);
+NSWeapon GorgeGetBestWeaponForCombatTarget(bot_t* pBot, edict_t* Target);
+NSWeapon LerkGetBestWeaponForCombatTarget(bot_t* pBot, edict_t* Target);
+
+float GetReloadTimeForWeapon(NSWeapon Weapon);
+
+bool CanInterruptWeaponReload(NSWeapon Weapon);
+
+void InterruptReload(bot_t* pBot);
+
+bool IsHitscanWeapon(NSWeapon Weapon);
 
 #endif

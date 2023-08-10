@@ -45,6 +45,40 @@ float UTIL_GetProjectileVelocityForWeapon(const NSWeapon Weapon)
 	}
 }
 
+bool CanInterruptWeaponReload(NSWeapon Weapon)
+{
+	switch (Weapon)
+	{
+		case WEAPON_MARINE_SHOTGUN:
+		case WEAPON_MARINE_GL:
+			return true;
+		default:
+			return false;
+	}
+
+	return false;
+}
+
+float GetReloadTimeForWeapon(NSWeapon Weapon)
+{
+	switch (Weapon)
+	{
+		case WEAPON_MARINE_PISTOL:
+		case WEAPON_MARINE_MG:
+			return 3.0f;
+		case WEAPON_MARINE_HMG:
+			return 6.3f;
+		case WEAPON_MARINE_SHOTGUN:
+			return 0.22f;
+		case WEAPON_MARINE_GL:
+			return 1.5f;
+		default:
+			return 0.0f;
+	}
+
+	return 0.0f;
+}
+
 float GetEnergyCostForWeapon(const NSWeapon Weapon)
 {
 	switch (Weapon)
@@ -99,6 +133,15 @@ float GetEnergyCostForWeapon(const NSWeapon Weapon)
 	}
 }
 
+void InterruptReload(bot_t* pBot)
+{
+	pBot->bHasRequestedReload = false;
+	pBot->current_weapon.bIsReloading = false;
+	pBot->current_weapon.bReloadStartTime = 0.0f;
+
+	pBot->pEdict->v.button |= IN_ATTACK;
+}
+
 NSWeapon UTIL_GetBotAlienPrimaryWeapon(const bot_t* pBot)
 {
 	switch (pBot->bot_ns_class)
@@ -118,6 +161,24 @@ NSWeapon UTIL_GetBotAlienPrimaryWeapon(const bot_t* pBot)
 	}
 
 	return WEAPON_NONE;
+}
+
+bool IsHitscanWeapon(NSWeapon Weapon)
+{
+	switch (Weapon)
+	{
+		case WEAPON_MARINE_MG:
+		case WEAPON_MARINE_HMG:
+		case WEAPON_MARINE_PISTOL:
+		case WEAPON_MARINE_SHOTGUN:
+		case WEAPON_SKULK_PARASITE:
+		case WEAPON_MARINE_WELDER:
+			return true;
+		default:
+			return false;
+	}
+
+	return false;
 }
 
 NSWeapon GetBotMarinePrimaryWeapon(const bot_t* pBot)
@@ -143,6 +204,18 @@ NSWeapon GetBotMarinePrimaryWeapon(const bot_t* pBot)
 	}
 
 	return WEAPON_NONE;
+}
+
+NSWeapon GetBotPrimaryWeapon(const bot_t* pBot)
+{
+	if (IsPlayerMarine(pBot->pEdict))
+	{
+		return GetBotMarinePrimaryWeapon(pBot);
+	}
+	else
+	{
+		return GetBotAlienPrimaryWeapon(pBot);
+	}
 }
 
 NSWeapon GetBotMarineSecondaryWeapon(const bot_t* pBot)
@@ -235,14 +308,17 @@ float GetMaxIdealWeaponRange(const NSWeapon Weapon)
 {
 	switch (Weapon)
 	{
+	case WEAPON_LERK_PRIMALSCREAM:
+		return UTIL_MetresToGoldSrcUnits(100.0f);
+	case WEAPON_LERK_SPORES:
+	case WEAPON_LERK_UMBRA:
+		return UTIL_MetresToGoldSrcUnits(50.0f);
 	case WEAPON_MARINE_GL:
 	case WEAPON_MARINE_MG:
 	case WEAPON_MARINE_PISTOL:
 	case WEAPON_FADE_ACIDROCKET:
 	case WEAPON_SKULK_PARASITE:
 	case WEAPON_SKULK_LEAP:
-	case WEAPON_LERK_SPORES:
-	case WEAPON_LERK_UMBRA:
 	case WEAPON_ONOS_CHARGE:
 		return UTIL_MetresToGoldSrcUnits(20.0f);
 	case WEAPON_MARINE_HMG:
@@ -265,9 +341,11 @@ float GetMaxIdealWeaponRange(const NSWeapon Weapon)
 	case WEAPON_LERK_BITE:
 		return kBite2Range;
 	case WEAPON_GORGE_HEALINGSPRAY:
-		return 60.0f;
+		return kHealingSprayRange;
+	case WEAPON_MARINE_WELDER:
+		return kWelderRange;
 	default:
-		return 32.0f;
+		return max_player_use_reach;
 	}
 }
 
@@ -618,6 +696,17 @@ NSWeapon BotMarineChooseBestWeaponForStructure(bot_t* pBot, edict_t* target)
 	return GetBotMarinePrimaryWeapon(pBot);
 }
 
+NSWeapon GorgeGetBestWeaponForCombatTarget(bot_t* pBot, edict_t* Target)
+{
+	// Apparently I only imagined bile bomb doing damage to marine armour. Leaving it commented out in case we want to enable it again in future
+	/*if (Target->v.armorvalue > 0.0f && PlayerHasWeapon(pBot->pEdict, WEAPON_GORGE_BILEBOMB) && vDist2DSq(pBot->pEdict->v.origin, Target->v.origin) < sqrf(GetMaxIdealWeaponRange(WEAPON_GORGE_BILEBOMB)))
+	{
+		return WEAPON_GORGE_BILEBOMB;
+	}*/
+
+	return WEAPON_GORGE_SPIT;
+}
+
 NSWeapon SkulkGetBestWeaponForCombatTarget(bot_t* pBot, edict_t* Target)
 {
 	if (FNullEnt(Target) || IsPlayerDead(Target))
@@ -639,15 +728,59 @@ NSWeapon SkulkGetBestWeaponForCombatTarget(bot_t* pBot, edict_t* Target)
 		}
 	}
 
-	float DistFromTarget = vDist2DSq(pBot->pEdict->v.origin, Target->v.origin);
-
-	if (!IsPlayerParasited(Target) && DistFromTarget >= sqrf(UTIL_MetresToGoldSrcUnits(5.0f)))
+	if (!IsPlayerParasited(Target))
 	{
-		return WEAPON_SKULK_PARASITE;
+		float DistFromTarget = vDist2DSq(pBot->pEdict->v.origin, Target->v.origin);
+
+		if (DistFromTarget >= sqrf(UTIL_MetresToGoldSrcUnits(5.0f)))
+		{
+			Vector EnemyFacing = UTIL_GetForwardVector2D(Target->v.angles);
+			Vector BotFacing = UTIL_GetVectorNormal2D(Target->v.origin - pBot->pEdict->v.origin);
+
+			float Dot = UTIL_GetDotProduct2D(EnemyFacing, BotFacing);
+
+			// Only use parasite if the enemy is facing towards us. Means we don't ruin the element of surprise if sneaking up on an enemy
+			if (Dot < 0.0f)
+			{
+				return WEAPON_SKULK_PARASITE;
+			}
+		}
 	}
 
 	return WEAPON_SKULK_BITE;
 
+}
+
+NSWeapon LerkGetBestWeaponForCombatTarget(bot_t* pBot, edict_t* Target)
+{
+	if (!IsPlayerBuffed(pBot->pEdict) && PlayerHasWeapon(pBot->pEdict, WEAPON_LERK_PRIMALSCREAM) && pBot->Adrenaline > (GetEnergyCostForWeapon(WEAPON_LERK_PRIMALSCREAM) * 1.25f))
+	{
+		int NumAllies = UTIL_GetNumPlayersOnTeamWithLOS(Target->v.origin, ALIEN_TEAM, UTIL_MetresToGoldSrcUnits(15.0f), pBot->pEdict);
+
+		if (NumAllies > 0)
+		{
+			return WEAPON_LERK_PRIMALSCREAM;
+		}
+	}
+
+	float DistFromEnemy = vDist2DSq(pBot->pEdict->v.origin, Target->v.origin);
+
+	if (DistFromEnemy > sqrf(UTIL_MetresToGoldSrcUnits(5.0f)) && PlayerHasWeapon(pBot->pEdict, WEAPON_LERK_UMBRA) && pBot->Adrenaline > (GetEnergyCostForWeapon(WEAPON_LERK_UMBRA) * 1.25f))
+	{
+		int NumAllies = UTIL_GetNumPlayersOfTeamInArea(Target->v.origin, kUmbraCloudRadius, ALIEN_TEAM, pBot->pEdict, CLASS_NONE, false);
+
+		if (NumAllies > 0)
+		{
+			return WEAPON_LERK_UMBRA;
+		}
+	}
+
+	if (DistFromEnemy > sqrf(UTIL_MetresToGoldSrcUnits(5.0f)) && pBot->Adrenaline > GetEnergyCostForWeapon(WEAPON_LERK_SPORES) && !UTIL_IsAreaAffectedBySpores(Target->v.origin))
+	{
+		return WEAPON_LERK_SPORES;
+	}
+
+	return WEAPON_LERK_BITE;
 }
 
 NSWeapon OnosGetBestWeaponForCombatTarget(bot_t* pBot, edict_t* Target)

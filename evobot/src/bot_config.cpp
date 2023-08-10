@@ -38,6 +38,8 @@ CommanderMode eCommanderMode = COMMANDERMODE_ALWAYS;
 int NSVersion = 33; // 32 for 3.2, 33 for 3.3 (including betas)
 char BotPrefix[32] = "";
 
+float MaxStuckTime = 0.0f;
+
 HiveTechStatus ChamberSequence[3];
 
 std::unordered_map<std::string, TeamSizeDefinitions> TeamSizeMap;
@@ -249,6 +251,17 @@ void ParseConfigFile(bool bOverride)
                 if (isNumber(value.c_str()))
                 {
                     fCommanderWaitTime = (float)atoi(value.c_str());
+                    fCommanderWaitTime = fmaxf(0.0f, fCommanderWaitTime);
+                }
+                continue;
+            }
+
+            if (key.compare("MaxStuckTime") == 0)
+            {
+                if (isNumber(value.c_str()))
+                {
+                    MaxStuckTime = (float)atoi(value.c_str());
+                    MaxStuckTime = fmaxf(0.0f, MaxStuckTime);
                 }
                 continue;
             }
@@ -574,17 +587,58 @@ void CONFIG_RegenerateConfigFile()
     fprintf(NewConfigFile, "# '33' - NS 3.3 and all betas\n");
     fprintf(NewConfigFile, "nsversion=33\n\n");
 
+    fprintf(NewConfigFile, "# What prefix to put in front of a bot's name (can leave blank)\n");
+    fprintf(NewConfigFile, "prefix=[BOT]\n\n");
+
     fprintf(NewConfigFile, "# Bot fill mode. The following options are valid:\n");
     fprintf(NewConfigFile, "# 'fillteams' - Plugin will add and remove bots to meet the desired team sizes (see below)\n");
     fprintf(NewConfigFile, "# 'balanceonly' - Plugin will only add/remove bots to keep teams balanced, it will prefer removing bots over adding\n");
     fprintf(NewConfigFile, "# 'manual' - Plugin will not add/remove any bots automatically, you have to add/remove via the console\n");
     fprintf(NewConfigFile, "BotFillMode=manual\n\n");
 
+    fprintf(NewConfigFile, "# If the bot is stuck trying to move for this long(in seconds), it will suicide to start again.\n");
+    fprintf(NewConfigFile, "# 0 = Will not suicide\n");
+    fprintf(NewConfigFile, "MaxStuckTime=30\n\n");
+
     fprintf(NewConfigFile, "# Desired team sizes. Only used if bot fill mode is 'fillteams'.\n");
     fprintf(NewConfigFile, "# Format is TeamSize=mapname:nummarines/numaliens\n");
     fprintf(NewConfigFile, "# 'default' will be used if playing a map not listed below\n");
-    fprintf(NewConfigFile, "TeamSize=default:6/6\n");
-    fprintf(NewConfigFile, "#TeamSize=ns_machina:8/8\n\n\n\n");
+    fprintf(NewConfigFile, "TeamSize=default:7/7\n");
+    fprintf(NewConfigFile, "TeamSize=ns_machina:8/8\n");
+    fprintf(NewConfigFile, "TeamSize=ns_ragnarok:8/8\n");
+    fprintf(NewConfigFile, "TeamSize=co_faceoff:4/4\n");
+    fprintf(NewConfigFile, "TeamSize=co_core:4/4\n");
+    fprintf(NewConfigFile, "TeamSize=co_pulse:6/6\n");
+    fprintf(NewConfigFile, "TeamSize=co_ulysses:6/6\n");
+    fprintf(NewConfigFile, "TeamSize=co_niveus:5/5\n");
+    fprintf(NewConfigFile, "TeamSize=co_kestral:5/5\n\n\n\n");
+
+
+
+    fprintf(NewConfigFile, "### Skill Settings ###\n\n");
+
+    fprintf(NewConfigFile, "# Bot skill settings. You can define as many settings as you like and reference them by name\n");
+    fprintf(NewConfigFile, "# Format is BotSkillName = name, followed by one of the following:\n");
+    fprintf(NewConfigFile, "# ReactionTime = How quickly in seconds the bot will react to sighting enemies(Marine and Alien)\n");
+    fprintf(NewConfigFile, "# AimSkill = How accurately the bot can lock sights on you after seeing you(Marine and Alien)\n");
+    fprintf(NewConfigFile, "# MovementTracking = How accurately the bot can follow a moving target(Marine and Alien)\n");
+    fprintf(NewConfigFile, "# ViewSpeed = How fast the bot can swivel its view(Marine and Alien)\n");
+    fprintf(NewConfigFile, "# Reference the difficulties by name using the 'botskill' command (see Help.txt)\n\n");
+
+    fprintf(NewConfigFile, "BotSkillName=MyCustomSkill\n");
+    fprintf(NewConfigFile, "MarineReactionTime=0.3\n");
+    fprintf(NewConfigFile, "MarineAimSkill=0.3\n");
+    fprintf(NewConfigFile, "MarineMovementTracking=0.3\n");
+    fprintf(NewConfigFile, "MarineViewSpeed=1.0\n");
+    fprintf(NewConfigFile, "AlienReactionTime=0.3\n");
+    fprintf(NewConfigFile, "AlienAimSkill=0.5\n");
+    fprintf(NewConfigFile, "AlienMovementTracking=0.5\n");
+    fprintf(NewConfigFile, "AlienViewSpeed=1.3\n\n");
+
+    fprintf(NewConfigFile, "# Default bot skill level for all bots created.Must be a valid skill defined above\n");
+    fprintf(NewConfigFile, "DefaultSkillLevel = MyCustomSkill\n\n\n\n");
+
+
 
     fprintf(NewConfigFile, "### Commander Settings ###\n\n");
     fprintf(NewConfigFile, "# Commander enabled mode. The following options are valid:\n");
@@ -597,18 +651,16 @@ void CONFIG_RegenerateConfigFile()
     fprintf(NewConfigFile, "# Note that the bot will ignore this if no humans are present at the base\n");
     fprintf(NewConfigFile, "CommanderWaitTime=10\n\n\n\n");
 
-    fprintf(NewConfigFile, "### NB: BELOW SETTINGS NOT OPERATIONAL IN 0.2a! ###\n");
+
+
     fprintf(NewConfigFile, "### Alien Settings ###\n\n");
     fprintf(NewConfigFile, "# Preferred chamber sequence. Valid entries are 'defense', 'movement' and 'sensory'. Separate sequence with /\n");
     fprintf(NewConfigFile, "# You can also use ? for random, so if you want movement always first but then defense and sensory at random, use\n");
     fprintf(NewConfigFile, "# ChamberSequence:movement/?/?\n");
     fprintf(NewConfigFile, "# # Or if you want sensory always last, but movement and defence random, use\n");
     fprintf(NewConfigFile, "# ChamberSequence=?/?/sensory\n");
-    fprintf(NewConfigFile, "ChamberSequence:movement/defense/sensory\n\n");
+    fprintf(NewConfigFile, "ChamberSequence:defense/movement/sensory\n\n");
 
-    fprintf(NewConfigFile, "# Enabled lifeforms. Skulk is mandatory for obvious reasons. List separated by /\n");
-    fprintf(NewConfigFile, "# If bots are prevented from using fade/onos but can use gorge, they will spend their resources capping resource nodes so its not wasted\n");
-    fprintf(NewConfigFile, "EnabledLifeforms:gorge/fade/onos\n");
 
     fclose(NewConfigFile);
 
@@ -639,6 +691,11 @@ BotFillMode CONFIG_GetBotFillMode()
 float CONFIG_GetCommanderWaitTime()
 {
     return fCommanderWaitTime;
+}
+
+float CONFIG_GetMaxStuckTime()
+{
+    return MaxStuckTime;
 }
 
 CommanderMode CONFIG_GetCommanderMode()
@@ -681,7 +738,7 @@ int CONFIG_GetNSVersion()
     return NSVersion;
 }
 
-const char* UTIL_LookUpLocationName(const char* InputName)
+void UTIL_LookUpLocationName(const char* InputName, char* Result)
 {
     char filename[256];
 
@@ -710,18 +767,20 @@ const char* UTIL_LookUpLocationName(const char* InputName)
         }
     }
 
-    auto delimiterPos = InputString.find("-");
+    auto delimiterPos = InputString.find("Hive -");
 
     if (delimiterPos != std::string::npos)
     {
-        auto AreaName = InputString.substr(delimiterPos + 1);
+        auto AreaName = InputString.substr(delimiterPos + 6);
 
         AreaName.erase(0, AreaName.find_first_not_of(" \r\n\t\v\f"));
 
-        return AreaName.c_str();
+        sprintf(Result, "%s", AreaName.c_str());
+
+        return;
     }
 
-    return InputString.c_str();
+    sprintf(Result, "%s", InputString.c_str());
 }
 
 void CONFIG_PopulateBotNames()

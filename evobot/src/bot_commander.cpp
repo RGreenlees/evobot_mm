@@ -12,6 +12,8 @@
 #include "game_state.h"
 #include "bot_util.h"
 #include "general_util.h"
+#include "bot_task.h"
+#include "player_util.h"
 
 #include <unordered_map>
 
@@ -20,497 +22,79 @@
 #include <meta_api.h>
 
 
-
-extern resource_node ResourceNodes[64];
-extern int NumTotalResNodes;
-
 extern std::unordered_map<int, buildable_structure> MarineBuildableStructureMap;
-
-extern dropped_marine_item AllMarineItems[256];
-extern int NumTotalMarineItems;
-
-extern hive_definition Hives[10];
-extern int NumTotalHives;
 
 extern edict_t* clients[MAX_CLIENTS];
 extern bot_t bots[MAX_CLIENTS];
 
 extern bool bGameIsActive;
 
-bool CommanderProgressAction(bot_t* CommanderBot, int ActionIndex, int Priority)
+void COMM_CommanderProgressAction(bot_t* CommanderBot, commander_action* Action)
 {
-	commander_action* action = &CommanderBot->CurrentCommanderActions[Priority][ActionIndex];
+	if (!Action || Action->ActionType == ACTION_NONE) { return; }
 
-	switch (action->ActionType)
+	switch (Action->ActionType)
 	{
-	case ACTION_BUILD:
-		return CommanderProgressBuildAction(CommanderBot, ActionIndex, Priority);
-	case ACTION_RECYCLE:
-		return CommanderProgressRecycleAction(CommanderBot, ActionIndex, Priority);
-	case ACTION_UPGRADE:
-		return CommanderProgressUpgradeAction(CommanderBot, ActionIndex, Priority);
-	case ACTION_RESEARCH:
-		return CommanderProgressResearchAction(CommanderBot, ActionIndex, Priority);
-	case ACTION_DROPITEM:
-		return CommanderProgressItemDropAction(CommanderBot, ActionIndex, Priority);
-	case ACTION_GIVEORDER:
-		return CommanderProgressOrderAction(CommanderBot, ActionIndex, Priority);
-	default:
-		return false;
-	}
-
-	return false;
-}
-
-bool CommanderProgressBuildAction(bot_t* CommanderBot, int ActionIndex, int Priority)
-{
-	commander_action* action = &CommanderBot->CurrentCommanderActions[Priority][ActionIndex];
-
-	// Structure has been placed successfully
-	if (!FNullEnt(action->StructureOrItem))
-	{
-		Vector StructureLocation = action->StructureOrItem->v.origin;
-
-		// Clear action if the structure is fully built
-		if (UTIL_StructureIsFullyBuilt(action->StructureOrItem))
-		{
-			UTIL_ClearCommanderAction(CommanderBot, ActionIndex, Priority);
-			return false;
-		}
-
-		// If there is someone nearby, just wait. Hopefully they'll build it by themselves
-		if (UTIL_AnyMarinePlayerNearLocation(action->StructureOrItem->v.origin, UTIL_MetresToGoldSrcUnits(15.0f)))
-		{
-			return false;
-		}
-
-		// If we've already assigned someone to build it
-		if (UTIL_ActionHasValidPlayerAssigned(CommanderBot, ActionIndex, Priority))
-		{
-			commander_order* OrderInfo = &CommanderBot->LastPlayerOrders[action->AssignedPlayer];
-
-			// Add this in to prevent order spam
-			if ((gpGlobals->time - OrderInfo->LastReminderTime) < 5.0f) { return false; }
-
-			// If a player is assigned, but we've not actually issued the order yet
-			if (!OrderInfo->bIsActive)
-			{
-				return UTIL_IssueOrderForAction(CommanderBot, action->AssignedPlayer, ActionIndex, Priority);
-			}
-
-			// We've placed the structure since the last order, so now we have to ensure the order target is set correctly
-			if (!FNullEnt(action->StructureOrItem) && FNullEnt(OrderInfo->Target))
-			{
-				OrderInfo->Target = action->StructureOrItem;
-			}
-
-
-			// Player is eligible for a reminder if it has been a while since we gave them an order and they're still miles away
-			bool bEligibleForReminder = (gpGlobals->time - OrderInfo->LastReminderTime) > min_order_reminder_time;
-
-			if (bEligibleForReminder)
-			{
-				float newDist = UTIL_GetPathCostBetweenLocations(MARINE_REGULAR_NAV_PROFILE, clients[action->AssignedPlayer]->v.origin, OrderInfo->Target->v.origin);
-
-				if (newDist > OrderInfo->LastPlayerDistance)
-				{
-					return UTIL_IssueOrderForAction(CommanderBot, action->AssignedPlayer, ActionIndex, Priority);
-				}
-				else
-				{
-					OrderInfo->LastReminderTime = gpGlobals->time - 15.0f;
-					OrderInfo->LastPlayerDistance = newDist;
-				}
-			}
-
-			// They're on their way, leave them alone
-			return false;
-		}
-
-		action->AssignedPlayer = -1;
-
-		// Find the nearest person who isn't already under orders to come and build it
-		int NewAssignedPlayer = UTIL_FindClosestAvailableMarinePlayer(CommanderBot, action->BuildLocation);
-
-		if (NewAssignedPlayer > -1)
-		{
-			action->AssignedPlayer = NewAssignedPlayer;
-			return UTIL_IssueOrderForAction(CommanderBot, NewAssignedPlayer, ActionIndex, Priority);
-		}
-
-		// Didn't find anyone :(
-		return false;
-
-	}
-	else
-	{
-
-		bool bHasEnoughResources = (CommanderBot->resources >= UTIL_GetCostOfStructureType(action->StructureToBuild));
-		if (!bHasEnoughResources) { return false; }
-
-		// If we just tried placing a building, but don't yet see it, wait a second to give it time to register. Prevents building spam.
-		// We return true to prevent the AI switching to other tasks while they should be waiting to see if their last action worked
-		if (action->bHasAttemptedAction && (gpGlobals->time - action->StructureBuildAttemptTime) < build_attempt_retry_time)
-		{
-			return true;
-		}
-
-		// If we are building at base, it's generally safe, so place a structure if any marines are within 20m. Otherwise, they need to be at most 10m away AND have LOS of the build location
-		bool bBuildingAtBase = (vDist2DSq(UTIL_GetCommChairLocation(), action->BuildLocation) < sqrf(UTIL_MetresToGoldSrcUnits(15.0f)));
-		float MaxDistFromBuildLocation = bBuildingAtBase ? UTIL_MetresToGoldSrcUnits(20.0f) : UTIL_MetresToGoldSrcUnits(10.0f);
-
-		bool IsMarineNearby = (bBuildingAtBase) ? UTIL_AnyMarinePlayerNearLocation(action->BuildLocation, MaxDistFromBuildLocation) : UTIL_AnyPlayerOnTeamWithLOS(action->BuildLocation, MARINE_TEAM, MaxDistFromBuildLocation);
-
-		bool IsAlienNearby = UTIL_AnyPlayerOnTeamWithLOS(action->BuildLocation, ALIEN_TEAM, UTIL_MetresToGoldSrcUnits(10.0f));
-
-		// If a marine is ready to build, and there isn't an alien around or offence chamber that could attack it, then go for it
-		if (IsMarineNearby && !IsAlienNearby && !UTIL_AnyTurretWithLOSToLocation(action->BuildLocation, ALIEN_TEAM))
-		{
-			// Otherwise, move to the location and put it down
-			return BotCommanderPlaceStructure(CommanderBot, ActionIndex, Priority);
-		}
-
-		// If not, then order someone to go to that location so we can place it
-		if (UTIL_ActionHasValidPlayerAssigned(CommanderBot, ActionIndex, Priority))
-		{
-			edict_t* AssignedPlayerEdict = clients[action->AssignedPlayer];
-
-			// Add this in to prevent order spam in rare circumstances that the player is already at the location but the bot thinks they're not there yet
-			if ((gpGlobals->time - CommanderBot->LastPlayerOrders[action->AssignedPlayer].LastReminderTime) < 5.0f) { return false; }
-
-			if (!CommanderBot->LastPlayerOrders[action->AssignedPlayer].bIsActive)
-			{
-				return UTIL_IssueOrderForAction(CommanderBot, action->AssignedPlayer, ActionIndex, Priority);
-			}
-
-			bool bIsPlayerAtLocation = (vDist2DSq(AssignedPlayerEdict->v.origin, action->BuildLocation) < sqrf(UTIL_MetresToGoldSrcUnits(5.0f)) && UTIL_PointIsDirectlyReachable(AssignedPlayerEdict->v.origin, action->BuildLocation));
-			bool bHasOrderBeenIssuedRecently = (gpGlobals->time - CommanderBot->LastPlayerOrders[action->AssignedPlayer].LastReminderTime) < min_order_reminder_time;
-
-			if (!bIsPlayerAtLocation && !bHasOrderBeenIssuedRecently)
-			{
-				float newDist = UTIL_GetPathCostBetweenLocations(MARINE_REGULAR_NAV_PROFILE, clients[action->AssignedPlayer]->v.origin, CommanderBot->LastPlayerOrders[action->AssignedPlayer].MoveLocation);
-
-				if (newDist > CommanderBot->LastPlayerOrders[action->AssignedPlayer].LastPlayerDistance)
-				{
-					return UTIL_IssueOrderForAction(CommanderBot, action->AssignedPlayer, ActionIndex, Priority);
-				}
-				else
-				{
-					CommanderBot->LastPlayerOrders[action->AssignedPlayer].LastReminderTime += 5.0f;
-					CommanderBot->LastPlayerOrders[action->AssignedPlayer].LastPlayerDistance = newDist;
-				}
-			}
-
-			return false;
-		}
-
-		action->AssignedPlayer = -1;
-
-		int NewAssignedPlayer = UTIL_FindClosestAvailableMarinePlayer(CommanderBot, action->BuildLocation);
-
-		if (NewAssignedPlayer > -1)
-		{
-			if (IsPlayerHuman(clients[NewAssignedPlayer]) || !(GetBotPointer(clients[NewAssignedPlayer])) || GetBotPointer(clients[NewAssignedPlayer])->CurrentRole != BOT_ROLE_SWEEPER)
-			{
-				action->AssignedPlayer = NewAssignedPlayer;
-				return UTIL_IssueOrderForAction(CommanderBot, NewAssignedPlayer, ActionIndex, Priority);
-			}
-		}
-
-		return false;
-
-	}
-
-	// Didn't find anyone :(
-	return false;
-}
-
-bool CommanderProgressRecycleAction(bot_t* CommanderBot, int ActionIndex, int Priority)
-{
-	commander_action* action = &CommanderBot->CurrentCommanderActions[Priority][ActionIndex];
-
-	// Building is recycling, we're done here
-	if (UTIL_StructureIsRecycling(action->StructureOrItem))
-	{
-		UTIL_ClearCommanderAction(CommanderBot, ActionIndex, Priority);
-		return false;
-	}
-	else
-	{
-		return BotCommanderRecycleStructure(CommanderBot, ActionIndex, Priority);
-	}
-}
-
-bool CommanderProgressUpgradeAction(bot_t* CommanderBot, int ActionIndex, int Priority)
-{
-	commander_action* action = &CommanderBot->CurrentCommanderActions[Priority][ActionIndex];
-
-	switch (action->StructureToBuild)
-	{
-	case STRUCTURE_MARINE_ARMOURY:
-	{
-		if (UTIL_IsArmouryUpgrading(action->StructureOrItem))
-		{
-			UTIL_ClearCommanderAction(CommanderBot, ActionIndex, Priority);
-			return false;
-		}
-	}
-	break;
-	case STRUCTURE_MARINE_TURRETFACTORY:
-	{
-		if (UTIL_IsTurretFactoryUpgrading(action->StructureOrItem))
-		{
-			UTIL_ClearCommanderAction(CommanderBot, ActionIndex, Priority);
-			return false;
-		}
-	}
-	break;
-	default:
+	case ACTION_DEPLOY:
+		BotCommanderDeploy(CommanderBot, Action);
 		break;
+	case ACTION_UPGRADE:
+		BotCommanderUpgradeStructure(CommanderBot, Action);
+		break;
+	case ACTION_RESEARCH:
+		BotCommanderResearchTech(CommanderBot, Action);
+		break;
+	case ACTION_RECYCLE:
+		BotCommanderRecycleStructure(CommanderBot, Action);
+		break;
+	default:
+		return;
 	}
 
-	return BotCommanderUpgradeStructure(CommanderBot, ActionIndex, Priority);
+	return;
 }
 
-bool BotCommanderDropItem(bot_t* pBot, int ActionIndex, int Priority)
+void BotCommanderRecycleStructure(bot_t* pBot, commander_action* Action)
 {
 
-	if (gpGlobals->time < pBot->next_commander_action_time || !UTIL_IsCommanderActionValid(pBot, ActionIndex, Priority))
+	if (Action->NumActionAttempts > 5)
 	{
-		return false;
+		UTIL_ClearCommanderAction(Action);
+		return;
 	}
 
-	commander_action* action = &pBot->CurrentCommanderActions[Priority][ActionIndex];
-
-	if (action->NumActionAttempts > 10)
-	{
-		UTIL_ClearCommanderAction(pBot, ActionIndex, Priority);
-		return false;
-	}
-
-	if (!action->BuildLocation && action->ActionTarget)
-	{
-		action->BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, action->ActionTarget->v.origin, UTIL_MetresToGoldSrcUnits(1.0f));
-	}
-
-	if (action->ItemToDeploy == ITEM_MARINE_SCAN)
-	{
-		if (GetStructureTypeFromEdict(pBot->CommanderCurrentlySelectedBuilding) != STRUCTURE_MARINE_OBSERVATORY)
-		{
-			return BotCommanderSelectStructure(pBot, UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_OBSERVATORY, action->BuildLocation, UTIL_MetresToGoldSrcUnits(1000.0f), true, false), ActionIndex, Priority);
-		}
-	}
-
-	pBot->pEdict->v.v_angle = ZERO_VECTOR;
-
-	Vector CommanderViewOrigin = pBot->pEdict->v.origin;
-	CommanderViewOrigin.z = GetCommanderViewZHeight();
-
-	if (!action->DesiredCommanderLocation || vDist2DSq(action->DesiredCommanderLocation, action->BuildLocation) > sqrf(UTIL_MetresToGoldSrcUnits(2.0f)))
-	{
-		action->DesiredCommanderLocation = UTIL_FindClearCommanderOriginForBuild(pBot, action->BuildLocation, GetCommanderViewZHeight());
-
-		if (action->DesiredCommanderLocation == ZERO_VECTOR)
-		{
-			action->NumActionAttempts++;
-			return false;
-		}
-	}
-
-	if (action->bHasAttemptedAction)
-	{
-		if (action->NumActionAttempts > 2)
-		{
-			UTIL_ClearCommanderAction(pBot, ActionIndex, Priority);
-			return false;
-		}
-		else
-		{
-			action->BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, action->BuildLocation, UTIL_MetresToGoldSrcUnits(1.0f));
-			action->DesiredCommanderLocation = UTIL_FindClearCommanderOriginForBuild(pBot, action->BuildLocation, GetCommanderViewZHeight());
-		}
-	}
-
-	if (vDist2DSq(CommanderViewOrigin, action->DesiredCommanderLocation) > sqrf(8.0f))
-	{
-		action->bHasAttemptedAction = false;
-		pBot->UpMove = action->DesiredCommanderLocation.x / kWorldPosNetworkConstant;
-		pBot->SideMove = action->DesiredCommanderLocation.y / kWorldPosNetworkConstant;
-		pBot->ForwardMove = 0.0f;
-
-		pBot->impulse = IMPULSE_COMMANDER_MOVETO;
-
-		pBot->next_commander_action_time = gpGlobals->time + 0.5f;
-
-		return true;
-	}
-
-	Vector PickRay = UTIL_GetVectorNormal(action->BuildLocation - CommanderViewOrigin);
-
-	pBot->UpMove = PickRay.x * kSelectionNetworkConstant;
-	pBot->SideMove = PickRay.y * kSelectionNetworkConstant;
-	pBot->ForwardMove = PickRay.z * kSelectionNetworkConstant;
-
-	pBot->impulse = action->ItemToDeploy;
-
-	pBot->pEdict->v.button |= IN_ATTACK;
-
-
-	action->NumActionAttempts++;
-	action->bHasAttemptedAction = true;
-	action->StructureBuildAttemptTime = gpGlobals->time;
-
-	pBot->next_commander_action_time = gpGlobals->time + 0.3f;
-
-	if (action->ItemToDeploy == ITEM_MARINE_SCAN)
-	{
-		pBot->CommanderLastScanTime = gpGlobals->time;
-	}
-
-	return true;
-}
-
-bool BotCommanderRecycleStructure(bot_t* pBot, int ActionIndex, int Priority)
-{
-	if (gpGlobals->time < pBot->next_commander_action_time || !UTIL_IsCommanderActionValid(pBot, ActionIndex, Priority))
-	{
-		UTIL_ClearCommanderAction(pBot, ActionIndex, Priority);
-		return false;
-	}
-
-	commander_action* action = &pBot->CurrentCommanderActions[Priority][ActionIndex];
-	buildable_structure* BuildRef = UTIL_GetBuildableStructureRefFromEdict(action->StructureOrItem);
-
-	if (action->NumActionAttempts > 10)
-	{
-		UTIL_ClearCommanderAction(pBot, ActionIndex, Priority);
-		return false;
-	}
+	buildable_structure* BuildRef = UTIL_GetBuildableStructureRefFromEdict(Action->ActionTarget);
 
 	// If we are already selecting the building then we can just send the impulse and finish up
-	if (pBot->CommanderCurrentlySelectedBuilding == action->StructureOrItem)
+	if (pBot->CommanderCurrentlySelectedBuilding == Action->ActionTarget)
 	{
 		if (BuildRef)
 		{
-			if (!vEquals(action->LastAttemptedCommanderLocation, ZERO_VECTOR))
+			if (Action->LastAttemptedCommanderLocation != ZERO_VECTOR)
 			{
-				BuildRef->LastSuccessfulCommanderLocation = action->LastAttemptedCommanderLocation;
+				BuildRef->LastSuccessfulCommanderLocation = Action->LastAttemptedCommanderLocation;
 			}
 
-			if (!vEquals(action->LastAttemptedCommanderAngle, ZERO_VECTOR))
+			if (Action->LastAttemptedCommanderAngle != ZERO_VECTOR)
 			{
-				BuildRef->LastSuccessfulCommanderAngle = action->LastAttemptedCommanderAngle;
+				BuildRef->LastSuccessfulCommanderAngle = Action->LastAttemptedCommanderAngle;
 			}
 		}
 
 		pBot->impulse = IMPULSE_COMMANDER_RECYCLEBUILDING;
-		action->ActionStep = ACTION_STEP_NONE;
+		Action->ActionStep = ACTION_STEP_NONE;
 
 		pBot->next_commander_action_time = gpGlobals->time + commander_action_cooldown;
-		return true;
+		return;
 	}
 
-	return BotCommanderSelectStructure(pBot, action->StructureOrItem, ActionIndex, Priority);
+	BotCommanderSelectStructure(pBot, Action->ActionTarget, Action);
 }
 
-bool CommanderProgressOrderAction(bot_t* CommanderBot, int ActionIndex, int Priority)
-{
-	commander_action* action = &CommanderBot->CurrentCommanderActions[Priority][ActionIndex];
-
-	if (action->AssignedPlayer < 0)
-	{
-		UTIL_ClearCommanderAction(CommanderBot, ActionIndex, Priority);
-		return false;
-	}
-
-	edict_t* PlayerEdict = clients[action->AssignedPlayer];
-
-	if (IsPlayerDead(PlayerEdict) || IsPlayerCommander(PlayerEdict) || !IsPlayerOnMarineTeam(PlayerEdict) || IsPlayerBeingDigested(PlayerEdict))
-	{
-		UTIL_ClearCommanderAction(CommanderBot, ActionIndex, Priority);
-		return false;
-	}
-
-	const resource_node* FreeResNodeIndex = UTIL_FindEligibleResNodeClosestToLocation(PlayerEdict->v.origin, MARINE_TEAM, true);
-
-	if (FreeResNodeIndex)
-	{
-		if (vDist2DSq(PlayerEdict->v.origin, FreeResNodeIndex->origin) > sqrf(UTIL_MetresToGoldSrcUnits(10.0f)))
-		{
-			Vector MoveLoc = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, FreeResNodeIndex->origin, UTIL_MetresToGoldSrcUnits(2.0f));
-			if (MoveLoc == ZERO_VECTOR) { MoveLoc = FreeResNodeIndex->origin; }
-			UTIL_IssueMarineMoveToOrder(CommanderBot, PlayerEdict, MoveLoc);
-		}
-		else
-		{
-			if (FreeResNodeIndex->bIsOccupied)
-			{
-				char buf[128];
-				sprintf(buf, "Destroy the alien tower %s so I can put down one", STRING(PlayerEdict->v.netname));
-				BotTeamSay(CommanderBot, 2.0f, buf);
-			}
-			else if (CommanderBot->resources < kResourceTowerCost)
-			{
-				char buf[128];
-				sprintf(buf, "Hold on %s, just waiting on resources", STRING(PlayerEdict->v.netname));
-				BotTeamSay(CommanderBot, 2.0f, buf);
-			}
-			else
-			{
-				char buf[128];
-				sprintf(buf, "Hold on %s, will drop a tower for you in a moment", STRING(PlayerEdict->v.netname));
-				BotTeamSay(CommanderBot, 2.0f, buf);
-			}
-		}
-		UTIL_ClearCommanderAction(CommanderBot, ActionIndex, Priority);
-		return true;
-	}
-	else
-	{
-		char buf[128];
-		sprintf(buf, "Hold on %s, I'll find something for you to do", STRING(PlayerEdict->v.netname));
-		BotTeamSay(CommanderBot, buf);
-	}
-
-
-	UTIL_ClearCommanderAction(CommanderBot, ActionIndex, Priority);
-
-	return true;
-}
-
-bool UTIL_IssueOrderForAction(bot_t* CommanderBot, int PlayerIndex, int ActionIndex, int Priority)
-{
-	if (gpGlobals->time < CommanderBot->next_commander_action_time) { return false; }
-
-	if (!UTIL_IsCommanderActionValid(CommanderBot, ActionIndex, Priority)) { return false; }
-
-	edict_t* Recipient = clients[PlayerIndex];
-
-	if (IsPlayerDead(Recipient) || !IsPlayerOnMarineTeam(Recipient) || IsPlayerBeingDigested(Recipient)) { return false; }
-
-	commander_action* action = &CommanderBot->CurrentCommanderActions[Priority][ActionIndex];
-
-	if (action->StructureOrItem)
-	{
-		if (action->StructureOrItem->v.deadflag == DEAD_DEAD) { return false; }
-		UTIL_IssueMarineBuildOrder(CommanderBot, Recipient, action->StructureOrItem);
-	}
-	else
-	{
-		Vector MoveLoc = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, action->BuildLocation, UTIL_MetresToGoldSrcUnits(2.0f));
-		if (MoveLoc == ZERO_VECTOR) { MoveLoc = action->BuildLocation; }
-		UTIL_IssueMarineMoveToOrder(CommanderBot, Recipient, MoveLoc);
-	}
-
-	return true;
-}
-
-// TODO: See if we can get AI marines receiving orders from AI commanders correctly. No idea why it doesn't work
 void UTIL_IssueMarineMoveToOrder(bot_t* CommanderBot, edict_t* Recipient, const Vector Destination)
 {
-	if (gpGlobals->time < CommanderBot->next_commander_action_time) { return; }
-
 	if (!IsPlayerOnMarineTeam(Recipient) || IsPlayerDead(Recipient) || IsPlayerCommander(Recipient) || IsPlayerBeingDigested(Recipient)) { return; }
+
 
 	MESSAGE_BEGIN(MSG_ONE, REG_USER_MSG("SetOrder", -1), NULL, Recipient);
 	WRITE_BYTE(ENTINDEX(Recipient));
@@ -536,7 +120,7 @@ void UTIL_IssueMarineMoveToOrder(bot_t* CommanderBot, edict_t* Recipient, const 
 		}
 	}
 
-	CommanderBot->next_commander_action_time = gpGlobals->time + 0.5f;
+	CommanderBot->next_commander_action_time = gpGlobals->time + 1.0f;
 
 	for (int i = 0; i < MAX_CLIENTS; i++)
 	{
@@ -554,11 +138,179 @@ void UTIL_IssueMarineMoveToOrder(bot_t* CommanderBot, edict_t* Recipient, const 
 	}
 }
 
+void COMM_IssueMarineSiegeHiveOrder(bot_t* CommanderBot, edict_t* Recipient, const hive_definition* HiveToSiege, const Vector SiegePosition)
+{
+	if (!HiveToSiege || FNullEnt(Recipient) || !IsPlayerActiveInGame(Recipient)) { return; }
+
+	int ClientIndex = GAME_GetClientIndex(Recipient);
+
+	if (ClientIndex < 0) { return; }
+
+	CommanderBot->LastPlayerOrders[ClientIndex].bIsActive = true;
+	CommanderBot->LastPlayerOrders[ClientIndex].MoveLocation = SiegePosition;
+	CommanderBot->LastPlayerOrders[ClientIndex].OrderPurpose = ORDERPURPOSE_SIEGE_HIVE;
+	CommanderBot->LastPlayerOrders[ClientIndex].Target = HiveToSiege->edict;
+	CommanderBot->LastPlayerOrders[ClientIndex].OrderType = ORDERTYPEL_MOVE;
+
+	MESSAGE_BEGIN(MSG_ONE, REG_USER_MSG("SetOrder", -1), NULL, Recipient);
+	WRITE_BYTE(ENTINDEX(Recipient));
+	WRITE_BYTE(ORDERTYPEL_MOVE);
+
+	WRITE_COORD(SiegePosition.x);
+	WRITE_COORD(SiegePosition.y);
+	WRITE_COORD(SiegePosition.z);
+
+	WRITE_BYTE(AVH_USER3_NONE);
+	WRITE_BYTE(false);
+	WRITE_BYTE(kOrderStatusActive);
+
+	MESSAGE_END();
+
+	if (IsPlayerBot(Recipient))
+	{
+		bot_t* BotRef = GetBotPointer(Recipient);
+
+		if (BotRef)
+		{
+			BotReceiveCommanderOrder(BotRef, ORDERTYPEL_MOVE, AVH_USER3_NONE, SiegePosition);
+		}
+	}
+}
+
+void COMM_IssueMarineSecureResNodeOrder(bot_t* CommanderBot, edict_t* Recipient, const resource_node* ResNode)
+{
+	if (!ResNode || FNullEnt(Recipient) || !IsPlayerActiveInGame(Recipient)) { return; }
+
+	int ClientIndex = GAME_GetClientIndex(Recipient);
+
+	if (ClientIndex < 0) { return; }
+
+	Vector MoveLocation = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, ResNode->origin, UTIL_MetresToGoldSrcUnits(3.0f));
+
+	if (MoveLocation == ZERO_VECTOR)
+	{
+		MoveLocation = ResNode->origin;
+	}
+
+	CommanderBot->LastPlayerOrders[ClientIndex].bIsActive = true;
+	CommanderBot->LastPlayerOrders[ClientIndex].MoveLocation = MoveLocation;
+	CommanderBot->LastPlayerOrders[ClientIndex].OrderPurpose = ORDERPURPOSE_SECURE_RESNODE;
+	CommanderBot->LastPlayerOrders[ClientIndex].Target = ResNode->edict;
+	CommanderBot->LastPlayerOrders[ClientIndex].OrderType = ORDERTYPEL_MOVE;
+
+	MESSAGE_BEGIN(MSG_ONE, REG_USER_MSG("SetOrder", -1), NULL, Recipient);
+	WRITE_BYTE(ENTINDEX(Recipient));
+	WRITE_BYTE(ORDERTYPEL_MOVE);
+
+	WRITE_COORD(MoveLocation.x);
+	WRITE_COORD(MoveLocation.y);
+	WRITE_COORD(MoveLocation.z);
+
+	WRITE_BYTE(AVH_USER3_NONE);
+	WRITE_BYTE(false);
+	WRITE_BYTE(kOrderStatusActive);
+
+	MESSAGE_END();
+
+	if (IsPlayerBot(Recipient))
+	{
+		bot_t* BotRef = GetBotPointer(Recipient);
+
+		if (BotRef)
+		{
+			BotReceiveCommanderOrder(BotRef, ORDERTYPEL_MOVE, AVH_USER3_NONE, MoveLocation);
+		}
+	}
+}
+
+
+void COMM_IssueMarineSecureHiveOrder(bot_t* CommanderBot, edict_t* Recipient, const hive_definition* HiveToSecure)
+{
+	if (!HiveToSecure || FNullEnt(Recipient) || !IsPlayerActiveInGame(Recipient)) { return; }
+
+	int ClientIndex = GAME_GetClientIndex(Recipient);
+
+	if (ClientIndex < 0) { return; }
+
+	bool bSecureResNode = true;
+
+	edict_t* TF = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ANYTURRETFACTORY, HiveToSecure->FloorLocation, UTIL_MetresToGoldSrcUnits(15.0f), true, false);
+
+	if (FNullEnt(TF) || !UTIL_StructureIsFullyBuilt(TF)) { bSecureResNode = false; }
+
+	bool bPhaseGatesAvailable = UTIL_ResearchIsComplete(RESEARCH_OBSERVATORY_PHASETECH);
+
+	if (bPhaseGatesAvailable)
+	{
+		edict_t* PhaseGate = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_PHASEGATE, HiveToSecure->FloorLocation, UTIL_MetresToGoldSrcUnits(15.0f), true, false);
+
+		if (FNullEnt(PhaseGate) || !UTIL_StructureIsFullyBuilt(PhaseGate)) { bSecureResNode = false; }
+	}
+
+	if (!FNullEnt(TF))
+	{
+		int NumTurrets = UTIL_GetNumBuiltStructuresOfTypeInRadius(STRUCTURE_MARINE_TURRET, TF->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
+
+		if (NumTurrets < 5) { bSecureResNode = false; }
+	}
+
+	Vector OrderLocation = ZERO_VECTOR;
+
+	const resource_node* ResNode = UTIL_GetResourceNodeAtIndex(HiveToSecure->HiveResNodeIndex);
+
+	if (bSecureResNode && ResNode)
+	{
+		
+		OrderLocation = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, ResNode->origin, UTIL_MetresToGoldSrcUnits(2.0f));
+	}
+	else
+	{
+		Vector NearestPoint = FindClosestNavigablePointToDestination(MARINE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), HiveToSecure->FloorLocation, UTIL_MetresToGoldSrcUnits(10.0f));
+
+		if (NearestPoint == ZERO_VECTOR || vDist2DSq(NearestPoint, HiveToSecure->FloorLocation) > sqrf(UTIL_MetresToGoldSrcUnits(10.0f)))
+		{
+			NearestPoint = HiveToSecure->FloorLocation;
+		}
+
+		OrderLocation = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, NearestPoint, UTIL_MetresToGoldSrcUnits(5.0f));
+	}
+
+	CommanderBot->LastPlayerOrders[ClientIndex].bIsActive = true;
+	CommanderBot->LastPlayerOrders[ClientIndex].MoveLocation = OrderLocation;
+	CommanderBot->LastPlayerOrders[ClientIndex].OrderPurpose = ORDERPURPOSE_SECURE_HIVE;
+	CommanderBot->LastPlayerOrders[ClientIndex].Target = HiveToSecure->edict;
+	CommanderBot->LastPlayerOrders[ClientIndex].OrderType = ORDERTYPEL_MOVE;
+
+	MESSAGE_BEGIN(MSG_ONE, REG_USER_MSG("SetOrder", -1), NULL, Recipient);
+	WRITE_BYTE(ENTINDEX(Recipient));
+	WRITE_BYTE(ORDERTYPEL_MOVE);
+
+	WRITE_COORD(OrderLocation.x);
+	WRITE_COORD(OrderLocation.y);
+	WRITE_COORD(OrderLocation.z);
+
+	WRITE_BYTE(AVH_USER3_NONE);
+	WRITE_BYTE(false);
+	WRITE_BYTE(kOrderStatusActive);
+
+	MESSAGE_END();
+
+	if (IsPlayerBot(Recipient))
+	{
+		bot_t* BotRef = GetBotPointer(Recipient);
+
+		if (BotRef)
+		{
+			BotReceiveCommanderOrder(BotRef, ORDERTYPEL_MOVE, AVH_USER3_NONE, OrderLocation);
+		}
+	}
+
+}
+
 void UTIL_IssueMarineBuildOrder(bot_t* CommanderBot, edict_t* Recipient, edict_t* StructureToBuild)
 {
-	if (FNullEnt(StructureToBuild) || StructureToBuild->v.deadflag == DEAD_DEAD) { return; }
+	if (FNullEnt(StructureToBuild) || StructureToBuild->v.deadflag != DEAD_NO) { return; }
 
-	if (gpGlobals->time < CommanderBot->next_commander_action_time) { return; }
 
 	if (IsPlayerDead(Recipient) || !IsPlayerOnMarineTeam(Recipient) || IsPlayerCommander(Recipient) || IsPlayerBeingDigested(Recipient)) { return; }
 
@@ -584,9 +336,7 @@ void UTIL_IssueMarineBuildOrder(bot_t* CommanderBot, edict_t* Recipient, edict_t
 		}
 	}
 
-
-	CommanderBot->next_commander_action_time = gpGlobals->time + 0.5f;
-
+	CommanderBot->next_commander_action_time = gpGlobals->time + 1.0f;
 
 	for (int i = 0; i < MAX_CLIENTS; i++)
 	{
@@ -595,7 +345,7 @@ void UTIL_IssueMarineBuildOrder(bot_t* CommanderBot, edict_t* Recipient, edict_t
 			float dist = UTIL_GetPathCostBetweenLocations(MARINE_REGULAR_NAV_PROFILE, Recipient->v.origin, StructureToBuild->v.origin);
 			CommanderBot->LastPlayerOrders[i].bIsActive = true;
 			CommanderBot->LastPlayerOrders[i].OrderType = ORDERTYPET_BUILD;
-			CommanderBot->LastPlayerOrders[i].MoveLocation = ZERO_VECTOR;
+			CommanderBot->LastPlayerOrders[i].MoveLocation = StructureToBuild->v.origin;
 			CommanderBot->LastPlayerOrders[i].Target = StructureToBuild;
 			CommanderBot->LastPlayerOrders[i].LastReminderTime = gpGlobals->time;
 			CommanderBot->LastPlayerOrders[i].LastPlayerDistance = dist;
@@ -648,10 +398,6 @@ void CommanderReceiveHealthRequest(bot_t* pBot, edict_t* Requestor)
 
 	if (Requestor->v.health < 100.0f)
 	{
-		for (int i = 0; i < 2; i++)
-		{
-			CommanderQueueItemDrop(pBot, ITEM_MARINE_HEALTHPACK, ZERO_VECTOR, Requestor, 0);
-		}
 
 	}
 }
@@ -662,30 +408,25 @@ void CommanderReceiveAmmoRequest(bot_t* pBot, edict_t* Requestor)
 
 	if (UTIL_StructureOfTypeExistsInLocation(STRUCTURE_MARINE_ANYARMOURY, Requestor->v.origin, UTIL_MetresToGoldSrcUnits(15.0f)))
 	{
-		char buf[64];
+		char buf[512];
 		sprintf(buf, "Can you use the armoury please, %s?", STRING(Requestor->v.netname));
 		BotTeamSay(pBot, 2.0f, buf);
 		return;
 	}
 
-	if (UTIL_GetItemCountOfTypeInArea(ITEM_MARINE_AMMO, Requestor->v.origin, UTIL_MetresToGoldSrcUnits(10.0f)) > 0)
+	if (UTIL_GetItemCountOfTypeInArea(DEPLOYABLE_ITEM_MARINE_AMMO, Requestor->v.origin, UTIL_MetresToGoldSrcUnits(10.0f)) > 0)
 	{
-		char buf[64];
+		char buf[512];
 		sprintf(buf, "I've already dropped ammo there, %s", STRING(Requestor->v.netname));
 		BotTeamSay(pBot, 2.0f, buf);
 		return;
 	}
 
-	for (int i = 0; i < 3; i++)
-	{
-		CommanderQueueItemDrop(pBot, ITEM_MARINE_AMMO, ZERO_VECTOR, Requestor, 0);
-	}
 }
 
 void CommanderReceiveOrderRequest(bot_t* pBot, edict_t* Requestor)
 {
 	int PlayerIndex = GetPlayerIndex(Requestor);
-	CommanderQueueActionOrder(pBot, 0, PlayerIndex);
 }
 
 void CommanderReceiveBaseAttackAlert(bot_t* pBot, const Vector Location)
@@ -704,15 +445,350 @@ void CommanderReceiveBaseAttackAlert(bot_t* pBot, const Vector Location)
 		{
 			bot_t* DefenderBot = GetBotPointer(clients[MarineIndex]);
 
-			if (DefenderBot && (DefenderBot->SecondaryBotTask.TaskType == TASK_NONE || !DefenderBot->SecondaryBotTask.bOrderIsUrgent))
+			if (DefenderBot && (DefenderBot->SecondaryBotTask.TaskType == TASK_NONE || !DefenderBot->SecondaryBotTask.bTaskIsUrgent))
 			{
-				DefenderBot->SecondaryBotTask.TaskType = TASK_DEFEND;
-				DefenderBot->SecondaryBotTask.bOrderIsUrgent = true;
-				DefenderBot->SecondaryBotTask.TaskTarget = AttackedStructure;
-				DefenderBot->SecondaryBotTask.TaskLocation = AttackedStructure->v.origin;
+				TASK_SetDefendTask(DefenderBot, &DefenderBot->SecondaryBotTask, AttackedStructure, true);
 			}
 		}
 	}
+}
+
+void COMM_UpdateAndClearCommanderOrders(bot_t* CommanderBot)
+{
+	if (COMM_ClearCompletedOrders(CommanderBot)) { return; }
+
+	int MaxMarines = GAME_GetNumActivePlayersOnTeam(MARINE_TEAM);
+
+	const hive_definition* NearestEmptyHive = COMM_GetUnsecuredEmptyHiveNearestLocation(CommanderBot, UTIL_GetCommChairLocation());
+
+	if (NearestEmptyHive != nullptr)
+	{
+
+		if (COMM_SecureHiveNeedsDeployment(CommanderBot, NearestEmptyHive))
+		{
+			int NumMarines = COMM_GetNumMarinesSecuringHive(CommanderBot, NearestEmptyHive, UTIL_MetresToGoldSrcUnits(15.0f));
+
+				int MarineDeficit = 2 - NumMarines;
+
+				if (MarineDeficit > 0)
+				{
+					edict_t* NearestMarine = COMM_GetNearestMarineWithoutOrder(CommanderBot, NearestEmptyHive->FloorLocation, UTIL_MetresToGoldSrcUnits(15.0f), UTIL_MetresToGoldSrcUnits(500.0f));
+
+						if (!FNullEnt(NearestMarine))
+						{
+							COMM_IssueMarineSecureHiveOrder(CommanderBot, NearestMarine, NearestEmptyHive);
+							return;
+						}
+				}
+		}
+	}
+
+	if (UTIL_ResearchIsComplete(RESEARCH_OBSERVATORY_PHASETECH))
+	{
+		const hive_definition* SiegeHive = COMM_GetHiveSiegeOpportunityNearestLocation(CommanderBot, UTIL_GetCommChairLocation());
+
+		if (SiegeHive)
+		{
+			int NumMarines = COMM_GetNumMarinesSiegingHive(CommanderBot, SiegeHive, UTIL_MetresToGoldSrcUnits(25.0f));
+
+			int MarineDeficit = 2 - NumMarines;
+
+			if (MarineDeficit > 0)
+			{
+				edict_t* NearestMarine = COMM_GetNearestMarineWithoutOrder(CommanderBot, SiegeHive->FloorLocation, UTIL_MetresToGoldSrcUnits(25.0f), UTIL_MetresToGoldSrcUnits(500.0f));
+
+				if (!FNullEnt(NearestMarine))
+				{
+					Vector SiegePosition = COMM_GetGoodSiegeLocation(SiegeHive);
+					if (SiegePosition != ZERO_VECTOR)
+					{
+						COMM_IssueMarineSiegeHiveOrder(CommanderBot, NearestMarine, SiegeHive, SiegePosition);
+					}					
+					return;
+				}
+			}
+		}
+	}
+
+	const resource_node* ResNode = UTIL_FindEligibleResNodeClosestToLocation(UTIL_GetCommChairLocation(), MARINE_TEAM, false);
+
+	if (ResNode != nullptr)
+	{
+		int NumMarines = COMM_GetNumMarinesSecuringResNode(CommanderBot, ResNode, UTIL_MetresToGoldSrcUnits(5.0f));
+
+		int MarineDeficit = 1 - NumMarines;
+
+		if (MarineDeficit > 0)
+		{
+			edict_t* NearestMarine = COMM_GetNearestMarineWithoutOrder(CommanderBot, ResNode->origin, UTIL_MetresToGoldSrcUnits(5.0f), UTIL_MetresToGoldSrcUnits(30.0f));
+
+			if (!FNullEnt(NearestMarine))
+			{
+				COMM_IssueMarineSecureResNodeOrder(CommanderBot, NearestMarine, ResNode);
+				return;
+			}
+		}
+	}
+
+}
+
+Vector COMM_GetGoodSiegeLocation(const hive_definition* HiveToSiege)
+{
+	edict_t* ExistingPG = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_PHASEGATE, HiveToSiege->FloorLocation, UTIL_MetresToGoldSrcUnits(25.0f), true, false);
+
+	if (!FNullEnt(ExistingPG))
+	{
+		return ExistingPG->v.origin;
+	}
+
+	Vector Point = UTIL_GetRandomPointOnNavmeshInDonut(MARINE_REGULAR_NAV_PROFILE, HiveToSiege->FloorLocation, UTIL_MetresToGoldSrcUnits(15.0f), UTIL_MetresToGoldSrcUnits(20.0f));
+
+	if (Point != ZERO_VECTOR && !UTIL_QuickTrace(nullptr, Point + Vector(0.0f, 0.0f, 32.0f), HiveToSiege->Location))
+	{
+		return Point;
+	}
+
+	return ZERO_VECTOR;
+}
+
+int COMM_GetNumMarinesSiegingHive(bot_t* CommanderBot, const hive_definition* Hive, float MaxDistance)
+{
+	int Result = 0;
+
+	float MaxDistSq = sqrf(MaxDistance);
+
+	for (int i = 0; i < MAX_CLIENTS; i++)
+	{
+		if (IsPlayerMarine(clients[i]) && IsPlayerActiveInGame(clients[i]))
+		{
+			if (vDist2DSq(clients[i]->v.origin, Hive->FloorLocation) < MaxDistSq)
+			{
+				Result++;
+			}
+			else
+			{
+				if (CommanderBot->LastPlayerOrders[i].bIsActive)
+				{
+					if (CommanderBot->LastPlayerOrders[i].OrderPurpose == ORDERPURPOSE_SIEGE_HIVE && CommanderBot->LastPlayerOrders[i].Target == Hive->edict)
+					{
+						Result++;
+					}
+				}
+			}
+		}
+	}
+
+	return Result;
+}
+
+int COMM_GetNumMarinesSecuringResNode(bot_t* CommanderBot, const resource_node* ResNode, float MaxDistance)
+{
+	int Result = 0;
+
+	float MaxDistSq = sqrf(MaxDistance);
+
+	for (int i = 0; i < MAX_CLIENTS; i++)
+	{
+		if (IsPlayerMarine(clients[i]) && IsPlayerActiveInGame(clients[i]))
+		{
+			if (vDist2DSq(clients[i]->v.origin, ResNode->origin) < MaxDistSq)
+			{
+				Result++;
+			}
+			else
+			{
+				if (CommanderBot->LastPlayerOrders[i].bIsActive)
+				{
+					if (CommanderBot->LastPlayerOrders[i].OrderPurpose == ORDERPURPOSE_SECURE_RESNODE && CommanderBot->LastPlayerOrders[i].Target == ResNode->edict)
+					{
+						Result++;
+					}
+				}
+			}
+		}
+	}
+
+	return Result;
+}
+
+int COMM_GetNumMarinesSecuringHive(bot_t* CommanderBot, const hive_definition* Hive, float MaxDistance)
+{
+	int Result = 0;
+
+	float MaxDistSq = sqrf(MaxDistance);
+
+	for (int i = 0; i < MAX_CLIENTS; i++)
+	{
+		if (IsPlayerMarine(clients[i]) && IsPlayerActiveInGame(clients[i]))
+		{
+			if (IsPlayerBot(clients[i]))
+			{
+				bot_t* BotRef = GetBotPointer(clients[i]);
+
+				if (BotRef)
+				{
+					if (BotRef->CommanderTask.TaskType == TASK_SECURE_HIVE)
+					{
+						const hive_definition* TaskHive = UTIL_GetHiveFromEdict(BotRef->CommanderTask.TaskTarget);
+
+						if (TaskHive == Hive)
+						{
+							Result++;
+						}
+					}
+				}
+			}
+			else
+			{
+				if (vDist2DSq(clients[i]->v.origin, Hive->FloorLocation) < MaxDistSq)
+				{
+					Result++;
+				}
+				else
+				{
+					if (CommanderBot->LastPlayerOrders[i].bIsActive)
+					{
+						if (vDist2DSq(CommanderBot->LastPlayerOrders[i].MoveLocation, Hive->FloorLocation) <= MaxDistSq)
+						{
+							Result++;
+						}
+					}
+				}
+			}
+			
+		}
+	}
+
+	return Result;
+}
+
+edict_t* COMM_GetNearestMarineWithoutOrder(bot_t* CommanderBot, const Vector SearchLocation, float MinDistance, float MaxDistance)
+{
+	edict_t* Result = nullptr;
+	float MinDist = 0.0f;
+	float MinDistanceSq = sqrf(MinDistance);
+	float MaxDistanceSq = sqrf(MaxDistance);
+
+	for (int i = 0; i < MAX_CLIENTS; i++)
+	{
+		if (FNullEnt(clients[i]) || !IsPlayerMarine(clients[i]) || !IsPlayerActiveInGame(clients[i])) { continue; }
+
+		if (CommanderBot->LastPlayerOrders[i].bIsActive)
+		{
+			continue;
+		}
+
+		// Don't issue commands to bots acting as a sweeper or securing a hive, they have important stuff to do
+		if (IsPlayerBot(clients[i]))
+		{
+			bot_t* BotRef = GetBotPointer(clients[i]);
+
+			if (BotRef)
+			{
+				if (BotRef->CurrentRole == BOT_ROLE_SWEEPER) { continue; }
+
+				if (BotRef->CommanderTask.TaskType == TASK_SECURE_HIVE) { continue; }
+			}
+		}
+
+		float ThisDist = vDist2DSq(clients[i]->v.origin, SearchLocation);
+
+		if (ThisDist < MinDistanceSq || ThisDist > MaxDistanceSq) { continue; }
+
+		if (!Result || ThisDist < MinDist)
+		{
+			Result = clients[i];
+			MinDist = ThisDist;
+		}
+
+	}
+
+	return Result;
+}
+
+int COMM_GetNumMoveOrdersNearLocation(bot_t* CommanderBot, const Vector Location, const float MaxDistance)
+{
+	int Result = 0;
+	float MaxDistSq = sqrf(MaxDistance);
+
+	for (int i = 0; i < MAX_CLIENTS; i++)
+	{
+		if (CommanderBot->LastPlayerOrders[i].bIsActive)
+		{
+			if (FNullEnt(clients[i]))
+			{
+				continue;
+			}
+
+			if (vDist2DSq(CommanderBot->LastPlayerOrders[i].MoveLocation, Location) <= MaxDistSq)
+			{
+				Result++;
+			}
+		}
+	}
+
+	return Result;
+}
+
+int COMM_GetNumMarinesAndOrdersInLocation(bot_t* CommanderBot, const Vector Location, const float SearchDist)
+{
+	int Result = 0;
+	float MaxDistSq = sqrf(SearchDist);
+
+	for (int i = 0; i < MAX_CLIENTS; i++)
+	{
+		if (CommanderBot->LastPlayerOrders[i].bIsActive)
+		{
+			if (FNullEnt(clients[i]) || clients[i]->v.team != CommanderBot->pEdict->v.team)
+			{
+				continue;
+			}
+
+			if (vDist2DSq(clients[i]->v.origin, Location) < MaxDistSq)
+			{
+				Result++;
+			}
+			else
+			{
+				if (vDist2DSq(CommanderBot->LastPlayerOrders[i].MoveLocation, Location) <= MaxDistSq)
+				{
+					Result++;
+				}
+			}
+
+			
+		}
+	}
+
+	return Result;
+}
+
+bool COMM_ClearCompletedOrders(bot_t* CommanderBot)
+{
+	for (int i = 0; i < MAX_CLIENTS; i++)
+	{
+		if (CommanderBot->LastPlayerOrders[i].bIsActive)
+		{
+			if (FNullEnt(clients[i]))
+			{
+				UTIL_ClearCommanderOrder(CommanderBot, i);
+				continue;
+			}
+
+			if (UTIL_IsMarineOrderComplete(CommanderBot, i))
+			{
+				bool bMessageSent = UTIL_ConfirmMarineOrderComplete(CommanderBot, i);
+
+				// Only send one message per frame
+				if (bMessageSent)
+				{
+					return true;
+				}
+			}
+		}
+	}
+
+	return false;
 }
 
 void UpdateCommanderOrders(bot_t* Commander)
@@ -744,431 +820,159 @@ void UpdateCommanderOrders(bot_t* Commander)
 	}
 }
 
-void UpdateCommanderActions(bot_t* Commander)
+bool ShouldCommanderLeaveChair(bot_t* pBot)
 {
-	if (gpGlobals->time < Commander->next_commander_action_time) { return; }
+	int NumAliveMarinesInBase = UTIL_GetNumPlayersOfTeamInArea(UTIL_GetCommChairLocation(), UTIL_MetresToGoldSrcUnits(30.0f), pBot->pEdict->v.team, pBot->pEdict, CLASS_NONE, true);
 
-	// Loop through all actions, starting with highest priority (0 = highest, 4 = lowest), stop when there's an action we can progress
-	for (int Priority = 0; Priority < MAX_ACTION_PRIORITIES; Priority++)
-	{
-		for (int ActionIndex = 0; ActionIndex < MAX_PRIORITY_ACTIONS; ActionIndex++)
-		{
-			commander_action* action = &Commander->CurrentCommanderActions[Priority][ActionIndex];
+	if (NumAliveMarinesInBase > 0) { return false; }
 
-			if (!action->bIsActive) { continue; }
+	int NumUnbuiltStructuresInBase = UTIL_GetNumUnbuiltStructuresOfTeamInArea(pBot->pEdict->v.team, UTIL_GetCommChairLocation(), UTIL_MetresToGoldSrcUnits(20.0f));
 
-			bool bPerformedAction = CommanderProgressAction(Commander, ActionIndex, Priority);
+	if (NumUnbuiltStructuresInBase == 0) { return false; }
 
-			if (bPerformedAction)
-			{
-				return;
-			}
-		}
-	}
-}
+	int NumInfantryPortals = UTIL_GetNumBuiltStructuresOfTypeInRadius(STRUCTURE_MARINE_INFANTRYPORTAL, UTIL_GetCommChairLocation(), UTIL_MetresToGoldSrcUnits(10.0f));
 
-int UTIL_CommanderFirstFreeActionIndex(bot_t* CommanderBot, int Priority)
-{
-	for (int i = 0; i < MAX_PRIORITY_ACTIONS; i++)
-	{
-		if (!CommanderBot->CurrentCommanderActions[Priority][i].bIsActive)
-		{
-			return i;
-		}
-	}
+	if (NumInfantryPortals == 0) { return true; }
 
-	return -1;
-}
+	if (GAME_GetNumDeadPlayersOnTeam(pBot->pEdict->v.team) == 0) { return true; }
 
-void CommanderQueueActionOrder(bot_t* pBot, int Priority, int AssignedPlayer)
-{
-	int NextActionIndex = UTIL_CommanderFirstFreeActionIndex(pBot, Priority);
-
-	if (NextActionIndex > -1)
-	{
-		commander_action* action = &pBot->CurrentCommanderActions[Priority][NextActionIndex];
-
-		UTIL_ClearCommanderAction(pBot, NextActionIndex, Priority);
-
-		action->bIsActive = true;
-		action->ActionType = ACTION_GIVEORDER;
-		action->AssignedPlayer = AssignedPlayer;
-	}
-}
-
-void CommanderQueueItemDrop(bot_t* pBot, NSDeployableItem ItemToDeploy, const Vector DropLocation, edict_t* Recipient, int Priority)
-{
-	if (!UTIL_ItemCanBeDeployed(ItemToDeploy)) { return; }
-
-	int NextActionIndex = UTIL_CommanderFirstFreeActionIndex(pBot, Priority);
-
-	if (NextActionIndex > -1)
-	{
-		commander_action* action = &pBot->CurrentCommanderActions[Priority][NextActionIndex];
-
-		UTIL_ClearCommanderAction(pBot, NextActionIndex, Priority);
-
-		action->bIsActive = true;
-		action->ActionType = ACTION_DROPITEM;
-		action->ItemToDeploy = ItemToDeploy;
-		action->ActionTarget = Recipient;
-
-		if (Recipient)
-		{
-			action->BuildLocation = ZERO_VECTOR;
-		}
-		else
-		{
-			action->BuildLocation = DropLocation;
-		}
-
-	}
-}
-
-void CommanderQueueInfantryPortalBuild(bot_t* pBot, int Priority)
-{
-	edict_t* ExistingInfantryPortal = UTIL_GetFirstPlacedStructureOfType(STRUCTURE_MARINE_INFANTRYPORTAL);
-
-	Vector BuildLocation = ZERO_VECTOR;
-
-	// First see if we can place the next infantry portal next to the first one
-	if (!FNullEnt(ExistingInfantryPortal))
-	{
-		BuildLocation = UTIL_GetRandomPointOnNavmeshInDonut(BUILDING_REGULAR_NAV_PROFILE, ExistingInfantryPortal->v.origin, UTIL_MetresToGoldSrcUnits(1.0f), UTIL_MetresToGoldSrcUnits(2.0f));
-	}
-
-	// If not then find somewhere near the comm chair
-	if (BuildLocation == ZERO_VECTOR)
-	{
-		Vector CommChairLocation = UTIL_GetCommChairLocation();
-
-		if (!vEquals(CommChairLocation, ZERO_VECTOR))
-		{
-			Vector SearchPoint = ZERO_VECTOR;
-
-			// Sometimes the comm chair is built in a little nook and we need to ensure the commander doesn't place the portals wedged behind the comm chair or something
-			// So we check the closest point to the comm chair we can reach from the wider map and use that as a base for building the portals
-			// By default we just use the closest resource node, though I guess if a map has a resource node in a weird place it might not work...
-			const resource_node* ResNode = UTIL_FindNearestResNodeToLocation(CommChairLocation);
-
-			if (ResNode)
-			{
-				SearchPoint = ResNode->origin;
-			}
-			else
-			{
-				SearchPoint = UTIL_GetRandomPointOfInterest();
-			}
-
-			Vector NearestPointToChair = FindClosestNavigablePointToDestination(BUILDING_REGULAR_NAV_PROFILE, SearchPoint, CommChairLocation, UTIL_MetresToGoldSrcUnits(5.0f));
-
-			if (!vEquals(NearestPointToChair, ZERO_VECTOR))
-			{
-				float Distance = vDist2D(NearestPointToChair, CommChairLocation);
-				float RandomDist = UTIL_MetresToGoldSrcUnits(5.0f) - Distance;
-
-				BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(BUILDING_REGULAR_NAV_PROFILE, NearestPointToChair, RandomDist);
-
-			}
-			else
-			{
-				BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(BUILDING_REGULAR_NAV_PROFILE, CommChairLocation, UTIL_MetresToGoldSrcUnits(5.0f));
-			}
-		}
-
-	}
-
-	if (!vEquals(BuildLocation, ZERO_VECTOR))
-	{
-		int NewActionIndex = UTIL_CommanderFirstFreeActionIndex(pBot, Priority);
-
-		if (NewActionIndex > -1)
-		{
-			UTIL_ClearCommanderAction(pBot, NewActionIndex, Priority);
-
-			commander_action* action = &pBot->CurrentCommanderActions[Priority][NewActionIndex];
-
-			action->bIsActive = true;
-			action->ActionType = ACTION_BUILD;
-			action->BuildLocation = BuildLocation;
-			action->StructureToBuild = STRUCTURE_MARINE_INFANTRYPORTAL;
-		}
-	}
-}
-
-void CommanderQueueArmouryBuild(bot_t* pBot, int Priority)
-{
-	edict_t* InfantryPortal = UTIL_GetFirstPlacedStructureOfType(STRUCTURE_MARINE_INFANTRYPORTAL);
-
-	if (FNullEnt(InfantryPortal)) { return; }
-
-	Vector NewArmouryLocation = UTIL_GetRandomPointOnNavmeshInDonut(BUILDING_REGULAR_NAV_PROFILE, InfantryPortal->v.origin, UTIL_MetresToGoldSrcUnits(3.0f), UTIL_MetresToGoldSrcUnits(5.0f));
-
-	if (!vEquals(NewArmouryLocation, ZERO_VECTOR))
-	{
-		int NewActionIndex = UTIL_CommanderFirstFreeActionIndex(pBot, Priority);
-
-		if (NewActionIndex > -1)
-		{
-			UTIL_ClearCommanderAction(pBot, NewActionIndex, Priority);
-
-			commander_action* action = &pBot->CurrentCommanderActions[Priority][NewActionIndex];
-
-			action->bIsActive = true;
-			action->ActionType = ACTION_BUILD;
-			action->BuildLocation = NewArmouryLocation;
-			action->StructureToBuild = STRUCTURE_MARINE_ARMOURY;
-		}
-	}
-}
-
-void CommanderQueueArmsLabBuild(bot_t* pBot, int Priority)
-{
-	edict_t* Armoury = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ANYARMOURY, UTIL_GetCommChairLocation(), UTIL_MetresToGoldSrcUnits(20.0f), true, false);
-
-	if (FNullEnt(Armoury)) { return; }
-
-	Vector NewArmsLabLocation = UTIL_GetRandomPointOnNavmeshInDonut(BUILDING_REGULAR_NAV_PROFILE, Armoury->v.origin, UTIL_MetresToGoldSrcUnits(3.0f), UTIL_MetresToGoldSrcUnits(5.0f));
-
-	if (NewArmsLabLocation != ZERO_VECTOR)
-	{
-		int NewActionIndex = UTIL_CommanderFirstFreeActionIndex(pBot, Priority);
-
-		if (NewActionIndex > -1)
-		{
-			UTIL_ClearCommanderAction(pBot, NewActionIndex, Priority);
-
-			commander_action* action = &pBot->CurrentCommanderActions[Priority][NewActionIndex];
-
-			action->bIsActive = true;
-			action->ActionType = ACTION_BUILD;
-			action->BuildLocation = NewArmsLabLocation;
-			action->StructureToBuild = STRUCTURE_MARINE_ARMSLAB;
-		}
-	}
-}
-
-void CommanderQueueResTowerBuild(bot_t* pBot, int Priority)
-{
-	int NextEmptyActionIndex = UTIL_CommanderFirstFreeActionIndex(pBot, Priority);
-
-	if (NextEmptyActionIndex == -1) { return; }
-
-	int chosenResNode = -1;
-	float nearestDist = 0.0f;
-
-	for (int i = 0; i < NumTotalResNodes; i++)
-	{
-		if (!ResourceNodes[i].bIsOccupied && !UTIL_ActionExistsInLocation(pBot, ResourceNodes[i].origin))
-		{
-			float dist = UTIL_DistToNearestFriendlyPlayer(ResourceNodes[i].origin, MARINE_TEAM);
-
-			if (chosenResNode == -1 || dist < nearestDist)
-			{
-				chosenResNode = i;
-				nearestDist = dist;
-			}
-		}
-	}
-
-	if (chosenResNode > -1)
-	{
-		commander_action* action = &pBot->CurrentCommanderActions[Priority][NextEmptyActionIndex];
-
-		UTIL_ClearCommanderAction(pBot, NextEmptyActionIndex, Priority);
-		action->bIsActive = true;
-		action->ActionType = ACTION_BUILD;
-		action->BuildLocation = ResourceNodes[chosenResNode].origin;
-		action->StructureToBuild = STRUCTURE_MARINE_RESTOWER;
-	}
-}
-
-void CommanderQueueUpgrade(bot_t* pBot, edict_t* BuildingToUpgrade, int Priority)
-{
-	NSStructureType StructureType = GetStructureTypeFromEdict(BuildingToUpgrade);
-
-	if (StructureType != STRUCTURE_NONE)
-	{
-		int NewActionIndex = UTIL_CommanderFirstFreeActionIndex(pBot, Priority);
-
-		if (NewActionIndex > -1)
-		{
-			commander_action* action = &pBot->CurrentCommanderActions[Priority][NewActionIndex];
-
-
-			action->bIsActive = true;
-			action->ActionType = ACTION_UPGRADE;
-			action->StructureOrItem = BuildingToUpgrade;
-			action->StructureToBuild = StructureType;
-		}
-	}
-}
-
-void CommanderQueueResearch(bot_t* pBot, NSResearch Research, int Priority)
-{
-	switch (Research)
-	{
-	case RESEARCH_ARMSLAB_ARMOUR1:
-	case RESEARCH_ARMSLAB_ARMOUR2:
-	case RESEARCH_ARMSLAB_ARMOUR3:
-	case RESEARCH_ARMSLAB_WEAPONS1:
-	case RESEARCH_ARMSLAB_WEAPONS2:
-	case RESEARCH_ARMSLAB_WEAPONS3:
-	case RESEARCH_ARMSLAB_CATALYSTS:
-		CommanderQueueArmsLabResearch(pBot, Research, Priority);
-		break;
-	case RESEARCH_PROTOTYPELAB_HEAVYARMOUR:
-	case RESEARCH_PROTOTYPELAB_JETPACKS:
-		CommanderQueuePrototypeLabResearch(pBot, Research, Priority);
-		break;
-	case RESEARCH_OBSERVATORY_DISTRESSBEACON:
-	case RESEARCH_OBSERVATORY_MOTIONTRACKING:
-	case RESEARCH_OBSERVATORY_PHASETECH:
-		CommanderQueueObservatoryResearch(pBot, Research, Priority);
-	case RESEARCH_ARMOURY_GRENADES:
-		CommanderQueueArmouryResearch(pBot, Research, Priority);
-	default:
-		break;
-	}
-}
-
-void CommanderQueueArmsLabResearch(bot_t* pBot, NSResearch Research, int Priority)
-{
-	if (UTIL_MarineResearchIsAvailable(Research))
-	{
-		edict_t* ArmsLab = UTIL_GetFirstIdleStructureOfType(STRUCTURE_MARINE_ARMSLAB);
-
-		int ActionIndex = UTIL_CommanderFirstFreeActionIndex(pBot, Priority);
-
-		if (ActionIndex > -1 && ArmsLab)
-		{
-			UTIL_ClearCommanderAction(pBot, ActionIndex, Priority);
-
-			commander_action* action = &pBot->CurrentCommanderActions[Priority][ActionIndex];
-
-			action->bIsActive = true;
-			action->ActionType = ACTION_RESEARCH;
-			action->StructureOrItem = ArmsLab;
-			action->ResearchId = Research;
-
-		}
-	}
-}
-
-void CommanderQueueElectricResearch(bot_t* pBot, int Priority, edict_t* StructureToElectrify)
-{
-	if (FNullEnt(StructureToElectrify)) { return; }
-
-	NSStructureType StructureTypeToElectrify = GetStructureTypeFromEdict(StructureToElectrify);
-
-	if (!UTIL_StructureTypesMatch(StructureTypeToElectrify, STRUCTURE_MARINE_ANYTURRETFACTORY) && !UTIL_StructureTypesMatch(StructureTypeToElectrify, STRUCTURE_MARINE_RESTOWER)) { return; }
-
-	int ActionIndex = UTIL_CommanderFirstFreeActionIndex(pBot, Priority);
-
-	if (ActionIndex > -1)
-	{
-		UTIL_ClearCommanderAction(pBot, ActionIndex, Priority);
-
-		commander_action* action = &pBot->CurrentCommanderActions[Priority][ActionIndex];
-
-		action->bIsActive = true;
-		action->ActionType = ACTION_RESEARCH;
-		action->StructureOrItem = StructureToElectrify;
-		action->ResearchId = RESEARCH_ELECTRICAL;
-
-	}
-}
-
-void CommanderQueueArmouryResearch(bot_t* pBot, NSResearch Research, int Priority)
-{
-	if (UTIL_MarineResearchIsAvailable(Research))
-	{
-		edict_t* Armoury = UTIL_GetFirstIdleStructureOfType(STRUCTURE_MARINE_ARMOURY);
-
-		if (!Armoury)
-		{
-			Armoury = UTIL_GetFirstIdleStructureOfType(STRUCTURE_MARINE_ADVARMOURY);
-		}
-
-		int ActionIndex = UTIL_CommanderFirstFreeActionIndex(pBot, Priority);
-
-		if (ActionIndex > -1 && Armoury)
-		{
-			UTIL_ClearCommanderAction(pBot, ActionIndex, Priority);
-
-			commander_action* action = &pBot->CurrentCommanderActions[Priority][ActionIndex];
-
-			action->bIsActive = true;
-			action->ActionType = ACTION_RESEARCH;
-			action->StructureOrItem = Armoury;
-			action->ResearchId = Research;
-
-		}
-	}
-}
-
-void CommanderQueuePrototypeLabResearch(bot_t* pBot, NSResearch Research, int Priority)
-{
-	if (UTIL_MarineResearchIsAvailable(Research))
-	{
-		edict_t* PrototypeLab = UTIL_GetFirstIdleStructureOfType(STRUCTURE_MARINE_PROTOTYPELAB);
-
-		int ActionIndex = UTIL_CommanderFirstFreeActionIndex(pBot, Priority);
-
-		if (ActionIndex > -1 && PrototypeLab)
-		{
-			UTIL_ClearCommanderAction(pBot, ActionIndex, Priority);
-
-			commander_action* action = &pBot->CurrentCommanderActions[Priority][ActionIndex];
-
-			action->bIsActive = true;
-			action->ActionType = ACTION_RESEARCH;
-			action->StructureOrItem = PrototypeLab;
-			action->ResearchId = Research;
-
-		}
-	}
-}
-
-void CommanderQueueObservatoryResearch(bot_t* pBot, NSResearch Research, int Priority)
-{
-	if (UTIL_MarineResearchIsAvailable(Research))
-	{
-		edict_t* Observatory = UTIL_GetFirstIdleStructureOfType(STRUCTURE_MARINE_OBSERVATORY);
-
-		int ActionIndex = UTIL_CommanderFirstFreeActionIndex(pBot, Priority);
-
-		if (ActionIndex > -1 && Observatory)
-		{
-			UTIL_ClearCommanderAction(pBot, ActionIndex, Priority);
-
-			commander_action* action = &pBot->CurrentCommanderActions[Priority][ActionIndex];
-
-			action->bIsActive = true;
-			action->ActionType = ACTION_RESEARCH;
-			action->StructureOrItem = Observatory;
-			action->ResearchId = Research;
-
-		}
-	}
+	return false;
 }
 
 void CommanderThink(bot_t* pBot)
 {
 
-	if (!bGameIsActive)
+	// Thanks to EterniumDev (Alien) for the suggestion to have the commander jump out and build if nobody is around to help
+	if (ShouldCommanderLeaveChair(pBot))
 	{
+		if (IsPlayerCommander(pBot->pEdict))
+		{
+			BotStopCommanderMode(pBot);
+			return;
+		}
+
+		edict_t* NearestUnbuiltStructure = UTIL_GetNearestUnbuiltStructureOfTeamInArea(UTIL_GetCommChairLocation(), UTIL_MetresToGoldSrcUnits(15.0f), MARINE_TEAM);
+
+		if (!FNullEnt(NearestUnbuiltStructure))
+		{
+			TASK_SetBuildTask(pBot, &pBot->PrimaryBotTask, NearestUnbuiltStructure, false);
+		}
+
+		BotProgressTask(pBot, &pBot->PrimaryBotTask);
+
 		return;
 	}
 
-	UTIL_OrganiseCommanderActions(pBot);
+	if (!IsPlayerCommander(pBot->pEdict))
+	{
+		BotProgressTakeCommandTask(pBot);
+		return;
+	}
 
-	UpdateCommanderOrders(pBot);
+	bool bCommanderOnCooldown = (gpGlobals->time < pBot->next_commander_action_time);
 
-	CommanderQueueNextAction(pBot);
+	if (bCommanderOnCooldown || COMM_IsWaitingOnBuildLink(pBot)) { return; }
 
-	UpdateCommanderActions(pBot);
+	if ((gpGlobals->time - pBot->CommanderLastBeaconTime) > 10.0f && UTIL_ObservatoryResearchIsAvailable(RESEARCH_OBSERVATORY_DISTRESSBEACON) && UTIL_BaseIsInDistress())
+	{
+		if (pBot->ResearchAction.ActionType != ACTION_RESEARCH || pBot->ResearchAction.ResearchId != RESEARCH_OBSERVATORY_DISTRESSBEACON)
+		{
+			UTIL_ClearCommanderAction(&pBot->ResearchAction);
 
+			edict_t* Observatory = UTIL_GetFirstIdleStructureOfType(STRUCTURE_MARINE_OBSERVATORY);
+
+			if (!FNullEnt(Observatory))
+			{
+				pBot->ResearchAction.ActionType = ACTION_RESEARCH;
+				pBot->ResearchAction.ResearchId = RESEARCH_OBSERVATORY_DISTRESSBEACON;
+				pBot->ResearchAction.ActionTarget = Observatory;
+				BotTeamSay(pBot, 0.5f, "Going to beacon guys, base is in trouble");
+			}		
+		}
+
+		pBot->CurrentAction = &pBot->ResearchAction;
+	}
+	else
+	{
+		COMM_UpdateAndClearCommanderActions(pBot);
+		COMM_UpdateAndClearCommanderOrders(pBot);
+
+		COMM_SetNextBuildAction(pBot, &pBot->BuildAction);
+
+		COMM_SetNextSupportAction(pBot, &pBot->SupportAction);
+
+		COMM_SetNextResearchAction(&pBot->ResearchAction);
+
+		pBot->CurrentAction = COMM_GetNextAction(pBot);
+	}
+
+	COMM_CommanderProgressAction(pBot, pBot->CurrentAction);
+
+
+}
+
+bool COMM_IsWaitingOnBuildLink(bot_t* CommanderBot)
+{
+	if (CommanderBot->BuildAction.bIsAwaitingBuildLink)
+	{
+		float TimeElapsed = gpGlobals->time - CommanderBot->BuildAction.StructureBuildAttemptTime;
+
+		if (TimeElapsed > 0.5f)
+		{
+			CommanderBot->BuildAction.bIsAwaitingBuildLink = false;
+			return false;
+		}
+
+		return true;
+	}
+
+	if (CommanderBot->SupportAction.bIsAwaitingBuildLink)
+	{
+		float TimeElapsed = gpGlobals->time - CommanderBot->SupportAction.StructureBuildAttemptTime;
+
+		if (TimeElapsed > 0.5f)
+		{
+			CommanderBot->SupportAction.bIsAwaitingBuildLink = false;
+			return false;
+		}
+
+		return true;
+	}
+
+	return false;
+}
+
+commander_action* COMM_GetNextAction(bot_t* CommanderBot)
+{
+	if (CommanderBot->BuildAction.bIsActionUrgent) { return &CommanderBot->BuildAction; }
+
+	if (CommanderBot->RecycleAction.ActionType != ACTION_NONE) { return &CommanderBot->RecycleAction; }
+	
+	if (CommanderBot->ResearchAction.ActionType != ACTION_NONE) { return &CommanderBot->ResearchAction; }
+
+	if (CommanderBot->SupportAction.ActionType != ACTION_NONE) { return &CommanderBot->SupportAction; }
+
+	if (CommanderBot->BuildAction.ActionType != ACTION_NONE) { return &CommanderBot->BuildAction; }
+	
+	return nullptr;
+}
+
+void COMM_UpdateAndClearCommanderActions(bot_t* CommanderBot)
+{
+	if (!UTIL_IsCommanderActionValid(CommanderBot, &CommanderBot->BuildAction))
+	{
+		UTIL_ClearCommanderAction(&CommanderBot->BuildAction);
+	}
+
+	if (!UTIL_IsCommanderActionValid(CommanderBot, &CommanderBot->SupportAction))
+	{
+		UTIL_ClearCommanderAction(&CommanderBot->SupportAction);
+	}
+
+	if (!UTIL_IsCommanderActionValid(CommanderBot, &CommanderBot->ResearchAction))
+	{
+		UTIL_ClearCommanderAction(&CommanderBot->ResearchAction);
+	}
 }
 
 bool UTIL_IsMarineOrderValid(bot_t* CommanderBot, int CommanderOrderIndex)
@@ -1188,84 +992,34 @@ bool UTIL_IsMarineOrderValid(bot_t* CommanderBot, int CommanderOrderIndex)
 	return false;
 }
 
-bool UTIL_IsCommanderActionActionable(bot_t* CommanderBot, int CommanderActionIndex, int Priority)
+bool UTIL_IsCommanderActionValid(bot_t* CommanderBot, commander_action* Action)
 {
-	commander_action* action = &CommanderBot->CurrentCommanderActions[Priority][CommanderActionIndex];
+	if (Action->NumActionAttempts > 5) { return false; }
 
-	if (!action->bIsActive || action->ActionType == ACTION_NONE) { return false; }
+	if (Action->bIsAwaitingBuildLink) { return true; }
 
-	switch (action->ActionType)
+	switch (Action->ActionType)
 	{
-	case ACTION_BUILD:
-	case ACTION_DROPITEM:
-		return FNullEnt(action->StructureOrItem);
 	case ACTION_RECYCLE:
-		return !FNullEnt(action->StructureOrItem) && !UTIL_StructureIsRecycling(action->StructureOrItem) && (action->StructureOrItem->v.deadflag != DEAD_NO);
-	case ACTION_RESEARCH:
-		return !FNullEnt(action->StructureOrItem) && !UTIL_StructureIsRecycling(action->StructureOrItem) && (action->StructureOrItem->v.deadflag != DEAD_NO) && UTIL_MarineResearchIsAvailable(action->ResearchId);
+		return !FNullEnt(Action->ActionTarget) && UTIL_IsMarineStructure(Action->ActionTarget) && !UTIL_StructureIsRecycling(Action->ActionTarget);
 	case ACTION_UPGRADE:
-		return !FNullEnt(action->StructureOrItem) && UTIL_StructureCanBeUpgraded(action->StructureOrItem);
+		return !FNullEnt(Action->ActionTarget) && UTIL_StructureCanBeUpgraded(Action->ActionTarget);
+	case ACTION_DEPLOY:
+		return FNullEnt(Action->StructureOrItem);
+	case ACTION_RESEARCH:
+	{
+		if (Action->ResearchId == RESEARCH_ELECTRICAL)
+		{
+			return UTIL_ElectricalResearchIsAvailable(Action->ActionTarget);
+		}
+		return (UTIL_MarineResearchIsAvailable(Action->ResearchId) && !FNullEnt(Action->ActionTarget));
+	}
 	case ACTION_GIVEORDER:
-		return action->AssignedPlayer > -1 && (gpGlobals->time - CommanderBot->LastPlayerOrders[action->AssignedPlayer].LastReminderTime) < min_order_reminder_time;
+		return Action->AssignedPlayer > -1;
 	default:
 		return false;
 	}
 
-	return false;
-}
-
-bool UTIL_IsCommanderActionValid(bot_t* CommanderBot, int CommanderActionIndex, int Priority)
-{
-	if (!CommanderBot->CurrentCommanderActions[Priority][CommanderActionIndex].bIsActive || CommanderBot->CurrentCommanderActions[Priority][CommanderActionIndex].ActionType == ACTION_NONE)
-	{
-		return false;
-	}
-
-	commander_action* action = &CommanderBot->CurrentCommanderActions[Priority][CommanderActionIndex];
-
-	if (action->NumActionAttempts > 10) { return false; }
-
-	switch (action->ActionType)
-	{
-	case ACTION_RECYCLE:
-		return !FNullEnt(action->StructureOrItem) && UTIL_IsMarineStructure(action->StructureOrItem) && !UTIL_StructureIsRecycling(action->StructureOrItem);
-	case ACTION_UPGRADE:
-		return !FNullEnt(action->StructureOrItem) && UTIL_StructureCanBeUpgraded(action->StructureOrItem);
-	case ACTION_BUILD:
-		return UTIL_CommanderBuildActionIsValid(CommanderBot, action);
-	case ACTION_RESEARCH:
-	{
-		if (action->ResearchId == RESEARCH_ELECTRICAL)
-		{
-			return UTIL_ElectricalResearchIsAvailable(action->StructureOrItem);
-		}
-		return (UTIL_MarineResearchIsAvailable(action->ResearchId) && !FNullEnt(action->StructureOrItem));
-	}
-	case ACTION_DROPITEM:
-		return FNullEnt(action->StructureOrItem) && UTIL_ItemCanBeDeployed(action->ItemToDeploy) && ((action->BuildLocation != ZERO_VECTOR) || !FNullEnt(action->ActionTarget));
-	case ACTION_GIVEORDER:
-		return action->AssignedPlayer > -1;
-	default:
-		return false;
-	}
-
-	return false;
-}
-
-bool UTIL_StructureIsScheduledForRecycle(bot_t* CommanderBot, edict_t* Structure)
-{
-	for (int Priority = 0; Priority < MAX_ACTION_PRIORITIES; Priority++)
-	{
-		for (int ActionIndex = 0; ActionIndex < MAX_PRIORITY_ACTIONS; ActionIndex++)
-		{
-			commander_action* action = &CommanderBot->CurrentCommanderActions[Priority][ActionIndex];
-
-			if (action->bIsActive && action->ActionType == ACTION_RECYCLE && action->StructureOrItem == Structure)
-			{
-				return true;
-			}
-		}
-	}
 	return false;
 }
 
@@ -1279,9 +1033,16 @@ bool UTIL_CommanderBuildActionIsValid(bot_t* CommanderBot, commander_action* Act
 
 	if (!FNullEnt(Action->StructureOrItem))
 	{
-		if (Action->StructureOrItem->v.deadflag == DEAD_DEAD || UTIL_StructureIsFullyBuilt(Action->StructureOrItem) || !UTIL_PointIsOnNavmesh(UTIL_GetEntityGroundLocation(Action->StructureOrItem), MARINE_REGULAR_NAV_PROFILE))
+		if (Action->StructureOrItem->v.deadflag == DEAD_DEAD || UTIL_StructureIsFullyBuilt(Action->StructureOrItem))
 		{
 			return false;
+		}
+
+		buildable_structure* StructureRef = UTIL_GetBuildableStructureRefFromEdict(Action->StructureOrItem);
+
+		if (StructureRef)
+		{
+			if (!StructureRef->bIsReachableMarine) { return false; }
 		}
 	}
 
@@ -1334,38 +1095,6 @@ bool UTIL_CommanderBuildActionIsValid(bot_t* CommanderBot, commander_action* Act
 	return true;
 }
 
-bool UTIL_ActionHasValidPlayerAssigned(bot_t* CommanderBot, int CommanderActionIndex, int Priority)
-{
-	int AssignedPlayerIndex = CommanderBot->CurrentCommanderActions[Priority][CommanderActionIndex].AssignedPlayer;
-
-	if (AssignedPlayerIndex < 0 || AssignedPlayerIndex > 31) { return false; }
-
-	return (!FNullEnt(clients[AssignedPlayerIndex]) && IsPlayerOnMarineTeam(clients[AssignedPlayerIndex]) && IsPlayerActiveInGame(clients[AssignedPlayerIndex]));
-}
-
-int UTIL_GetNumPlacedOrQueuedStructuresOfType(bot_t* CommanderBot, NSStructureType StructureType)
-{
-	return (UTIL_GetQueuedBuildRequestsOfType(CommanderBot, StructureType) + UTIL_GetStructureCountOfType(StructureType));
-}
-
-
-void UTIL_CommanderQueueStructureBuildAtLocation(bot_t* pBot, const Vector Location, NSStructureType StructureType, int Priority)
-{
-	int NewActionIndex = UTIL_CommanderFirstFreeActionIndex(pBot, Priority);
-
-	if (NewActionIndex > -1)
-	{
-		commander_action* action = &pBot->CurrentCommanderActions[Priority][NewActionIndex];
-
-		UTIL_ClearCommanderAction(pBot, NewActionIndex, Priority);
-		action->bIsActive = true;
-		action->ActionType = ACTION_BUILD;
-		action->BuildLocation = Location;
-		action->StructureToBuild = StructureType;
-
-	}
-}
-
 bool UTIL_HasIdleArmsLab()
 {
 	for (auto& it : MarineBuildableStructureMap)
@@ -1392,23 +1121,6 @@ edict_t* UTIL_GetFirstIdleArmsLab()
 	}
 
 	return NULL;
-}
-
-bool UTIL_ResearchIsAlreadyQueued(bot_t* pBot, NSResearch Research)
-{
-	for (int Priority = 0; Priority < MAX_ACTION_PRIORITIES; Priority++)
-	{
-		for (int ActionIndex = 0; ActionIndex < MAX_PRIORITY_ACTIONS; ActionIndex++)
-		{
-			commander_action* action = &pBot->CurrentCommanderActions[Priority][ActionIndex];
-
-			if (action->bIsActive && action->ActionType == ACTION_RESEARCH && action->ResearchId == Research)
-			{
-				return true;
-			}
-		}
-	}
-	return false;
 }
 
 bool UTIL_ResearchInProgress(NSResearch Research)
@@ -1478,23 +1190,6 @@ bool UTIL_ResearchInProgress(NSResearch Research)
 	return false;
 }
 
-bool UTIL_ItemIsAlreadyLinked(bot_t* Commander, edict_t* Item)
-{
-	for (int i = 0; i < Commander->NumActionLinkedItems; i++)
-	{
-		if (Commander->ActionLinkedItems[i] == Item)
-		{
-			return true;
-		}
-	}
-
-	return false;
-}
-
-void UTIL_LinkItem(bot_t* Commander, edict_t* Item)
-{
-	Commander->ActionLinkedItems[Commander->NumActionLinkedItems++] = Item;
-}
 
 bool UTIL_CancelCommanderPlayerOrder(bot_t* Commander, int PlayerIndex)
 {
@@ -1502,71 +1197,10 @@ bool UTIL_CancelCommanderPlayerOrder(bot_t* Commander, int PlayerIndex)
 	return false;
 }
 
-
-bool UTIL_ActionExistsInLocation(const bot_t* Commander, const Vector CheckPoint)
-{
-	for (int Priority = 0; Priority < MAX_ACTION_PRIORITIES; Priority++)
-	{
-		for (int ActionIndex = 0; ActionIndex < MAX_PRIORITY_ACTIONS; ActionIndex++)
-		{
-			if (Commander->CurrentCommanderActions[Priority][ActionIndex].bIsActive && vEquals(Commander->CurrentCommanderActions[Priority][ActionIndex].BuildLocation, CheckPoint))
-			{
-				return true;
-			}
-		}
-	}
-	return false;
-}
-
-void UTIL_ClearCommanderAction(bot_t* Commander, commander_action* Action)
+void UTIL_ClearCommanderAction(commander_action* Action)
 {
 	memset(Action, 0, sizeof(commander_action));
 	Action->AssignedPlayer = -1;
-}
-
-void UTIL_ClearCommanderAction(bot_t* Commander, int ActionIndex, int Priority)
-{
-	Commander->CurrentCommanderActions[Priority][ActionIndex].bIsActive = false;
-	Commander->CurrentCommanderActions[Priority][ActionIndex].ActionType = ACTION_NONE;
-	Commander->CurrentCommanderActions[Priority][ActionIndex].ActionStep = ACTION_STEP_NONE;
-	Commander->CurrentCommanderActions[Priority][ActionIndex].StructureToBuild = STRUCTURE_NONE;
-	Commander->CurrentCommanderActions[Priority][ActionIndex].BuildLocation = ZERO_VECTOR;
-	Commander->CurrentCommanderActions[Priority][ActionIndex].DesiredCommanderLocation = ZERO_VECTOR;
-	Commander->CurrentCommanderActions[Priority][ActionIndex].LastAttemptedCommanderLocation = ZERO_VECTOR;
-	Commander->CurrentCommanderActions[Priority][ActionIndex].LastAttemptedCommanderAngle = ZERO_VECTOR;
-	Commander->CurrentCommanderActions[Priority][ActionIndex].AssignedPlayer = -1;
-	Commander->CurrentCommanderActions[Priority][ActionIndex].StructureOrItem = nullptr;
-	Commander->CurrentCommanderActions[Priority][ActionIndex].bHasAttemptedAction = false;
-	Commander->CurrentCommanderActions[Priority][ActionIndex].StructureBuildAttemptTime = 0.0f;
-	Commander->CurrentCommanderActions[Priority][ActionIndex].NumActionAttempts = 0;
-	Commander->CurrentCommanderActions[Priority][ActionIndex].ResearchId = RESEARCH_NONE;
-	Commander->CurrentCommanderActions[Priority][ActionIndex].ItemToDeploy = ITEM_NONE;
-
-}
-
-void UTIL_OrganiseCommanderActions(bot_t* pBot)
-{
-	for (int Priority = 0; Priority < MAX_ACTION_PRIORITIES; Priority++)
-	{
-		int CurrIndex = 0;
-		for (int ActionIndex = 0; ActionIndex < MAX_PRIORITY_ACTIONS; ActionIndex++)
-		{
-			if (!UTIL_IsCommanderActionValid(pBot, ActionIndex, Priority))
-			{
-				UTIL_ClearCommanderAction(pBot, ActionIndex, Priority);
-			}
-			else
-			{
-				if (ActionIndex != CurrIndex)
-				{
-					memcpy(&pBot->CurrentCommanderActions[Priority][CurrIndex], &pBot->CurrentCommanderActions[Priority][ActionIndex], sizeof(commander_action));
-					UTIL_ClearCommanderAction(pBot, ActionIndex, Priority);
-				}
-
-				CurrIndex++;
-			}
-		}
-	}
 }
 
 void UTIL_ClearCommanderOrder(bot_t* Commander, int OrderIndex)
@@ -1607,42 +1241,78 @@ bool UTIL_StructureCanBeUpgraded(const edict_t* Structure)
 	return false;
 }
 
-bool BotCommanderUpgradeStructure(bot_t* pBot, int ActionIndex, int Priority)
+void BotCommanderResearchTech(bot_t* pBot, commander_action* Action)
 {
-
-	if (gpGlobals->time < pBot->next_commander_action_time || !UTIL_IsCommanderActionValid(pBot, ActionIndex, Priority))
+	if (Action->NumActionAttempts > 5)
 	{
-		UTIL_ClearCommanderAction(pBot, ActionIndex, Priority);
-		return false;
+		UTIL_ClearCommanderAction(Action);
+		return;
 	}
 
-	commander_action* action = &pBot->CurrentCommanderActions[Priority][ActionIndex];
-	buildable_structure* BuildRef = UTIL_GetBuildableStructureRefFromEdict(action->StructureOrItem);
-
-	if (action->NumActionAttempts > 10)
-	{
-		UTIL_ClearCommanderAction(pBot, ActionIndex, Priority);
-		return false;
-	}
+	buildable_structure* BuildRef = UTIL_GetBuildableStructureRefFromEdict(Action->ActionTarget);
 
 	// If we are already selecting the building then we can just send the impulse and finish up
-	if (pBot->CommanderCurrentlySelectedBuilding == action->StructureOrItem)
+	if (pBot->CommanderCurrentlySelectedBuilding == Action->ActionTarget)
 	{
 		if (BuildRef)
 		{
-			if (action->LastAttemptedCommanderLocation != ZERO_VECTOR)
+			if (Action->LastAttemptedCommanderLocation != ZERO_VECTOR)
 			{
-				BuildRef->LastSuccessfulCommanderLocation = action->LastAttemptedCommanderLocation;
+
+				BuildRef->LastSuccessfulCommanderLocation = Action->LastAttemptedCommanderLocation;
 			}
 
-			if (action->LastAttemptedCommanderAngle != ZERO_VECTOR)
+			if (Action->LastAttemptedCommanderAngle != ZERO_VECTOR)
 			{
-				BuildRef->LastSuccessfulCommanderAngle = action->LastAttemptedCommanderAngle;
+				BuildRef->LastSuccessfulCommanderAngle = Action->LastAttemptedCommanderAngle;
+			}
+		}
+
+		pBot->impulse = Action->ResearchId;
+
+		if (Action->ResearchId == RESEARCH_OBSERVATORY_DISTRESSBEACON)
+		{
+			pBot->CommanderLastBeaconTime = gpGlobals->time;
+		}
+
+		Action->ActionStep = ACTION_STEP_NONE;
+
+		pBot->next_commander_action_time = gpGlobals->time + commander_action_cooldown;
+
+		return;
+	}
+
+	BotCommanderSelectStructure(pBot, Action->ActionTarget, Action);
+}
+
+void BotCommanderUpgradeStructure(bot_t* pBot, commander_action* Action)
+{
+	if (Action->NumActionAttempts > 5)
+	{
+		UTIL_ClearCommanderAction(Action);
+		return;
+	}
+
+	buildable_structure* BuildRef = UTIL_GetBuildableStructureRefFromEdict(Action->ActionTarget);
+
+	// If we are already selecting the building then we can just send the impulse and finish up
+	if (pBot->CommanderCurrentlySelectedBuilding == Action->ActionTarget)
+	{
+		if (BuildRef)
+		{
+			if (Action->LastAttemptedCommanderLocation != ZERO_VECTOR)
+			{
+				BuildRef->LastSuccessfulCommanderLocation = Action->LastAttemptedCommanderLocation;
+			}
+
+			if (Action->LastAttemptedCommanderAngle != ZERO_VECTOR)
+			{
+				BuildRef->LastSuccessfulCommanderAngle = Action->LastAttemptedCommanderAngle;
 			}
 		}
 
 
-		NSStructureType StructureType = UTIL_IUSER3ToStructureType(action->StructureOrItem->v.iuser3);
+		NSStructureType StructureType = UTIL_IUSER3ToStructureType(Action->ActionTarget->v.iuser3);
 
 		switch (StructureType)
 		{
@@ -1654,73 +1324,73 @@ bool BotCommanderUpgradeStructure(bot_t* pBot, int ActionIndex, int Priority)
 			break;
 		}
 
-		action->ActionStep = ACTION_STEP_NONE;
+		Action->ActionStep = ACTION_STEP_NONE;
 
 		pBot->next_commander_action_time = gpGlobals->time + commander_action_cooldown;
-		return true;
+		return;
 	}
 
-	return BotCommanderSelectStructure(pBot, action->StructureOrItem, ActionIndex, Priority);
+	BotCommanderSelectStructure(pBot, Action->ActionTarget, Action);
 
 }
 
-bool BotCommanderSelectStructure(bot_t* pBot, const edict_t* Structure, int ActionIndex, int Priority)
+void BotCommanderSelectStructure(bot_t* pBot, const edict_t* Structure, commander_action* Action)
 {
+	buildable_structure* BuildRef = UTIL_GetBuildableStructureRefFromEdict(Structure);
 
-	commander_action* action = &pBot->CurrentCommanderActions[Priority][ActionIndex];
-	buildable_structure* BuildRef = UTIL_GetBuildableStructureRefFromEdict(action->StructureOrItem);
+	if (!BuildRef) { return; }
 
-	if (pBot->CommanderCurrentlySelectedBuilding == Structure)
-	{
-		return false;
-	}
+	if (pBot->CommanderCurrentlySelectedBuilding == Structure) { return; }
 
 	Vector CommanderViewOrigin = pBot->pEdict->v.origin;
 	CommanderViewOrigin.z = GetCommanderViewZHeight();
 
-	if (action->DesiredCommanderLocation == ZERO_VECTOR || vDist2DSq(action->DesiredCommanderLocation, Structure->v.origin) > sqrf(UTIL_MetresToGoldSrcUnits(5.0f)))
-	{
-
-		action->DesiredCommanderLocation = UTIL_FindClearCommanderOriginForBuild(pBot, UTIL_GetCentreOfEntity(Structure), GetCommanderViewZHeight());
-
-		if (action->DesiredCommanderLocation == ZERO_VECTOR)
-		{
-			action->NumActionAttempts++;
-			return false;
-		}
-	}
-
-	if (action->bHasAttemptedAction)
+	if (Action->bHasAttemptedAction)
 	{
 		if (BuildRef)
 		{
 			BuildRef->LastSuccessfulCommanderLocation = ZERO_VECTOR;
 			BuildRef->LastSuccessfulCommanderAngle = ZERO_VECTOR;
 		}
-		action->DesiredCommanderLocation = UTIL_RandomPointOnCircle(UTIL_GetCentreOfEntity(Structure), UTIL_MetresToGoldSrcUnits(5.0f));
+		Action->DesiredCommanderLocation = UTIL_RandomPointOnCircle(UTIL_GetCentreOfEntity(Structure), UTIL_MetresToGoldSrcUnits(5.0f));
+	}
+	else
+	{
+		if (BuildRef->LastSuccessfulCommanderLocation != ZERO_VECTOR)
+		{
+			Action->DesiredCommanderLocation = BuildRef->LastSuccessfulCommanderLocation;
+		}
+		else
+		{
+			if (Action->DesiredCommanderLocation == ZERO_VECTOR || vDist2DSq(Action->DesiredCommanderLocation, Structure->v.origin) > sqrf(UTIL_MetresToGoldSrcUnits(5.0f)))
+			{
+				Action->DesiredCommanderLocation = UTIL_FindClearCommanderOriginForBuild(pBot, UTIL_GetCentreOfEntity(Structure), GetCommanderViewZHeight());
+			}
+		}
 	}
 
-	if (vDist2DSq(CommanderViewOrigin, action->DesiredCommanderLocation) > sqrf(8.0f))
+	if (vDist2DSq(CommanderViewOrigin, Action->DesiredCommanderLocation) > sqrf(8.0f))
 	{
-		action->bHasAttemptedAction = false;
-		pBot->UpMove = action->DesiredCommanderLocation.x / kWorldPosNetworkConstant;
-		pBot->SideMove = action->DesiredCommanderLocation.y / kWorldPosNetworkConstant;
+		Action->bHasAttemptedAction = false;
+		pBot->UpMove = Action->DesiredCommanderLocation.x / kWorldPosNetworkConstant;
+		pBot->SideMove = Action->DesiredCommanderLocation.y / kWorldPosNetworkConstant;
 		pBot->ForwardMove = 0.0f;
 
 		pBot->impulse = IMPULSE_COMMANDER_MOVETO;
 
-		action->ActionStep = ACTION_STEP_NONE;
+		Action->ActionStep = ACTION_STEP_NONE;
 
 		pBot->next_commander_action_time = gpGlobals->time + 0.1f;
-		return true;
+
+		return;
 	}
 
-	if (action->ActionStep == ACTION_STEP_NONE)
+	if (Action->ActionStep == ACTION_STEP_NONE)
 	{
-		action->ActionStep = ACTION_STEP_BEGIN_SELECT;
+		Action->ActionStep = ACTION_STEP_BEGIN_SELECT;
 	}
 
-	if (action->ActionStep == ACTION_STEP_BEGIN_SELECT)
+	if (Action->ActionStep == ACTION_STEP_BEGIN_SELECT)
 	{
 
 		if (BuildRef && BuildRef->LastSuccessfulCommanderAngle != ZERO_VECTOR)
@@ -1742,11 +1412,11 @@ bool BotCommanderSelectStructure(bot_t* pBot, const edict_t* Structure, int Acti
 
 		pBot->pEdict->v.button |= IN_ATTACK;
 
-		action->ActionStep = ACTION_STEP_END_SELECT;
-		return true;
+		Action->ActionStep = ACTION_STEP_END_SELECT;
+		return;
 	}
 
-	if (action->ActionStep == ACTION_STEP_END_SELECT)
+	if (Action->ActionStep == ACTION_STEP_END_SELECT)
 	{
 		if (BuildRef && BuildRef->LastSuccessfulCommanderAngle != ZERO_VECTOR)
 		{
@@ -1763,77 +1433,21 @@ bool BotCommanderSelectStructure(bot_t* pBot, const edict_t* Structure, int Acti
 			pBot->ForwardMove = PickRay.z * kSelectionNetworkConstant;
 		}
 
-		action->LastAttemptedCommanderLocation = CommanderViewOrigin;
-		action->LastAttemptedCommanderAngle = Vector(pBot->UpMove, pBot->SideMove, pBot->ForwardMove);
+		Action->LastAttemptedCommanderLocation = CommanderViewOrigin;
+		Action->LastAttemptedCommanderAngle = Vector(pBot->UpMove, pBot->SideMove, pBot->ForwardMove);
 
 		pBot->impulse = IMPULSE_COMMANDER_MOUSECOORD;
 
 		pBot->pEdict->v.button = 0;
 
-		action->bHasAttemptedAction = true;
-		action->NumActionAttempts++;
-		pBot->next_commander_action_time = gpGlobals->time + 0.2f;
+		Action->bHasAttemptedAction = true;
+		Action->NumActionAttempts++;
+		pBot->next_commander_action_time = gpGlobals->time + 0.1f;
 
-		return true;
+		return;
 	}
 
-	return false;
-}
-
-bool BotCommanderResearchTech(bot_t* pBot, int ActionIndex, int Priority)
-{
-	if (!UTIL_IsCommanderActionValid(pBot, ActionIndex, Priority))
-	{
-		UTIL_ClearCommanderAction(pBot, ActionIndex, Priority);
-		return false;
-	}
-
-	if (gpGlobals->time < pBot->next_commander_action_time)
-	{
-		return true;
-	}
-
-	commander_action* action = &pBot->CurrentCommanderActions[Priority][ActionIndex];
-	buildable_structure* BuildRef = UTIL_GetBuildableStructureRefFromEdict(action->StructureOrItem);
-
-	if (action->NumActionAttempts > 10)
-	{
-		UTIL_ClearCommanderAction(pBot, ActionIndex, Priority);
-		return false;
-	}
-
-	// If we are already selecting the building then we can just send the impulse and finish up
-	if (pBot->CommanderCurrentlySelectedBuilding == action->StructureOrItem)
-	{
-		if (BuildRef)
-		{
-			if (action->LastAttemptedCommanderLocation != ZERO_VECTOR)
-			{
-
-				BuildRef->LastSuccessfulCommanderLocation = action->LastAttemptedCommanderLocation;
-			}
-
-			if (action->LastAttemptedCommanderAngle != ZERO_VECTOR)
-			{
-				BuildRef->LastSuccessfulCommanderAngle = action->LastAttemptedCommanderAngle;
-			}
-		}
-
-		pBot->impulse = action->ResearchId;
-
-		if (action->ResearchId == RESEARCH_OBSERVATORY_DISTRESSBEACON)
-		{
-			pBot->CommanderLastBeaconTime = gpGlobals->time;
-		}
-
-		action->ActionStep = ACTION_STEP_NONE;
-
-		pBot->next_commander_action_time = gpGlobals->time + commander_action_cooldown;
-
-		return true;
-	}
-
-	return BotCommanderSelectStructure(pBot, action->StructureOrItem, ActionIndex, Priority);
+	return;
 }
 
 bool UTIL_MarineResearchIsAvailable(const NSResearch Research)
@@ -1926,6 +1540,8 @@ bool UTIL_ObservatoryResearchIsAvailable(const NSResearch Research)
 
 	if (!FNullEnt(Observatory))
 	{
+
+
 		switch (Research)
 		{
 		case RESEARCH_OBSERVATORY_DISTRESSBEACON:
@@ -1954,6 +1570,8 @@ bool UTIL_ElectricalResearchIsAvailable(const edict_t* Structure)
 
 	if (!UTIL_StructureTypesMatch(StructureTypeToElectrify, STRUCTURE_MARINE_ANYTURRETFACTORY) && !UTIL_StructureTypesMatch(StructureTypeToElectrify, STRUCTURE_MARINE_RESTOWER)) { return false; }
 
+	if (UTIL_GetNumBuiltStructuresOfType(STRUCTURE_MARINE_TURRETFACTORY) == 0) { return false; }
+
 	return (Structure->v.iuser4 & MASK_UPGRADE_1);
 }
 
@@ -1977,16 +1595,32 @@ bool UTIL_ArmouryResearchIsAvailable(const NSResearch Research)
 	return false;
 }
 
-bool BotCommanderPlaceStructure(bot_t* pBot, int ActionIndex, int Priority)
+void BotCommanderDeploy(bot_t* pBot, commander_action* Action)
 {
-	if (gpGlobals->time < pBot->next_commander_action_time || !UTIL_IsCommanderActionValid(pBot, ActionIndex, Priority)) { return false; }
 
-	commander_action* action = &pBot->CurrentCommanderActions[Priority][ActionIndex];
+	if (Action->bIsAwaitingBuildLink) { return; }
 
-	if (action->NumActionAttempts > 10)
+	if (Action->NumActionAttempts > 5)
 	{
-		UTIL_ClearCommanderAction(pBot, ActionIndex, Priority);
-		return false;
+		UTIL_ClearCommanderAction(Action);
+		return;
+	}
+
+	if (Action->StructureToBuild == STRUCTURE_NONE) { return; }
+
+	int DeployCost = UTIL_GetCostOfStructureType(Action->StructureToBuild);
+
+	if (GetPlayerResources(pBot->pEdict) < DeployCost) { return; }
+
+	if (Action->StructureToBuild == DEPLOYABLE_ITEM_MARINE_SCAN)
+	{
+		if ((gpGlobals->time - pBot->CommanderLastScanTime) < 10.0f) { return; }
+
+		if (GetStructureTypeFromEdict(pBot->CommanderCurrentlySelectedBuilding) != STRUCTURE_MARINE_OBSERVATORY)
+		{
+			BotCommanderSelectStructure(pBot, UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_OBSERVATORY, Action->BuildLocation, UTIL_MetresToGoldSrcUnits(1000.0f), true, false), Action);
+			return;
+		}
 	}
 
 	pBot->pEdict->v.v_angle = ZERO_VECTOR;
@@ -1994,70 +1628,55 @@ bool BotCommanderPlaceStructure(bot_t* pBot, int ActionIndex, int Priority)
 	Vector CommanderViewOrigin = pBot->pEdict->v.origin;
 	CommanderViewOrigin.z = GetCommanderViewZHeight();
 
-	if (vEquals(action->DesiredCommanderLocation, ZERO_VECTOR))
+	if (Action->DesiredCommanderLocation == ZERO_VECTOR)
 	{
 
-		action->DesiredCommanderLocation = UTIL_FindClearCommanderOriginForBuild(pBot, action->BuildLocation, GetCommanderViewZHeight());
+		Action->DesiredCommanderLocation = UTIL_FindClearCommanderOriginForBuild(pBot, Action->BuildLocation, GetCommanderViewZHeight());
 
-		if (vEquals(action->DesiredCommanderLocation, ZERO_VECTOR))
+		if (Action->DesiredCommanderLocation == ZERO_VECTOR)
 		{
-			action->NumActionAttempts++;
-			return false;
+			Action->NumActionAttempts++;
+			return;
 		}
 	}
 
-	if (action->bHasAttemptedAction)
+	if (Action->bHasAttemptedAction)
 	{
-		if (action->NumActionAttempts > 10)
-		{
-			UTIL_ClearCommanderAction(pBot, ActionIndex, Priority);
-			return false;
-		}
-
-		if (action->NumActionAttempts < 5 || action->StructureToBuild == STRUCTURE_MARINE_RESTOWER)
-		{
-			action->DesiredCommanderLocation = UTIL_RandomPointOnCircle(action->BuildLocation, UTIL_MetresToGoldSrcUnits(2.0f));
-		}
-		else
-		{
-			action->BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(BUILDING_REGULAR_NAV_PROFILE, action->BuildLocation, UTIL_MetresToGoldSrcUnits(2.0f));
-			action->DesiredCommanderLocation = UTIL_FindClearCommanderOriginForBuild(pBot, action->BuildLocation, GetCommanderViewZHeight());
-		}
+		Action->DesiredCommanderLocation = UTIL_RandomPointOnCircle(Action->BuildLocation, UTIL_MetresToGoldSrcUnits(2.0f));
 	}
 
-	if (vDist2DSq(CommanderViewOrigin, action->DesiredCommanderLocation) > sqrf(8.0f))
+	if (vDist2DSq(CommanderViewOrigin, Action->DesiredCommanderLocation) > sqrf(16.0f))
 	{
-		action->bHasAttemptedAction = false;
-		pBot->UpMove = action->DesiredCommanderLocation.x / kWorldPosNetworkConstant;
-		pBot->SideMove = action->DesiredCommanderLocation.y / kWorldPosNetworkConstant;
+		Action->bHasAttemptedAction = false;
+		pBot->UpMove = Action->DesiredCommanderLocation.x / kWorldPosNetworkConstant;
+		pBot->SideMove = Action->DesiredCommanderLocation.y / kWorldPosNetworkConstant;
 		pBot->ForwardMove = 0.0f;
 
 		pBot->impulse = IMPULSE_COMMANDER_MOVETO;
 
 		pBot->next_commander_action_time = gpGlobals->time + 0.1f;
 
-		return true;
+		return;
 	}
 
-	Vector PickRay = UTIL_GetVectorNormal(action->BuildLocation - CommanderViewOrigin);
+	Vector PickRay = UTIL_GetVectorNormal(Action->BuildLocation - CommanderViewOrigin);
 
 	pBot->UpMove = PickRay.x * kSelectionNetworkConstant;
 	pBot->SideMove = PickRay.y * kSelectionNetworkConstant;
 	pBot->ForwardMove = PickRay.z * kSelectionNetworkConstant;
 
-	pBot->impulse = UTIL_StructureTypeToImpulseCommand(action->StructureToBuild);
+	pBot->impulse = (byte)Action->StructureToBuild;
 
 	pBot->pEdict->v.button |= IN_ATTACK;
 
-	action->NumActionAttempts++;
-	action->bHasAttemptedAction = true;
-	action->StructureBuildAttemptTime = gpGlobals->time;
-	action->LastAttemptedCommanderAngle = Vector(pBot->UpMove, pBot->SideMove, pBot->ForwardMove);
-	action->LastAttemptedCommanderLocation = CommanderViewOrigin;
+	Action->NumActionAttempts++;
+	Action->bHasAttemptedAction = true;
+	Action->bIsAwaitingBuildLink = true;
+	Action->StructureBuildAttemptTime = gpGlobals->time;
+	Action->LastAttemptedCommanderAngle = Vector(pBot->UpMove, pBot->SideMove, pBot->ForwardMove);
+	Action->LastAttemptedCommanderLocation = CommanderViewOrigin;
 
-	pBot->next_commander_action_time = gpGlobals->time + commander_action_cooldown;
-
-	return true;
+	return;
 }
 
 int UTIL_GetCostOfResearch(const NSResearch Research)
@@ -2096,7 +1715,7 @@ Vector UTIL_FindClearCommanderOriginForBuild(const bot_t* Commander, const Vecto
 	int NumTries = 100;
 	int TryNum = 0;
 
-	if (UTIL_QuickTrace(Commander->pEdict, DirectlyAboveLocation, DesiredBuildLocation))
+	if (UTIL_CommanderTrace(Commander->pEdict, DirectlyAboveLocation, DesiredBuildLocation))
 	{
 		return DirectlyAboveLocation;
 	}
@@ -2106,7 +1725,7 @@ Vector UTIL_FindClearCommanderOriginForBuild(const bot_t* Commander, const Vecto
 		Vector TestLocation = UTIL_RandomPointOnCircle(DesiredBuildLocation, UTIL_MetresToGoldSrcUnits(3.0f));
 		TestLocation.z = CommanderViewZ - 8.0f;
 
-		if (UTIL_QuickTrace(Commander->pEdict, TestLocation, DesiredBuildLocation))
+		if (UTIL_CommanderTrace(Commander->pEdict, TestLocation, DesiredBuildLocation))
 		{
 			return TestLocation;
 		}
@@ -2166,86 +1785,88 @@ bool UTIL_CancelMarineOrder(bot_t* CommanderBot, int CommanderOrderIndex)
 
 bool UTIL_IsMarineOrderComplete(bot_t* CommanderBot, int PlayerIndex)
 {
-	if (!CommanderBot->LastPlayerOrders[PlayerIndex].bIsActive) { return true; }
-
 	edict_t* Player = clients[PlayerIndex];
 
-	if (!Player) { return true; }
+	if (FNullEnt(Player) || !IsPlayerActiveInGame(Player)) { return true; }
 
-	switch (CommanderBot->LastPlayerOrders[PlayerIndex].OrderType)
+	bool bOrderComplete = false;
+	AvHOrderType OrderType = CommanderBot->LastPlayerOrders[PlayerIndex].OrderType;
+	CommanderOrderPurpose OrderPurpose = CommanderBot->LastPlayerOrders[PlayerIndex].OrderPurpose;
+
+	switch (OrderType)
 	{
 	case ORDERTYPEL_MOVE:
-		return (vEquals(CommanderBot->LastPlayerOrders[PlayerIndex].MoveLocation, ZERO_VECTOR) || vDist3DSq(Player->v.origin, CommanderBot->LastPlayerOrders[PlayerIndex].MoveLocation) < sqrf(UTIL_MetresToGoldSrcUnits(move_order_success_dist_metres)));
+		bOrderComplete = (CommanderBot->LastPlayerOrders[PlayerIndex].MoveLocation == ZERO_VECTOR || vDist3DSq(Player->v.origin, CommanderBot->LastPlayerOrders[PlayerIndex].MoveLocation) < sqrf(UTIL_MetresToGoldSrcUnits(move_order_success_dist_metres)));
 		break;
 	case ORDERTYPET_BUILD:
-		return (FNullEnt(CommanderBot->LastPlayerOrders[PlayerIndex].Target) || UTIL_StructureIsFullyBuilt(CommanderBot->LastPlayerOrders[PlayerIndex].Target) || CommanderBot->LastPlayerOrders[PlayerIndex].Target->v.deadflag != DEAD_NO);
+		bOrderComplete = (FNullEnt(CommanderBot->LastPlayerOrders[PlayerIndex].Target) || UTIL_StructureIsFullyBuilt(CommanderBot->LastPlayerOrders[PlayerIndex].Target));
 		break;
 	default:
-		return true;
+		bOrderComplete = false;
 		break;
+	}
+
+	if (bOrderComplete) { return true; }
+
+	switch (OrderPurpose)
+	{
+		case ORDERPURPOSE_SECURE_HIVE:
+			return COMM_IsSecureHiveOrderComplete(CommanderBot, &CommanderBot->LastPlayerOrders[PlayerIndex]);
+		case ORDERPURPOSE_SIEGE_HIVE:
+			return COMM_IsSiegeHiveOrderComplete(&CommanderBot->LastPlayerOrders[PlayerIndex]);
+		case ORDERPURPOSE_SECURE_RESNODE:
+			return COMM_IsSecureResNodeOrderComplete(&CommanderBot->LastPlayerOrders[PlayerIndex]);
+		default:
+			return false;
+
 	}
 
 	return true;
 }
 
-bool CommanderProgressResearchAction(bot_t* CommanderBot, int ActionIndex, int Priority)
+bool COMM_IsSecureHiveOrderComplete(bot_t* CommanderBot, commander_order* Order)
 {
-	commander_action* action = &CommanderBot->CurrentCommanderActions[Priority][ActionIndex];
+	const hive_definition* HiveToSecure = UTIL_GetNearestHiveAtLocation(Order->Target->v.origin);
 
-	if (action->ResearchId == RESEARCH_ELECTRICAL)
-	{
-		if (UTIL_StructureIsResearching(action->StructureOrItem) || !UTIL_ElectricalResearchIsAvailable(action->StructureOrItem))
-		{
-			UTIL_ClearCommanderAction(CommanderBot, ActionIndex, Priority);
-			return false;
-		}
-	}
-	else
-	{
-		if (UTIL_ResearchInProgress(action->ResearchId) || !UTIL_MarineResearchIsAvailable(action->ResearchId))
-		{
-			UTIL_ClearCommanderAction(CommanderBot, ActionIndex, Priority);
-			return false;
-		}
-	}
+	if (!HiveToSecure) { return true; }
 
-
-
-	return BotCommanderResearchTech(CommanderBot, ActionIndex, Priority);
-
+	return UTIL_IsHiveFullySecuredByMarines(CommanderBot, HiveToSecure);
 }
 
-bool CommanderProgressItemDropAction(bot_t* CommanderBot, int ActionIndex, int Priority)
+bool COMM_IsSiegeHiveOrderComplete(commander_order* Order)
 {
-	commander_action* action = &CommanderBot->CurrentCommanderActions[Priority][ActionIndex];
+	const hive_definition* HiveToSiege = UTIL_GetNearestHiveAtLocation(Order->Target->v.origin);
 
-	if (!FNullEnt(action->StructureOrItem))
-	{
-		UTIL_ClearCommanderAction(CommanderBot, ActionIndex, Priority);
-		return false;
-	}
+	if (!HiveToSiege) { return true; }
 
-	return BotCommanderDropItem(CommanderBot, ActionIndex, Priority);
+	return HiveToSiege->Status == HIVE_STATUS_UNBUILT;
+}
+
+bool COMM_IsSecureResNodeOrderComplete(commander_order* Order)
+{
+	const resource_node* ResNode = UTIL_GetResourceNodeFromEdict(Order->Target);
+
+	if (!ResNode) { return true; }
+
+	return ResNode->bIsOccupied && ResNode->bIsOwnedByMarines;
 }
 
 bool UTIL_ConfirmMarineOrderComplete(bot_t* CommanderBot, int CommanderOrderIndex)
 {
-	if (gpGlobals->time < CommanderBot->next_commander_action_time) { return false; }
-
 	edict_t* Player = clients[CommanderOrderIndex];
 	edict_t* OrderTarget = CommanderBot->LastPlayerOrders[CommanderOrderIndex].Target;
 	AvHOrderType OrderType = CommanderBot->LastPlayerOrders[CommanderOrderIndex].OrderType;
 	Vector OrderLocation = CommanderBot->LastPlayerOrders[CommanderOrderIndex].MoveLocation;
 
-	if (FNullEnt(Player) || !IsPlayerOnMarineTeam(Player)) { return false; }
+	if (FNullEnt(Player)) { return false; }
 
-	if (OrderType == ORDERTYPET_BUILD && FNullEnt(OrderTarget)) { return false; }
+	bool bIsBuildOrder = (OrderType == ORDERTYPET_BUILD && !FNullEnt(OrderTarget));
 
 	MESSAGE_BEGIN(MSG_ONE, REG_USER_MSG("SetOrder", -1), NULL, Player);
 	WRITE_BYTE(ENTINDEX(Player));
 	WRITE_BYTE(OrderType);
 
-	if (OrderType == ORDERTYPET_BUILD)
+	if (bIsBuildOrder)
 	{
 		WRITE_SHORT(ENTINDEX(OrderTarget));
 	}
@@ -2256,7 +1877,7 @@ bool UTIL_ConfirmMarineOrderComplete(bot_t* CommanderBot, int CommanderOrderInde
 		WRITE_COORD(OrderLocation.z);
 	}
 
-	if (OrderTarget)
+	if (bIsBuildOrder)
 	{
 		WRITE_BYTE(OrderTarget->v.iuser3);
 	}
@@ -2271,709 +1892,7 @@ bool UTIL_ConfirmMarineOrderComplete(bot_t* CommanderBot, int CommanderOrderInde
 
 	UTIL_ClearCommanderOrder(CommanderBot, CommanderOrderIndex);
 
-	CommanderBot->LastPlayerOrders[CommanderOrderIndex].LastReminderTime = gpGlobals->time;
-
-	CommanderBot->next_commander_action_time = gpGlobals->time + 0.1f;
-
 	return true;
-}
-
-edict_t* UTIL_GetFirstMarineStructureOffNavmesh()
-{
-
-	for (auto& it : MarineBuildableStructureMap)
-	{
-		if (!it.second.bOnNavmesh) { return it.second.edict; }
-
-	}
-
-	return nullptr;
-}
-
-void CommanderQueueRecycleAction(bot_t* pBot, edict_t* Structure, int Priority)
-{
-	int NewActionIndex = UTIL_CommanderFirstFreeActionIndex(pBot, Priority);
-
-	if (NewActionIndex > -1)
-	{
-		UTIL_ClearCommanderAction(pBot, NewActionIndex, Priority);
-
-		commander_action* Action = &pBot->CurrentCommanderActions[Priority][NewActionIndex];
-
-		Action->bIsActive = true;
-		Action->ActionType = ACTION_RECYCLE;
-		Action->StructureOrItem = Structure;
-		Action->ActionTarget = Structure;
-
-	}
-}
-
-void CommanderQueueNextAction(bot_t* pBot)
-{
-
-	int NumResTowers = UTIL_GetNumPlacedStructuresOfType(STRUCTURE_MARINE_RESTOWER);
-
-	if ((gpGlobals->time - pBot->CommanderLastBeaconTime > 5.0f) && UTIL_BaseIsInDistress())
-	{
-		if (!UTIL_ResearchActionAlreadyExists(pBot, RESEARCH_OBSERVATORY_DISTRESSBEACON) && UTIL_MarineResearchIsAvailable(RESEARCH_OBSERVATORY_DISTRESSBEACON))
-		{
-			CommanderQueueResearch(pBot, RESEARCH_OBSERVATORY_DISTRESSBEACON, 0);
-			BotTeamSay(pBot, 0.5f, "Our base needs defending, I'm going to beacon");
-			return;
-		}
-	}
-
-	/* All the highest-priority tasks. Infantry portals, base armoury, arms lab, phase gate etc. */
-	int CurrentPriority = 0;
-
-	int NumPlacedOrQueuedPortals = UTIL_GetNumPlacedOrQueuedStructuresOfType(pBot, STRUCTURE_MARINE_INFANTRYPORTAL);
-
-	// Only queue up one infantry portal at a time so the second one can be built next to the first rather than randomly scattered
-	if (NumPlacedOrQueuedPortals < 2 && UTIL_GetQueuedBuildRequestsOfType(pBot, STRUCTURE_MARINE_INFANTRYPORTAL) == 0)
-	{
-		CommanderQueueInfantryPortalBuild(pBot, CurrentPriority);
-	}
-
-	if (!UTIL_StructureOfTypeExistsInLocation(STRUCTURE_MARINE_ANYARMOURY, UTIL_GetCommChairLocation(), UTIL_MetresToGoldSrcUnits(15.0f)))
-	{
-		if (UTIL_GetQueuedBuildRequestsOfType(pBot, STRUCTURE_MARINE_ARMOURY) == 0)
-		{
-			CommanderQueueArmouryBuild(pBot, CurrentPriority);
-		}
-	}
-
-	if (UTIL_ResearchIsComplete(RESEARCH_OBSERVATORY_PHASETECH))
-	{
-		if (UTIL_GetQueuedBuildRequestsOfType(pBot, STRUCTURE_MARINE_PHASEGATE) == 0 && !UTIL_StructureOfTypeExistsInLocation(STRUCTURE_MARINE_PHASEGATE, UTIL_GetCommChairLocation(), UTIL_MetresToGoldSrcUnits(20.0f)))
-		{
-			edict_t* ExistingInfantryPortal = UTIL_GetFirstPlacedStructureOfType(STRUCTURE_MARINE_INFANTRYPORTAL);
-
-			if (!FNullEnt(ExistingInfantryPortal))
-			{
-				Vector NewPhaseGateLocation = UTIL_GetRandomPointOnNavmeshInDonut(BUILDING_REGULAR_NAV_PROFILE, ExistingInfantryPortal->v.origin, UTIL_MetresToGoldSrcUnits(3.0f), UTIL_MetresToGoldSrcUnits(5.0f));
-
-				if (NewPhaseGateLocation != ZERO_VECTOR)
-				{
-					CommanderQueuePhaseGateBuild(pBot, NewPhaseGateLocation, CurrentPriority);
-				}
-			}
-		}
-	}
-
-	/* Next-highest priority tasks. Make sure we have at least 3 resource nodes. */
-	CurrentPriority = 1;
-
-	int ResourceTowerDeficit = min_desired_resource_towers - UTIL_GetNumPlacedOrQueuedStructuresOfType(pBot, STRUCTURE_MARINE_RESTOWER);
-
-	for (int i = 0; i < ResourceTowerDeficit; i++)
-	{
-		CommanderQueueResTowerBuild(pBot, CurrentPriority);
-	}
-
-	/* Next-highest priority tasks. Secure one hive to deny it to aliens. */
-
-	CurrentPriority = 2;
-
-	const hive_definition* NearestUnbuiltHive = UTIL_GetNearestHiveOfStatus(UTIL_GetCommChairLocation(), HIVE_STATUS_UNBUILT);
-
-	if (NearestUnbuiltHive)
-	{
-		QueueSecureHiveAction(pBot, NearestUnbuiltHive->FloorLocation, CurrentPriority);
-	}
-
-	/* Next-highest priority tasks. Place arms lab and do basic research including grenades, armour 1 and weapons 1*/
-
-	CurrentPriority = 3;
-
-	if (UTIL_GetNumPlacedOrQueuedStructuresOfType(pBot, STRUCTURE_MARINE_ARMSLAB) < 1)
-	{
-		CommanderQueueArmsLabBuild(pBot, CurrentPriority);
-	}
-
-	if (UTIL_MarineResearchIsAvailable(RESEARCH_ARMOURY_GRENADES) && !UTIL_ResearchIsAlreadyQueued(pBot, RESEARCH_ARMOURY_GRENADES))
-	{
-		CommanderQueueResearch(pBot, RESEARCH_ARMOURY_GRENADES, CurrentPriority);
-	}
-
-	if (UTIL_MarineResearchIsAvailable(RESEARCH_ARMSLAB_ARMOUR1) && !UTIL_ResearchIsAlreadyQueued(pBot, RESEARCH_ARMSLAB_ARMOUR1))
-	{
-		CommanderQueueResearch(pBot, RESEARCH_ARMSLAB_ARMOUR1, CurrentPriority);
-	}
-
-	if (UTIL_MarineResearchIsAvailable(RESEARCH_ARMSLAB_WEAPONS1) && !UTIL_ResearchIsAlreadyQueued(pBot, RESEARCH_ARMSLAB_WEAPONS1))
-	{
-		CommanderQueueResearch(pBot, RESEARCH_ARMSLAB_WEAPONS1, CurrentPriority);
-	}
-
-	/* Next up: Drop some shotguns and welders for the plebs */
-
-	CurrentPriority = 4;
-
-	// Don't try securing a second hives unless important milestones are met
-	if (UTIL_ResearchIsComplete(RESEARCH_ARMSLAB_ARMOUR1) && NumResTowers >= 3)
-	{
-		const hive_definition* FurthestUnbuiltHive = UTIL_GetFurthestHiveOfStatus(UTIL_GetCommChairLocation(), HIVE_STATUS_UNBUILT);
-
-		if (FurthestUnbuiltHive && FurthestUnbuiltHive != NearestUnbuiltHive)
-		{
-			QueueSecureHiveAction(pBot, FurthestUnbuiltHive->FloorLocation, CurrentPriority);
-		}
-	}
-
-	int DesiredNumShotguns = 2;
-
-	if (UTIL_GetNearestPlayerOfClass(UTIL_GetCommChairLocation(), CLASS_FADE, UTIL_MetresToGoldSrcUnits(50.0f), NULL) != nullptr)
-	{
-		DesiredNumShotguns = 4;
-	}
-
-	if (UTIL_GetNumPlacedStructuresOfType(STRUCTURE_MARINE_RESTOWER) >= 4 && UTIL_ItemCanBeDeployed(ITEM_MARINE_SHOTGUN) && UTIL_GetNumWeaponsOfTypeInPlay(WEAPON_MARINE_SHOTGUN) < DesiredNumShotguns && UTIL_GetQueuedItemDropRequestsOfType(pBot, ITEM_MARINE_SHOTGUN) == 0)
-	{
-		edict_t* NearestArmoury = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ANYARMOURY, UTIL_GetCommChairLocation(), UTIL_MetresToGoldSrcUnits(30.0f), true, false);
-
-		if (!FNullEnt(NearestArmoury))
-		{
-			Vector NewShotgunLocation = UTIL_GetRandomPointOnNavmeshInDonut(MARINE_REGULAR_NAV_PROFILE, NearestArmoury->v.origin, UTIL_MetresToGoldSrcUnits(2.0f), UTIL_MetresToGoldSrcUnits(3.0f));
-
-			if (NewShotgunLocation != ZERO_VECTOR)
-			{
-				CommanderQueueItemDrop(pBot, ITEM_MARINE_SHOTGUN, NewShotgunLocation, NULL, CurrentPriority);
-			}
-		}
-	}
-
-	if (UTIL_GetNumPlacedStructuresOfType(STRUCTURE_MARINE_RESTOWER) >= min_desired_resource_towers && UTIL_ItemCanBeDeployed(ITEM_MARINE_WELDER) && UTIL_GetNumWeaponsOfTypeInPlay(WEAPON_MARINE_WELDER) < 2 && UTIL_GetQueuedItemDropRequestsOfType(pBot, ITEM_MARINE_WELDER) == 0)
-	{
-		edict_t* NearestArmoury = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ANYARMOURY, UTIL_GetCommChairLocation(), UTIL_MetresToGoldSrcUnits(30.0f), true, false);
-
-		if (!FNullEnt(NearestArmoury))
-		{
-			Vector NewWelderLocation = UTIL_GetRandomPointOnNavmeshInDonut(MARINE_REGULAR_NAV_PROFILE, NearestArmoury->v.origin, UTIL_MetresToGoldSrcUnits(2.0f), UTIL_MetresToGoldSrcUnits(3.0f));
-
-			if (NewWelderLocation != ZERO_VECTOR)
-			{
-				CommanderQueueItemDrop(pBot, ITEM_MARINE_WELDER, NewWelderLocation, NULL, CurrentPriority);
-			}
-		}
-	}
-
-	/* Next: Build an observatory and research phase tech and motion tracking */
-
-	CurrentPriority = 5;
-
-	if (UTIL_GetNumPlacedOrQueuedStructuresOfType(pBot, STRUCTURE_MARINE_OBSERVATORY) < 1)
-	{
-		edict_t* Armoury = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ANYARMOURY, UTIL_GetCommChairLocation(), UTIL_MetresToGoldSrcUnits(15.0f), true, false);
-
-		Vector NewLocation = ZERO_VECTOR;
-
-		if (!FNullEnt(Armoury))
-		{
-			NewLocation = UTIL_GetRandomPointOnNavmeshInDonut(BUILDING_REGULAR_NAV_PROFILE, Armoury->v.origin, UTIL_MetresToGoldSrcUnits(3.0f), UTIL_MetresToGoldSrcUnits(5.0f));
-
-			if (NewLocation != ZERO_VECTOR)
-			{
-				UTIL_CommanderQueueStructureBuildAtLocation(pBot, NewLocation, STRUCTURE_MARINE_OBSERVATORY, CurrentPriority);
-			}
-		}
-	}
-
-	if (UTIL_MarineResearchIsAvailable(RESEARCH_OBSERVATORY_PHASETECH) && !UTIL_ResearchIsAlreadyQueued(pBot, RESEARCH_OBSERVATORY_PHASETECH))
-	{
-		CommanderQueueResearch(pBot, RESEARCH_OBSERVATORY_PHASETECH, CurrentPriority);
-	}
-
-	if (UTIL_MarineResearchIsAvailable(RESEARCH_OBSERVATORY_MOTIONTRACKING) && !UTIL_ResearchIsAlreadyQueued(pBot, RESEARCH_OBSERVATORY_MOTIONTRACKING))
-	{
-		CommanderQueueResearch(pBot, RESEARCH_OBSERVATORY_MOTIONTRACKING, CurrentPriority);
-	}
-
-	/* Next: Armour and Weapons 2 */
-
-	CurrentPriority = 6;
-
-	if (UTIL_MarineResearchIsAvailable(RESEARCH_ARMSLAB_ARMOUR2) && !UTIL_ResearchIsAlreadyQueued(pBot, RESEARCH_ARMSLAB_ARMOUR2))
-	{
-		CommanderQueueResearch(pBot, RESEARCH_ARMSLAB_ARMOUR2, CurrentPriority);
-	}
-
-	if (UTIL_MarineResearchIsAvailable(RESEARCH_ARMSLAB_WEAPONS2) && !UTIL_ResearchIsAlreadyQueued(pBot, RESEARCH_ARMSLAB_WEAPONS2))
-	{
-		CommanderQueueResearch(pBot, RESEARCH_ARMSLAB_WEAPONS2, CurrentPriority);
-	}
-
-	/* Next: Heavy armour and weapons */
-
-	CurrentPriority = 7;
-
-	if (UTIL_GetStructureCountOfType(STRUCTURE_MARINE_ADVARMOURY) < 1 && UTIL_GetQueuedUpgradeRequestsOfType(pBot, STRUCTURE_MARINE_ARMOURY) < 1)
-	{
-		edict_t* Armoury = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ARMOURY, UTIL_GetCommChairLocation(), UTIL_MetresToGoldSrcUnits(15.0f), true, false);
-
-		if (!FNullEnt(Armoury) && UTIL_StructureCanBeUpgraded(Armoury))
-		{
-			CommanderQueueUpgrade(pBot, Armoury, CurrentPriority);
-		}
-	}
-
-	if (UTIL_GetStructureCountOfType(STRUCTURE_MARINE_ADVARMOURY) > 0 && UTIL_GetStructureCountOfType(STRUCTURE_MARINE_ARMSLAB) > 0)
-	{
-		if (UTIL_GetNumPlacedOrQueuedStructuresOfType(pBot, STRUCTURE_MARINE_PROTOTYPELAB) < 1)
-		{
-			edict_t* Armoury = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ANYARMOURY, UTIL_GetCommChairLocation(), UTIL_MetresToGoldSrcUnits(15.0f), true, false);
-
-			Vector NewLocation = ZERO_VECTOR;
-
-			if (!FNullEnt(Armoury))
-			{
-				NewLocation = UTIL_GetRandomPointOnNavmeshInDonut(BUILDING_REGULAR_NAV_PROFILE, Armoury->v.origin, UTIL_MetresToGoldSrcUnits(3.0f), UTIL_MetresToGoldSrcUnits(5.0f));
-
-				if (NewLocation != ZERO_VECTOR)
-				{
-					UTIL_CommanderQueueStructureBuildAtLocation(pBot, NewLocation, STRUCTURE_MARINE_PROTOTYPELAB, CurrentPriority);
-				}
-			}
-		}
-	}
-
-	if (UTIL_MarineResearchIsAvailable(RESEARCH_PROTOTYPELAB_HEAVYARMOUR) && !UTIL_ResearchIsAlreadyQueued(pBot, RESEARCH_PROTOTYPELAB_HEAVYARMOUR))
-	{
-		CommanderQueueResearch(pBot, RESEARCH_PROTOTYPELAB_HEAVYARMOUR, CurrentPriority);
-	}
-
-	/* Next: Drop heavy armour loadouts */
-
-	CurrentPriority = 8;
-
-	if (UTIL_ItemCanBeDeployed(ITEM_MARINE_HEAVYARMOUR))
-	{
-		// Don't include commander in the count
-		int NumMarinePlayers = GAME_GetNumPlayersOnTeam(MARINE_TEAM) - 1;
-		int NumPlayersWithEquipment = UTIL_GetNumEquipmentInPlay();
-
-		if (NumMarinePlayers - NumPlayersWithEquipment > 0)
-		{
-			QueueHeavyArmourLoadout(pBot, UTIL_GetCommChairLocation(), CurrentPriority);
-		}
-	}
-
-	/* Now siege a hive */
-
-	CurrentPriority = 9;
-
-	if (UTIL_ResearchIsComplete(RESEARCH_OBSERVATORY_PHASETECH) && UTIL_StructureOfTypeExistsInLocation(STRUCTURE_MARINE_PHASEGATE, UTIL_GetCommChairLocation(), UTIL_MetresToGoldSrcUnits(20.0f)))
-	{
-		const hive_definition* NearestBuildHive = UTIL_GetNearestBuiltHiveToLocation(UTIL_GetCommChairLocation());
-
-		if (NearestBuildHive)
-		{
-			QueueSiegeHiveAction(pBot, NearestBuildHive->FloorLocation, CurrentPriority);
-		}
-	}
-
-	/* Last: everything else */
-
-	CurrentPriority = 10;
-
-	if (UTIL_MarineResearchIsAvailable(RESEARCH_ARMSLAB_ARMOUR3) && !UTIL_ResearchIsAlreadyQueued(pBot, RESEARCH_ARMSLAB_ARMOUR3))
-	{
-		CommanderQueueResearch(pBot, RESEARCH_ARMSLAB_ARMOUR3, CurrentPriority);
-	}
-
-	if (UTIL_MarineResearchIsAvailable(RESEARCH_ARMSLAB_WEAPONS3) && !UTIL_ResearchIsAlreadyQueued(pBot, RESEARCH_ARMSLAB_WEAPONS3))
-	{
-		CommanderQueueResearch(pBot, RESEARCH_ARMSLAB_WEAPONS3, CurrentPriority);
-	}
-
-	/* Optional: grab any empty nodes with marines standing by them waiting to cap */
-
-	int eligibleResNode = UTIL_FindFreeResNodeWithMarineNearby(pBot);
-
-	if (eligibleResNode > -1)
-	{
-		int NumResTowers = UTIL_GetNumPlacedOrQueuedStructuresOfType(pBot, STRUCTURE_MARINE_RESTOWER);
-
-		int NewPriority = (NumResTowers >= 4) ? 2 : 1;
-
-		int FreeActionIndex = UTIL_CommanderFirstFreeActionIndex(pBot, NewPriority);
-
-		if (FreeActionIndex > -1)
-		{
-			UTIL_ClearCommanderAction(pBot, FreeActionIndex, NewPriority);
-			pBot->CurrentCommanderActions[NewPriority][FreeActionIndex].bIsActive = true;
-			pBot->CurrentCommanderActions[NewPriority][FreeActionIndex].ActionType = ACTION_BUILD;
-			pBot->CurrentCommanderActions[NewPriority][FreeActionIndex].BuildLocation = ResourceNodes[eligibleResNode].origin;
-			pBot->CurrentCommanderActions[NewPriority][FreeActionIndex].StructureToBuild = STRUCTURE_MARINE_RESTOWER;
-		}
-	}
-}
-
-int UTIL_FindFreeResNodeWithMarineNearby(bot_t* CommanderBot)
-{
-	for (int i = 0; i < NumTotalResNodes; i++)
-	{
-		if (ResourceNodes[i].edict && !ResourceNodes[i].bIsOccupied)
-		{
-
-			if (UTIL_AnyMarinePlayerNearLocation(ResourceNodes[i].origin, UTIL_MetresToGoldSrcUnits(10.0f)) && !UTIL_ActionExistsInLocation(CommanderBot, ResourceNodes[i].origin))
-			{
-				return i;
-			}
-		}
-	}
-
-	return -1;
-}
-
-commander_action* UTIL_FindCommanderBuildActionOfType(bot_t* pBot, const NSStructureType StructureType, const Vector SearchLocation, const float SearchRadius)
-{
-	for (int Priority = 0; Priority < MAX_ACTION_PRIORITIES; Priority++)
-	{
-		for (int ActionIndex = 0; ActionIndex < MAX_PRIORITY_ACTIONS; ActionIndex++)
-		{
-			commander_action* Action = &pBot->CurrentCommanderActions[Priority][ActionIndex];
-			if (Action->ActionType == ACTION_BUILD && UTIL_StructureTypesMatch(Action->StructureToBuild, StructureType))
-			{
-				if (vDist2DSq(Action->BuildLocation, SearchLocation) <= sqrf(SearchRadius))
-				{
-					return Action;
-				}
-			}
-		}
-	}
-
-	return nullptr;
-}
-
-void QueueSiegeHiveAction(bot_t* CommanderBot, const Vector Area, int Priority)
-{
-	edict_t* PhaseGate = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_PHASEGATE, Area, UTIL_MetresToGoldSrcUnits(30.0f), true, false);
-	edict_t* TurretFactory = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ANYTURRETFACTORY, Area, UTIL_MetresToGoldSrcUnits(20.0f), true, false);
-
-	int NumCompletedSiegeTurrets = UTIL_GetNumBuiltStructuresOfTypeInRadius(STRUCTURE_MARINE_SIEGETURRET, Area, UTIL_MetresToGoldSrcUnits(20.0f));
-
-	if (!FNullEnt(TurretFactory) && GetStructureTypeFromEdict(TurretFactory) == STRUCTURE_MARINE_ADVTURRETFACTORY && NumCompletedSiegeTurrets > 0)
-	{
-		if (UTIL_GetFirstCompletedStructureOfType(STRUCTURE_MARINE_OBSERVATORY) != nullptr && UTIL_GetQueuedItemDropRequestsOfType(CommanderBot, ITEM_MARINE_SCAN) == 0 && (gpGlobals->time - CommanderBot->CommanderLastScanTime) > 10.0f)
-		{
-			Vector ScanLocation = UTIL_GetRandomPointOnNavmeshInRadius(BUILDING_REGULAR_NAV_PROFILE, Area, UTIL_MetresToGoldSrcUnits(5.0f));
-
-			if (ScanLocation != ZERO_VECTOR)
-			{
-				CommanderQueueItemDrop(CommanderBot, ITEM_MARINE_SCAN, ScanLocation, NULL, 0);
-			}
-		}
-	}
-
-	const hive_definition* HiveIndex = UTIL_GetNearestHiveAtLocation(Area);
-
-	if (FNullEnt(PhaseGate))
-	{
-		commander_action* ExistingTFAction = UTIL_FindCommanderBuildActionOfType(CommanderBot, STRUCTURE_MARINE_TURRETFACTORY, Area, UTIL_MetresToGoldSrcUnits(30.0f));
-		commander_action* ExistingArmouryAction = UTIL_FindCommanderBuildActionOfType(CommanderBot, STRUCTURE_MARINE_ARMOURY, Area, UTIL_MetresToGoldSrcUnits(30.0f));
-
-		if (ExistingTFAction != nullptr)
-		{
-			UTIL_ClearCommanderAction(CommanderBot, ExistingTFAction);
-		}
-
-		if (ExistingArmouryAction != nullptr)
-		{
-			UTIL_ClearCommanderAction(CommanderBot, ExistingArmouryAction);
-		}
-
-		commander_action* ExistingAction = UTIL_FindCommanderBuildActionOfType(CommanderBot, STRUCTURE_MARINE_PHASEGATE, Area, UTIL_MetresToGoldSrcUnits(30.0f));
-
-		// We already have a plan to build a phase gate outside this hive, and we haven't already placed it
-		if (ExistingAction && vDist2DSq(ExistingAction->BuildLocation, Area) < sqrf(UTIL_MetresToGoldSrcUnits(30.0f)) && FNullEnt(ExistingAction->StructureOrItem))
-		{
-			edict_t* NearbyMarine = UTIL_FindSafePlayerInArea(MARINE_TEAM, Area, UTIL_MetresToGoldSrcUnits(10.0f), UTIL_MetresToGoldSrcUnits(20.0f));
-
-			if (!FNullEnt(NearbyMarine) && vDist2DSq(ExistingAction->BuildLocation, NearbyMarine->v.origin) > sqrf(UTIL_MetresToGoldSrcUnits(2.0f)) && !UTIL_QuickTrace(NearbyMarine, NearbyMarine->v.origin, HiveIndex->Location))
-			{
-				Vector BuildLocation = UTIL_ProjectPointToNavmesh(NearbyMarine->v.origin, Vector(100.0f, 50.0f, 100.0f), BUILDING_REGULAR_NAV_PROFILE);
-
-				if (BuildLocation != ZERO_VECTOR)
-				{
-					ExistingAction->BuildLocation = BuildLocation;
-				}
-
-				return;
-			}
-		}
-
-		// We don't have any plans to build a phase gate yet
-		if (!ExistingAction)
-		{
-			Vector BuildLocation = ZERO_VECTOR;
-
-			edict_t* NearbyMarine = UTIL_FindSafePlayerInArea(MARINE_TEAM, Area, UTIL_MetresToGoldSrcUnits(10.0f), UTIL_MetresToGoldSrcUnits(20.0f));
-
-			if (!FNullEnt(NearbyMarine))
-			{
-				BuildLocation = UTIL_ProjectPointToNavmesh(NearbyMarine->v.origin, Vector(100.0f, 50.0f, 100.0f), BUILDING_REGULAR_NAV_PROFILE);
-			}
-
-			if (vEquals(BuildLocation, ZERO_VECTOR))
-			{
-				BuildLocation = UTIL_GetRandomPointOnNavmeshInDonut(BUILDING_REGULAR_NAV_PROFILE, Area, UTIL_MetresToGoldSrcUnits(15.0f), UTIL_MetresToGoldSrcUnits(20.0f));
-			}
-
-			if (BuildLocation != ZERO_VECTOR && (!HiveIndex || !UTIL_QuickTrace(CommanderBot->pEdict, UTIL_GetCentreOfEntity(HiveIndex->edict), BuildLocation + Vector(0.0f, 0.0f, 5.0f))))
-			{
-				UTIL_CommanderQueueStructureBuildAtLocation(CommanderBot, BuildLocation, STRUCTURE_MARINE_PHASEGATE, Priority);
-			}
-
-		}
-
-		return;
-	}
-
-	if (!UTIL_StructureIsFullyBuilt(PhaseGate)) { return; }
-
-	edict_t* Armoury = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ARMOURY, PhaseGate->v.origin, UTIL_MetresToGoldSrcUnits(10.0f), true, false);
-
-	if (FNullEnt(Armoury))
-	{
-		if (UTIL_GetQueuedBuildRequestsOfType(CommanderBot, STRUCTURE_MARINE_ARMOURY) == 0)
-		{
-			Vector BuildLocation = UTIL_GetRandomPointOnNavmeshInDonut(BUILDING_REGULAR_NAV_PROFILE, PhaseGate->v.origin, UTIL_MetresToGoldSrcUnits(2.0f), UTIL_MetresToGoldSrcUnits(5.0f));
-
-			if (BuildLocation != ZERO_VECTOR)
-			{
-				UTIL_CommanderQueueStructureBuildAtLocation(CommanderBot, BuildLocation, STRUCTURE_MARINE_ARMOURY, 0);
-			}
-		}
-	}
-
-
-
-	if (FNullEnt(TurretFactory))
-	{
-		if (UTIL_GetQueuedBuildRequestsOfType(CommanderBot, STRUCTURE_MARINE_ANYTURRETFACTORY) == 0)
-		{
-			Vector BuildLocation = UTIL_GetRandomPointOnNavmeshInDonut(BUILDING_REGULAR_NAV_PROFILE, PhaseGate->v.origin, UTIL_MetresToGoldSrcUnits(2.0f), UTIL_MetresToGoldSrcUnits(5.0f));
-
-			if (BuildLocation != ZERO_VECTOR && vDist2DSq(BuildLocation, HiveIndex->Location) < sqrf(1100.0f))
-			{
-				UTIL_CommanderQueueStructureBuildAtLocation(CommanderBot, BuildLocation, STRUCTURE_MARINE_TURRETFACTORY, 0);
-			}
-		}
-		return;
-	}
-	else
-	{
-		if (!UTIL_StructureIsFullyBuilt(TurretFactory))
-		{
-			return;
-		}
-
-		if (GetStructureTypeFromEdict(TurretFactory) != STRUCTURE_MARINE_ADVTURRETFACTORY)
-		{
-
-			if (UTIL_StructureIsUpgrading(TurretFactory))
-			{
-				return;
-			}
-
-			if (UTIL_GetQueuedUpgradeRequestsOfType(CommanderBot, STRUCTURE_MARINE_TURRETFACTORY) == 0)
-			{
-				CommanderQueueUpgrade(CommanderBot, TurretFactory, 0);
-			}
-
-			return;
-		}
-		else
-		{
-			if (UTIL_StructureIsUpgrading(TurretFactory))
-			{
-				return;
-			}
-
-			int NumSiegeTurrets = UTIL_GetNumPlacedStructuresOfTypeInRadius(STRUCTURE_MARINE_SIEGETURRET, TurretFactory->v.origin, UTIL_MetresToGoldSrcUnits(10.0f));
-
-			if (NumSiegeTurrets < 3 && UTIL_GetQueuedBuildRequestsOfTypeInArea(CommanderBot, STRUCTURE_MARINE_SIEGETURRET, Area, UTIL_MetresToGoldSrcUnits(20.0f)) == 0)
-			{
-				Vector BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(BUILDING_REGULAR_NAV_PROFILE, TurretFactory->v.origin, 1100.0f);
-
-				if (BuildLocation != ZERO_VECTOR && UTIL_PointIsDirectlyReachable(TurretFactory->v.origin, BuildLocation) && vDist2DSq(BuildLocation, HiveIndex->Location) < sqrf(1100.0f))
-				{
-					UTIL_CommanderQueueStructureBuildAtLocation(CommanderBot, BuildLocation, STRUCTURE_MARINE_SIEGETURRET, 1);
-				}
-			}
-
-			if (NumSiegeTurrets > 0 && !UTIL_IsStructureElectrified(TurretFactory) && !UTIL_ResearchActionAlreadyExists(CommanderBot, RESEARCH_ELECTRICAL))
-			{
-				CommanderQueueElectricResearch(CommanderBot, 0, TurretFactory);
-			}
-
-		}
-	}
-
-}
-
-void QueueSecureHiveAction(bot_t* CommanderBot, const Vector Area, int Priority)
-{
-	const resource_node* HiveResourceNode = UTIL_FindNearestResNodeToLocation(Area);
-
-	if (HiveResourceNode)
-	{
-		if (!HiveResourceNode->bIsOccupied)
-		{
-			if (!UTIL_ActionExistsInLocation(CommanderBot, HiveResourceNode->origin))
-			{
-				UTIL_CommanderQueueStructureBuildAtLocation(CommanderBot, HiveResourceNode->origin, STRUCTURE_MARINE_RESTOWER, Priority);
-			}
-		}
-	}
-
-	edict_t* ExistingPhaseGate = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_PHASEGATE, Area, UTIL_MetresToGoldSrcUnits(15.0f), true, false);
-	edict_t* BasePhaseGate = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_PHASEGATE, UTIL_GetCommChairLocation(), UTIL_MetresToGoldSrcUnits(20.0f), true, false);
-	edict_t* ExistingTurretFactory = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ANYTURRETFACTORY, Area, UTIL_MetresToGoldSrcUnits(15.0f), true, false);
-
-	if (!FNullEnt(BasePhaseGate) && FNullEnt(ExistingPhaseGate))
-	{
-		if (UTIL_GetQueuedBuildRequestsOfTypeInArea(CommanderBot, STRUCTURE_MARINE_PHASEGATE, Area, UTIL_MetresToGoldSrcUnits(10.0f)) == 0)
-		{
-			if (UTIL_ResearchIsComplete(RESEARCH_OBSERVATORY_PHASETECH))
-			{
-				Vector BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(BUILDING_REGULAR_NAV_PROFILE, Area, UTIL_MetresToGoldSrcUnits(5.0f));
-
-				if (BuildLocation != ZERO_VECTOR && UTIL_PointIsReachable(MARINE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), BuildLocation, max_player_use_reach))
-				{
-					// If we already have secured this hive, then make adding a phase gate a top priority to fully secure it
-					int PhasePriority = FNullEnt(ExistingTurretFactory) ? Priority : 0;
-					CommanderQueuePhaseGateBuild(CommanderBot, BuildLocation, PhasePriority);
-				}
-			}
-		}
-	}
-
-	if (FNullEnt(ExistingTurretFactory))
-	{
-		if (UTIL_GetQueuedBuildRequestsOfTypeInArea(CommanderBot, STRUCTURE_MARINE_TURRETFACTORY, Area, UTIL_MetresToGoldSrcUnits(10.0f)) == 0)
-		{
-			Vector BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(BUILDING_REGULAR_NAV_PROFILE, Area, UTIL_MetresToGoldSrcUnits(5.0f));
-
-			if (BuildLocation != ZERO_VECTOR && UTIL_PointIsReachable(MARINE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), BuildLocation, max_player_use_reach))
-			{
-				UTIL_CommanderQueueStructureBuildAtLocation(CommanderBot, BuildLocation, STRUCTURE_MARINE_TURRETFACTORY, Priority);
-			}
-		}
-	}
-	else
-	{
-		int NumTurrets = UTIL_GetNumPlacedStructuresOfTypeInRadius(STRUCTURE_MARINE_TURRET, ExistingTurretFactory->v.origin, UTIL_MetresToGoldSrcUnits(15.0f));
-
-		if (NumTurrets < 4 && UTIL_GetQueuedBuildRequestsOfTypeInArea(CommanderBot, STRUCTURE_MARINE_TURRET, ExistingTurretFactory->v.origin, UTIL_MetresToGoldSrcUnits(5.0f)) == 0)
-		{
-			Vector BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(BUILDING_REGULAR_NAV_PROFILE, ExistingTurretFactory->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
-
-			if (BuildLocation != ZERO_VECTOR && UTIL_PointIsDirectlyReachable(BuildLocation, ExistingTurretFactory->v.origin))
-			{
-				UTIL_CommanderQueueStructureBuildAtLocation(CommanderBot, BuildLocation, STRUCTURE_MARINE_TURRET, 0);
-			}
-		}
-	}
-
-	if (!FNullEnt(ExistingPhaseGate))
-	{
-		if (!UTIL_IsStructureElectrified(ExistingTurretFactory) && !UTIL_ResearchActionAlreadyExists(CommanderBot, RESEARCH_ELECTRICAL))
-		{
-			CommanderQueueElectricResearch(CommanderBot, Priority, ExistingTurretFactory);
-		}
-	}
-
-}
-
-void QueueHeavyArmourLoadout(bot_t* CommanderBot, const Vector Area, int Priority)
-{
-
-	if (!UTIL_ItemCanBeDeployed(ITEM_MARINE_HEAVYARMOUR)) { return; }
-
-	edict_t* NearestProtoLab = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_PROTOTYPELAB, Area, UTIL_MetresToGoldSrcUnits(15.0f), true, false);
-
-	if (FNullEnt(NearestProtoLab)) { return; }
-
-	edict_t* NearestArmoury = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ADVARMOURY, NearestProtoLab->v.origin, UTIL_MetresToGoldSrcUnits(15.0f), true, false);
-
-	if (FNullEnt(NearestArmoury)) { return; }
-
-	edict_t* MarineNeedingLoadout = UTIL_GetNearestMarineWithoutFullLoadout(NearestArmoury->v.origin, UTIL_MetresToGoldSrcUnits(10.0f));
-
-	if (FNullEnt(MarineNeedingLoadout)) { return; }
-
-	if (!PlayerHasEquipment(MarineNeedingLoadout))
-	{
-		int NumExistingArmours = UTIL_GetItemCountOfTypeInArea(ITEM_MARINE_HEAVYARMOUR, NearestProtoLab->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
-
-		if (NumExistingArmours == 0)
-		{
-
-			if (UTIL_GetQueuedItemDropRequestsOfType(CommanderBot, ITEM_MARINE_HEAVYARMOUR) == 0)
-			{
-				if (vDist2DSq(MarineNeedingLoadout->v.origin, NearestProtoLab->v.origin) < sqrf(UTIL_MetresToGoldSrcUnits(5.0f)))
-				{
-					CommanderQueueItemDrop(CommanderBot, ITEM_MARINE_HEAVYARMOUR, ZERO_VECTOR, MarineNeedingLoadout, Priority);
-				}
-				else
-				{
-					CommanderQueueItemDrop(CommanderBot, ITEM_MARINE_HEAVYARMOUR, UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, NearestProtoLab->v.origin, UTIL_MetresToGoldSrcUnits(5.0f)), nullptr, Priority);
-				}
-			}
-		}
-	}
-
-	if (!PlayerHasSpecialWeapon(MarineNeedingLoadout))
-	{
-		NSWeapon SpecialWeapon = (UTIL_GetNumWeaponsOfTypeInPlay(WEAPON_MARINE_GL) == 0) ? WEAPON_MARINE_GL : WEAPON_MARINE_HMG;
-
-		NSDeployableItem SpecialWeaponItemType = UTIL_WeaponTypeToDeployableItem(SpecialWeapon);
-
-		int ExistingWeapons = UTIL_GetItemCountOfTypeInArea(SpecialWeaponItemType, NearestProtoLab->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
-
-		if (ExistingWeapons == 0)
-		{
-
-			if (UTIL_GetQueuedItemDropRequestsOfType(CommanderBot, SpecialWeaponItemType) == 0)
-			{
-				if (vDist2DSq(MarineNeedingLoadout->v.origin, NearestArmoury->v.origin) < sqrf(UTIL_MetresToGoldSrcUnits(5.0f)))
-				{
-					CommanderQueueItemDrop(CommanderBot, SpecialWeaponItemType, ZERO_VECTOR, MarineNeedingLoadout, Priority);
-				}
-				else
-				{
-					CommanderQueueItemDrop(CommanderBot, SpecialWeaponItemType, UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, NearestArmoury->v.origin, UTIL_MetresToGoldSrcUnits(5.0f)), nullptr, Priority);
-				}
-			}
-
-			return;
-		}
-	}
-
-	if (!PlayerHasWeapon(MarineNeedingLoadout, WEAPON_MARINE_WELDER))
-	{
-		
-		int ExistingWelders = UTIL_GetItemCountOfTypeInArea(ITEM_MARINE_WELDER, NearestArmoury->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
-
-		if (ExistingWelders == 0)
-		{
-
-			if (UTIL_GetQueuedItemDropRequestsOfType(CommanderBot, ITEM_MARINE_WELDER) == 0)
-			{
-				if (vDist2DSq(MarineNeedingLoadout->v.origin, NearestArmoury->v.origin) < sqrf(UTIL_MetresToGoldSrcUnits(5.0f)))
-				{
-					CommanderQueueItemDrop(CommanderBot, ITEM_MARINE_WELDER, ZERO_VECTOR, MarineNeedingLoadout, Priority);
-				}
-				else
-				{
-					CommanderQueueItemDrop(CommanderBot, ITEM_MARINE_WELDER, UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, NearestArmoury->v.origin, UTIL_MetresToGoldSrcUnits(5.0f)), nullptr, Priority);
-				}
-			}
-
-			return;
-		}
-	}
 }
 
 int UTIL_FindClosestAvailableMarinePlayer(bot_t* CommanderBot, const Vector Location)
@@ -3030,142 +1949,25 @@ int UTIL_GetNumArmouriesUpgrading()
 	return Result;
 }
 
-bool UTIL_ResearchActionAlreadyExists(const bot_t* Commander, const NSResearch Research)
-{
-	for (int Priority = 0; Priority < MAX_ACTION_PRIORITIES; Priority++)
-	{
-		for (int ActionIndex = 0; ActionIndex < MAX_PRIORITY_ACTIONS; ActionIndex++)
-		{
-			if (Commander->CurrentCommanderActions[Priority][ActionIndex].ActionType == ACTION_RESEARCH && Commander->CurrentCommanderActions[Priority][ActionIndex].ResearchId == Research)
-			{
-				return true;
-			}
-		}
-	}
-
-	return false;
-}
-
-bool UTIL_IsCommanderActionComplete(bot_t* CommanderBot, int ActionIndex, int Priority)
-{
-	commander_action* action = &CommanderBot->CurrentCommanderActions[Priority][ActionIndex];
-
-	if (!action->bIsActive || action->ActionType == ACTION_NONE) { return true; }
-
-	switch (action->ActionType)
-	{
-	case ACTION_BUILD:
-		return (!FNullEnt(action->StructureOrItem) && UTIL_StructureIsFullyBuilt(action->StructureOrItem));
-	case ACTION_DROPITEM:
-		return (!FNullEnt(action->StructureOrItem));
-	case ACTION_GIVEORDER:
-		return false;
-	case ACTION_RECYCLE:
-		return (FNullEnt(action->StructureOrItem) || action->StructureOrItem->v.deadflag != DEAD_NO || UTIL_StructureIsRecycling(action->StructureOrItem));
-	case ACTION_RESEARCH:
-		return !UTIL_MarineResearchIsAvailable(action->ResearchId);
-	case ACTION_UPGRADE:
-		return (!UTIL_StructureCanBeUpgraded(action->StructureOrItem));
-	default:
-		return true;
-	}
-
-	return true;
-}
-
-int UTIL_GetQueuedUpgradeRequestsOfType(bot_t* CommanderBot, NSStructureType StructureToBeUpgraded)
-{
-	int Result = 0;
-
-	for (int Priority = 0; Priority < MAX_ACTION_PRIORITIES; Priority++)
-	{
-		for (int ActionIndex = 0; ActionIndex < MAX_PRIORITY_ACTIONS; ActionIndex++)
-		{
-			if (CommanderBot->CurrentCommanderActions[Priority][ActionIndex].bIsActive && CommanderBot->CurrentCommanderActions[Priority][ActionIndex].ActionType == ACTION_UPGRADE && CommanderBot->CurrentCommanderActions[Priority][ActionIndex].StructureToBuild == StructureToBeUpgraded)
-			{
-				Result++;
-			}
-		}
-	}
-
-	return Result;
-}
-
-int UTIL_GetQueuedItemDropRequestsOfType(bot_t* CommanderBot, NSDeployableItem ItemType)
-{
-	int Result = 0;
-
-	for (int Priority = 0; Priority < MAX_ACTION_PRIORITIES; Priority++)
-	{
-		for (int ActionIndex = 0; ActionIndex < MAX_PRIORITY_ACTIONS; ActionIndex++)
-		{
-			if (CommanderBot->CurrentCommanderActions[Priority][ActionIndex].bIsActive && CommanderBot->CurrentCommanderActions[Priority][ActionIndex].ActionType == ACTION_DROPITEM && CommanderBot->CurrentCommanderActions[Priority][ActionIndex].ItemToDeploy == ItemType)
-			{
-				Result++;
-			}
-		}
-	}
-
-	return Result;
-}
-
-int UTIL_GetQueuedBuildRequestsOfTypeInArea(bot_t* CommanderBot, NSStructureType StructureType, const Vector SearchLocation, const float SearchRadius)
-{
-	int result = 0;
-
-	for (int Priority = 0; Priority < MAX_ACTION_PRIORITIES; Priority++)
-	{
-		for (int ActionIndex = 0; ActionIndex < MAX_PRIORITY_ACTIONS; ActionIndex++)
-		{
-			if (CommanderBot->CurrentCommanderActions[Priority][ActionIndex].bIsActive && CommanderBot->CurrentCommanderActions[Priority][ActionIndex].ActionType == ACTION_BUILD && UTIL_StructureTypesMatch(CommanderBot->CurrentCommanderActions[Priority][ActionIndex].StructureToBuild, StructureType))
-			{
-				if (vDist2DSq(CommanderBot->CurrentCommanderActions[Priority][ActionIndex].BuildLocation, SearchLocation) < sqrf(SearchRadius))
-				{
-					result++;
-				}
-				
-			}
-		}
-	}
-	return result;
-}
-
-int UTIL_GetQueuedBuildRequestsOfType(bot_t* CommanderBot, NSStructureType StructureType)
-{
-	int result = 0;
-
-	for (int Priority = 0; Priority < MAX_ACTION_PRIORITIES; Priority++)
-	{
-		for (int ActionIndex = 0; ActionIndex < MAX_PRIORITY_ACTIONS; ActionIndex++)
-		{
-			if (CommanderBot->CurrentCommanderActions[Priority][ActionIndex].bIsActive && CommanderBot->CurrentCommanderActions[Priority][ActionIndex].ActionType == ACTION_BUILD && UTIL_StructureTypesMatch(CommanderBot->CurrentCommanderActions[Priority][ActionIndex].StructureToBuild, StructureType))
-			{
-				result++;
-			}
-		}
-	}
-	return result;
-}
-
-bool UTIL_ItemCanBeDeployed(NSDeployableItem ItemToDeploy)
+bool UTIL_ItemCanBeDeployed(NSStructureType ItemToDeploy)
 {
 	switch (ItemToDeploy)
 	{
-	case ITEM_MARINE_AMMO:
-	case ITEM_MARINE_HEALTHPACK:
+	case DEPLOYABLE_ITEM_MARINE_AMMO:
+	case DEPLOYABLE_ITEM_MARINE_HEALTHPACK:
 		return true;
-	case ITEM_MARINE_MINES:
-	case ITEM_MARINE_WELDER:
-	case ITEM_MARINE_SHOTGUN:
+	case DEPLOYABLE_ITEM_MARINE_MINES:
+	case DEPLOYABLE_ITEM_MARINE_WELDER:
+	case DEPLOYABLE_ITEM_MARINE_SHOTGUN:
 		return (UTIL_GetFirstCompletedStructureOfType(STRUCTURE_MARINE_ANYARMOURY) != nullptr);
-	case ITEM_MARINE_GRENADELAUNCHER:
-	case ITEM_MARINE_HMG:
+	case DEPLOYABLE_ITEM_MARINE_GRENADELAUNCHER:
+	case DEPLOYABLE_ITEM_MARINE_HMG:
 		return (UTIL_GetFirstCompletedStructureOfType(STRUCTURE_MARINE_ADVARMOURY) != nullptr);
-	case ITEM_MARINE_HEAVYARMOUR:
+	case DEPLOYABLE_ITEM_MARINE_HEAVYARMOUR:
 		return UTIL_ResearchIsComplete(RESEARCH_PROTOTYPELAB_HEAVYARMOUR);
-	case ITEM_MARINE_JETPACK:
+	case DEPLOYABLE_ITEM_MARINE_JETPACK:
 		return UTIL_ResearchIsComplete(RESEARCH_PROTOTYPELAB_JETPACKS);
-	case ITEM_MARINE_SCAN:
+	case DEPLOYABLE_ITEM_MARINE_SCAN:
 		return UTIL_ObservatoryResearchIsAvailable(RESEARCH_OBSERVATORY_SCAN);
 	default:
 		return false;
@@ -3174,28 +1976,1500 @@ bool UTIL_ItemCanBeDeployed(NSDeployableItem ItemToDeploy)
 	return false;
 }
 
-void CommanderQueuePhaseGateBuild(bot_t* pBot, const Vector Location, int Priority)
-{
 
-	if (Location != ZERO_VECTOR)
-	{
-		int NewActionIndex = UTIL_CommanderFirstFreeActionIndex(pBot, Priority);
-
-		if (NewActionIndex > -1)
-		{
-			UTIL_ClearCommanderAction(pBot, NewActionIndex, Priority);
-
-			commander_action* action = &pBot->CurrentCommanderActions[Priority][NewActionIndex];
-
-			action->bIsActive = true;
-			action->ActionType = ACTION_BUILD;
-			action->BuildLocation = Location;
-			action->StructureToBuild = STRUCTURE_MARINE_PHASEGATE;
-		}
-	}
-}
 
 void CommanderGetPrimaryTask(bot_t* pBot, bot_task* Task)
 {
 
+}
+
+const resource_node* COMM_GetResNodeCapOpportunityNearestLocation(const Vector SearchLocation)
+{
+	const resource_node* Result = nullptr;
+	float MinDist = 0.0f;
+
+	for (int i = 0; i < UTIL_GetNumResNodes(); i++)
+	{
+		const resource_node* ResNode = UTIL_GetResourceNodeAtIndex(i);
+
+		if (ResNode->bIsOccupied) { continue; }
+
+		if (!UTIL_AnyPlayerOnTeamWithLOS(ResNode->origin + Vector(0.0f, 0.0f, 32.0f), MARINE_TEAM, UTIL_MetresToGoldSrcUnits(5.0f))) { continue; }
+
+		float ThisDist = vDist2DSq(ResNode->origin, SearchLocation);
+
+		if (!Result || ThisDist < MinDist)
+		{
+			Result = ResNode;
+			MinDist = ThisDist;
+		}
+
+	}
+
+	return Result;
+}
+
+const hive_definition* COMM_GetUnsecuredEmptyHiveFurthestToLocation(bot_t* CommanderBot, const Vector SearchLocation)
+{
+	const hive_definition* Result = nullptr;
+	float MaxDist = 0.0f;
+
+	for (int i = 0; i < UTIL_GetNumTotalHives(); i++)
+	{
+		const hive_definition* Hive = UTIL_GetHiveAtIndex(i);
+
+		if (Hive->Status != HIVE_STATUS_UNBUILT) { continue; }
+
+		if (UTIL_IsHiveFullySecuredByMarines(CommanderBot, Hive)) { continue; }
+
+		float ThisDist = vDist2DSq(Hive->FloorLocation, SearchLocation);
+
+		if (!Result || ThisDist > MaxDist)
+		{
+			Result = Hive;
+			MaxDist = ThisDist;
+		}
+
+	}
+
+	return Result;
+}
+
+const hive_definition* COMM_GetUnsecuredEmptyHiveNearestLocation(bot_t* CommanderBot, const Vector SearchLocation)
+{
+	const hive_definition* Result = nullptr;
+	float MinDist = 0.0f;
+
+	for (int i = 0; i < UTIL_GetNumTotalHives(); i++)
+	{
+		const hive_definition* Hive = UTIL_GetHiveAtIndex(i);
+
+		if (Hive->Status != HIVE_STATUS_UNBUILT) { continue; }
+
+		if (UTIL_IsHiveFullySecuredByMarines(CommanderBot, Hive)) { continue; }
+
+		float ThisDist = vDist2DSq(Hive->FloorLocation, SearchLocation);
+
+		if (!Result || ThisDist < MinDist)
+		{
+			Result = Hive;
+			MinDist = ThisDist;
+		}
+
+	}
+
+	return Result;
+}
+
+const hive_definition* COMM_GetEmptyHiveOpportunityNearestLocation(bot_t* CommanderBot, const Vector SearchLocation)
+{
+	const hive_definition* Result = nullptr;
+	float MinDist = 0.0f;
+
+	for (int i = 0; i < UTIL_GetNumTotalHives(); i++)
+	{
+		const hive_definition* Hive = UTIL_GetHiveAtIndex(i);
+
+		if (Hive->Status != HIVE_STATUS_UNBUILT) { continue; }
+
+		if (UTIL_IsHiveFullySecuredByMarines(CommanderBot, Hive)) { continue; }
+
+		if (UTIL_FindSafePlayerInArea(MARINE_TEAM, Hive->Location, 0.0f, UTIL_MetresToGoldSrcUnits(10.0f)) == nullptr) { continue; }
+
+		if (!UTIL_AnyPlayerOnTeamWithLOS(Hive->edict->v.origin, MARINE_TEAM, UTIL_MetresToGoldSrcUnits(10.0f))) 
+		{
+			edict_t* PG = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_PHASEGATE, Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(10.0f), true, false);
+
+			bool bCanSeePG = (!FNullEnt(PG) && UTIL_AnyPlayerOnTeamWithLOS(UTIL_GetCentreOfEntity(PG), MARINE_TEAM, UTIL_MetresToGoldSrcUnits(10.0f)));
+
+			if (!bCanSeePG)
+			{
+				edict_t* TF = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ANYTURRETFACTORY, Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(10.0f), true, false);
+
+				bool bNeedsElectrifying = false;
+
+				if (!FNullEnt(TF))
+				{
+					bNeedsElectrifying = (UTIL_StructureIsFullyBuilt(TF) && !UTIL_IsStructureElectrified(TF) && UTIL_GetNumBuiltStructuresOfTypeInRadius(STRUCTURE_MARINE_TURRET, TF->v.origin, UTIL_MetresToGoldSrcUnits(10.0f)) > 0);
+				}
+
+				bool bCanSeeTF = (!FNullEnt(TF) && UTIL_AnyPlayerOnTeamWithLOS(UTIL_GetCentreOfEntity(TF), MARINE_TEAM, UTIL_MetresToGoldSrcUnits(10.0f)));
+
+				if (!bNeedsElectrifying && !bCanSeePG && !bCanSeeTF) { continue; }
+			}
+
+		}
+
+		float ThisDist = vDist2DSq(Hive->FloorLocation, SearchLocation);
+
+		if (!Result || ThisDist < MinDist)
+		{
+			Result = Hive;
+			MinDist = ThisDist;
+		}
+
+	}
+
+	return Result;
+}
+
+const hive_definition* COMM_GetHiveSiegeOpportunityNearestLocation(bot_t* CommanderBot, const Vector SearchLocation)
+{
+	bool bPhaseGatesAvailable = UTIL_ResearchIsComplete(RESEARCH_OBSERVATORY_PHASETECH);
+
+	if (!bPhaseGatesAvailable) { return nullptr; }
+
+	const hive_definition* Result = nullptr;
+	float MinDist = 0.0f;
+
+	for (int i = 0; i < UTIL_GetNumTotalHives(); i++)
+	{
+		const hive_definition* Hive = UTIL_GetHiveAtIndex(i);
+
+		if (Hive->Status == HIVE_STATUS_UNBUILT) { continue; }
+
+		edict_t* BuiltSiegeTurret = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_SIEGETURRET, Hive->Location, UTIL_MetresToGoldSrcUnits(20.0f), true, false);
+
+		if (!FNullEnt(BuiltSiegeTurret) && UTIL_StructureIsFullyBuilt(BuiltSiegeTurret) && UTIL_StructureOfTypeExistsInLocation(STRUCTURE_MARINE_ADVTURRETFACTORY, BuiltSiegeTurret->v.origin, UTIL_MetresToGoldSrcUnits(5.0f)))
+		{
+			if (gpGlobals->time - CommanderBot->CommanderLastScanTime > 10.0f)
+			{
+				return Hive;
+			}
+		}
+
+		if (COMM_GetMarineEligibleToBuildSiege(Hive) == nullptr) { continue; }
+
+		edict_t* BuiltPhaseGate = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_PHASEGATE, Hive->Location, UTIL_MetresToGoldSrcUnits(20.0f), true, false);
+		
+
+		if (!FNullEnt(BuiltPhaseGate) && UTIL_StructureIsFullyBuilt(BuiltPhaseGate))
+		{
+			if (!UTIL_IsPlayerOfTeamInArea(BuiltPhaseGate->v.origin, UTIL_MetresToGoldSrcUnits(5.0f), MARINE_TEAM, nullptr, CLASS_NONE)) { continue; }
+		}
+
+		float ThisDist = vDist2DSq(Hive->FloorLocation, SearchLocation);
+
+		if (!Result || ThisDist < MinDist)
+		{
+			Result = Hive;
+			MinDist = ThisDist;
+		}
+
+	}
+
+	return Result;
+}
+
+void COMM_SetTurretBuildAction(edict_t* TurretFactory, commander_action* Action)
+{
+	if (Action->ActionType == ACTION_DEPLOY && Action->StructureToBuild == STRUCTURE_MARINE_TURRET && Action->ActionTarget == TurretFactory && Action->BuildLocation != ZERO_VECTOR) { return; }
+
+	UTIL_ClearCommanderAction(Action);
+
+	if (FNullEnt(TurretFactory) || !UTIL_StructureIsFullyBuilt(TurretFactory)) { return; }
+
+	Vector BuildLocation = UTIL_GetNextTurretPosition(TurretFactory);
+
+	if (!BuildLocation) { return; }
+
+	Action->ActionType = ACTION_DEPLOY;
+	Action->ActionTarget = TurretFactory;
+	Action->BuildLocation = BuildLocation;
+	Action->StructureToBuild = STRUCTURE_MARINE_TURRET;
+	Action->bIsActionUrgent = true;
+
+}
+
+void COMM_SetSiegeTurretBuildAction(edict_t* TurretFactory, commander_action* Action, const Vector SiegeTarget, bool bIsUrgent)
+{
+	if (Action->ActionType == ACTION_DEPLOY && Action->StructureToBuild == STRUCTURE_MARINE_SIEGETURRET && Action->ActionTarget == TurretFactory && Action->BuildLocation != ZERO_VECTOR) { return; }
+
+	UTIL_ClearCommanderAction(Action);
+
+	if (FNullEnt(TurretFactory) || !UTIL_StructureIsFullyBuilt(TurretFactory) || GetStructureTypeFromEdict(TurretFactory) != STRUCTURE_MARINE_ADVTURRETFACTORY) { return; }
+
+	Vector BuildLocation = UTIL_GetNextTurretPosition(TurretFactory);
+
+	if (!BuildLocation || vDist2DSq(BuildLocation, SiegeTarget) > sqrf(kSiegeTurretRange)) { return; }
+
+	Action->ActionType = ACTION_DEPLOY;
+	Action->ActionTarget = TurretFactory;
+	Action->BuildLocation = BuildLocation;
+	Action->StructureToBuild = STRUCTURE_MARINE_SIEGETURRET;
+	Action->bIsActionUrgent = bIsUrgent;
+
+}
+
+void COMM_SetInfantryPortalBuildAction(edict_t* CommChair, commander_action* Action)
+{
+	if (Action->ActionType == ACTION_DEPLOY && Action->StructureToBuild == STRUCTURE_MARINE_INFANTRYPORTAL && Action->ActionTarget == CommChair && Action->BuildLocation != ZERO_VECTOR) { return; }
+
+	UTIL_ClearCommanderAction(Action);
+
+	if (FNullEnt(CommChair) || !UTIL_StructureIsFullyBuilt(CommChair)) { return; }
+
+	Vector BuildLocation = ZERO_VECTOR;
+
+	edict_t* ExistingInfantryPortal = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_INFANTRYPORTAL, CommChair->v.origin, UTIL_MetresToGoldSrcUnits(5.0f), true, false);
+
+	// First see if we can place the next infantry portal next to the first one
+	if (!FNullEnt(ExistingInfantryPortal))
+	{
+		BuildLocation = UTIL_GetRandomPointOnNavmeshInDonut(GORGE_BUILD_NAV_PROFILE, ExistingInfantryPortal->v.origin, UTIL_MetresToGoldSrcUnits(2.0f), UTIL_MetresToGoldSrcUnits(3.0f));
+	}
+
+	if (!BuildLocation)
+	{
+		Vector SearchPoint = ZERO_VECTOR;
+
+		const resource_node* ResNode = UTIL_FindNearestResNodeToLocation(CommChair->v.origin);
+
+		if (ResNode)
+		{
+			SearchPoint = ResNode->origin;
+		}
+		else
+		{
+			SearchPoint = UTIL_GetRandomPointOfInterest();
+		}
+
+		Vector NearestPointToChair = FindClosestNavigablePointToDestination(MARINE_REGULAR_NAV_PROFILE, SearchPoint, CommChair->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
+
+		if (NearestPointToChair != ZERO_VECTOR)
+		{
+			float Distance = vDist2D(NearestPointToChair, CommChair->v.origin);
+			float RandomDist = UTIL_MetresToGoldSrcUnits(5.0f) - Distance;
+
+			BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(GORGE_BUILD_NAV_PROFILE, NearestPointToChair, RandomDist);
+
+		}
+		else
+		{
+			BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(GORGE_BUILD_NAV_PROFILE, CommChair->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
+		}
+	}
+
+	if (!BuildLocation) { return; }
+
+	Action->ActionType = ACTION_DEPLOY;
+	Action->ActionTarget = CommChair;
+	Action->BuildLocation = BuildLocation;
+	Action->StructureToBuild = STRUCTURE_MARINE_INFANTRYPORTAL;
+	Action->bIsActionUrgent = true;
+
+}
+
+Vector UTIL_GetNextTurretPosition(edict_t* TurretFactory)
+{
+	if (FNullEnt(TurretFactory) || !UTIL_StructureIsFullyBuilt(TurretFactory)) { return ZERO_VECTOR; }
+
+	Vector FwdVector = UTIL_GetForwardVector2D(TurretFactory->v.angles);
+	Vector RightVector = UTIL_GetVectorNormal2D(UTIL_GetCrossProduct(FwdVector, UP_VECTOR));
+
+	bool bFwd = false;
+	bool bRight = false;
+	bool bBack = false;
+	bool bLeft = false;
+
+	int NumTurrets = 0;
+
+	for (auto& it : MarineBuildableStructureMap)
+	{
+		if (!it.second.bOnNavmesh || !it.second.bIsReachableMarine) { continue; }
+		if (!UTIL_StructureTypesMatch(STRUCTURE_MARINE_TURRET, it.second.StructureType)) { continue; }
+
+		if (vDist2DSq(TurretFactory->v.origin, it.second.Location) > sqrf(UTIL_MetresToGoldSrcUnits(5.0f))) { continue; }
+
+		NumTurrets++;
+
+		Vector Dir = UTIL_GetVectorNormal2D(it.second.Location - TurretFactory->v.origin);
+
+		if (UTIL_GetDotProduct2D(FwdVector, Dir) > 0.7f)
+		{
+			bFwd = true;
+		}
+
+		if (UTIL_GetDotProduct2D(FwdVector, Dir) < -0.7f)
+		{
+			bBack = true;
+		}
+
+		if (UTIL_GetDotProduct2D(RightVector, Dir) > 0.7f)
+		{
+			bRight = true;
+		}
+
+		if (UTIL_GetDotProduct2D(RightVector, Dir) < -0.7f)
+		{
+			bLeft = true;
+		}
+
+	}
+
+	if (NumTurrets >= 5) { return ZERO_VECTOR; }
+
+	if (!bFwd)
+	{
+		Vector SearchLocation = TurretFactory->v.origin + (FwdVector * UTIL_MetresToGoldSrcUnits(3.0f));
+
+		Vector BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(GORGE_BUILD_NAV_PROFILE, SearchLocation, UTIL_MetresToGoldSrcUnits(1.0f));
+
+		if (BuildLocation != ZERO_VECTOR)
+		{
+			return BuildLocation;
+		}
+	}
+
+	if (!bBack)
+	{
+		Vector SearchLocation = TurretFactory->v.origin - (FwdVector * UTIL_MetresToGoldSrcUnits(3.0f));
+
+		Vector BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(GORGE_BUILD_NAV_PROFILE, SearchLocation, UTIL_MetresToGoldSrcUnits(1.0f));
+
+		if (BuildLocation != ZERO_VECTOR)
+		{
+			return BuildLocation;
+		}
+	}
+
+	if (!bRight)
+	{
+		Vector SearchLocation = TurretFactory->v.origin + (RightVector * UTIL_MetresToGoldSrcUnits(3.0f));
+
+		Vector BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(GORGE_BUILD_NAV_PROFILE, SearchLocation, UTIL_MetresToGoldSrcUnits(1.0f));
+
+		if (BuildLocation != ZERO_VECTOR)
+		{
+			return BuildLocation;
+		}
+	}
+
+	if (!bLeft)
+	{
+		Vector SearchLocation = TurretFactory->v.origin - (RightVector * UTIL_MetresToGoldSrcUnits(3.0f));
+
+		Vector BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(GORGE_BUILD_NAV_PROFILE, SearchLocation, UTIL_MetresToGoldSrcUnits(1.0f));
+
+		if (BuildLocation != ZERO_VECTOR)
+		{
+			return BuildLocation;
+		}
+	}
+
+	Vector BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(GORGE_BUILD_NAV_PROFILE, TurretFactory->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
+
+	return BuildLocation;
+}
+
+bool COMM_SecureHiveNeedsDeployment(bot_t* CommanderBot, const hive_definition* Hive)
+{
+	edict_t* TF = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ANYTURRETFACTORY, Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(15.0f), true, false);
+
+	if (FNullEnt(TF) || !UTIL_StructureIsFullyBuilt(TF)) { return true; }
+
+	bool bPhaseGatesAvailable = UTIL_ResearchIsComplete(RESEARCH_OBSERVATORY_PHASETECH);
+
+	if (bPhaseGatesAvailable)
+	{
+		edict_t* PhaseGate = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_PHASEGATE, Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(15.0f), true, false);
+
+		if (FNullEnt(PhaseGate) || !UTIL_StructureIsFullyBuilt(PhaseGate)) { return true; }
+	}
+
+	int NumTurrets = UTIL_GetNumBuiltStructuresOfTypeInRadius(STRUCTURE_MARINE_TURRET, TF->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
+
+	if (NumTurrets < 5) { return true; }
+
+	const resource_node* ResNode = UTIL_GetResourceNodeAtIndex(Hive->HiveResNodeIndex);
+
+	if (ResNode && (!ResNode->bIsOccupied || !ResNode->bIsOwnedByMarines))
+	{
+		return true;
+	}
+
+	return false;
+
+}
+
+void COMM_SetNextSecureHiveAction(bot_t* CommanderBot, const hive_definition* Hive, commander_action* Action)
+{	
+
+	edict_t* TF = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ANYTURRETFACTORY, Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(15.0f), true, false);
+
+	Vector PlayerSearchLoc = (FNullEnt(TF)) ? Hive->FloorLocation : TF->v.origin;
+
+	edict_t* NearestPlayer = UTIL_GetNearestPlayerOfTeamInArea(PlayerSearchLoc, UTIL_MetresToGoldSrcUnits(10.0f), MARINE_TEAM, nullptr, CLASS_NONE);
+
+	// If there isn't a player around to build stuff we can still electrify!
+	if (FNullEnt(NearestPlayer))
+	{
+		if (!FNullEnt(TF) && UTIL_StructureIsFullyBuilt(TF) && !UTIL_IsStructureElectrified(TF) && !UTIL_StructureIsResearching(TF))
+		{
+			int NumTurrets = UTIL_GetNumPlacedStructuresOfTypeInRadius(STRUCTURE_MARINE_TURRET, TF->v.origin, UTIL_MetresToGoldSrcUnits(10.0f));
+
+			if (NumTurrets > 0)
+			{
+				COMM_SetElectrifyStructureAction(TF, Action);
+				return;
+			}
+		}
+
+		if (CommanderBot->resources <= 100) { return; }
+
+		const resource_node* ResNode = UTIL_GetResourceNodeAtIndex(Hive->HiveResNodeIndex);
+
+		if (ResNode && ResNode->bIsOwnedByMarines)
+		{
+			if (UTIL_StructureIsFullyBuilt(ResNode->TowerEdict) && !UTIL_IsStructureElectrified(ResNode->TowerEdict) && !UTIL_StructureIsResearching(ResNode->TowerEdict))
+			{
+				COMM_SetElectrifyStructureAction(ResNode->TowerEdict, Action);
+				return;
+			}
+		}
+
+		return;
+	}
+
+	bool bPhaseGatesAvailable = UTIL_ResearchIsComplete(RESEARCH_OBSERVATORY_PHASETECH);
+
+	edict_t* PhaseGate = (bPhaseGatesAvailable) ? UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_PHASEGATE, Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(15.0f), true, false) : nullptr;
+
+	if (bPhaseGatesAvailable && FNullEnt(PhaseGate))
+	{
+		
+		if (Action->ActionType == ACTION_DEPLOY && Action->StructureToBuild == STRUCTURE_MARINE_PHASEGATE && Action->ActionTarget == Hive->edict)
+		{
+			return;
+		}
+
+		Vector BuildLocation = ZERO_VECTOR;
+		Vector SearchLoc = (FNullEnt(TF)) ? Hive->Location : TF->v.origin;
+		float SearchRadius = (FNullEnt(TF)) ? UTIL_MetresToGoldSrcUnits(15.0f) : UTIL_MetresToGoldSrcUnits(5.0f);
+			
+		edict_t* NearestAppropriatePlayer = UTIL_GetClosestPlayerOnTeamWithLOS(SearchLoc, MARINE_TEAM, SearchRadius, nullptr);
+
+		if (!FNullEnt(NearestAppropriatePlayer))
+		{
+			BuildLocation = NearestAppropriatePlayer->v.origin;
+		}
+		else
+		{
+			BuildLocation = FindClosestNavigablePointToDestination(MARINE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(10.0f));
+		}
+
+		Vector AdjustedLocation = ZERO_VECTOR;
+		Vector FinalBuildLocation = ZERO_VECTOR;
+
+		if (BuildLocation != ZERO_VECTOR)
+		{
+			float Dist = vDist2D(BuildLocation, Hive->FloorLocation);
+			float MaxDist = fmaxf(UTIL_MetresToGoldSrcUnits(1.0f), UTIL_MetresToGoldSrcUnits(10.0f) - Dist);
+
+			AdjustedLocation = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, BuildLocation, MaxDist);
+		}
+
+		AdjustedLocation = (AdjustedLocation != ZERO_VECTOR) ? AdjustedLocation : BuildLocation;
+
+		FinalBuildLocation = UTIL_ProjectPointToNavmesh(AdjustedLocation, BUILDING_REGULAR_NAV_PROFILE);
+
+		FinalBuildLocation = (FinalBuildLocation != ZERO_VECTOR) ? FinalBuildLocation : AdjustedLocation;
+			
+		if (FinalBuildLocation != ZERO_VECTOR)
+		{
+			UTIL_ClearCommanderAction(Action);
+
+			Action->ActionType = ACTION_DEPLOY;
+			Action->ActionTarget = Hive->edict;
+			Action->StructureToBuild = STRUCTURE_MARINE_PHASEGATE;
+			Action->BuildLocation = FinalBuildLocation;
+			Action->bIsActionUrgent = true;
+			return;
+		}
+	}
+
+	if (FNullEnt(TF))
+	{
+		if (Action->ActionType == ACTION_DEPLOY && Action->StructureToBuild == STRUCTURE_MARINE_TURRETFACTORY && Action->ActionTarget == Hive->edict)
+		{
+			return;
+		}
+
+		Vector BuildLocation = ZERO_VECTOR;
+
+		Vector SearchLoc = (FNullEnt(PhaseGate)) ? Hive->Location : PhaseGate->v.origin;
+		float SearchRadius = (FNullEnt(PhaseGate)) ? UTIL_MetresToGoldSrcUnits(15.0f) : UTIL_MetresToGoldSrcUnits(5.0f);
+
+		edict_t* NearestAppropriatePlayer = UTIL_GetClosestPlayerOnTeamWithLOS(SearchLoc, MARINE_TEAM, UTIL_MetresToGoldSrcUnits(15.0f), nullptr);
+
+		if (!FNullEnt(NearestAppropriatePlayer))
+		{
+			BuildLocation = NearestAppropriatePlayer->v.origin;
+		}
+		else
+		{
+			BuildLocation = FindClosestNavigablePointToDestination(MARINE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(10.0f));
+		}
+
+		Vector AdjustedLocation = ZERO_VECTOR;
+		Vector FinalBuildLocation = ZERO_VECTOR;
+
+		if (BuildLocation != ZERO_VECTOR)
+		{
+			float Dist = vDist2D(BuildLocation, Hive->FloorLocation);
+			float MaxDist = fmaxf(UTIL_MetresToGoldSrcUnits(1.0f), UTIL_MetresToGoldSrcUnits(10.0f) - Dist);
+
+			AdjustedLocation = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, BuildLocation, MaxDist);
+		}
+
+		AdjustedLocation = (AdjustedLocation != ZERO_VECTOR) ? AdjustedLocation : BuildLocation;
+
+		FinalBuildLocation = UTIL_ProjectPointToNavmesh(AdjustedLocation, BUILDING_REGULAR_NAV_PROFILE);
+
+		FinalBuildLocation = (FinalBuildLocation != ZERO_VECTOR) ? FinalBuildLocation : AdjustedLocation;
+
+		if (FinalBuildLocation != ZERO_VECTOR)
+		{
+			UTIL_ClearCommanderAction(Action);
+
+			if (vDist2DSq(Hive->FloorLocation, FinalBuildLocation) > sqrf(UTIL_MetresToGoldSrcUnits(10.0f))) { return; }
+
+			Action->ActionType = ACTION_DEPLOY;
+			Action->ActionTarget = Hive->edict;
+			Action->StructureToBuild = STRUCTURE_MARINE_TURRETFACTORY;
+			Action->BuildLocation = FinalBuildLocation;
+			Action->bIsActionUrgent = true;
+
+		}
+
+		return;
+	}
+
+	if (!UTIL_StructureIsFullyBuilt(TF))
+	{
+		return;
+	}
+
+	if (UTIL_GetNumPlacedStructuresOfTypeInRadius(STRUCTURE_MARINE_TURRET, TF->v.origin, UTIL_MetresToGoldSrcUnits(10.0f)) < 5)
+	{
+		COMM_SetTurretBuildAction(TF, Action);
+		return;
+	}
+
+	if (!UTIL_IsStructureElectrified(TF) && !UTIL_StructureIsResearching(TF))
+	{
+		COMM_SetElectrifyStructureAction(TF, Action);
+		return;
+	}
+
+	if (Hive->HiveResNodeIndex > -1)
+	{
+		const resource_node* HiveNode = UTIL_GetResourceNodeAtIndex(Hive->HiveResNodeIndex);
+
+		if (HiveNode)
+		{
+			if (!HiveNode->bIsOccupied)
+			{
+				if (Action->ActionType == ACTION_DEPLOY && Action->StructureToBuild == STRUCTURE_MARINE_RESTOWER && Action->ActionTarget == HiveNode->edict)
+				{
+					return;
+				}
+
+				Action->ActionType = ACTION_DEPLOY;
+				Action->ActionTarget = HiveNode->edict;
+				Action->StructureToBuild = STRUCTURE_MARINE_RESTOWER;
+				Action->BuildLocation = HiveNode->origin;
+
+				return;
+			}
+
+			if (HiveNode->bIsOwnedByMarines)
+			{
+				edict_t* ResTowerEdict = HiveNode->TowerEdict;
+
+				if (UTIL_ElectricalResearchIsAvailable(ResTowerEdict))
+				{
+					int Resources = CommanderBot->resources;
+
+					if (Resources > 100)
+					{
+						COMM_SetElectrifyStructureAction(ResTowerEdict, Action);
+						return;
+					}					
+				}
+			}
+			
+		}
+	}
+
+	UTIL_ClearCommanderAction(Action);
+}
+
+void COMM_SetNextResearchAction(commander_action* Action)
+{
+	if (UTIL_ArmouryResearchIsAvailable(RESEARCH_ARMOURY_GRENADES))
+	{
+		if (Action->ActionType == ACTION_RESEARCH && Action->ResearchId == RESEARCH_ARMOURY_GRENADES) { return; }
+
+		edict_t* Armoury = UTIL_GetFirstIdleStructureOfType(STRUCTURE_MARINE_ARMOURY);
+
+		if (!FNullEnt(Armoury))
+		{
+			Action->ActionType = ACTION_RESEARCH;
+			Action->ActionTarget = Armoury;
+			Action->ResearchId = RESEARCH_ARMOURY_GRENADES;
+
+			return;
+		}
+	}
+
+	if (UTIL_ArmsLabResearchIsAvailable(RESEARCH_ARMSLAB_ARMOUR1))
+	{
+		if (Action->ActionType == ACTION_RESEARCH && Action->ResearchId == RESEARCH_ARMSLAB_ARMOUR1) { return; }
+
+		edict_t* ArmsLab = UTIL_GetFirstIdleStructureOfType(STRUCTURE_MARINE_ARMSLAB);
+
+		if (!FNullEnt(ArmsLab))
+		{
+			Action->ActionType = ACTION_RESEARCH;
+			Action->ActionTarget = ArmsLab;
+			Action->ResearchId = RESEARCH_ARMSLAB_ARMOUR1;
+
+			return;
+		}
+	}
+
+	if (UTIL_ArmsLabResearchIsAvailable(RESEARCH_ARMSLAB_WEAPONS1))
+	{
+		if (Action->ActionType == ACTION_RESEARCH && Action->ResearchId == RESEARCH_ARMSLAB_WEAPONS1) { return; }
+
+		edict_t* ArmsLab = UTIL_GetFirstIdleStructureOfType(STRUCTURE_MARINE_ARMSLAB);
+
+		if (!FNullEnt(ArmsLab))
+		{
+			Action->ActionType = ACTION_RESEARCH;
+			Action->ActionTarget = ArmsLab;
+			Action->ResearchId = RESEARCH_ARMSLAB_WEAPONS1;
+
+			return;
+		}
+	}
+
+	if (UTIL_ObservatoryResearchIsAvailable(RESEARCH_OBSERVATORY_PHASETECH))
+	{
+		if (Action->ActionType == ACTION_RESEARCH && Action->ResearchId == RESEARCH_OBSERVATORY_PHASETECH) { return; }
+
+		edict_t* Observatory = UTIL_GetFirstIdleStructureOfType(STRUCTURE_MARINE_OBSERVATORY);
+
+		if (!FNullEnt(Observatory))
+		{
+			Action->ActionType = ACTION_RESEARCH;
+			Action->ActionTarget = Observatory;
+			Action->ResearchId = RESEARCH_OBSERVATORY_PHASETECH;
+
+			return;
+		}
+	}
+
+	if (UTIL_ObservatoryResearchIsAvailable(RESEARCH_OBSERVATORY_MOTIONTRACKING))
+	{
+		if (Action->ActionType == ACTION_RESEARCH && Action->ResearchId == RESEARCH_OBSERVATORY_MOTIONTRACKING) { return; }
+
+		edict_t* Observatory = UTIL_GetFirstIdleStructureOfType(STRUCTURE_MARINE_OBSERVATORY);
+
+		if (!FNullEnt(Observatory))
+		{
+			Action->ActionType = ACTION_RESEARCH;
+			Action->ActionTarget = Observatory;
+			Action->ResearchId = RESEARCH_OBSERVATORY_MOTIONTRACKING;
+
+			return;
+		}
+	}
+
+	if (UTIL_ArmsLabResearchIsAvailable(RESEARCH_ARMSLAB_ARMOUR2))
+	{
+		if (Action->ActionType == ACTION_RESEARCH && Action->ResearchId == RESEARCH_ARMSLAB_ARMOUR2) { return; }
+
+		edict_t* ArmsLab = UTIL_GetFirstIdleStructureOfType(STRUCTURE_MARINE_ARMSLAB);
+
+		if (!FNullEnt(ArmsLab))
+		{
+			Action->ActionType = ACTION_RESEARCH;
+			Action->ActionTarget = ArmsLab;
+			Action->ResearchId = RESEARCH_ARMSLAB_ARMOUR2;
+
+			return;
+		}
+	}
+
+	if (UTIL_ArmsLabResearchIsAvailable(RESEARCH_ARMSLAB_WEAPONS2))
+	{
+		if (Action->ActionType == ACTION_RESEARCH && Action->ResearchId == RESEARCH_ARMSLAB_WEAPONS2) { return; }
+
+		edict_t* ArmsLab = UTIL_GetFirstIdleStructureOfType(STRUCTURE_MARINE_ARMSLAB);
+
+		if (!FNullEnt(ArmsLab))
+		{
+			Action->ActionType = ACTION_RESEARCH;
+			Action->ActionTarget = ArmsLab;
+			Action->ResearchId = RESEARCH_ARMSLAB_WEAPONS2;
+
+			return;
+		}
+	}
+
+	if (UTIL_GetFirstPlacedStructureOfType(STRUCTURE_MARINE_PROTOTYPELAB) == nullptr) { return; }
+
+	if (UTIL_PrototypeLabResearchIsAvailable(RESEARCH_PROTOTYPELAB_HEAVYARMOUR))
+	{
+		if (Action->ActionType == ACTION_RESEARCH && Action->ResearchId == RESEARCH_PROTOTYPELAB_HEAVYARMOUR) { return; }
+
+		edict_t* PrototypeLab = UTIL_GetFirstIdleStructureOfType(STRUCTURE_MARINE_PROTOTYPELAB);
+
+		if (!FNullEnt(PrototypeLab))
+		{
+			Action->ActionType = ACTION_RESEARCH;
+			Action->ActionTarget = PrototypeLab;
+			Action->ResearchId = RESEARCH_PROTOTYPELAB_HEAVYARMOUR;
+
+			return;
+		}
+	}
+
+	if (UTIL_ArmsLabResearchIsAvailable(RESEARCH_ARMSLAB_ARMOUR3))
+	{
+		if (Action->ActionType == ACTION_RESEARCH && Action->ResearchId == RESEARCH_ARMSLAB_ARMOUR3) { return; }
+
+		edict_t* ArmsLab = UTIL_GetFirstIdleStructureOfType(STRUCTURE_MARINE_ARMSLAB);
+
+		if (!FNullEnt(ArmsLab))
+		{
+			Action->ActionType = ACTION_RESEARCH;
+			Action->ActionTarget = ArmsLab;
+			Action->ResearchId = RESEARCH_ARMSLAB_ARMOUR3;
+
+			return;
+		}
+	}
+
+	if (UTIL_ArmsLabResearchIsAvailable(RESEARCH_ARMSLAB_WEAPONS3))
+	{
+		if (Action->ActionType == ACTION_RESEARCH && Action->ResearchId == RESEARCH_ARMSLAB_WEAPONS3) { return; }
+
+		edict_t* ArmsLab = UTIL_GetFirstIdleStructureOfType(STRUCTURE_MARINE_ARMSLAB);
+
+		if (!FNullEnt(ArmsLab))
+		{
+			Action->ActionType = ACTION_RESEARCH;
+			Action->ActionTarget = ArmsLab;
+			Action->ResearchId = RESEARCH_ARMSLAB_WEAPONS3;
+
+			return;
+		}
+	}
+
+	UTIL_ClearCommanderAction(Action);
+}
+
+void COMM_SetNextSiegeHiveAction(bot_t* CommanderBot, const hive_definition* Hive, commander_action* Action)
+{
+	bool bPhaseGatesAvailable = UTIL_ResearchIsComplete(RESEARCH_OBSERVATORY_PHASETECH);
+
+	edict_t* TF = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ANYTURRETFACTORY, Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(25.0f), true, false);
+
+	bool bTFIsUpgraded = (!FNullEnt(TF) && GetStructureTypeFromEdict(TF) == STRUCTURE_MARINE_ADVTURRETFACTORY);
+
+	if (!FNullEnt(TF) && UTIL_StructureIsFullyBuilt(TF) && bTFIsUpgraded)
+	{
+		if (UTIL_StructureOfTypeExistsInLocation(STRUCTURE_MARINE_SIEGETURRET, TF->v.origin, UTIL_MetresToGoldSrcUnits(5.0f), true))
+		{
+			
+			if (UTIL_ItemCanBeDeployed(DEPLOYABLE_ITEM_MARINE_SCAN) && (gpGlobals->time - CommanderBot->CommanderLastScanTime > 10.0f))
+			{
+				if (Action->ActionType == ACTION_DEPLOY && Action->ActionTarget == Hive->edict && Action->StructureToBuild == DEPLOYABLE_ITEM_MARINE_SCAN) { return; }
+
+				UTIL_ClearCommanderAction(Action);
+
+				Vector ScanLoc = FindClosestNavigablePointToDestination(MARINE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(5.0f));
+
+				Vector FinalLoc = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, ScanLoc, UTIL_MetresToGoldSrcUnits(5.0f));
+
+				FinalLoc = (FinalLoc != ZERO_VECTOR) ? FinalLoc : ScanLoc;
+
+				if (ScanLoc != ZERO_VECTOR)
+				{
+					Action->ActionType = ACTION_DEPLOY;
+					Action->ActionTarget = Hive->edict;
+					Action->StructureToBuild = DEPLOYABLE_ITEM_MARINE_SCAN;
+					Action->BuildLocation = FinalLoc;
+					Action->bIsActionUrgent = true;
+					return;
+				}
+			}
+		}
+	}
+
+	edict_t* NearestPlayer = COMM_GetMarineEligibleToBuildSiege(Hive);
+
+	bool bHasPlayerNearby = !FNullEnt(NearestPlayer);
+
+	if (bHasPlayerNearby)
+	{
+		edict_t* PhaseGate = (bPhaseGatesAvailable) ? UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_PHASEGATE, Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(25.0f), true, false) : nullptr;
+
+		edict_t* Armoury = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ANYARMOURY, Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(25.0f), true, false);
+
+		bool bHasBuiltStructureAlready = ((!FNullEnt(TF) && UTIL_StructureIsFullyBuilt(TF)) || (!FNullEnt(PhaseGate) && UTIL_StructureIsFullyBuilt(PhaseGate)));
+
+		if (bPhaseGatesAvailable)
+		{
+			if (FNullEnt(PhaseGate))
+			{
+				if (Action->ActionType == ACTION_DEPLOY && Action->StructureToBuild == STRUCTURE_MARINE_PHASEGATE && Action->ActionTarget == Hive->edict)
+				{
+					return;
+				}
+
+				Vector BuildLocation = ZERO_VECTOR;
+
+				if (!FNullEnt(TF) && bHasBuiltStructureAlready)
+				{
+					BuildLocation = TF->v.origin;
+				}
+				else
+				{
+					if (!FNullEnt(NearestPlayer))
+					{
+						BuildLocation = UTIL_GetEntityGroundLocation(NearestPlayer);
+					}
+				}
+
+				if (BuildLocation != ZERO_VECTOR)
+				{
+					Vector NewBuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(GORGE_BUILD_NAV_PROFILE, BuildLocation, UTIL_MetresToGoldSrcUnits(3.0f));
+
+					Vector FinalBuildLocation = (NewBuildLocation != ZERO_VECTOR) ? NewBuildLocation : BuildLocation;
+
+					UTIL_ClearCommanderAction(Action);
+
+					if (vDist2DSq(FinalBuildLocation, Hive->edict->v.origin) > sqrf(kSiegeTurretRange)) { return; }
+
+					Action->ActionType = ACTION_DEPLOY;
+					Action->ActionTarget = Hive->edict;
+					Action->StructureToBuild = STRUCTURE_MARINE_PHASEGATE;
+					Action->BuildLocation = FinalBuildLocation;
+					Action->bIsActionUrgent = true;
+
+				}
+
+				return;
+			}
+		}
+
+		if (FNullEnt(TF))
+		{
+			if (Action->ActionType == ACTION_DEPLOY && Action->StructureToBuild == STRUCTURE_MARINE_TURRETFACTORY && Action->ActionTarget == Hive->edict)
+			{
+				return;
+			}
+
+			Vector BuildLocation = ZERO_VECTOR;
+
+			if (!FNullEnt(PhaseGate) && bHasBuiltStructureAlready)
+			{
+				BuildLocation = PhaseGate->v.origin;
+			}
+			else
+			{
+				if (!FNullEnt(NearestPlayer))
+				{
+					BuildLocation = UTIL_GetEntityGroundLocation(NearestPlayer);
+				}
+			}
+
+			if (BuildLocation != ZERO_VECTOR)
+			{
+				Vector NewBuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(GORGE_BUILD_NAV_PROFILE, BuildLocation, UTIL_MetresToGoldSrcUnits(3.0f));
+
+				Vector FinalBuildLocation = (NewBuildLocation != ZERO_VECTOR) ? NewBuildLocation : BuildLocation;
+
+				UTIL_ClearCommanderAction(Action);
+
+				if (vDist2DSq(FinalBuildLocation, Hive->edict->v.origin) > sqrf(kSiegeTurretRange)) { return; }
+
+				Action->ActionType = ACTION_DEPLOY;
+				Action->ActionTarget = Hive->edict;
+				Action->StructureToBuild = STRUCTURE_MARINE_TURRETFACTORY;
+				Action->BuildLocation = FinalBuildLocation;
+				Action->bIsActionUrgent = true;
+			}
+
+			return;
+		}
+
+		if (FNullEnt(Armoury))
+		{
+			if (Action->ActionType == ACTION_DEPLOY && Action->StructureToBuild == STRUCTURE_MARINE_ARMOURY && Action->ActionTarget == Hive->edict)
+			{
+				return;
+			}
+
+			Vector BuildLocation = ZERO_VECTOR;
+
+			if (!FNullEnt(PhaseGate) && bHasBuiltStructureAlready)
+			{
+				BuildLocation = PhaseGate->v.origin;
+			}
+			else
+			{
+				if (!FNullEnt(NearestPlayer))
+				{
+					BuildLocation = UTIL_GetEntityGroundLocation(NearestPlayer);
+				}
+			}
+
+			if (BuildLocation != ZERO_VECTOR)
+			{
+				Vector NewBuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(GORGE_BUILD_NAV_PROFILE, BuildLocation, UTIL_MetresToGoldSrcUnits(2.0f));
+
+				Vector FinalBuildLocation = (NewBuildLocation != ZERO_VECTOR) ? NewBuildLocation : BuildLocation;
+
+				UTIL_ClearCommanderAction(Action);
+
+				Action->ActionType = ACTION_DEPLOY;
+				Action->ActionTarget = Hive->edict;
+				Action->StructureToBuild = STRUCTURE_MARINE_ARMOURY;
+				Action->BuildLocation = FinalBuildLocation;
+				Action->bIsActionUrgent = true;
+			}
+
+			return;
+		}
+	}
+
+	if (FNullEnt(TF) || !UTIL_StructureIsFullyBuilt(TF))
+	{
+		UTIL_ClearCommanderAction(Action);
+		return;
+	}
+
+	if (!bTFIsUpgraded && !UTIL_StructureIsUpgrading(TF))
+	{
+
+		if (!UTIL_StructureIsUpgrading(TF))
+		{
+			Action->ActionType = ACTION_UPGRADE;
+			Action->ActionTarget = TF;
+			Action->bIsActionUrgent = true;
+		}
+		else
+		{
+			UTIL_ClearCommanderAction(Action);
+		}
+
+		return;
+	}
+
+	if (bTFIsUpgraded)
+	{
+		if (bHasPlayerNearby)
+		{
+			int NumSiegeTurrets = UTIL_GetNumPlacedStructuresOfTypeInRadius(STRUCTURE_MARINE_SIEGETURRET, TF->v.origin, UTIL_MetresToGoldSrcUnits(10.0f));
+
+			if (NumSiegeTurrets < 3)
+			{
+				COMM_SetSiegeTurretBuildAction(TF, Action, Hive->edict->v.origin, true);
+				return;
+			}
+		}
+		
+
+		if (!UTIL_IsStructureElectrified(TF) && !UTIL_StructureIsResearching(TF))
+		{
+			COMM_SetElectrifyStructureAction(TF, Action);
+			return;
+		}
+	}
+
+
+
+	UTIL_ClearCommanderAction(Action);
+}
+
+void COMM_SetElectrifyStructureAction(edict_t* Structure, commander_action* Action)
+{
+	if (FNullEnt(Structure))
+	{
+		return;
+	}
+
+	if (Action->ActionType == ACTION_RESEARCH && Action->ActionTarget == Structure && Action->ResearchId == RESEARCH_ELECTRICAL) { return; }
+
+	UTIL_ClearCommanderAction(Action);
+
+	NSStructureType StructureTypeToElectrify = GetStructureTypeFromEdict(Structure);
+
+	if (!UTIL_StructureTypesMatch(StructureTypeToElectrify, STRUCTURE_MARINE_ANYTURRETFACTORY) && !UTIL_StructureTypesMatch(StructureTypeToElectrify, STRUCTURE_MARINE_RESTOWER)) { return; }
+
+	Action->ActionType = ACTION_RESEARCH;
+	Action->ActionTarget = Structure;
+	Action->ResearchId = RESEARCH_ELECTRICAL;
+
+}
+
+void COMM_SetNextSupportAction(bot_t* CommanderBot, commander_action* Action)
+{
+	edict_t* Armoury = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ANYARMOURY, UTIL_GetCommChairLocation(), UTIL_MetresToGoldSrcUnits(15.0f), true, false);
+
+	if (FNullEnt(Armoury))
+	{
+		UTIL_ClearCommanderAction(Action);
+		return;
+	}
+
+	if (CommanderBot->resources < 20)
+	{
+		UTIL_ClearCommanderAction(Action);
+		return;
+	}
+
+	int NumMarines = GAME_GetNumPlayersOnTeam(MARINE_TEAM) - 1;
+
+	edict_t* AdvArmoury = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ADVARMOURY, UTIL_GetCommChairLocation(), UTIL_MetresToGoldSrcUnits(15.0f), true, false);
+
+	if (UTIL_ResearchIsComplete(RESEARCH_PROTOTYPELAB_HEAVYARMOUR) && !FNullEnt(AdvArmoury))
+	{
+		edict_t* PrototypeLab = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_PROTOTYPELAB, UTIL_GetCommChairLocation(), UTIL_MetresToGoldSrcUnits(15.0f), true, false);
+
+		bool bShouldDropHeavyArmour = false;
+		bool bShouldDropHMG = false;
+		bool bShouldDropWelder = false;
+
+		if (CommanderBot->resources > 100)
+		{
+			bShouldDropHeavyArmour = UTIL_GetItemCountOfTypeInArea(DEPLOYABLE_ITEM_MARINE_HEAVYARMOUR, PrototypeLab->v.origin, UTIL_MetresToGoldSrcUnits(5.0f)) < 3;
+			bShouldDropHMG = UTIL_GetItemCountOfTypeInArea(DEPLOYABLE_ITEM_MARINE_HMG, AdvArmoury->v.origin, UTIL_MetresToGoldSrcUnits(5.0f)) < 3;
+			bShouldDropWelder = UTIL_GetItemCountOfTypeInArea(DEPLOYABLE_ITEM_MARINE_WELDER, AdvArmoury->v.origin, UTIL_MetresToGoldSrcUnits(5.0f)) < 3;
+		}
+		else
+		{
+			edict_t* MarineNeedingLoadout = UTIL_GetNearestMarineWithoutFullLoadout(AdvArmoury->v.origin, UTIL_MetresToGoldSrcUnits(10.0f));
+
+			int NumHeavyArmour = UTIL_GetItemCountOfTypeInArea(DEPLOYABLE_ITEM_MARINE_HEAVYARMOUR, PrototypeLab->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
+			int NumHMG = UTIL_GetItemCountOfTypeInArea(DEPLOYABLE_ITEM_MARINE_HMG, AdvArmoury->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
+			int NumWelder = UTIL_GetItemCountOfTypeInArea(DEPLOYABLE_ITEM_MARINE_WELDER, AdvArmoury->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
+
+			bShouldDropHeavyArmour = (!FNullEnt(MarineNeedingLoadout) && !PlayerHasEquipment(MarineNeedingLoadout) && NumHeavyArmour == 0);
+			bShouldDropHMG = (!FNullEnt(MarineNeedingLoadout) && !PlayerHasSpecialWeapon(MarineNeedingLoadout) && NumHMG == 0);
+			bShouldDropWelder = (!FNullEnt(MarineNeedingLoadout) && !PlayerHasWeapon(MarineNeedingLoadout, WEAPON_MARINE_WELDER) && NumWelder == 0);
+		}		
+
+		if (bShouldDropHeavyArmour)
+		{
+			if (Action->ActionType == ACTION_DEPLOY && Action->StructureToBuild == DEPLOYABLE_ITEM_MARINE_HEAVYARMOUR) { return; }
+
+			Action->ActionType = ACTION_DEPLOY;
+			Action->StructureToBuild = DEPLOYABLE_ITEM_MARINE_HEAVYARMOUR;
+			Action->BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, PrototypeLab->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
+			return;
+		}
+
+		if (bShouldDropHMG)
+		{
+			if (Action->ActionType == ACTION_DEPLOY && Action->StructureToBuild == DEPLOYABLE_ITEM_MARINE_HMG) { return; }
+
+			Action->ActionType = ACTION_DEPLOY;
+			Action->StructureToBuild = DEPLOYABLE_ITEM_MARINE_HMG;
+			Action->BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, AdvArmoury->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
+			return;
+		}
+
+		if (bShouldDropWelder)
+		{
+			if (Action->ActionType == ACTION_DEPLOY && Action->StructureToBuild == DEPLOYABLE_ITEM_MARINE_WELDER) { return; }
+
+			Action->ActionType = ACTION_DEPLOY;
+			Action->StructureToBuild = DEPLOYABLE_ITEM_MARINE_WELDER;
+			Action->BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, AdvArmoury->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
+			return;
+		}
+
+	}
+
+	bool bShouldDropWelder = false;
+
+	if (CommanderBot->resources > 100)
+	{
+		bShouldDropWelder = (UTIL_GetItemCountOfTypeInArea(DEPLOYABLE_ITEM_MARINE_WELDER, Armoury->v.origin, UTIL_MetresToGoldSrcUnits(5.0f)) < 3);
+	}
+	else
+	{
+		int DesiredNumWelders = (CommanderBot->resources > 100) ? NumMarines : (NumMarines / 2);
+
+		int NumWeldersInPlay = UTIL_GetNumWeaponsOfTypeInPlay(WEAPON_MARINE_WELDER);
+
+		bShouldDropWelder = (NumWeldersInPlay < DesiredNumWelders);
+	}
+
+	if (bShouldDropWelder)
+	{
+		if (Action->ActionType == ACTION_DEPLOY && Action->StructureToBuild == DEPLOYABLE_ITEM_MARINE_WELDER) { return; }
+
+		Vector DeployLocation = UTIL_GetRandomPointOnNavmeshInRadius(GORGE_BUILD_NAV_PROFILE, Armoury->v.origin, UTIL_MetresToGoldSrcUnits(3.0f));
+
+		if (DeployLocation != ZERO_VECTOR)
+		{
+			Action->ActionType = ACTION_DEPLOY;
+			Action->StructureToBuild = DEPLOYABLE_ITEM_MARINE_WELDER;
+			Action->BuildLocation = DeployLocation;
+		}
+
+		return;
+	}
+
+	bool bShouldDropShotgun = false;
+
+	if (CommanderBot->resources > 100)
+	{
+		bShouldDropShotgun = (UTIL_GetItemCountOfTypeInArea(DEPLOYABLE_ITEM_MARINE_SHOTGUN, Armoury->v.origin, UTIL_MetresToGoldSrcUnits(5.0f)) < 3);
+	}
+	else
+	{
+		int DesiredNumShotguns = (NumMarines / 2);
+
+		int NumShotgunsInPlay = UTIL_GetNumWeaponsOfTypeInPlay(WEAPON_MARINE_SHOTGUN);
+
+		bShouldDropShotgun = (NumShotgunsInPlay < DesiredNumShotguns);
+	}
+
+	if (bShouldDropShotgun)
+	{
+		if (Action->ActionType == ACTION_DEPLOY && Action->StructureToBuild == DEPLOYABLE_ITEM_MARINE_SHOTGUN) { return; }
+
+		Vector DeployLocation = UTIL_GetRandomPointOnNavmeshInRadius(GORGE_BUILD_NAV_PROFILE, Armoury->v.origin, UTIL_MetresToGoldSrcUnits(3.0f));
+
+		if (DeployLocation != ZERO_VECTOR)
+		{
+			Action->ActionType = ACTION_DEPLOY;
+			Action->StructureToBuild = DEPLOYABLE_ITEM_MARINE_SHOTGUN;
+			Action->BuildLocation = DeployLocation;
+		}
+
+		return;
+	}
+
+
+}
+
+void COMM_SetNextBuildAction(bot_t* CommanderBot, commander_action* Action)
+{
+	edict_t* CommChair = UTIL_GetCommChair();
+
+	if (FNullEnt(CommChair)) { return; }
+
+	int NumInfantryPortals = UTIL_GetNumPlacedStructuresOfTypeInRadius(STRUCTURE_MARINE_INFANTRYPORTAL, CommChair->v.origin, UTIL_MetresToGoldSrcUnits(10.0f));
+
+	if (NumInfantryPortals < 2)
+	{
+		COMM_SetInfantryPortalBuildAction(CommChair, Action);
+		return;
+	}
+
+	bool bHasArmoury = UTIL_StructureOfTypeExistsInLocation(STRUCTURE_MARINE_ANYARMOURY, CommChair->v.origin, UTIL_MetresToGoldSrcUnits(10.0f));
+
+	if (!bHasArmoury)
+	{
+		if (Action->ActionType == ACTION_DEPLOY && Action->StructureToBuild == STRUCTURE_MARINE_ARMOURY && vDist2DSq(Action->BuildLocation, CommChair->v.origin) <= sqrf(UTIL_MetresToGoldSrcUnits(10.0f))) { return; }
+
+		UTIL_ClearCommanderAction(Action);
+
+		edict_t* InfantryPortal = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_INFANTRYPORTAL, CommChair->v.origin, UTIL_MetresToGoldSrcUnits(10.0f), true, false);
+
+		Vector BuildLocation = ZERO_VECTOR;
+
+		if (!FNullEnt(InfantryPortal))
+		{
+			BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(GORGE_BUILD_NAV_PROFILE, InfantryPortal->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
+		}
+
+		if (BuildLocation == ZERO_VECTOR)
+		{
+			BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(GORGE_BUILD_NAV_PROFILE, CommChair->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
+		}
+
+		if (BuildLocation != ZERO_VECTOR)
+		{
+			Action->ActionType = ACTION_DEPLOY;
+			Action->StructureToBuild = STRUCTURE_MARINE_ARMOURY;
+			Action->BuildLocation = BuildLocation;
+			Action->bIsActionUrgent = true;
+		}	
+		return;
+	}
+
+	const hive_definition* HiveUnderSiege = UTIL_GetNearestHiveUnderActiveSiege(UTIL_GetCommChairLocation());
+
+	if (HiveUnderSiege)
+	{
+		COMM_SetNextSiegeHiveAction(CommanderBot, HiveUnderSiege, Action);
+
+		if (Action->ActionType != ACTION_NONE)
+		{
+			return;
+		}
+	}
+
+	if (UTIL_ResearchIsComplete(RESEARCH_OBSERVATORY_PHASETECH))
+	{
+		bool bHasPhaseGate = UTIL_StructureOfTypeExistsInLocation(STRUCTURE_MARINE_PHASEGATE, CommChair->v.origin, UTIL_MetresToGoldSrcUnits(15.0f), false);
+
+		if (!bHasPhaseGate)
+		{
+			if (Action->ActionType == ACTION_DEPLOY && Action->StructureToBuild == STRUCTURE_MARINE_PHASEGATE) { return; }
+
+			UTIL_ClearCommanderAction(Action);
+
+			edict_t* Armoury = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ARMOURY, CommChair->v.origin, UTIL_MetresToGoldSrcUnits(15.0f), true, false);
+
+			Vector BuildLocation = ZERO_VECTOR;
+
+			if (!FNullEnt(Armoury))
+			{
+				BuildLocation = UTIL_GetRandomPointOnNavmeshInDonut(GORGE_BUILD_NAV_PROFILE, Armoury->v.origin, UTIL_MetresToGoldSrcUnits(3.0f), UTIL_MetresToGoldSrcUnits(5.0f));
+			}
+
+			if (BuildLocation == ZERO_VECTOR)
+			{
+				BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(GORGE_BUILD_NAV_PROFILE, CommChair->v.origin, UTIL_MetresToGoldSrcUnits(10.0f));
+			}
+
+			if (BuildLocation != ZERO_VECTOR)
+			{
+				Action->ActionType = ACTION_DEPLOY;
+				Action->StructureToBuild = STRUCTURE_MARINE_PHASEGATE;
+				Action->BuildLocation = BuildLocation;
+				Action->bIsActionUrgent = true;
+			}
+
+			return;
+		}
+	}
+
+	const resource_node* CappableNode = COMM_GetResNodeCapOpportunityNearestLocation(UTIL_GetCommChairLocation());
+
+	if (CappableNode)
+	{
+		if (Action->ActionType != ACTION_DEPLOY || Action->ActionTarget != CappableNode->edict)
+		{
+			int NumMarineRTs = UTIL_GetNumPlacedStructuresOfType(STRUCTURE_MARINE_RESTOWER);
+
+			UTIL_ClearCommanderAction(Action);
+
+			Action->ActionType = ACTION_DEPLOY;
+			Action->ActionTarget = CappableNode->edict;
+			Action->StructureToBuild = STRUCTURE_MARINE_RESTOWER;
+			Action->BuildLocation = CappableNode->origin;
+			Action->bIsActionUrgent = (NumMarineRTs < 4);
+		}
+
+		return;
+	}
+
+	const hive_definition* HiveToSecure = COMM_GetEmptyHiveOpportunityNearestLocation(CommanderBot, UTIL_GetCommChairLocation());
+
+	if (HiveToSecure)
+	{
+		COMM_SetNextSecureHiveAction(CommanderBot, HiveToSecure, Action);
+		if (Action->ActionType != ACTION_NONE)
+		{
+			return;
+		}
+	}
+
+	bool bHasArmsLab = UTIL_StructureExistsOfType(STRUCTURE_MARINE_ARMSLAB);
+
+	if (!bHasArmsLab)
+	{
+		if (Action->ActionType == ACTION_DEPLOY && Action->StructureToBuild == STRUCTURE_MARINE_ARMSLAB) { return; }
+
+		UTIL_ClearCommanderAction(Action);
+
+		Vector BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(GORGE_BUILD_NAV_PROFILE, CommChair->v.origin, UTIL_MetresToGoldSrcUnits(10.0f));
+
+		if (BuildLocation != ZERO_VECTOR)
+		{
+			Action->ActionType = ACTION_DEPLOY;
+			Action->StructureToBuild = STRUCTURE_MARINE_ARMSLAB;
+			Action->BuildLocation = BuildLocation;
+			Action->bIsActionUrgent = true;
+		}
+
+		return;
+	}
+
+	bool bHasObservatory = UTIL_StructureExistsOfType(STRUCTURE_MARINE_OBSERVATORY);
+
+	if (!bHasObservatory)
+	{
+		if (Action->ActionType == ACTION_DEPLOY && Action->StructureToBuild == STRUCTURE_MARINE_OBSERVATORY) { return; }
+
+		UTIL_ClearCommanderAction(Action);
+
+		Vector BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(GORGE_BUILD_NAV_PROFILE, CommChair->v.origin, UTIL_MetresToGoldSrcUnits(10.0f));
+
+		if (BuildLocation != ZERO_VECTOR)
+		{
+			Action->ActionType = ACTION_DEPLOY;
+			Action->StructureToBuild = STRUCTURE_MARINE_OBSERVATORY;
+			Action->BuildLocation = BuildLocation;
+		}
+
+		return;
+	}
+
+	if (!UTIL_ResearchIsComplete(RESEARCH_OBSERVATORY_PHASETECH))
+	{
+		UTIL_ClearCommanderAction(Action);
+		return;
+	}
+
+	const hive_definition* HiveToSiege = COMM_GetHiveSiegeOpportunityNearestLocation(CommanderBot, UTIL_GetCommChairLocation());
+
+	if (HiveToSiege)
+	{
+		COMM_SetNextSiegeHiveAction(CommanderBot, HiveToSiege, Action);
+		if (Action->ActionType != ACTION_NONE)
+		{
+			return;
+		}
+	}
+
+	bool bHasAdvArmoury = UTIL_StructureExistsOfType(STRUCTURE_MARINE_ADVARMOURY);
+	bool bIsResearchingArmoury = false;
+	
+	if (!bHasAdvArmoury)
+	{
+		edict_t* NearestArmoury = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ARMOURY, UTIL_GetCommChairLocation(), UTIL_MetresToGoldSrcUnits(15.0f), true, false);
+
+		if (!FNullEnt(NearestArmoury))
+		{
+			bIsResearchingArmoury = UTIL_StructureIsUpgrading(NearestArmoury);
+		}
+	}
+
+	if (!bHasAdvArmoury && !bIsResearchingArmoury)
+	{
+		if (Action->ActionType == ACTION_UPGRADE && Action->StructureToBuild == STRUCTURE_MARINE_ADVARMOURY) { return; }
+
+		UTIL_ClearCommanderAction(Action);
+
+		edict_t* Armoury = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ARMOURY, CommChair->v.origin, UTIL_MetresToGoldSrcUnits(15.0f), true, false);
+
+		if (!FNullEnt(Armoury))
+		{
+			Action->ActionType = ACTION_UPGRADE;
+			Action->StructureToBuild = STRUCTURE_MARINE_ADVARMOURY;
+			Action->ActionTarget = Armoury;
+		}
+
+		return;
+	}
+
+	bool bHasPrototypeLab = UTIL_StructureExistsOfType(STRUCTURE_MARINE_PROTOTYPELAB);
+
+	if (!bHasPrototypeLab && bHasAdvArmoury)
+	{
+		if (Action->ActionType == ACTION_DEPLOY && Action->StructureToBuild == STRUCTURE_MARINE_PROTOTYPELAB) { return; }
+
+		UTIL_ClearCommanderAction(Action);
+
+		edict_t* Armoury = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ANYARMOURY, CommChair->v.origin, UTIL_MetresToGoldSrcUnits(15.0f), true, false);
+
+		if (!FNullEnt(Armoury))
+		{
+			Vector BuildLocation = UTIL_GetRandomPointOnNavmeshInDonut(GORGE_BUILD_NAV_PROFILE, Armoury->v.origin, UTIL_MetresToGoldSrcUnits(3.0f), UTIL_MetresToGoldSrcUnits(5.0f));
+
+			if (BuildLocation != ZERO_VECTOR)
+			{
+				Action->ActionType = ACTION_DEPLOY;
+				Action->StructureToBuild = STRUCTURE_MARINE_PROTOTYPELAB;
+				Action->BuildLocation = BuildLocation;
+				
+			}
+		}
+
+		return;
+	}
+
+	int Resources = CommanderBot->resources;
+
+	if (Resources > 100)
+	{
+		edict_t* UnelectrifiedResTower = UTIL_GetFurthestStructureOfTypeFromLocation(STRUCTURE_MARINE_RESTOWER, UTIL_GetCommChairLocation(), false);
+
+		if (!FNullEnt(UnelectrifiedResTower) && UTIL_ElectricalResearchIsAvailable(UnelectrifiedResTower))
+		{
+			COMM_SetElectrifyStructureAction(UnelectrifiedResTower, Action);
+			return;
+		}
+	}
+
+	UTIL_ClearCommanderAction(Action);
+
+}
+
+void COMM_ConfirmObjectDeployed(bot_t* pBot, commander_action* Action, edict_t* DeployedObject)
+{
+	if (Action->ActionType == ACTION_DEPLOY)
+	{
+		if (Action->StructureToBuild == DEPLOYABLE_ITEM_MARINE_SCAN)
+		{
+			pBot->CommanderLastScanTime = gpGlobals->time;
+		}
+
+		buildable_structure* Ref = UTIL_GetBuildableStructureRefFromEdict(DeployedObject);
+
+		if (Ref)
+		{
+			Ref->LastSuccessfulCommanderLocation = Action->LastAttemptedCommanderLocation;
+			Ref->LastSuccessfulCommanderAngle = Action->LastAttemptedCommanderAngle;
+		}
+
+		pBot->next_commander_action_time = gpGlobals->time + commander_action_cooldown;
+
+		UTIL_ClearCommanderAction(Action);
+	}
+}
+
+edict_t* COMM_GetMarineEligibleToBuildSiege(const hive_definition* Hive)
+{
+	float MinDist = 0.0f;
+	edict_t* Result = nullptr;
+
+	for (int i = 0; i < 32; i++)
+	{
+		if (!FNullEnt(clients[i]) && IsPlayerMarine(clients[i]) && IsPlayerActiveInGame(clients[i]))
+		{
+			float ThisDist = vDist2DSq(clients[i]->v.origin, Hive->Location);
+
+			if (ThisDist < sqrf(UTIL_MetresToGoldSrcUnits(25.0f)) && !UTIL_QuickTrace(clients[i], GetPlayerEyePosition(clients[i]), Hive->Location))
+			{
+				edict_t* DangerTurret = PlayerGetNearestDangerTurret(clients[i], UTIL_MetresToGoldSrcUnits(15.0f));
+
+				if (!FNullEnt(DangerTurret) && UTIL_QuickTrace(DangerTurret, GetPlayerTopOfCollisionHull(DangerTurret), clients[i]->v.origin)) { continue; }
+
+				if (UTIL_AnyPlayerOnTeamWithLOS(clients[i]->v.origin, ALIEN_TEAM, UTIL_MetresToGoldSrcUnits(10.0f))) { continue; }
+
+				if (FNullEnt(Result) || ThisDist < MinDist)
+				{
+					Result = clients[i];
+					MinDist = ThisDist;
+				}
+
+			}
+		}
+	}
+
+	return Result;
 }

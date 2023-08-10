@@ -33,7 +33,6 @@
  */
 
 #include <time.h>
-
 #include <extdll.h>
 
 #include <dllapi.h>
@@ -47,6 +46,8 @@
 #include "general_util.h"
 #include "player_util.h"
 #include "bot_task.h"
+#include "bot_bsp.h"
+#include "bot_commander.h"
 
 extern int m_spriteTexture;
 
@@ -65,7 +66,7 @@ extern bool bGameHasStarted;
 
 extern int GameStatus;
 
-extern float last_think_time;
+float last_think_time;
 
 extern float last_bot_count_check_time;
 
@@ -90,20 +91,6 @@ void ClientCommand(edict_t* pEntity)
 	if (FStrEq(pcmd, "drawobstacles"))
 	{
 		UTIL_DrawTemporaryObstacles();
-
-		RETURN_META(MRES_SUPERCEDE);
-	}
-
-	if (FStrEq(pcmd, "cloakstatus"))
-	{
-		if ((pEntity->v.iuser4 & MASK_VIS_SIGHTED))
-		{
-			UTIL_SayText("False\n", pEntity);
-		}
-		else
-		{
-			UTIL_SayText("True\n", pEntity);
-		}
 
 		RETURN_META(MRES_SUPERCEDE);
 	}
@@ -133,6 +120,138 @@ void ClientCommand(edict_t* pEntity)
 		RETURN_META(MRES_SUPERCEDE);
 	}
 
+	if (FStrEq(pcmd, "togglecomplexfov"))
+	{
+		GAME_SetUseComplexFOV(!GAME_UseComplexFOV());
+
+		RETURN_META(MRES_SUPERCEDE);
+	}
+
+	if (FStrEq(pcmd, "testturretbuild"))
+	{
+		edict_t* TF = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ANYTURRETFACTORY, pEntity->v.origin, UTIL_MetresToGoldSrcUnits(10.0f), true, false);
+
+		if (!FNullEnt(TF))
+		{
+			Vector NewBuildLoc = UTIL_GetNextTurretPosition(TF);
+
+			UTIL_DrawLine(pEntity, TF->v.origin, NewBuildLoc, 10.0f, 255, 255, 0);
+
+			Vector FwdVector = UTIL_GetForwardVector2D(TF->v.angles);
+
+			UTIL_DrawLine(pEntity, TF->v.origin, TF->v.origin + (FwdVector * 100.0f), 10.0f);
+		}
+
+		RETURN_META(MRES_SUPERCEDE);
+	}
+
+	if (FStrEq(pcmd, "testbackpath"))
+	{
+		Vector Result = DEBUG_FindClosestPointBackOnPath(pEntity);
+
+		if (Result != ZERO_VECTOR)
+		{
+			UTIL_DrawLine(pEntity, pEntity->v.origin, Result, 5.0f);
+		}
+
+		RETURN_META(MRES_SUPERCEDE);
+	}
+
+	if (FStrEq(pcmd, "testumbra"))
+	{
+		if (UTIL_IsAreaAffectedByUmbra(pEntity->v.origin))
+		{
+			UTIL_SayText("True\n", pEntity);
+		}
+		else
+		{
+			UTIL_SayText("False\n", pEntity);
+		}
+
+		RETURN_META(MRES_SUPERCEDE);
+
+	}
+
+	if (FStrEq(pcmd, "testambush"))
+	{
+		for (int i = 0; i < MAX_CLIENTS; i++)
+		{
+			if (bots[i].is_used && !FNullEnt(bots[i].pEdict))
+			{
+				Vector AmbushLoc = UTIL_GetAmbushPositionForTarget2(&bots[i], pEntity);
+
+				if (AmbushLoc != ZERO_VECTOR)
+				{
+					UTIL_DrawLine(pEntity, pEntity->v.origin, AmbushLoc, 10.0f, 255, 0, 0);
+				}
+			}
+		}
+		RETURN_META(MRES_SUPERCEDE);
+	}
+
+	if (FStrEq(pcmd, "lookatme"))
+	{
+		for (int i = 0; i < MAX_CLIENTS; i++)
+		{
+			if (bots[i].is_used && !FNullEnt(bots[i].pEdict))
+			{
+				BotDirectLookAt(&bots[i], UTIL_GetCentreOfEntity(pEntity));
+			}
+		}
+		RETURN_META(MRES_SUPERCEDE);
+	}
+
+	if (FStrEq(pcmd, "testweldables"))
+	{
+		edict_t* currWeldable = NULL;
+		while (((currWeldable = UTIL_FindEntityByClassname(currWeldable, "avhweldable")) != NULL) && (!FNullEnt(currWeldable)))
+		{
+			if (currWeldable->v.solid == SOLID_BSP && vDist2DSq(UTIL_GetCentreOfEntity(currWeldable), pEntity->v.origin) <= sqrf(100.0f))
+			{
+				UTIL_DrawBox(pEntity, currWeldable->v.absmin, currWeldable->v.absmax, 10.0f);
+			}
+		}
+
+		RETURN_META(MRES_SUPERCEDE);
+	}
+
+	if (FStrEq(pcmd, "testreload"))
+	{
+		NSWeapon CurrentWeapon = WEAPON_MARINE_MG;
+
+		bool IsReloading = false;
+
+		switch (CurrentWeapon)
+		{
+		case WEAPON_MARINE_SHOTGUN:
+		case WEAPON_MARINE_PISTOL:
+			IsReloading = (pEntity->v.weaponanim == 2 || pEntity->v.weaponanim == 3);
+			break;
+		case WEAPON_MARINE_MG:
+			IsReloading =  pEntity->v.weaponanim == 2;
+			break;
+		case WEAPON_MARINE_HMG:
+			IsReloading = pEntity->v.weaponanim == 3;
+			break;
+		case WEAPON_MARINE_GL:
+			IsReloading = (pEntity->v.weaponanim == 1 || pEntity->v.weaponanim == 2 || pEntity->v.weaponanim == 4 || pEntity->v.weaponanim == 5 || pEntity->v.weaponanim == 6 || pEntity->v.weaponanim == 7);
+			break;
+		default:
+			IsReloading = false;
+		}
+
+		if (IsReloading)
+		{
+			UTIL_SayText("True\n", pEntity);
+		}
+		else
+		{
+			UTIL_SayText("False\n", pEntity);
+		}
+
+		RETURN_META(MRES_SUPERCEDE);
+	}
+
 	if (FStrEq(pcmd, "traceentity"))
 	{
 
@@ -143,14 +262,14 @@ void ClientCommand(edict_t* pEntity)
 
 		TraceResult Hit;
 
-		UTIL_TraceHull(TraceStart, TraceEnd, dont_ignore_monsters, head_hull, pEntity, &Hit);
+		UTIL_TraceLine(TraceStart, TraceEnd, ignore_monsters, dont_ignore_glass, pEntity, &Hit);
 
 		//UTIL_TraceLine(TraceStart, TraceEnd, dont_ignore_monsters, dont_ignore_glass, pEntity, &Hit);
 
-		if (Hit.flFraction < 1.0f)
+		if (!FNullEnt(Hit.pHit))
 		{
-			char buf[64];
-			sprintf(buf, "Hit Entity: %s\n", STRING(Hit.pHit->v.classname));
+			char buf[128];
+			sprintf(buf, "Hit Entity: %s (name: %s)\n", STRING(Hit.pHit->v.classname), STRING(Hit.pHit->v.targetname));
 			UTIL_SayText(buf, pEntity);
 
 			NSStructureType StructType = UTIL_IUSER3ToStructureType(Hit.pHit->v.iuser3);
@@ -170,6 +289,161 @@ void ClientCommand(edict_t* pEntity)
 		RETURN_META(MRES_SUPERCEDE);
 	}
 
+	if (FStrEq(pcmd, "testevolveloc"))
+	{
+		Vector EvolveLocation = ZERO_VECTOR;
+
+		const hive_definition* NearestHive = UTIL_GetNearestHiveOfStatus(pEntity->v.origin, HIVE_STATUS_BUILT);
+
+		if (NearestHive)
+		{
+			EvolveLocation = FindClosestNavigablePointToDestination(BUILDING_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), NearestHive->FloorLocation, UTIL_MetresToGoldSrcUnits(20.0f));
+
+			if (EvolveLocation == ZERO_VECTOR)
+			{
+				EvolveLocation = FindClosestNavigablePointToDestination(MARINE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), NearestHive->FloorLocation, UTIL_MetresToGoldSrcUnits(20.0f));
+			}
+		}
+
+		if (EvolveLocation == ZERO_VECTOR)
+		{
+			EvolveLocation = pEntity->v.origin;
+		}
+
+		Vector FinalEvolveLocation = UTIL_GetRandomPointOnNavmeshInRadius(BUILDING_REGULAR_NAV_PROFILE, EvolveLocation, UTIL_MetresToGoldSrcUnits(5.0f));
+
+		EvolveLocation = ((FinalEvolveLocation != ZERO_VECTOR) ? FinalEvolveLocation : EvolveLocation);
+
+		if (EvolveLocation != ZERO_VECTOR)
+		{
+			UTIL_DrawLine(pEntity, pEntity->v.origin, EvolveLocation, 10.0f, 255, 255, 0);
+		}
+
+		RETURN_META(MRES_SUPERCEDE);
+	}
+	
+
+	if (FStrEq(pcmd, "showconnections"))
+	{
+		if (NavmeshLoaded())
+		{
+			DEBUG_DrawOffMeshConnections();
+		}
+
+		RETURN_META(MRES_SUPERCEDE);
+	}
+	
+	if (FStrEq(pcmd, "traceplat"))
+	{
+
+		Vector TraceStart = GetPlayerEyePosition(pEntity); // origin + pev->view_ofs
+		Vector LookDir = UTIL_GetForwardVector(pEntity->v.v_angle); // Converts view angles to normalized unit vector
+
+		Vector TraceEnd = TraceStart + (LookDir * 1000.0f);
+
+		TraceResult hit;
+		UTIL_TraceLine(TraceStart, TraceEnd, dont_ignore_monsters, dont_ignore_glass, pEntity, &hit);
+
+		edict_t* TracedEntity = hit.pHit;
+
+		if (!FNullEnt(TracedEntity))
+		{
+			if (FStrEq(STRING(TracedEntity->v.classname), "func_plat"))
+			{
+				UTIL_DrawLine(pEntity, pEntity->v.origin, UTIL_GetCentreOfEntity(TracedEntity), 10.0f);
+			}
+
+			if (FStrEq(STRING(TracedEntity->v.classname), "func_train"))
+			{
+				UTIL_DrawLine(pEntity, pEntity->v.origin, UTIL_GetCentreOfEntity(TracedEntity), 10.0f);
+			}
+		}
+
+		RETURN_META(MRES_SUPERCEDE);
+	}
+
+	if (FStrEq(pcmd, "tracedoor"))
+	{
+		
+		Vector TraceStart = GetPlayerEyePosition(pEntity); // origin + pev->view_ofs
+		Vector LookDir = UTIL_GetForwardVector(pEntity->v.v_angle); // Converts view angles to normalized unit vector
+
+		Vector TraceEnd = TraceStart + (LookDir * 1000.0f);
+
+		edict_t* TracedEntity = UTIL_TraceEntity(pEntity, TraceStart, TraceEnd);
+
+		if (!FNullEnt(TracedEntity))
+		{
+			const nav_door* Door = UTIL_GetNavDoorByEdict(TracedEntity);
+
+			if (Door)
+			{
+				edict_t* Trigger = UTIL_GetNearestDoorTrigger(pEntity->v.origin, Door, nullptr);
+
+				if (!FNullEnt(Trigger))
+				{
+					UTIL_DrawLine(pEntity, pEntity->v.origin, UTIL_GetCentreOfEntity(Trigger), 10.0f);
+				}
+
+				char ActType[64];
+
+				switch (Door->ActivationType)
+				{
+					case DOOR_BUTTON:
+						sprintf(ActType, "Button\n");
+						break;
+					case DOOR_SHOOT:
+						sprintf(ActType, "Shoot\n");
+						break;
+					case DOOR_TRIGGER:
+						sprintf(ActType, "Trigger\n");
+						break;
+					case DOOR_USE:
+						sprintf(ActType, "Use\n");
+						break;
+					case DOOR_WELD:
+						sprintf(ActType, "Weld\n");
+						break;
+					default:
+						sprintf(ActType, "None\n");
+						break;
+				}
+
+				UTIL_SayText(ActType, pEntity);
+
+				sprintf(ActType, "%4.2f, %4.2f, %4.2f\n", TracedEntity->v.absmin.x, TracedEntity->v.absmin.y, TracedEntity->v.absmin.z);
+				UTIL_SayText(ActType, pEntity);
+			}
+		}		
+
+		RETURN_META(MRES_SUPERCEDE);
+	}
+
+	if (FStrEq(pcmd, "defendtask"))
+	{
+		for (int i = 0; i < gpGlobals->maxClients; i++)
+		{
+			if (bots[i].is_used && IsPlayerAlien(bots[i].pEdict) && IsPlayerActiveInGame(bots[i].pEdict))
+			{
+				edict_t* ResourceTower = UTIL_GetNearestUndefendedStructureOfTypeUnderAttack(&bots[i], STRUCTURE_ALIEN_RESTOWER, true);
+
+				if (!FNullEnt(ResourceTower))
+				{
+					UTIL_SayText("True\n", pEntity);
+					UTIL_DrawLine(pEntity, bots[i].pEdict->v.origin, ResourceTower->v.origin, 10.0f, 255, 255, 0);
+				}
+				else
+				{
+					UTIL_SayText("False\n", pEntity);
+				}
+			}
+
+		}
+		
+
+		RETURN_META(MRES_SUPERCEDE);
+	}
+
 	if (FStrEq(pcmd, "showdoors"))
 	{
 		FILE* DoorLog = fopen("DoorLog.txt", "w+");
@@ -181,6 +455,34 @@ void ClientCommand(edict_t* pEntity)
 
 		edict_t* currDoor = NULL;
 		while (((currDoor = UTIL_FindEntityByClassname(currDoor, "func_door")) != NULL) && (!FNullEnt(currDoor)))
+		{
+
+			Vector StartLine = pEntity->v.origin;
+			Vector EndX = StartLine + Vector(50.0f, 0.0f, 0.0f);
+			Vector EndY = StartLine + Vector(0.0f, 50.0f, 0.0f);
+			Vector EndZ = StartLine + Vector(0.0f, 0.0f, 50.0f);
+
+			Vector LocalMin = currDoor->v.mins;
+			Vector LocalMax = currDoor->v.maxs;
+
+			UTIL_DrawLine(pEntity, StartLine, EndX, 10.0f, 255, 0, 0);
+			UTIL_DrawLine(pEntity, StartLine, EndY, 10.0f, 255, 255, 0);
+			UTIL_DrawLine(pEntity, StartLine, EndZ, 10.0f, 0, 0, 255);
+
+
+			//UTIL_DrawLine(pEntity, currDoor->v.mins, currDoor->v.maxs, 10.0f, 255, 0, 0);
+			UTIL_DrawLine(pEntity, currDoor->v.absmin, currDoor->v.absmax, 10.0f, 255, 255, 255);
+
+			fprintf(DoorLog, "Door %s origin: (%f, %f, %f)\n", STRING(currDoor->v.targetname), currDoor->v.origin.x, currDoor->v.origin.y, currDoor->v.origin.z);
+			fprintf(DoorLog, "Door %s containing entity: %s, %s\n", STRING(currDoor->v.targetname), STRING(currDoor->v.pContainingEntity->v.targetname), STRING(currDoor->v.pContainingEntity->v.classname));
+			fprintf(DoorLog, "Door %s v_angle: (%f, %f, %f)\n", STRING(currDoor->v.targetname), currDoor->v.v_angle.x, currDoor->v.v_angle.y, currDoor->v.v_angle.z);
+			fprintf(DoorLog, "Door %s ideal_yaw: %f\n", STRING(currDoor->v.targetname), currDoor->v.ideal_yaw);
+			fprintf(DoorLog, "Door %s: (%f, %f, %f) - (%f, %f, %f)\n", STRING(currDoor->v.targetname), currDoor->v.mins.x, currDoor->v.mins.y, currDoor->v.mins.z, currDoor->v.maxs.x, currDoor->v.maxs.y, currDoor->v.maxs.z);
+			fprintf(DoorLog, "Door %s: (%f, %f, %f) - (%f, %f, %f)\n\n", STRING(currDoor->v.targetname), currDoor->v.absmin.x, currDoor->v.absmin.y, currDoor->v.absmin.z, currDoor->v.absmax.x, currDoor->v.absmax.y, currDoor->v.absmax.z);
+		}
+
+		currDoor = NULL;
+		while (((currDoor = UTIL_FindEntityByClassname(currDoor, "func_door_rotating")) != NULL) && (!FNullEnt(currDoor)))
 		{
 
 			Vector StartLine = pEntity->v.origin;
@@ -247,6 +549,8 @@ void ClientCommand(edict_t* pEntity)
 
 		BotDrawPath(pBot, 20.0f, false);
 
+		DEBUG_DrawBotNextPathPoint(pBot, 20.0f);
+
 		sprintf(buf, "Path Status: %s\n", pBot->PathStatus);
 		UTIL_SayText(buf, pEntity);
 
@@ -255,7 +559,6 @@ void ClientCommand(edict_t* pEntity)
 
 		RETURN_META(MRES_SUPERCEDE);
 	}
-
 
 	if (FStrEq(pcmd, "bottaskinfo"))
 	{
@@ -317,18 +620,54 @@ void ClientCommand(edict_t* pEntity)
 
 			if (!FNullEnt(pBot->CurrentTask->TaskTarget))
 			{
-				float DistFromTarget = vDist3D(pBot->CurrentEyePosition, UTIL_GetCentreOfEntity(pBot->CurrentTask->TaskTarget));
-
-				sprintf(buf, "Dist to Task: %f\n", DistFromTarget);
+				sprintf(buf, "Target Location = (%4.2f, %4.2f, %4.2f)\n\n", pBot->CurrentTask->TaskTarget->v.origin.x, pBot->CurrentTask->TaskTarget->v.origin.y, pBot->CurrentTask->TaskTarget->v.origin.z);
 				UTIL_SayText(buf, listenserver_edict);
 			}
 
 			UTIL_DrawLine(clients[0], pBot->CurrentEyePosition, pBot->CurrentTask->TaskLocation, 20.0f, 255, 255, 0);
+			if (!FNullEnt(pBot->CurrentTask->TaskTarget))
+			{
+				UTIL_DrawLine(clients[0], pBot->CurrentEyePosition, pBot->CurrentTask->TaskTarget->v.origin, 20.0f, 255, 0, 0);
+			}
 		}
 		else
 		{
 			UTIL_SayText("No Current Task\n", listenserver_edict);
 		}
+
+		RETURN_META(MRES_SUPERCEDE);
+	}
+
+	if (FStrEq(pcmd, "botstucktime"))
+	{
+		if (!NavmeshLoaded())
+		{
+			UTIL_SayText("Navmesh is not loaded", pEntity);
+			RETURN_META(MRES_SUPERCEDE);
+		}
+
+		edict_t* SpectatorTarget = INDEXENT(pEntity->v.iuser2);
+
+		if (FNullEnt(SpectatorTarget))
+		{
+			UTIL_SayText("No Spectator Target\n", listenserver_edict);
+			RETURN_META(MRES_SUPERCEDE);
+		}
+
+		int BotIndex = GetBotIndex(SpectatorTarget);
+
+		if (BotIndex < 0)
+		{
+			UTIL_SayText("Not spectating a bot\n", listenserver_edict);
+			RETURN_META(MRES_SUPERCEDE);
+		}
+
+		bot_t* pBot = &bots[BotIndex];
+
+		char buf[32];
+		sprintf(buf, "%3.2f\n", pBot->BotNavInfo.TotalStuckTime);
+
+		UTIL_SayText(buf, pEntity);
 
 		RETURN_META(MRES_SUPERCEDE);
 	}
@@ -353,7 +692,7 @@ void ClientCommand(edict_t* pEntity)
 		RETURN_META(MRES_SUPERCEDE);
 	}
 
-	if (FStrEq(pcmd, "botkill"))
+	if (FStrEq(pcmd, "killbots"))
 	{
 		if (!NavmeshLoaded())
 		{
@@ -374,82 +713,6 @@ void ClientCommand(edict_t* pEntity)
 		RETURN_META(MRES_SUPERCEDE);
 	}
 
-	if (FStrEq(pcmd, "printcommanderactions"))
-	{
-		if (!NavmeshLoaded())
-		{
-			UTIL_SayText("Navmesh is not loaded", pEntity);
-			RETURN_META(MRES_SUPERCEDE);
-		}
-
-		for (int i = 0; i < gpGlobals->maxClients; i++)
-		{
-			if (bots[i].is_used)  // not respawning
-			{
-				if (bots[i].bot_ns_class == CLASS_MARINE_COMMANDER)
-				{
-
-					FILE* ActionLog = fopen("CommanderActionLog.txt", "w+");
-
-					if (!ActionLog)
-					{
-						RETURN_META(MRES_SUPERCEDE);
-					}
-
-					for (int Priority = 0; Priority < 10; Priority++)
-					{
-						fprintf(ActionLog, "Priority %d Actions:\n", Priority);
-
-						for (int ActionIndex = 0; ActionIndex < 10; ActionIndex++)
-						{
-							if (bots[i].CurrentCommanderActions[Priority][ActionIndex].bIsActive)
-							{
-								commander_action* action = &bots[i].CurrentCommanderActions[Priority][ActionIndex];
-								fprintf(ActionLog, "ACTION:\n");
-								switch (action->ActionType)
-								{
-								case ACTION_BUILD:
-									fprintf(ActionLog, "Action Type: Build\n");
-									fprintf(ActionLog, "Structure Type: %s\n", (action->ActionType == ACTION_BUILD) ? UTIL_StructTypeToChar(action->StructureToBuild) : "N/A");
-									fprintf(ActionLog, "Structure is placed: %s\n", (action->ActionType == ACTION_BUILD) ? ((action->StructureOrItem) ? "True" : "False") : "N/A");
-									fprintf(ActionLog, "Assigned Player: %s\n", (action->AssignedPlayer > -1) ? STRING(clients[action->AssignedPlayer]->v.netname) : "None");
-									break;
-								case ACTION_RESEARCH:
-									fprintf(ActionLog, "Action Type: Research\n");
-									fprintf(ActionLog, "Research Tech: %s\n", UTIL_ResearchTypeToChar(action->ResearchId));
-									break;
-								case ACTION_RECYCLE:
-									fprintf(ActionLog, "Action Type: Recycle\n");
-									fprintf(ActionLog, "Structure To Recycle: %s\n", UTIL_StructTypeToChar(action->StructureToBuild));
-									break;
-								case ACTION_UPGRADE:
-									fprintf(ActionLog, "Action Type: Upgrade\n");
-									fprintf(ActionLog, "Structure To Upgrade: %s\n", UTIL_StructTypeToChar(action->StructureToBuild));
-									break;
-								case ACTION_DROPITEM:
-									fprintf(ActionLog, "Action Type: Drop Item\n");
-									fprintf(ActionLog, "Item To Drop: %s\n", UTIL_DroppableItemTypeToChar(action->ItemToDeploy));
-									break;
-								}
-
-								fprintf(ActionLog, "Action attempts: %d\n", action->NumActionAttempts);
-								fprintf(ActionLog, "\n");
-							}
-						}
-
-						fprintf(ActionLog, "\n");
-					}
-
-					fclose(ActionLog);
-
-				}
-			}
-
-		}
-
-		RETURN_META(MRES_SUPERCEDE);
-	}
-
 	if (FStrEq(pcmd, "cometome"))
 	{
 		if (!NavmeshLoaded())
@@ -462,21 +725,13 @@ void ClientCommand(edict_t* pEntity)
 		{
 			if (bots[i].is_used)  // not respawning
 			{
-				bots[i].PrimaryBotTask.TaskType = TASK_MOVE;
-				bots[i].PrimaryBotTask.TaskLocation = UTIL_GetFloorUnderEntity(pEntity);
-				bots[i].PrimaryBotTask.bOrderIsUrgent = true;
+				TASK_SetMoveTask(&bots[i], &bots[i].PrimaryBotTask, UTIL_GetFloorUnderEntity(pEntity), true);
 			}
 		}
 		RETURN_META(MRES_SUPERCEDE);
 	}
 
-	const int		kGameStatusReset = 0;
-	const int		kGameStatusResetNewMap = 1;
-	const int		kGameStatusEnded = 2;
-	const int		kGameStatusGameTime = 3;
-	const int		kGameStatusUnspentLevels = 4;
-
-	if (FStrEq(pcmd, "gamestatus"))
+	if (FStrEq(pcmd, "testattack"))
 	{
 		if (!NavmeshLoaded())
 		{
@@ -484,35 +739,18 @@ void ClientCommand(edict_t* pEntity)
 			RETURN_META(MRES_SUPERCEDE);
 		}
 
-		switch (GameStatus)
+		for (int i = 0; i < gpGlobals->maxClients; i++)
 		{
-			case kGameStatusReset:
-				UTIL_SayText("Game Status: RESET\n", pEntity);
-				break;
-			case kGameStatusResetNewMap:
-				UTIL_SayText("Game Status: RESET MAP\n", pEntity);
-				break;
-			case kGameStatusEnded:
-				UTIL_SayText("Game Status: ENDED\n", pEntity);
-				break;
-			case kGameStatusGameTime:
-				UTIL_SayText("Game Status: TIME\n", pEntity);
-				break;
-			case kGameStatusUnspentLevels:
-				UTIL_SayText("Game Status: UNSPENT\n", pEntity);
-				break;
-			default:
-				UTIL_SayText("Game Status: OTHER\n", pEntity);
-				break;
+			if (bots[i].is_used)  // not respawning
+			{
+				edict_t* PhaseGate = UTIL_GetNearestStructureIndexOfType(bots[i].pEdict->v.origin, STRUCTURE_MARINE_PHASEGATE, UTIL_MetresToGoldSrcUnits(200.0f), false, false);
+
+				if (!FNullEnt(PhaseGate))
+				{
+					TASK_SetAttackTask(&bots[i], &bots[i].PrimaryBotTask, PhaseGate, true);
+				}				
+			}
 		}
-
-		RETURN_META(MRES_SUPERCEDE);
-	}
-
-	if (FStrEq(pcmd, "breakpoint"))
-	{
-		UTIL_SayText("BREAK\n", pEntity);
-
 		RETURN_META(MRES_SUPERCEDE);
 	}
 
@@ -530,9 +768,28 @@ void ClientCommand(edict_t* pEntity)
 			{
 				if (IsPlayerOnAlienTeam(bots[i].pEdict) && !IsPlayerDead(bots[i].pEdict))
 				{
-					bots[i].PrimaryBotTask.TaskType = TASK_EVOLVE;
-					bots[i].PrimaryBotTask.Evolution = IMPULSE_ALIEN_EVOLVE_GORGE;
-					bots[i].PrimaryBotTask.TaskLocation = UTIL_GetFloorUnderEntity(pEntity);
+					TASK_SetEvolveTask(&bots[i], &bots[i].PrimaryBotTask, bots[i].pEdict->v.origin, IMPULSE_ALIEN_EVOLVE_GORGE, true);
+				}
+			}
+		}
+		RETURN_META(MRES_SUPERCEDE);
+	}
+
+	if (FStrEq(pcmd, "evolvelerk"))
+	{
+		if (!NavmeshLoaded())
+		{
+			UTIL_SayText("Navmesh is not loaded", pEntity);
+			RETURN_META(MRES_SUPERCEDE);
+		}
+
+		for (int i = 0; i < gpGlobals->maxClients; i++)
+		{
+			if (bots[i].is_used)  // not respawning
+			{
+				if (IsPlayerOnAlienTeam(bots[i].pEdict) && !IsPlayerDead(bots[i].pEdict))
+				{
+					TASK_SetEvolveTask(&bots[i], &bots[i].PrimaryBotTask, bots[i].pEdict->v.origin, IMPULSE_ALIEN_EVOLVE_LERK, true);
 				}
 			}
 		}
@@ -553,9 +810,7 @@ void ClientCommand(edict_t* pEntity)
 			{
 				if (IsPlayerOnAlienTeam(bots[i].pEdict) && !IsPlayerDead(bots[i].pEdict))
 				{
-					bots[i].PrimaryBotTask.TaskType = TASK_EVOLVE;
-					bots[i].PrimaryBotTask.Evolution = IMPULSE_ALIEN_EVOLVE_FADE;
-					bots[i].PrimaryBotTask.TaskLocation = UTIL_GetFloorUnderEntity(pEntity);
+					TASK_SetEvolveTask(&bots[i], &bots[i].PrimaryBotTask, bots[i].pEdict->v.origin, IMPULSE_ALIEN_EVOLVE_FADE, true);
 				}
 			}
 		}
@@ -576,12 +831,11 @@ void ClientCommand(edict_t* pEntity)
 			{
 				if (IsPlayerOnAlienTeam(bots[i].pEdict) && !IsPlayerDead(bots[i].pEdict))
 				{
-					bots[i].PrimaryBotTask.TaskType = TASK_EVOLVE;
-					bots[i].PrimaryBotTask.Evolution = IMPULSE_ALIEN_EVOLVE_ONOS;
-					bots[i].PrimaryBotTask.TaskLocation = UTIL_GetFloorUnderEntity(pEntity);
+					TASK_SetEvolveTask(&bots[i], &bots[i].PrimaryBotTask, bots[i].pEdict->v.origin, IMPULSE_ALIEN_EVOLVE_ONOS, true);
 				}
 			}
 		}
+
 		RETURN_META(MRES_SUPERCEDE);
 	}
 
@@ -643,10 +897,8 @@ int Spawn(edict_t* pent)
 
 		if (strcmp(pClassname, "worldspawn") == 0)
 		{
-			
-
+			UnloadNavigationData();
 			GAME_Reset();
-
 			ParseConfigFile(false);
 		}
 
@@ -678,8 +930,7 @@ void StartFrame(void)
 
 	if (gpGlobals->deathmatch)
 	{
-
-		static int i, index, player_index, bot_index;
+		static int bot_index;
 
 		if (gpGlobals->time >= 5.0f)
 		{
@@ -705,6 +956,7 @@ void StartFrame(void)
 				if (gpGlobals->time - last_structure_refresh_time >= structure_inventory_refresh_rate)
 				{
 					UTIL_RefreshBuildableStructures();
+					UTIL_RefreshResourceNodes();
 					last_structure_refresh_time = gpGlobals->time;
 				}
 
@@ -713,12 +965,47 @@ void StartFrame(void)
 					UTIL_RefreshMarineItems();
 					last_item_refresh_time = gpGlobals->time;
 				}
+
+				if (!FNullEnt(GAME_GetListenServerEdict()))
+				{
+					edict_t* SpectatorTarget = INDEXENT(GAME_GetListenServerEdict()->v.iuser2);
+
+					bot_t* SpectatedBot = nullptr;
+
+					if (!FNullEnt(SpectatorTarget))
+					{
+						int BotIndex = GetBotIndex(SpectatorTarget);
+
+						if (BotIndex >= 0)
+						{
+							SpectatedBot = &bots[BotIndex];
+						}
+					}
+
+					if (SpectatedBot)
+					{
+						if (DEBUG_ShouldShowTaskInfo())
+						{
+							UTIL_DisplayBotInfo(SpectatedBot);
+						}
+
+						if (DEBUG_ShouldShowBotPath())
+						{
+							BotDrawPath(SpectatedBot, 0.0f, false);
+						}
+					}					
+				}
 			}
 
 			float timeSinceLastThink = ((currTime - last_think_time) / CLOCKS_PER_SEC);
 
 			if (timeSinceLastThink >= BOT_MIN_FRAME_TIME)
 			{
+				GAME_SetBotDeltaTime(timeSinceLastThink);
+
+				UTIL_UpdateWeldableDoors();
+				UTIL_UpdateWeldableObstacles();
+
 				UTIL_UpdateTileCache();
 
 				for (bot_index = 0; bot_index < gpGlobals->maxClients; bot_index++)
@@ -753,6 +1040,11 @@ void StartFrame(void)
 						}
 						else
 						{
+							if (!bot->bBotThinkPaused && IsPlayerGestating(bot->pEdict))
+							{
+								OnBotBeginGestation(bot);
+							}
+
 							bot->bBotThinkPaused = true;
 						}
 						// Adjust msec to command time interval
@@ -771,8 +1063,8 @@ void StartFrame(void)
 		}
 
 	}
+
 	prevtime = currTime;
-	previous_time = gpGlobals->time;
 
 	RETURN_META(MRES_IGNORED);
 }

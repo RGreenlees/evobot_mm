@@ -80,6 +80,8 @@ bool IsPlayerMotionTracked(const edict_t* Player);
 bool IsPlayerOnLadder(const edict_t* Player);
 // Is the player an onos under the effect of charge?
 bool IsPlayerCharging(const edict_t* Player);
+// Is the player buffed by catalysts (for marines) or primal scream (for aliens)?
+bool IsPlayerBuffed(const edict_t* Player);
 
 // Returns the player's max armour, based on armour research levels (marines) or class and carapace level (aliens)
 int GetPlayerMaxArmour(const edict_t* Player);
@@ -92,6 +94,12 @@ NSPlayerClass GetPlayerClass(const edict_t* Player);
 
 // Returns player resources (for marines will be team resources)
 int GetPlayerResources(const edict_t* Player);
+
+// For combat mode, returns the player's current experience
+int GetPlayerCombatExperience(const edict_t* Player);
+
+// For combat mode, returns the player's current level
+int GetPlayerCombatLevel(const edict_t* Player);
 
 // Returns the player radius based on their current state
 float GetPlayerRadius(const edict_t* pEdict);
@@ -135,16 +143,17 @@ int GetPlayerIndex(const edict_t* Edict);
 // Returns true if the supplied edict is a player (bot or human)
 bool IsEdictPlayer(const edict_t* edict);
 
+bool IsPlayerTouchingEntity(const edict_t* Player, const edict_t* TargetEntity);
+
 bool IsPlayerInUseRange(const edict_t* Player, const edict_t* Target);
 
 bool PlayerHasHeavyArmour(const edict_t* Player);
 
 bool PlayerHasJetpack(edict_t* Player);
 
+bool PlayerHasWeapon(const edict_t* Player, const NSWeapon DesiredCombatWeapon);
 bool PlayerHasEquipment(edict_t* Player);
 bool PlayerHasSpecialWeapon(edict_t* Player);
-
-bool PlayerHasWeapon(edict_t* Player, NSWeapon WeaponType);
 
 bool UTIL_PlayerHasLOSToEntity(const edict_t* Player, const edict_t* Target, const float MaxRange, const bool bUseHullSweep);
 bool UTIL_PlayerHasLOSToLocation(const edict_t* Player, const Vector Target, const float MaxRange);

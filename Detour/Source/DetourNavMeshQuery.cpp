@@ -3608,6 +3608,8 @@ dtStatus dtNavMeshQuery::findDistanceToWall(dtPolyRef startRef, const float* cen
 	float radiusSqr = dtSqr(maxRadius);
 	
 	dtStatus status = DT_SUCCESS;
+
+	const float UpVector[3] = { 0.0f, 1.0f, 0.0f };
 	
 	while (!m_openList->empty())
 	{
@@ -3682,6 +3684,14 @@ dtStatus dtNavMeshQuery::findDistanceToWall(dtPolyRef startRef, const float* cen
 			hitPos[0] = vj[0] + (vi[0] - vj[0])*tseg;
 			hitPos[1] = vj[1] + (vi[1] - vj[1])*tseg;
 			hitPos[2] = vj[2] + (vi[2] - vj[2])*tseg;
+
+			// Modification by Richard Greenlees. hitNormal now takes the normal of the hit edge, not the direction of the centre point and hit position
+
+			float edgeDir[3] = { 0.0f, 0.0f ,0.0f };
+
+			dtVsub(edgeDir, vj, vi);
+
+			dtVcross(hitNormal, edgeDir, UpVector); // Get the right vector of the edge direction to point inwards towards the poly
 		}
 		
 		for (unsigned int i = bestPoly->firstLink; i != DT_NULL_LINK; i = bestTile->links[i].next)
@@ -3754,8 +3764,8 @@ dtStatus dtNavMeshQuery::findDistanceToWall(dtPolyRef startRef, const float* cen
 		}
 	}
 	
-	// Calc hit normal.
-	dtVsub(hitNormal, centerPos, hitPos);
+	// Modifiction by Richard Greenlees. Normalise the edge normal here
+	// (original code calculated hit normal here using centre pos - hit pos)
 	dtVnormalize(hitNormal);
 	
 	*hitDist = dtMathSqrtf(radiusSqr);

@@ -42,6 +42,7 @@
 #include "bot_math.h"
 #include "player_util.h"
 #include "bot_tactical.h"
+#include "game_state.h"
 
 int m_spriteTexture;
 
@@ -117,6 +118,90 @@ void UTIL_BuildFileName(char* filename, const char* arg1, const char* arg2, cons
 			strcat(filename, arg4);
 		}
 	}
+}
+
+void UTIL_DrawBox(edict_t* pEntity, Vector bMin, Vector bMax)
+{
+	Vector LowerBottomLeftCorner = bMin;
+	Vector LowerTopLeftCorner = Vector(bMin.x, bMax.y, bMin.z);
+	Vector LowerTopRightCorner = Vector(bMax.x, bMax.y, bMin.z);
+	Vector LowerBottomRightCorner = Vector(bMax.x, bMin.y, bMin.z);
+
+	Vector UpperBottomLeftCorner = Vector(bMin.x, bMin.y, bMax.z);
+	Vector UpperTopLeftCorner = Vector(bMin.x, bMax.y, bMax.z);
+	Vector UpperTopRightCorner = Vector(bMax.x, bMax.y, bMax.z);
+	Vector UpperBottomRightCorner = Vector(bMax.x, bMin.y, bMax.z);
+
+
+	UTIL_DrawLine(pEntity, LowerTopLeftCorner, LowerTopRightCorner);
+	UTIL_DrawLine(pEntity, LowerTopRightCorner, LowerBottomRightCorner);
+	UTIL_DrawLine(pEntity, LowerBottomRightCorner, LowerBottomLeftCorner);
+
+	UTIL_DrawLine(pEntity, UpperBottomLeftCorner, UpperTopLeftCorner);
+	UTIL_DrawLine(pEntity, UpperTopLeftCorner, UpperTopRightCorner);
+	UTIL_DrawLine(pEntity, UpperTopRightCorner, UpperBottomRightCorner);
+	UTIL_DrawLine(pEntity, UpperBottomRightCorner, UpperBottomLeftCorner);
+
+	UTIL_DrawLine(pEntity, LowerBottomLeftCorner, UpperBottomLeftCorner);
+	UTIL_DrawLine(pEntity, LowerTopLeftCorner, UpperTopLeftCorner);
+	UTIL_DrawLine(pEntity, LowerTopRightCorner, UpperTopRightCorner);
+	UTIL_DrawLine(pEntity, LowerBottomRightCorner, UpperBottomRightCorner);
+}
+
+void UTIL_DrawBox(edict_t* pEntity, Vector bMin, Vector bMax, float drawTimeSeconds)
+{
+	Vector LowerBottomLeftCorner = bMin;
+	Vector LowerTopLeftCorner = Vector(bMin.x, bMax.y, bMin.z);
+	Vector LowerTopRightCorner = Vector(bMax.x, bMax.y, bMin.z);
+	Vector LowerBottomRightCorner = Vector(bMax.x, bMin.y, bMin.z);
+
+	Vector UpperBottomLeftCorner = Vector(bMin.x, bMin.y, bMax.z);
+	Vector UpperTopLeftCorner = Vector(bMin.x, bMax.y, bMax.z);
+	Vector UpperTopRightCorner = Vector(bMax.x, bMax.y, bMax.z);
+	Vector UpperBottomRightCorner = Vector(bMax.x, bMin.y, bMax.z);
+
+
+	UTIL_DrawLine(pEntity, LowerTopLeftCorner, LowerTopRightCorner, drawTimeSeconds, 255, 255, 255);
+	UTIL_DrawLine(pEntity, LowerTopRightCorner, LowerBottomRightCorner, drawTimeSeconds, 255, 255, 255);
+	UTIL_DrawLine(pEntity, LowerBottomRightCorner, LowerBottomLeftCorner, drawTimeSeconds, 255, 255, 255);
+
+	UTIL_DrawLine(pEntity, UpperBottomLeftCorner, UpperTopLeftCorner, drawTimeSeconds, 255, 255, 255);
+	UTIL_DrawLine(pEntity, UpperTopLeftCorner, UpperTopRightCorner, drawTimeSeconds, 255, 255, 255);
+	UTIL_DrawLine(pEntity, UpperTopRightCorner, UpperBottomRightCorner, drawTimeSeconds, 255, 255, 255);
+	UTIL_DrawLine(pEntity, UpperBottomRightCorner, UpperBottomLeftCorner, drawTimeSeconds, 255, 255, 255);
+
+	UTIL_DrawLine(pEntity, LowerBottomLeftCorner, UpperBottomLeftCorner, drawTimeSeconds, 255, 255, 255);
+	UTIL_DrawLine(pEntity, LowerTopLeftCorner, UpperTopLeftCorner, drawTimeSeconds, 255, 255, 255);
+	UTIL_DrawLine(pEntity, LowerTopRightCorner, UpperTopRightCorner, drawTimeSeconds, 255, 255, 255);
+	UTIL_DrawLine(pEntity, LowerBottomRightCorner, UpperBottomRightCorner, drawTimeSeconds, 255, 255, 255);
+}
+
+void UTIL_DrawBox(edict_t* pEntity, Vector bMin, Vector bMax, float drawTimeSeconds, int r, int g, int b)
+{
+	Vector LowerBottomLeftCorner = bMin;
+	Vector LowerTopLeftCorner = Vector(bMin.x, bMax.y, bMin.z);
+	Vector LowerTopRightCorner = Vector(bMax.x, bMax.y, bMin.z);
+	Vector LowerBottomRightCorner = Vector(bMax.x, bMin.y, bMin.z);
+
+	Vector UpperBottomLeftCorner = Vector(bMin.x, bMin.y, bMax.z);
+	Vector UpperTopLeftCorner = Vector(bMin.x, bMax.y, bMax.z);
+	Vector UpperTopRightCorner = Vector(bMax.x, bMax.y, bMax.z);
+	Vector UpperBottomRightCorner = Vector(bMax.x, bMin.y, bMax.z);
+
+
+	UTIL_DrawLine(pEntity, LowerTopLeftCorner, LowerTopRightCorner, drawTimeSeconds, r, g, b);
+	UTIL_DrawLine(pEntity, LowerTopRightCorner, LowerBottomRightCorner, drawTimeSeconds, r, g, b);
+	UTIL_DrawLine(pEntity, LowerBottomRightCorner, LowerBottomLeftCorner, drawTimeSeconds, r, g, b);
+
+	UTIL_DrawLine(pEntity, UpperBottomLeftCorner, UpperTopLeftCorner, drawTimeSeconds, r, g, b);
+	UTIL_DrawLine(pEntity, UpperTopLeftCorner, UpperTopRightCorner, drawTimeSeconds, r, g, b);
+	UTIL_DrawLine(pEntity, UpperTopRightCorner, UpperBottomRightCorner, drawTimeSeconds, r, g, b);
+	UTIL_DrawLine(pEntity, UpperBottomRightCorner, UpperBottomLeftCorner, drawTimeSeconds, r, g, b);
+
+	UTIL_DrawLine(pEntity, LowerBottomLeftCorner, UpperBottomLeftCorner, drawTimeSeconds, r, g, b);
+	UTIL_DrawLine(pEntity, LowerTopLeftCorner, UpperTopLeftCorner, drawTimeSeconds, r, g, b);
+	UTIL_DrawLine(pEntity, LowerTopRightCorner, UpperTopRightCorner, drawTimeSeconds, r, g, b);
+	UTIL_DrawLine(pEntity, LowerBottomRightCorner, UpperBottomRightCorner, drawTimeSeconds, r, g, b);
 }
 
 void UTIL_DrawLine(edict_t* pEntity, Vector start, Vector end)
@@ -228,29 +313,82 @@ void UTIL_DrawLine(edict_t* pEntity, Vector start, Vector end, int r, int g, int
 	MESSAGE_END();
 }
 
+void UTIL_DrawHUDText(edict_t* pEntity, char channel, float x, float y, unsigned char r, unsigned char g, unsigned char b, const char* string)
+{
+	
+
+	// higher level wrapper for hudtextparms TE_TEXTMESSAGEs. This function is meant to be called
+	// every frame, since the duration of the display is roughly worth the duration of a video
+	// frame. The X and Y coordinates are unary fractions which are bound to this rule:
+	// 0: top of the screen (Y) or left of the screen (X), left aligned text
+	// 1: bottom of the screen (Y) or right of the screen (X), right aligned text
+	// -1(only one negative value possible): center of the screen (X and Y), centered text
+	// Any value ranging from 0 to 1 will represent a valid position on the screen.
+
+	static short duration;
+
+	if (FNullEnt(pEntity)) { return; }
+
+	duration = (int)GAME_GetServerMSecVal() * 256 / 750; // compute text message duration
+	if (duration < 5)
+		duration = 5;
+
+	MESSAGE_BEGIN(MSG_ONE_UNRELIABLE, SVC_TEMPENTITY, NULL, pEntity);
+	WRITE_BYTE(TE_TEXTMESSAGE);
+	WRITE_BYTE(channel); // channel
+	WRITE_SHORT((int)(x * 8192.0f)); // x coordinates * 8192
+	WRITE_SHORT((int)(y * 8192.0f)); // y coordinates * 8192
+	WRITE_BYTE(0); // effect (fade in/out)
+	WRITE_BYTE(r); // initial RED
+	WRITE_BYTE(g); // initial GREEN
+	WRITE_BYTE(b); // initial BLUE
+	WRITE_BYTE(1); // initial ALPHA
+	WRITE_BYTE(r); // effect RED
+	WRITE_BYTE(g); // effect GREEN
+	WRITE_BYTE(b); // effect BLUE
+	WRITE_BYTE(1); // effect ALPHA
+	WRITE_SHORT(0); // fade-in time in seconds * 256
+	WRITE_SHORT(0); // fade-out time in seconds * 256
+	WRITE_SHORT(duration); // hold time in seconds * 256
+	WRITE_STRING(string);//string); // send the string
+	MESSAGE_END(); // end
+
+	return;
+}
+
+bool UTIL_CommanderTrace(const edict_t* pEdict, const Vector& start, const Vector& end)
+{
+	TraceResult hit;
+	edict_t* IgnoreEdict = (!FNullEnt(pEdict)) ? pEdict->v.pContainingEntity : NULL;
+	UTIL_TraceLine(start, end, ignore_monsters, ignore_glass, IgnoreEdict, &hit);
+	return (hit.flFraction >= 1.0f);
+}
+
 bool UTIL_QuickTrace(const edict_t* pEdict, const Vector& start, const Vector& end)
 {
 	TraceResult hit;
 	edict_t* IgnoreEdict = (!FNullEnt(pEdict)) ? pEdict->v.pContainingEntity : NULL;
 	UTIL_TraceLine(start, end, ignore_monsters, ignore_glass, IgnoreEdict, &hit);
-	return (hit.flFraction >= 1.0f || hit.fStartSolid > 0);
+	return (hit.flFraction >= 1.0f && !hit.fAllSolid);
 }
 
 bool UTIL_QuickHullTrace(const edict_t* pEdict, const Vector& start, const Vector& end)
 {
 	int hullNum = 0;// GetPlayerHullIndex(pEdict);
+	edict_t* IgnoreEdict = (!FNullEnt(pEdict)) ? pEdict->v.pContainingEntity : NULL;
 	TraceResult hit;
-	UTIL_TraceHull(start, end, ignore_monsters, hullNum, pEdict->v.pContainingEntity, &hit);
+	UTIL_TraceHull(start, end, ignore_monsters, hullNum, IgnoreEdict, &hit);
 
-	return (hit.flFraction >= 1.0f);
+	return (hit.flFraction >= 1.0f && !hit.fAllSolid);
 }
 
 bool UTIL_QuickHullTrace(const edict_t* pEdict, const Vector& start, const Vector& end, int hullNum)
 {
 	TraceResult hit;
-	UTIL_TraceHull(start, end, ignore_monsters, hullNum, pEdict->v.pContainingEntity, &hit);
+	edict_t* IgnoreEdict = (!FNullEnt(pEdict)) ? pEdict->v.pContainingEntity : NULL;
+	UTIL_TraceHull(start, end, ignore_monsters, hullNum, IgnoreEdict, &hit);
 
-	return (hit.flFraction >= 1.0f);
+	return (hit.flFraction >= 1.0f && !hit.fAllSolid);
 }
 
 edict_t* UTIL_TraceEntity(const edict_t* pEdict, const Vector& start, const Vector& end)
@@ -318,6 +456,8 @@ void ClientPrint(edict_t* pEntity, int msg_dest, const char* msg_name)
 
 void UTIL_SayText(const char* pText, edict_t* pEdict)
 {
+	if (FNullEnt(pEdict)) { return; }
+
 	if (GET_USER_MSG_ID(PLID, "SayText", NULL) <= 0)
 		REG_USER_MSG("SayText", -1);
 
@@ -432,16 +572,28 @@ Vector UTIL_GetEntityGroundLocation(const edict_t* pEntity)
 
 	if (GetStructureTypeFromEdict(pEntity) == STRUCTURE_ALIEN_HIVE)
 	{
-		return UTIL_GetFloorUnderEntity(pEntity);
+		const hive_definition* Hive = UTIL_GetHiveFromEdict(pEntity);
+
+		if (Hive)
+		{
+			return Hive->FloorLocation;
+		}
+		else
+		{
+			return UTIL_GetFloorUnderEntity(pEntity);
+		}
+		
 	}
 
-	return GetPlayerBottomOfCollisionHull(pEntity);
+	Vector Centre = UTIL_GetCentreOfEntity(pEntity);
+	Centre.z = pEntity->v.absmin.z + 1.0f;
+
+	return Centre;
 }
 
 Vector UTIL_GetCentreOfEntity(const edict_t* Entity)
 {
 	if (!Entity) { return ZERO_VECTOR; }
-
 	return (Entity->v.absmin + (Entity->v.size * 0.5f));
 }
 
@@ -450,8 +602,11 @@ Vector UTIL_GetFloorUnderEntity(const edict_t* Edict)
 	if (FNullEnt(Edict)) { return ZERO_VECTOR; }
 
 	TraceResult hit;
-	UTIL_TraceHull(Edict->v.origin, (Edict->v.origin - Vector(0.0f, 0.0f, 1000.0f)), ignore_monsters, GetPlayerHullIndex(Edict), Edict->v.pContainingEntity, &hit);
 
+	Vector EntityCentre = UTIL_GetCentreOfEntity(Edict);
+
+	UTIL_TraceHull(EntityCentre, (EntityCentre - Vector(0.0f, 0.0f, 1000.0f)), ignore_monsters, GetPlayerHullIndex(Edict), Edict->v.pContainingEntity, &hit);
+	
 	if (hit.flFraction < 1.0f)
 	{
 		return (hit.vecEndPos + Vector(0.0f, 0.0f, 1.0f));

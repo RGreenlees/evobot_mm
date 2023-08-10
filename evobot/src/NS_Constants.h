@@ -13,6 +13,8 @@
 
 #define MARINE_TEAM 1
 #define ALIEN_TEAM 2
+#define MARINE_TEAM_TWO 3
+#define ALIEN_TEAM_TWO 4
 
 #define IMPULSE_ALIEN_EVOLVE_SKULK 113
 #define IMPULSE_ALIEN_EVOLVE_GORGE 114
@@ -29,6 +31,9 @@
 #define IMPULSE_ALIEN_UPGRADE_CLOAK 110
 #define IMPULSE_ALIEN_UPGRADE_FOCUS 111
 #define IMPULSE_ALIEN_UPGRADE_SCENTOFFEAR 112
+
+#define IMPULSE_ALIEN_UPGRADE_ABILITY3_UNLOCK 118 // Unlock ability 3 in combat mode
+#define IMPULSE_ALIEN_UPGRADE_ABILITY4_UNLOCK 126 // Unlock ability 4 in combat mode
 
 #define IMPULSE_ALIEN_TAUNT 9
 #define IMPULSE_ALIEN_REQUEST_HEAL 14
@@ -128,14 +133,16 @@ const int kSpitVelocity = 1500;
 const int kShootCloudVelocity = 1100;
 const int kAcidRocketVelocity = 2000;
 
-const float kBiteRange = 60.0f;
-const float kBite2Range = 60.0f; // Lerk bite range
+const float kBiteRange = 80.0f;
+const float kBite2Range = 80.0f; // Lerk bite range
 
-const float kHealingSprayRange = 100.0f;
+const float kHealingSprayRange = 200.0f;
 
-const float kSwipeRange = 60.0f; // Fade swipe range
+const float kWelderRange = 100.0f;
 
-const float kClawsRange = 90.0f; // Onos gore range
+const float kSwipeRange = 90.0f; // Fade swipe range
+
+const float kClawsRange = 110.0f; // Onos gore range
 const float kDevourRange = 100.0f; // Onos gore range
 
 const float kDefensiveChamberHealRange = 400.0f;
@@ -157,7 +164,16 @@ const float kHiveHealRadius = 500.0f;
 #define kSiegeTurretRange 1100
 #define kCommandStationCost 20
 
-
+#define kShotgunCost 10
+#define kWelderCost 5
+#define kMineCost 10
+#define kHMGCost 15
+#define kAmmoCost 1
+#define kCatalystCost 3
+#define kGrenadeLauncherCost 15
+#define kHealthCost 2
+#define kHeavyArmorCost 15
+#define kJetpackCost 10
 
 #define kArmorOneResearchCost 20
 #define kArmorTwoResearchCost 30
@@ -177,33 +193,36 @@ const float kHiveHealRadius = 500.0f;
 #define kFadeEvolutionCost 50
 #define kOnosEvolutionCost 75
 
-#define kBiteEnergyCost 0.05 // Skulk bite cost
-#define kParasiteEnergyCost 0.30
-#define kLeapEnergyCost 0.25
-#define kDivineWindEnergyCost 0.70
+#define kBiteEnergyCost 0.05f // Skulk bite cost
+#define kParasiteEnergyCost 0.30f
+#define kLeapEnergyCost 0.25f
+#define kDivineWindEnergyCost 0.70f
 
-#define kSpitEnergyCost 0.12
-#define kHealingSprayEnergyCost 0.15
-#define kBileBombEnergyCost 0.22
-#define kWebEnergyCost 0.18
+#define kSpitEnergyCost 0.12f
+#define kHealingSprayEnergyCost 0.15f
+#define kBileBombEnergyCost 0.22f
+#define kWebEnergyCost 0.18f
 
-#define kBite2EnergyCost 0.05 // Lerk bite cost
-#define kSporesEnergyCost 0.35
-#define kUmbraEnergyCost 0.30
-#define kPrimalScreamEnergyCost 0.45
+#define kBite2EnergyCost 0.05f // Lerk bite cost
+#define kSporesEnergyCost 0.35f
+#define kUmbraEnergyCost 0.30f
+#define kPrimalScreamEnergyCost 0.45f
 
-#define kSwipeEnergyCost 0.06 // Fade swipe cost
-#define kBlinkEnergyCost 0.04
-#define kMetabolizeEnergyCost 0.25
-#define kAcidRocketEnergyCost 0.10
+#define kSwipeEnergyCost 0.06f // Fade swipe cost
+#define kBlinkEnergyCost 0.04f
+#define kMetabolizeEnergyCost 0.25f
+#define kAcidRocketEnergyCost 0.10f
 
-#define kClawsEnergyCost 0.07 // Onos gore cost
-#define kDevourEnergyCost 0.20
-#define kStompEnergyCost 0.30
-#define kChargeEnergyCost 0.15
+#define kClawsEnergyCost 0.07f // Onos gore cost
+#define kDevourEnergyCost 0.20f
+#define kStompEnergyCost 0.30f
+#define kChargeEnergyCost 0.15f
 
-#define kAlienEnergyRate 0.08 // How much energy is regenerated per second (max 1.0). 12.5 seconds to regen from empty
-#define kAdrenalineEnergyPercentPerLevel 0.33 // How much faster energy regens with adrenaline. That's an extra 33% faster per level for 2x speed regen at level 3
+#define kAlienEnergyRate 0.08f // How much energy is regenerated per second (max 1.0). 12.5 seconds to regen from empty
+#define kAdrenalineEnergyPercentPerLevel 0.33f // How much faster energy regens with adrenaline. That's an extra 33% faster per level for 2x speed regen at level 3
+
+#define kSporeCloudRadius 225.0f
+#define kUmbraCloudRadius 225.0f
 
 // Game Status Constants
 const int		kGameStatusReset = 0;
@@ -214,6 +233,16 @@ const int		kGameStatusUnspentLevels = 4;
 
 const int		kNumHotkeyGroups = 5;
 const int		kSelectAllHotGroup = kNumHotkeyGroups + 1;
+
+// Game mode (e.g. combat, regular, MvM, AvA etc)
+enum NSGameMode
+{
+	GAME_MODE_NONE = 0,		// Undefined game mode
+	GAME_MODE_REGULAR = 1,	// Regular NS game mode
+	GAME_MODE_COMBAT = 2,	// Combat game mode
+	GAME_MODE_MVM = 3,		// Marine vs Marine mode
+	GAME_MODE_AVA = 4		// Alien vs Alien mode
+};
 
 // All iuser3 values to denote entity classification (e.g. player class, or building type)
 typedef enum
@@ -340,6 +369,51 @@ typedef enum
 	MASK_SENSORY_NEARBY = 0x40000000	// Player is cloaked by a sensory chamber
 } AvHUpgradeMask;
 
+// All iuser4 masks that can be applied to a player to denote what upgrades or status effects they have applied
+typedef enum
+{
+	COMBAT_MARINE_UPGRADE_NONE = 0,
+	COMBAT_MARINE_UPGRADE_CATALYST = 1 << 0,
+	COMBAT_MARINE_UPGRADE_RESUPPLY = 1 << 1,
+	COMBAT_MARINE_UPGRADE_SCAN = 1 << 2,
+	COMBAT_MARINE_UPGRADE_MOTIONTRACKING = 1 << 3,
+	COMBAT_MARINE_UPGRADE_MINES = 1 << 4,
+	COMBAT_MARINE_UPGRADE_WELDER = 1 << 5,
+	COMBAT_MARINE_UPGRADE_GRENADE = 1 << 6,
+	COMBAT_MARINE_UPGRADE_ARMOUR1 = 1 << 7,
+	COMBAT_MARINE_UPGRADE_ARMOUR2 = 1 << 8,
+	COMBAT_MARINE_UPGRADE_ARMOUR3 = 1 << 9,
+	COMBAT_MARINE_UPGRADE_JETPACK = 1 << 10,
+	COMBAT_MARINE_UPGRADE_HEAVYARMOUR = 1 << 11,
+	COMBAT_MARINE_UPGRADE_DAMAGE1 = 1 << 12,
+	COMBAT_MARINE_UPGRADE_DAMAGE2 = 1 << 13,
+	COMBAT_MARINE_UPGRADE_DAMAGE3 = 1 << 14,
+	COMBAT_MARINE_UPGRADE_SHOTGUN = 1 << 15,
+	COMBAT_MARINE_UPGRADE_HMG = 1 << 16,
+	COMBAT_MARINE_UPGRADE_GRENADELAUNCHER = 1 << 17
+} CombatModeMarineUpgrade;
+
+// All iuser4 masks that can be applied to a player to denote what upgrades or status effects they have applied
+typedef enum
+{
+	COMBAT_ALIEN_UPGRADE_NONE = 0,
+	COMBAT_ALIEN_UPGRADE_ABILITY3 = 1 << 0,
+	COMBAT_ALIEN_UPGRADE_ABILITY4 = 1 << 1,
+	COMBAT_ALIEN_UPGRADE_SILENCE = 1 << 2,
+	COMBAT_ALIEN_UPGRADE_CELERITY = 1 << 3,
+	COMBAT_ALIEN_UPGRADE_ADRENALINE = 1 << 4,
+	COMBAT_ALIEN_UPGRADE_SCENTOFFEAR = 1 << 5,
+	COMBAT_ALIEN_UPGRADE_FOCUS = 1 << 6,
+	COMBAT_ALIEN_UPGRADE_CLOAKING = 1 << 7,
+	COMBAT_ALIEN_UPGRADE_CARAPACE = 1 << 8,
+	COMBAT_ALIEN_UPGRADE_REDEMPTION = 1 << 9,
+	COMBAT_ALIEN_UPGRADE_REGENERATION = 1 << 10,
+	COMBAT_ALIEN_UPGRADE_GORGE = 1 << 11,
+	COMBAT_ALIEN_UPGRADE_LERK = 1 << 12,
+	COMBAT_ALIEN_UPGRADE_FADE = 1 << 13,
+	COMBAT_ALIEN_UPGRADE_ONOS = 1 << 14,
+} CombatModeAlienUpgrade;
+
 // Used in network messages to work out what information about a hive is being sent (see BotClient_NS_AlienInfo in bot_client.cpp)
 enum AlienInfo_ChangeFlags
 {
@@ -408,55 +482,50 @@ typedef enum
 {
 	STRUCTURE_NONE = 0,
 
-	STRUCTURE_MARINE_COMMCHAIR,
-	STRUCTURE_MARINE_RESTOWER,
-	STRUCTURE_MARINE_INFANTRYPORTAL,
-	STRUCTURE_MARINE_ARMOURY,
-	STRUCTURE_MARINE_ADVARMOURY,
+	DEPLOYABLE_ITEM_MARINE_RESUPPLY = 31, // For combat mode
+	DEPLOYABLE_ITEM_MARINE_HEAVYARMOUR = 38,
+	DEPLOYABLE_ITEM_MARINE_JETPACK = 39,
+	DEPLOYABLE_ITEM_MARINE_CATALYSTS = 47,
+	DEPLOYABLE_ITEM_MARINE_SCAN = 53,
+	DEPLOYABLE_ITEM_MARINE_HEALTHPACK = 59,
+	DEPLOYABLE_ITEM_MARINE_AMMO = 60,
+	DEPLOYABLE_ITEM_MARINE_MINES = 61,
+	DEPLOYABLE_ITEM_MARINE_WELDER = 62,
+	DEPLOYABLE_ITEM_MARINE_SHOTGUN = 64,
+	DEPLOYABLE_ITEM_MARINE_HMG = 65,
+	DEPLOYABLE_ITEM_MARINE_GRENADELAUNCHER = 66,
+
+	
+	STRUCTURE_MARINE_INFANTRYPORTAL = 40,
+	STRUCTURE_MARINE_RESTOWER = 41,
+	STRUCTURE_MARINE_TURRETFACTORY = 43,
+
+	STRUCTURE_MARINE_ARMOURY = 48,
+
+	STRUCTURE_MARINE_ARMSLAB = 45,
+	STRUCTURE_MARINE_PROTOTYPELAB = 46,
+	STRUCTURE_MARINE_OBSERVATORY = 51,
+	STRUCTURE_MARINE_PHASEGATE = 55,
+	STRUCTURE_MARINE_TURRET = 56,
+	STRUCTURE_MARINE_SIEGETURRET = 57,
+	STRUCTURE_MARINE_COMMCHAIR = 58,
+
+	STRUCTURE_ALIEN_HIVE = 95,
+	STRUCTURE_ALIEN_RESTOWER = 90,
+	STRUCTURE_ALIEN_DEFENCECHAMBER = 92,
+	STRUCTURE_ALIEN_SENSORYCHAMBER = 93,
+	STRUCTURE_ALIEN_MOVEMENTCHAMBER = 94,
+	STRUCTURE_ALIEN_OFFENCECHAMBER = 91,
+
+	STRUCTURE_MARINE_ADVARMOURY = 96,
 	STRUCTURE_MARINE_ANYARMOURY, // Can be armoury or advanced armoury (see UTIL_StructureTypesMatch())
-	STRUCTURE_MARINE_TURRETFACTORY,
 	STRUCTURE_MARINE_ADVTURRETFACTORY,
 	STRUCTURE_MARINE_ANYTURRETFACTORY, // Can be turret factory or advanced turret factory (see UTIL_StructureTypesMatch())
-	STRUCTURE_MARINE_TURRET,
-	STRUCTURE_MARINE_SIEGETURRET,
 	STRUCTURE_MARINE_ANYTURRET, // Can be turret or siege turret (see UTIL_StructureTypesMatch())
-	STRUCTURE_MARINE_ARMSLAB,
-	STRUCTURE_MARINE_PROTOTYPELAB,
-	STRUCTURE_MARINE_OBSERVATORY,
-	STRUCTURE_MARINE_PHASEGATE,
-
-	STRUCTURE_ALIEN_HIVE,
-	STRUCTURE_ALIEN_RESTOWER,
-	STRUCTURE_ALIEN_DEFENCECHAMBER,
-	STRUCTURE_ALIEN_SENSORYCHAMBER,
-	STRUCTURE_ALIEN_MOVEMENTCHAMBER,
-	STRUCTURE_ALIEN_OFFENCECHAMBER,
-
 	STRUCTURE_ANY_MARINE_STRUCTURE,
 	STRUCTURE_ANY_ALIEN_STRUCTURE
 
 } NSStructureType;
-
-
-// Items that the commander can place for marines to pick up. Also, weapons dropped by players
-typedef enum
-{
-	ITEM_NONE = 0,
-
-	ITEM_MARINE_HEAVYARMOUR = 38,
-	ITEM_MARINE_JETPACK = 39,
-	ITEM_MARINE_CATALYSTS = 47,
-	ITEM_MARINE_SCAN = 53,
-	ITEM_MARINE_HEALTHPACK = 59,
-	ITEM_MARINE_AMMO = 60,
-	ITEM_MARINE_MINES = 61,
-	ITEM_MARINE_WELDER = 62,
-	ITEM_MARINE_SHOTGUN = 64,
-	ITEM_MARINE_HMG = 65,
-	ITEM_MARINE_GRENADELAUNCHER = 66
-
-
-} NSDeployableItem;
 
 // All player classes
 typedef enum

@@ -83,11 +83,51 @@ void pfnMessageBegin(int msg_dest, int msg_type, const float* pOrigin, edict_t* 
 {
 	if (gpGlobals->deathmatch)
 	{
+
 		int index = -1;
 
 		botMsgFunction = NULL;     // no msg function until known otherwise
 		botMsgEndFunction = NULL;  // no msg end function until known otherwise
 		botMsgIndex = -1;       // index of bot receiving message
+
+		// Will cause a crash if not parsing for the correct version of NS
+		if (msg_type == GET_USER_MSG_ID(PLID, "AlienInfo", NULL))
+		{
+			BotClient_NS_AlienInfo_Reset();
+
+			if (CONFIG_GetNSVersion() == 33)
+			{
+				botMsgFunction = BotClient_NS_AlienInfo_33;
+			}
+			else
+			{
+				botMsgFunction = BotClient_NS_AlienInfo_32;
+			}
+
+			RETURN_META(MRES_IGNORED);
+		}
+
+		if (msg_type == GET_USER_MSG_ID(PLID, "SetupMap", NULL))
+		{
+			BotClient_NS_SetupMap_Reset();
+			botMsgFunction = BotClient_NS_SetupMap;
+			RETURN_META(MRES_IGNORED);
+		}
+
+		if (msg_type == GET_USER_MSG_ID(PLID, "GameStatus", NULL))
+		{
+			BotClient_NS_GameStatus_Reset();
+			botMsgFunction = BotClient_NS_GameStatus;
+			RETURN_META(MRES_IGNORED);
+		}
+
+		if (msg_type == GET_USER_MSG_ID(PLID, "DeathMsg", NULL))
+		{
+			BotClient_NS_DeathMessage_Reset();
+			botMsgFunction = BotClient_NS_DeathMsg;
+			RETURN_META(MRES_IGNORED);
+		}
+
 
 		if (ed)
 		{
@@ -100,12 +140,15 @@ void pfnMessageBegin(int msg_dest, int msg_type, const float* pOrigin, edict_t* 
 
 				if (msg_type == GET_USER_MSG_ID(PLID, "SetOrder", NULL))
 				{
+					BotClient_NS_ReceiveOrder_Reset();
 					botMsgFunction = BotClient_NS_ReceiveOrder;
 				}
 
 				// Network messages have been modified slightly between 3.2 and 3.3
 				if (msg_type == GET_USER_MSG_ID(PLID, "PlayHUDNot", NULL))
 				{
+					BotClient_NS_Alert_Reset();
+
 					if (CONFIG_GetNSVersion() == 33)
 					{
 						botMsgFunction = BotClient_NS_Alert_33;
@@ -114,56 +157,37 @@ void pfnMessageBegin(int msg_dest, int msg_type, const float* pOrigin, edict_t* 
 					{
 						botMsgFunction = BotClient_NS_Alert_32;
 					}
-				}
-
-				if (msg_type == GET_USER_MSG_ID(PLID, "SetupMap", NULL))
-					botMsgFunction = BotClient_NS_SetupMap;
+				}					
 
 				if (msg_type == GET_USER_MSG_ID(PLID, "SetSelect", NULL))
+				{
+					BotClient_NS_SetSelect_Reset();
 					botMsgFunction = BotClient_NS_SetSelect;
+				}
+					
 
 				if (msg_type == GET_USER_MSG_ID(PLID, "AmmoX", NULL))
+				{
+					BotClient_Valve_AmmoX_Reset();
 					botMsgFunction = BotClient_Valve_AmmoX;
+				}
+					
 
 				if (msg_type == GET_USER_MSG_ID(PLID, "WeaponList", NULL))
 					botMsgFunction = BotClient_Valve_WeaponList;
 
 				if (msg_type == GET_USER_MSG_ID(PLID, "CurWeapon", NULL))
-					botMsgFunction = BotClient_Valve_CurrentWeapon;
-
-				// Will cause a crash if not parsing for the correct version of NS
-				if (msg_type == GET_USER_MSG_ID(PLID, "AlienInfo", NULL))
 				{
-					if (CONFIG_GetNSVersion() == 33)
-					{
-						botMsgFunction = BotClient_NS_AlienInfo_33;
-					}
-					else
-					{
-						botMsgFunction = BotClient_NS_AlienInfo_32;
-					}
+					BotClient_Valve_CurrentWeapon_Reset();
+					botMsgFunction = BotClient_Valve_CurrentWeapon;
 				}
 
 				if (msg_type == GET_USER_MSG_ID(PLID, "Damage", NULL))
+				{
+					BotClient_NS_Damage_Reset();
 					botMsgFunction = BotClient_NS_Damage;
+				}
 
-			}
-
-		}
-		else if (msg_dest == MSG_ALL)
-		{
-			botMsgFunction = NULL;  // no msg function until known otherwise
-			botMsgIndex = -1;       // index of bot receiving message (none)
-
-			if (msg_type == GET_USER_MSG_ID(PLID, "DeathMsg", NULL))
-				botMsgFunction = BotClient_NS_DeathMsg;
-
-			if (msg_type == GET_USER_MSG_ID(PLID, "GameStatus", NULL))
-				botMsgFunction = BotClient_NS_GameStatus;
-
-			if (msg_type == GET_USER_MSG_ID(PLID, "SetupMap", NULL))
-			{
-				botMsgFunction = BotClient_NS_SetupMap;
 			}
 
 		}
@@ -177,12 +201,7 @@ void pfnMessageBegin(int msg_dest, int msg_type, const float* pOrigin, edict_t* 
 
 			if (msg_type == GET_USER_MSG_ID(PLID, "WeaponList", NULL))
 				botMsgFunction = BotClient_Valve_WeaponList;
-
-			if (msg_type == GET_USER_MSG_ID(PLID, "GameStatus", NULL))
-				botMsgFunction = BotClient_NS_GameStatus;
-
-			if (msg_type == GET_USER_MSG_ID(PLID, "SetupMap", NULL))
-				botMsgFunction = BotClient_NS_SetupMap;
+			
 		}
 	}
 

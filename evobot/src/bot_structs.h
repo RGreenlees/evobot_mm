@@ -20,7 +20,7 @@ constexpr auto MAX_PATH_SIZE = 512; // Maximum number of points allowed in a pat
 constexpr auto MAX_ACTION_PRIORITIES = 12; // How many levels of priority the commander can assign actions to
 constexpr auto MAX_PRIORITY_ACTIONS = 20; // How many actions at each priority level the commander can have at one time
 
-constexpr auto FL_THIRDPARTYBOT = (1 << 27);
+constexpr auto FL_THIRDPARTYBOT = (1 << 27); // NS explicitly blocks clients with FL_FAKECLIENT flag using the comm chair. AI Commander uses this flag instead to circumvent block
 
 // Bot's role on the team. For marines, this only governs what they do when left to their own devices.
 // Marine bots will always listen to orders from the commander regardless of role.
@@ -62,16 +62,22 @@ typedef enum _EVODEBUGMODE
 	EVO_DEBUG_CUSTOM // Custom behaviour
 } EvobotDebugMode;
 
+typedef enum _EVODEBUGFLAGS
+{
+	EVO_DFLAG_NONE = 0, // No debug info
+	EVO_DFLAG_SHOWTASK = 0x00000001, // Display bot task information when spectating
+	EVO_DFLAG_SHOWPATH = 0x00000002 // Display bot current path when spectating
+} EvobotDebugFlags;
+
 // Type of goal the commander wants to achieve
 typedef enum _COMMANDERACTIONTYPE
 {
 	ACTION_NONE = 0,
-	ACTION_BUILD,
 	ACTION_UPGRADE,
 	ACTION_RESEARCH,
 	ACTION_RECYCLE,
-	ACTION_DROPITEM,
-	ACTION_GIVEORDER
+	ACTION_GIVEORDER,
+	ACTION_DEPLOY // Deploy a structure or item into the map
 
 } CommanderActionType;
 
@@ -102,9 +108,35 @@ typedef enum
 	TASK_WELD,
 	TASK_RESUPPLY,
 	TASK_EVOLVE,
-	TASK_COMMAND
+	TASK_COMMAND,
+	TASK_USE,
+	TASK_TOUCH,
+	TASK_REINFORCE_STRUCTURE,
+	TASK_SECURE_HIVE
 }
 BotTaskType;
+
+// 
+typedef enum
+{
+	ATTACK_SUCCESS,
+	ATTACK_BLOCKED,
+	ATTACK_OUTOFRANGE,
+	ATTACK_INVALIDTARGET,
+	ATTACK_NOWEAPON
+}
+BotAttackResult;
+
+typedef enum
+{
+	ORDERPURPOSE_NONE,
+	ORDERPURPOSE_SECURE_HIVE,
+	ORDERPURPOSE_SIEGE_HIVE,
+	ORDERPURPOSE_DEFEND,
+	ORDERPURPOSE_SECURE_RESNODE,
+	ORDERPURPOSE_BUILD,
+	ORDERPURPOSE_MOVE
+} CommanderOrderPurpose;
 
 typedef struct
 {
@@ -132,12 +164,14 @@ typedef struct _BOT_CURRENT_WEAPON_T
 	int  iAmmo2Max = 0; // Max ammo in secondary reserve (not used in NS)
 	float MinRefireTime = 0.0f; // For non-automatic weapons, how frequently (in seconds) should the bot fire. 0 for automatic weapons.
 	float LastFireTime = 0.0f; // When bot last pressed the fire button. Only used if MinRefireTime > 0.
-	bool bIsReloading = false; // Is the bot in the process of reloading? Used for shotguns and GL to prevent reload-fire-reload-fire
+	bool bIsReloading = false; // Is this weapon currently being reloaded?
+	float bReloadStartTime = 0.0f; // When this weapon began reloading
 } bot_current_weapon_t;
 
 // Bot path node. A path will be several of these strung together to lead the bot to its destination
 typedef struct _BOT_PATH_NODE
 {
+	Vector FromLocation = ZERO_VECTOR; // Location to move from
 	Vector Location = ZERO_VECTOR; // Location to move to
 	float requiredZ = 0.0f; // If climbing a up ladder or wall, how high should they aim to get before dismounting.
 	unsigned short flag = 0; // Is this a ladder movement, wall climb, walk etc
@@ -177,12 +211,16 @@ typedef struct _NAV_STATUS
 	bool bIsJumping = false; // Is the bot in the air from a jump? Will duck so it can duck-jump
 	bool IsOnGround = true; // Is the bot currently on the ground, or on a ladder?
 	bool bHasAttemptedJump = false; // Last frame, the bot tried a jump. If the bot is still on the ground, it probably tried to jump in a vent or something
+	float LastFlapTime = 0.0f; // When the bot last flapped its wings (if Lerk). Prevents per-frame spam draining adrenaline
 
 	BotMoveStyle MoveStyle = MOVESTYLE_NORMAL; // Current desired move style (e.g. normal, ambush, hide). Will trigger new path calculations if this changes
 	float LastPathCalcTime = 0.0f; // When the bot last calculated a path, to limit how frequently it can recalculate
 	int LastMoveProfile = -1; // The last navigation profile used by the bot. Will trigger new path calculations if this changes (e.g. changed class, changed move style)
 
 	bool bPendingRecalculation = false; // This bot should recalculate its path as soon as it can
+
+	bool bZig; // Is the bot zigging, or zagging?
+	float NextZigTime; // Controls how frequently they zig or zag
 
 } nav_status;
 
@@ -191,17 +229,21 @@ typedef struct _ENEMY_STATUS
 {
 	edict_t* EnemyEdict = nullptr; // Reference to the enemy player edict
 	Vector LastSeenLocation = ZERO_VECTOR; // The last visibly-confirmed location of the player
+	Vector LastFloorPosition = ZERO_VECTOR; // Nearest point on the floor where the enemy was (for moving towards it)
 	Vector LastSeenVelocity = ZERO_VECTOR; // Last visibly-confirmed movement direction of the player
 	Vector PendingSeenLocation = ZERO_VECTOR; // The last visibly-confirmed location of the player
 	Vector PendingSeenVelocity = ZERO_VECTOR; // Last visibly-confirmed movement direction of the player
-	Vector TrackedLocation = ZERO_VECTOR; // If tracked by parasite or motion-tracking, last pinged location of player
+	Vector LastLOSPosition = ZERO_VECTOR; // The last position where the bot has LOS to the enemy
+	Vector LastHiddenPosition = ZERO_VECTOR; // The last position where the bot did NOT have LOS to the enemy
 	float LastSeenTime = 0.0f; // Last time the bot saw the player (not tracked)
-	float LastTrackedTime = 0.0f; // Last time the player was pinged to the bot if parasited/motion-tracked
-	bool bCurrentlyVisible = false; // Is the player directly visible to the bot
-	bool bIsValidTarget = false; // Should the bot care about this enemy player? Will be false if too far away or not seen for long enough
-	bool bIsTracked = false; // Is this enemy currently parasited or motion-tracked?
+	float LastTrackedTime = 0.0f; // Last time the bot saw the player (tracked position)
+	//bool bInFOV = false; // Is the player in the bot's FOV
+	bool bHasLOS = false; // Does the bot have LOS to the target
+	bool bIsVisible = false; // Enemy is in FOV and has LOS
+	bool bIsAwareOfPlayer = false; // Is the bot aware of this player's presence?
 	float NextUpdateTime = 0.0f; // When the bot can next react to a change in target's state
 	float NextVelocityUpdateTime = 0.0f; // When the bot can next react to a change in target's state
+	float EndTrackingTime = 0.0f; // When to stop "sensing" enemy movement after losing LOS
 
 } enemy_status;
 
@@ -232,7 +274,8 @@ typedef struct _COMMANDER_ACTION
 	float StructureBuildAttemptTime = 0.0f; // When the commander tried placing a structure. Commander will wait a short while to confirm if the building appeared or if it should try again
 	int NumActionAttempts = 0; // Commander will give up after a certain number of attempts to place structure/item
 	NSResearch ResearchId = RESEARCH_NONE; // What research to perform if research action
-	NSDeployableItem ItemToDeploy = ITEM_NONE; // What item to drop if drop item action
+	bool bIsAwaitingBuildLink = false; // The AI has tried placing a structure or item and is waiting to confirm it worked or not
+	bool bIsActionUrgent = false;
 
 } commander_action;
 
@@ -241,12 +284,13 @@ typedef struct _BOT_TASK
 {
 	BotTaskType TaskType = TASK_NONE; // Task Type (e.g. build, attack, defend, heal etc)
 	Vector TaskLocation = ZERO_VECTOR; // Task location, if task needs one (e.g. where to place structure for TASK_BUILD)
-	edict_t* TaskTarget = NULL; // Reference to a target, if task needs one (e.g. TASK_ATTACK)
+	edict_t* TaskTarget = nullptr; // Reference to a target, if task needs one (e.g. TASK_ATTACK)
+	edict_t* TaskSecondaryTarget = nullptr; // Secondary target, if task needs one (e.g. TASK_REINFORCE)
 	NSStructureType StructureType = STRUCTURE_NONE; // For Gorges, what structure to build (if TASK_BUILD)
 	float TaskStartedTime = 0.0f; // When the bot started this task. Helps time-out if the bot gets stuck trying to complete it
 	bool bIssuedByCommander = false; // Was this task issued by the commander? Top priority if so
 	bool bTargetIsPlayer = false; // Is the TaskTarget a player?
-	bool bOrderIsUrgent = false; // Determines whether this task is prioritised over others if bot has multiple
+	bool bTaskIsUrgent = false; // Determines whether this task is prioritised over others if bot has multiple
 	bool bIsWaitingForBuildLink = false; // If true, Gorge has sent the build impulse and is waiting to see if the building materialised
 	float LastBuildAttemptTime = 0.0f; // When did the Gorge last try to place a structure?
 	int BuildAttempts = 0; // How many attempts the Gorge has tried to place it, so it doesn't keep trying forever
@@ -254,12 +298,12 @@ typedef struct _BOT_TASK
 	float TaskLength = 0.0f; // If a task has gone on longer than this time, it will be considered completed
 } bot_task;
 
-
 // Tracks what orders have been given to which players
 typedef struct _COMMANDER_ORDER
 {
 	bool bIsActive = false;
 	AvHOrderType OrderType = ORDERTYPE_UNDEFINED;
+	CommanderOrderPurpose OrderPurpose = ORDERPURPOSE_NONE;
 	Vector MoveLocation = ZERO_VECTOR;
 	edict_t* Target = nullptr;
 	float LastReminderTime = 0.0f;
@@ -306,6 +350,7 @@ typedef struct _BOT_T
 	int not_started = 0;
 
 	float LastUseTime = 0.0f; // When the bot hit the use key last. Used if bContinuous is false in BotUseObject
+	float LastReloadTime = 0.0f; // When the bot hit the reload key last.
 
 	// things from pev in CBasePlayer...
 	int bot_team = 0;
@@ -352,14 +397,20 @@ typedef struct _BOT_T
 
 	int NumActionLinkedItems = 0;
 
-	commander_action CurrentCommanderActions[MAX_ACTION_PRIORITIES][MAX_PRIORITY_ACTIONS]; // All the current actions a commander can queue. Their "to-do" list
 	commander_order LastPlayerOrders[32]; // All the orders the commander has issued to players
+
+	commander_action BuildAction;
+	commander_action ResearchAction;
+	commander_action SupportAction;
+	commander_action RecycleAction;
+	commander_action* CurrentAction;
 
 	bot_task* CurrentTask = nullptr; // Bot's current task they're performing
 	bot_task PrimaryBotTask;
 	bot_task SecondaryBotTask;
 	bot_task WantsAndNeedsTask;
 	bot_task CommanderTask; // Task assigned by the commander
+	bot_task MoveTask; // Movement task
 
 	Vector DesiredLookDirection = ZERO_VECTOR; // What view angle is the bot currently turning towards
 	Vector InterpolatedLookDirection = ZERO_VECTOR; // Used to smoothly interpolate the bot's view rather than snap instantly like an aimbot
@@ -372,6 +423,7 @@ typedef struct _BOT_T
 
 	Vector CurrentEyePosition = ZERO_VECTOR; // Represents the world view location for the bot
 
+	Vector LastSafeLocation = ZERO_VECTOR; // Last location where the bot was out of LOS of any enemy
 
 	float Adrenaline = 0.0f; // For alien abilities
 
@@ -386,6 +438,7 @@ typedef struct _BOT_T
 	float LastCommanderRequestTime = 0.0f; // The last time this bot requested something from the commander. Prevents spam
 
 	float CommanderLastScanTime = 0.0f; // When the commander last dropped a scan, so it doesn't spam them
+	float CommanderLastBeaconTime = 0.0f; // When the last time commander used beacon was
 
 	NSWeapon DesiredCombatWeapon = WEAPON_NONE; // Bot's desired weapon at any given time. Will switch to it at the end of BotThink
 	NSWeapon DesiredMoveWeapon = WEAPON_NONE; // If the bot needs a particular weapon for movement (e.g. blink) then this overrides DesiredCombatWeapon so it doesn't interrupt the movement
@@ -406,11 +459,56 @@ typedef struct _BOT_T
 
 	bool bIsPendingKill = false; // Has the bot issued a "kill" command and it waiting for oblivion?
 
-	float CommanderLastBeaconTime = 0.0f; // When the last time commander used beacon was
+	float LastGestateAttemptTime = 0.0f; // When the bot last attempted to gestate (either evolve or get upgrade)
+
+	// Current combat mode level
+	int CombatLevel = 1;
+	// Which upgrades the bot has already chosen in combat mode
+	int CombatUpgradeMask = 0;
+	// Which combat mode upgrade does the bot want to get next? Will save if necessary for it
+	int BotNextCombatUpgrade = 0;
+
+	float TimeSinceLastMovement = 0.0f; // When did the bot last successfully manage to move somewhere? Used to identify perma-stuck bots and kill them
+
+	Vector LastPosition = ZERO_VECTOR;
+
+	bool bRetreatForHealth = false;
+
+	bool bHasRequestedReload = false; // Has the bot requested a reload?
+	float ReloadRequestedTime = 0.0f; // When did the bot request to start reloading?
+
+	float NextTaskEvaluation = 0.0f; // When should the bot next evaluate their tasks?
+
+	Vector ViewForwardVector = ZERO_VECTOR; // Bot's current forward unit vector
 
 } bot_t;
 
+// Data structure used to track resource nodes in the map
+typedef struct _RESOURCE_NODE
+{
+	edict_t* edict = nullptr; // The func_resource edict reference
+	Vector origin = ZERO_VECTOR; // origin of the func_resource edict (not the tower itself)
+	bool bIsOccupied = false; // True if there is any resource tower on it
+	bool bIsOwnedByMarines = false; // True if capped and has a marine res tower on it
+	edict_t* TowerEdict = nullptr; // Reference to the resource tower edict (if capped)
+	bool bIsMarineBaseNode = false; // Is this the pre-capped node that appears in the marine base?
+} resource_node;
 
+// Data structure to hold information about each hive in the map
+typedef struct _HIVE_DEFINITION_T
+{
+	bool bIsValid = false; // Doesn't exist. Array holds up to 10 hives even though usually only 3 exist
+	edict_t* edict = NULL; // Refers to the hive edict. Always exists even if not built yet
+	Vector Location = ZERO_VECTOR; // Origin of the hive
+	Vector FloorLocation = ZERO_VECTOR; // Some hives are suspended in the air, this is the floor location directly beneath it
+	HiveStatusType Status = HIVE_STATUS_UNBUILT; // Can be unbuilt, in progress, or fully built
+	HiveTechStatus TechStatus = HIVE_TECH_NONE; // What tech (if any) is assigned to this hive right now
+	int HealthPercent = 0; // How much health it has
+	bool bIsUnderAttack = false; // Is the hive currently under attack? Becomes false if not taken damage for more than 10 seconds
+	int HiveResNodeIndex = -1; // Which resource node (indexes into ResourceNodes array) belongs to this hive?
+	unsigned int ObstacleRefs[8]; // When in progress or built, will place an obstacle so bots don't try to walk through it
+	float NextFloorLocationCheck = 0.0f; // When should the closest navigable point to the hive be calculated? Used to delay the check after a hive is built
 
+} hive_definition;
 
 #endif

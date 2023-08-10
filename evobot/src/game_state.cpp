@@ -32,14 +32,88 @@ bool bGameHasStarted = false;
 bool bGameIsActive = false;
 float GameStartTime = 0.0f;
 
-float last_think_time = 0.0f;
 float last_bot_count_check_time = 0.0f;
 
+int ServerMSecVal = 0;
+
+extern float last_structure_refresh_time;
+extern float last_item_refresh_time;
+
+extern int StructureRefreshFrame;
+extern int ItemRefreshFrame;
+
+float BotDeltaTime = 0.016f;
+
 EvobotDebugMode CurrentDebugMode = EVO_DEBUG_NONE;
+
+int CurrentDebugFlags = EVO_DFLAG_NONE;
+
+NSGameMode CurrentGameMode = GAME_MODE_NONE;
+
+bool bUseComplexFOV = true;
 
 EvobotDebugMode GAME_GetDebugMode()
 {
 	return CurrentDebugMode;
+}
+
+bool DEBUG_ShouldShowTaskInfo()
+{
+	return (CurrentDebugFlags & EVO_DFLAG_SHOWTASK);
+}
+
+bool DEBUG_ShouldShowBotPath()
+{
+	return (CurrentDebugFlags & EVO_DFLAG_SHOWPATH);
+}
+
+void DEBUG_SetShowTaskInfo(bool bNewValue)
+{
+	if (bNewValue)
+	{
+		CurrentDebugFlags |= EVO_DFLAG_SHOWTASK;
+	}
+	else
+	{
+		CurrentDebugFlags &= ~EVO_DFLAG_SHOWTASK;
+	}
+}
+
+void DEBUG_SetShowBotPath(bool bNewValue)
+{
+	if (bNewValue)
+	{
+		CurrentDebugFlags |= EVO_DFLAG_SHOWPATH;
+	}
+	else
+	{
+		CurrentDebugFlags &= ~EVO_DFLAG_SHOWPATH;
+	}
+}
+
+float GAME_GetBotDeltaTime()
+{
+	return BotDeltaTime;
+}
+
+void GAME_SetBotDeltaTime(float NewDelta)
+{
+	BotDeltaTime = NewDelta;
+}
+
+NSGameMode GAME_GetGameMode()
+{
+	return CurrentGameMode;
+}
+
+void GAME_UpdateServerMSecVal(const double DeltaTime)
+{
+	ServerMSecVal = (int)(1000.0 * DeltaTime);
+}
+
+int GAME_GetServerMSecVal()
+{
+	return ServerMSecVal;
 }
 
 void GAME_AddClient(edict_t* NewClient)
@@ -74,6 +148,7 @@ void GAME_AddClient(edict_t* NewClient)
 		}
 	}
 }
+
 void GAME_RemoveClient(edict_t* DisconnectedClient)
 {
 	NumClients = 0;
@@ -111,6 +186,19 @@ void GAME_RemoveClient(edict_t* DisconnectedClient)
 	}
 }
 
+int GAME_GetClientIndex(edict_t* Client)
+{
+	for (int i = 0; i < MAX_CLIENTS; i++)
+	{
+		if (clients[i] == Client)
+		{
+			return i;
+		}
+	}
+
+	return -1;
+}
+
 void GAME_Reset()
 {
 	memset(&bots, 0, sizeof(bots));
@@ -122,7 +210,6 @@ void GAME_Reset()
 	bGameHasStarted = false;
 	bGameIsActive = false;
 	GameStartTime = 0.0f;
-	last_think_time = 0.0f;
 	last_bot_count_check_time = 0.0f;
 }
 
@@ -167,9 +254,38 @@ void GAME_SetListenServerEdict(edict_t* ListenEdict)
 	listenserver_edict = ListenEdict;
 }
 
+edict_t* GAME_GetListenServerEdict()
+{
+	return listenserver_edict;
+}
+
 void GAME_ClearClientList()
 {
 	memset(&clients, 0, sizeof(clients));
+}
+
+int GAME_GetNumDeadPlayersOnTeam(const int Team)
+{
+	int Result = 0;
+
+	for (int i = 0; i < MAX_CLIENTS; i++)
+	{
+		if (!FNullEnt(clients[i]) && clients[i]->v.team == Team && IsPlayerDead(clients[i])) { Result++; }
+	}
+
+	return Result;
+}
+
+int GAME_GetNumActivePlayersOnTeam(const int Team)
+{
+	int Result = 0;
+
+	for (int i = 0; i < MAX_CLIENTS; i++)
+	{
+		if (!FNullEnt(clients[i]) && clients[i]->v.team == Team && IsPlayerActiveInGame(clients[i])) { Result++; }
+	}
+
+	return Result;
 }
 
 int GAME_GetNumPlayersOnTeam(const int Team)
@@ -258,7 +374,7 @@ void GAME_BotSpawnInit(bot_t* pBot)
 	// Force bot to choose a new destination
 	ClearBotPath(pBot);
 
-	BotUpdateViewFrustum(pBot);
+	//BotUpdateViewFrustum(pBot);
 
 	pBot->f_previous_command_time = gpGlobals->time;
 }
@@ -640,6 +756,16 @@ void GAME_HandleManualFillTeams()
 	}
 }
 
+bool GAME_UseComplexFOV()
+{
+	return bUseComplexFOV;
+}
+
+void GAME_SetUseComplexFOV(bool bNewValue)
+{
+	bUseComplexFOV = bNewValue;
+}
+
 int GAME_GetNumBotsInGame()
 {
 	int Result = 0;
@@ -778,13 +904,53 @@ void GAME_AddBotToTeam(const int Team)
 	}
 }
 
+const char* UTIL_GameModeToChar(const NSGameMode GameMode)
+{
+	switch (GameMode)
+	{
+		case GAME_MODE_REGULAR:
+			return "Regular";
+		case GAME_MODE_COMBAT:
+			return "Combat";
+		default:
+			return "None";
+	}
+}
+
 void GAME_OnGameStart()
 {
 	GameStartTime = gpGlobals->time;
+
+	CurrentGameMode = GAME_MODE_NONE;
+
+	const char* theCStrLevelName = STRING(gpGlobals->mapname);
+	if (theCStrLevelName && (strlen(theCStrLevelName) > 3))
+	{
+		if (!strncmp(theCStrLevelName, "ns_", 3))
+		{
+			bool bHiveExists = UTIL_FindEntityByClassname(NULL, "team_hive") != nullptr;
+			bool bCommChairExists = UTIL_FindEntityByClassname(NULL, "team_command") != nullptr;
+
+			if (bHiveExists && bCommChairExists)
+			{
+				CurrentGameMode = GAME_MODE_REGULAR;
+			}
+		}
+		else if (!strncmp(theCStrLevelName, "co_", 3))
+		{
+			CurrentGameMode = GAME_MODE_COMBAT;
+		}
+	}
+
 	UTIL_ClearMapAIData();
 
 	if (!NavmeshLoaded()) { return; }
-	UTIL_PopulateResourceNodeLocations();
+
+	if (CurrentGameMode == GAME_MODE_REGULAR)
+	{
+		UTIL_PopulateResourceNodeLocations();
+	}
+
 	PopulateEmptyHiveList();
 }
 
@@ -871,6 +1037,11 @@ void EvoBot_ServerCommand(void)
 
 		GAME_RemoveAllBots();
 
+		UTIL_ClearMapAIData();
+		UTIL_ClearMapLocations();
+
+		UnloadNavigationData();
+
 		return;
 	}
 
@@ -932,6 +1103,7 @@ void EvoBot_ServerCommand(void)
 		{
 			CONFIG_SetConfigOverride(true);
 			CONFIG_SetCommanderMode(COMMANDERMODE_NEVER);
+			LOG_CONSOLE(PLID, "Commander mode set to 'never' until server restart\n");
 
 			return;
 		}
@@ -940,7 +1112,7 @@ void EvoBot_ServerCommand(void)
 		{
 			CONFIG_SetConfigOverride(true);
 			CONFIG_SetCommanderMode(COMMANDERMODE_IFNOHUMAN);
-
+			LOG_CONSOLE(PLID, "Commander mode set to 'if no human' until server restart\n");
 			return;
 		}
 
@@ -948,11 +1120,20 @@ void EvoBot_ServerCommand(void)
 		{
 			CONFIG_SetConfigOverride(true);
 			CONFIG_SetCommanderMode(COMMANDERMODE_ALWAYS);
+			LOG_CONSOLE(PLID, "Commander mode set to 'always' until server restart\n");
 
 			return;
 		}
 
 		LOG_CONSOLE(PLID, "Invalid mode specified. Valid arguments are 'never', 'ifnohuman' or 'always'\n");
+
+		return;
+	}
+
+	if (FStrEq(arg1, "stopcommander"))
+	{
+		CONFIG_SetCommanderMode(COMMANDERMODE_NEVER);
+		LOG_CONSOLE(PLID, "Bot will not command until next map change\n");
 
 		return;
 	}
@@ -967,8 +1148,31 @@ void EvoBot_ServerCommand(void)
 			return;
 		}
 
+		if (FStrEq(DebugMode, "showtasks"))
+		{
+			bool bCurrentShowTasks = DEBUG_ShouldShowTaskInfo();
+
+			DEBUG_SetShowTaskInfo(!bCurrentShowTasks);
+
+			return;
+		}
+
+		if (FStrEq(DebugMode, "showpath"))
+		{
+			bool bCurrentShowPath = DEBUG_ShouldShowBotPath();
+
+			DEBUG_SetShowBotPath(!bCurrentShowPath);
+
+			return;
+		}
+
 		if (FStrEq(DebugMode, "stop"))
 		{
+			if (CurrentDebugMode == EVO_DEBUG_NONE)
+			{
+				return;
+			}
+
 			CurrentDebugMode = EVO_DEBUG_NONE;
 
 			for (int i = 0; i < 32; i++)
@@ -977,6 +1181,7 @@ void EvoBot_ServerCommand(void)
 				UTIL_ClearBotTask(&bots[i], &bots[i].SecondaryBotTask);
 				UTIL_ClearBotTask(&bots[i], &bots[i].WantsAndNeedsTask);
 				UTIL_ClearBotTask(&bots[i], &bots[i].CommanderTask);
+				UTIL_ClearBotTask(&bots[i], &bots[i].MoveTask);
 			}
 
 			return;
@@ -992,6 +1197,7 @@ void EvoBot_ServerCommand(void)
 				UTIL_ClearBotTask(&bots[i], &bots[i].SecondaryBotTask);
 				UTIL_ClearBotTask(&bots[i], &bots[i].WantsAndNeedsTask);
 				UTIL_ClearBotTask(&bots[i], &bots[i].CommanderTask);
+				UTIL_ClearBotTask(&bots[i], &bots[i].MoveTask);
 			}
 
 			return;
@@ -1007,6 +1213,7 @@ void EvoBot_ServerCommand(void)
 				UTIL_ClearBotTask(&bots[i], &bots[i].SecondaryBotTask);
 				UTIL_ClearBotTask(&bots[i], &bots[i].WantsAndNeedsTask);
 				UTIL_ClearBotTask(&bots[i], &bots[i].CommanderTask);
+				UTIL_ClearBotTask(&bots[i], &bots[i].MoveTask);
 			}
 
 			return;
@@ -1022,6 +1229,7 @@ void EvoBot_ServerCommand(void)
 				UTIL_ClearBotTask(&bots[i], &bots[i].SecondaryBotTask);
 				UTIL_ClearBotTask(&bots[i], &bots[i].WantsAndNeedsTask);
 				UTIL_ClearBotTask(&bots[i], &bots[i].CommanderTask);
+				UTIL_ClearBotTask(&bots[i], &bots[i].MoveTask);
 			}
 
 			return;
@@ -1037,6 +1245,7 @@ void EvoBot_ServerCommand(void)
 				UTIL_ClearBotTask(&bots[i], &bots[i].SecondaryBotTask);
 				UTIL_ClearBotTask(&bots[i], &bots[i].WantsAndNeedsTask);
 				UTIL_ClearBotTask(&bots[i], &bots[i].CommanderTask);
+				UTIL_ClearBotTask(&bots[i], &bots[i].MoveTask);
 			}
 
 			return;
@@ -1052,6 +1261,7 @@ void EvoBot_ServerCommand(void)
 				UTIL_ClearBotTask(&bots[i], &bots[i].SecondaryBotTask);
 				UTIL_ClearBotTask(&bots[i], &bots[i].WantsAndNeedsTask);
 				UTIL_ClearBotTask(&bots[i], &bots[i].CommanderTask);
+				UTIL_ClearBotTask(&bots[i], &bots[i].MoveTask);
 			}
 
 			return;
@@ -1149,21 +1359,17 @@ void EvoBot_ServerCommand(void)
 		return;
 	}
 
-	if (FStrEq(arg1, "debug"))
+	if (FStrEq(arg1, "reloadnav"))
 	{
-		const char* DebugCommand = CMD_ARGV(2);
-
-		if (FStrEq(DebugCommand, "stop"))
+		for (int i = 0; i < MAX_CLIENTS; i++)
 		{
-
-			return;
+			if (bots[i].is_used)
+			{
+				ClearBotMovement(&bots[i]);
+			}
 		}
 
-		if (FStrEq(DebugCommand, "navtest"))
-		{
-
-			return;
-		}
+		ReloadNavMeshes();
 
 		return;
 	}
