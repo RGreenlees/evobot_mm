@@ -2886,13 +2886,20 @@ void UTIL_DisplayBotInfo(bot_t* pBot)
 
 	strcat(buf, interbuff);
 
-	if (BotGetNextEnemyTarget(pBot) > -1)
+	if (pBot->CurrentEnemy > -1)
 	{
 		sprintf(interbuff, "Current Task: COMBAT\n");
 
 		strcat(buf, interbuff);
 
 		UTIL_DrawHUDText(GAME_GetListenServerEdict(), 0, 0.1f, 0.1f, 255, 255, 255, buf);
+
+		edict_t* EnemyTarget = pBot->TrackedEnemies[pBot->CurrentEnemy].EnemyEdict;
+
+		if (!FNullEnt(EnemyTarget))
+		{
+			UTIL_DrawLine(GAME_GetListenServerEdict(), pBot->pEdict->v.origin, EnemyTarget->v.origin, 255, 255, 0);
+		}
 
 		return;
 	}
@@ -2914,6 +2921,15 @@ void UTIL_DisplayBotInfo(bot_t* pBot)
 		}
 
 		strcat(buf, interbuff);
+
+		if (!FNullEnt(pBot->CurrentTask->TaskTarget))
+		{
+			UTIL_DrawLine(GAME_GetListenServerEdict(), pBot->pEdict->v.origin, pBot->CurrentTask->TaskTarget->v.origin, 255, 255, 0);
+		}
+		else if (pBot->CurrentTask->TaskLocation != ZERO_VECTOR)
+		{
+			UTIL_DrawLine(GAME_GetListenServerEdict(), pBot->pEdict->v.origin, pBot->CurrentTask->TaskLocation, 255, 255, 0);
+		}
 	}
 
 	if (GAME_GetGameMode() == GAME_MODE_COMBAT)

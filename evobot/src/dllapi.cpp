@@ -970,17 +970,30 @@ void StartFrame(void)
 				{
 					edict_t* SpectatorTarget = INDEXENT(GAME_GetListenServerEdict()->v.iuser2);
 
+					bot_t* SpectatedBot = nullptr;
+
 					if (!FNullEnt(SpectatorTarget))
 					{
 						int BotIndex = GetBotIndex(SpectatorTarget);
 
 						if (BotIndex >= 0)
 						{
-							bot_t* pBot = &bots[BotIndex];
-
-							UTIL_DisplayBotInfo(pBot);
+							SpectatedBot = &bots[BotIndex];
 						}
 					}
+
+					if (SpectatedBot)
+					{
+						if (DEBUG_ShouldShowTaskInfo())
+						{
+							UTIL_DisplayBotInfo(SpectatedBot);
+						}
+
+						if (DEBUG_ShouldShowBotPath())
+						{
+							BotDrawPath(SpectatedBot, 0.0f, false);
+						}
+					}					
 				}
 			}
 

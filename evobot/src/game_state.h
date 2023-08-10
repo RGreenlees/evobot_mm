@@ -75,4 +75,9 @@ void EvoBot_ServerCommand(void);
 void GAME_UpdateServerMSecVal(const double DeltaTime);
 int GAME_GetServerMSecVal();
 
+void DEBUG_SetShowBotPath(bool bNewValue);
+void DEBUG_SetShowTaskInfo(bool bNewValue);
+bool DEBUG_ShouldShowTaskInfo();
+bool DEBUG_ShouldShowBotPath();
+
 #endif

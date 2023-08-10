@@ -46,6 +46,8 @@ float BotDeltaTime = 0.016f;
 
 EvobotDebugMode CurrentDebugMode = EVO_DEBUG_NONE;
 
+int CurrentDebugFlags = EVO_DFLAG_NONE;
+
 NSGameMode CurrentGameMode = GAME_MODE_NONE;
 
 bool bUseComplexFOV = true;
@@ -53,6 +55,40 @@ bool bUseComplexFOV = true;
 EvobotDebugMode GAME_GetDebugMode()
 {
 	return CurrentDebugMode;
+}
+
+bool DEBUG_ShouldShowTaskInfo()
+{
+	return (CurrentDebugFlags & EVO_DFLAG_SHOWTASK);
+}
+
+bool DEBUG_ShouldShowBotPath()
+{
+	return (CurrentDebugFlags & EVO_DFLAG_SHOWPATH);
+}
+
+void DEBUG_SetShowTaskInfo(bool bNewValue)
+{
+	if (bNewValue)
+	{
+		CurrentDebugFlags |= EVO_DFLAG_SHOWTASK;
+	}
+	else
+	{
+		CurrentDebugFlags &= ~EVO_DFLAG_SHOWTASK;
+	}
+}
+
+void DEBUG_SetShowBotPath(bool bNewValue)
+{
+	if (bNewValue)
+	{
+		CurrentDebugFlags |= EVO_DFLAG_SHOWPATH;
+	}
+	else
+	{
+		CurrentDebugFlags &= ~EVO_DFLAG_SHOWPATH;
+	}
 }
 
 float GAME_GetBotDeltaTime()
@@ -1112,8 +1148,31 @@ void EvoBot_ServerCommand(void)
 			return;
 		}
 
+		if (FStrEq(DebugMode, "showtasks"))
+		{
+			bool bCurrentShowTasks = DEBUG_ShouldShowTaskInfo();
+
+			DEBUG_SetShowTaskInfo(!bCurrentShowTasks);
+
+			return;
+		}
+
+		if (FStrEq(DebugMode, "showpath"))
+		{
+			bool bCurrentShowPath = DEBUG_ShouldShowBotPath();
+
+			DEBUG_SetShowBotPath(!bCurrentShowPath);
+
+			return;
+		}
+
 		if (FStrEq(DebugMode, "stop"))
 		{
+			if (CurrentDebugMode == EVO_DEBUG_NONE)
+			{
+				return;
+			}
+
 			CurrentDebugMode = EVO_DEBUG_NONE;
 
 			for (int i = 0; i < 32; i++)

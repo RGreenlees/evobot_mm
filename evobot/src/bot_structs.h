@@ -62,6 +62,13 @@ typedef enum _EVODEBUGMODE
 	EVO_DEBUG_CUSTOM // Custom behaviour
 } EvobotDebugMode;
 
+typedef enum _EVODEBUGFLAGS
+{
+	EVO_DFLAG_NONE = 0, // No debug info
+	EVO_DFLAG_SHOWTASK = 0x00000001, // Display bot task information when spectating
+	EVO_DFLAG_SHOWPATH = 0x00000002 // Display bot current path when spectating
+} EvobotDebugFlags;
+
 // Type of goal the commander wants to achieve
 typedef enum _COMMANDERACTIONTYPE
 {
