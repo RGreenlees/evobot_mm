@@ -62,10 +62,10 @@ static META_FUNCTIONS gMetaFunctionTable = {
 plugin_info_t Plugin_info = {
 	META_INTERFACE_VERSION,	// ifvers
 	"Evobot",	// name
-	"0.4.0a",	// version
-	"2023/04/20",	// date
+	"1.0.0",	// version
+	__DATE__,	// date
 	"Richard Greenlees",	// author
-	"http://www.metamod.org/",	// url
+	"https://github.com/RGreenlees/evobot_mm",	// url
 	"EVOBOT",	// logtag, all caps please
 	PT_STARTUP,	// (when) loadable
 	PT_ANYTIME,	// (when) unloadable

@@ -477,7 +477,7 @@ void GAME_BotCreate(edict_t* pPlayer, int Team)
 	// Pieter van Dijk - use instead of DispatchSpawn() - Hip Hip Hurray!
 	MDLL_ClientPutInServer(BotEnt);
 
-	BotEnt->v.flags |= FL_THIRDPARTYBOT;
+	BotEnt->v.flags |= FL_FAKECLIENT;
 
 	BotEnt->v.idealpitch = BotEnt->v.v_angle.x;
 	BotEnt->v.ideal_yaw = BotEnt->v.v_angle.y;
