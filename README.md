@@ -88,3 +88,4 @@ Bots will move to the last seen/pinged location, and throw a grenade if they hav
 * Jeefo (https://yapb.jeefo.net/) - For being VERY patient and helping me get the Linux build working
 * Pierow (NS1 Community Discord) - For helping me understand the NS code base better
 * NS1 Community Discord - For feedback and support :)
+* AlienBird (https://github.com/EterniumDev) for excellent feedback, suggestions and code contributions
