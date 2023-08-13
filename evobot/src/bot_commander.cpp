@@ -2818,7 +2818,7 @@ void COMM_SetNextSiegeHiveAction(bot_t* CommanderBot, const hive_definition* Hiv
 	{
 		edict_t* PhaseGate = (bPhaseGatesAvailable) ? UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_PHASEGATE, Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(25.0f), true, false) : nullptr;
 
-		edict_t* Armoury = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ANYARMOURY, Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(25.0f), true, false);
+		
 
 		bool bHasBuiltStructureAlready = ((!FNullEnt(TF) && UTIL_StructureIsFullyBuilt(TF)) || (!FNullEnt(PhaseGate) && UTIL_StructureIsFullyBuilt(PhaseGate)));
 
@@ -2907,6 +2907,19 @@ void COMM_SetNextSiegeHiveAction(bot_t* CommanderBot, const hive_definition* Hiv
 
 			return;
 		}
+
+		edict_t* Armoury = nullptr;
+		
+		if (!FNullEnt(PhaseGate))
+		{
+			Armoury = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ANYARMOURY, PhaseGate->v.origin, UTIL_MetresToGoldSrcUnits(10.0f), true, false);
+		}
+		else
+		{
+			Armoury = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ANYARMOURY, Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(30.0f), true, false);
+		}
+		
+		
 
 		if (FNullEnt(Armoury))
 		{

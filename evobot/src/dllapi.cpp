@@ -362,6 +362,18 @@ void ClientCommand(edict_t* pEntity)
 		RETURN_META(MRES_SUPERCEDE);
 	}
 
+	if (FStrEq(pcmd, "multimanagers"))
+	{
+		edict_t* currMM = NULL;
+		while (((currMM = UTIL_FindEntityByClassname(currMM, "multi_manager")) != NULL) && (!FNullEnt(currMM)))
+		{
+			UTIL_SayText("x\n", pEntity);
+		}
+
+		RETURN_META(MRES_SUPERCEDE);
+	}
+
+
 	if (FStrEq(pcmd, "tracedoor"))
 	{
 		

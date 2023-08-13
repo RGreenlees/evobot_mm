@@ -6515,6 +6515,7 @@ void UTIL_LinkTriggerToDoor(const edict_t* DoorEdict, nav_door* DoorRef)
 
 }
 
+
 void UTIL_PopulateWeldableObstacles()
 {
 	memset(NavWeldableObstacles, 0, sizeof(NavWeldableObstacles));
