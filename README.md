@@ -8,7 +8,7 @@ Evobot is a bot designed to play the HL1 mod Natural Selection, either offline o
 
 * It uses the Recast and Detour libraries for navigation (https://github.com/recastnavigation/recastnavigation)
 * It can play both aliens and marines, including full support for the commander role
-* Bots are capable of using most features of the game, excluding Lerk support, jetpacks and the gorge's web ability
+* Bots are capable of using most features of the game, excluding jetpacks and the gorge's web ability
 * Bot can be configured to automatically add/remove bots to keep teams at a certain size, or keep them balanced
 
 Nav meshes for the bot are generated externally by a specialised tool (source for that coming soon), and held in the navmeshes folder in the evobot addons directory.
@@ -64,10 +64,7 @@ Once the bot has a look target defined (either movement or regular), the followi
 2. BotUpdateViewRotation() is called every GAME frame, and handles the interpolation of the bot's view towards the current DesiredLookDirection. Once the interpolation is complete, the DesiredLookDirection is zeroed out so that BotUpdateDesiredViewRotation() can then set a new DesiredLookDirection. This means the bot cannot correct its aim mid-turn: once committed to a view angle, it cannot change it until it's reached.
 3. UpdateView() is called in BotUpdateDesiredViewRotation() and effectively updates the list of which enemies are visible, when they were last seen and so on.
 
-Bot vision is handled using a view frustum which represents the maximum vertical and horizontal field of view the bot has. It pretty accurately simulates a screen, so if a target is off the top, bottom or side of the "screen" then the bot can't see it. You can even change the bot's aspect ratio to simulate them playing on a classic 4:3 monitor if you want (default is more modern 16:9).
-
-* The frustum angle and position is updated each game frame in UpdateViewFrustum().
-* Enemy players are then clipped against the view frustum in IsPlayerVisibleToBot(), using a cylinder-frustum intersection calculation to determine if the player is "on the bot's screen". Finally, a simple trace is run to the player's origin to determine if they're hidden behind a wall or other player. Not hugely sophisticated, but seems to work ok.
+Bot vision is handled using a simple dot product of the bot's forward view angle and the orientation of the object to determine if it's in FOV, and it will use traces to determine visibility. Small players (lerks, gorges) only get one trace, the rest get 3 (skulks get horizontal traces to check for front/back legs poking out).
 
 
 ## Enemy Tracking
