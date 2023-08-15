@@ -127,19 +127,18 @@ void ClientCommand(edict_t* pEntity)
 		RETURN_META(MRES_SUPERCEDE);
 	}
 
-	if (FStrEq(pcmd, "testturretbuild"))
+	if (FStrEq(pcmd, "testmine"))
 	{
-		edict_t* TF = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ANYTURRETFACTORY, pEntity->v.origin, UTIL_MetresToGoldSrcUnits(10.0f), true, false);
+		edict_t* Armoury = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ARMOURY, pEntity->v.origin, UTIL_MetresToGoldSrcUnits(50.0f), true, false);
 
-		if (!FNullEnt(TF))
+		if (!FNullEnt(Armoury))
 		{
-			Vector NewBuildLoc = UTIL_GetNextTurretPosition(TF);
+			Vector MinePosition = UTIL_GetNextMinePosition(Armoury);
 
-			UTIL_DrawLine(pEntity, TF->v.origin, NewBuildLoc, 10.0f, 255, 255, 0);
-
-			Vector FwdVector = UTIL_GetForwardVector2D(TF->v.angles);
-
-			UTIL_DrawLine(pEntity, TF->v.origin, TF->v.origin + (FwdVector * 100.0f), 10.0f);
+			if (MinePosition != ZERO_VECTOR)
+			{
+				UTIL_DrawLine(pEntity, pEntity->v.origin, MinePosition, 10.0f, 255, 255, 0);
+			}
 		}
 
 		RETURN_META(MRES_SUPERCEDE);

@@ -654,6 +654,27 @@ void MarineSweeperSetSecondaryTask(bot_t* pBot, bot_task* Task)
 		}
 	}
 
+	if (Task->TaskType == TASK_PLACE_MINE) { return; }
+	
+	if (PlayerHasWeapon(pBot->pEdict, WEAPON_MARINE_MINES))
+	{
+		edict_t* UnminedStructure = UTIL_GetNearestUnminedStructureOfType(STRUCTURE_MARINE_PHASEGATE, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(30.0f), true);
+
+		if (!FNullEnt(UnminedStructure))
+		{
+			TASK_SetMineStructureTask(pBot, Task, UnminedStructure, false);
+			return;
+		}
+
+		UnminedStructure = UTIL_GetNearestUnminedStructureOfType(STRUCTURE_MARINE_ANYTURRETFACTORY, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(30.0f), true);
+
+		if (!FNullEnt(UnminedStructure))
+		{
+			TASK_SetMineStructureTask(pBot, Task, UnminedStructure, false);
+			return;
+		}
+	}
+
 }
 
 void MarineCapperSetSecondaryTask(bot_t* pBot, bot_task* Task)

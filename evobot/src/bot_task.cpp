@@ -347,6 +347,8 @@ bool UTIL_IsTaskStillValid(bot_t* pBot, bot_task* Task)
 		return true;
 	case TASK_SECURE_HIVE:
 		return UTIL_IsSecureHiveTaskStillValid(pBot, Task);
+	case TASK_PLACE_MINE:
+		return UTIL_IsMineStructureTaskStillValid(pBot, Task);
 	default:
 		return false;
 	}
@@ -475,6 +477,19 @@ bool UTIL_IsGuardTaskStillValid(bot_t* pBot, bot_task* Task)
 	{
 		return false;
 	}
+
+	return true;
+}
+
+bool UTIL_IsMineStructureTaskStillValid(bot_t* pBot, bot_task* Task)
+{
+	if (FNullEnt(Task->TaskTarget) || UTIL_StructureIsRecycling(Task->TaskTarget)) { return false; }
+
+	if (!PlayerHasWeapon(pBot->pEdict, WEAPON_MARINE_MINES)) { return false; }
+
+	if (Task->TaskLocation == ZERO_VECTOR) { return false; }
+
+	if (UTIL_GetNumPlacedStructuresOfTypeInRadius(STRUCTURE_MARINE_DEPLOYEDMINE, Task->TaskTarget->v.origin, UTIL_MetresToGoldSrcUnits(2.0f)) >= 4) { return false; }
 
 	return true;
 }
@@ -1044,6 +1059,11 @@ void BotProgressPickupTask(bot_t* pBot, bot_task* Task)
 			}
 		}
 	}
+}
+
+void BotProgressMineStructureTask(bot_t* pBot, bot_task* Task)
+{
+	float Dist = vDist3DSq(pBot->pEdict)
 }
 
 void BotProgressReinforceStructureTask(bot_t* pBot, bot_task* Task)
@@ -2852,4 +2872,22 @@ void TASK_SetSecureHiveTask(bot_t* pBot, bot_task* Task, edict_t* Target, const 
 	Task->TaskTarget = Target;
 	Task->bTaskIsUrgent = bIsUrgent;
 	Task->TaskLocation = WaitLocation;
+}
+
+void TASK_SetMineStructureTask(bot_t* pBot, bot_task* Task, edict_t* Target, bool bIsUrgent)
+{
+	if (Task->TaskType == TASK_PLACE_MINE && Target == Task->TaskTarget && Task->TaskLocation != ZERO_VECTOR)
+	{
+		Task->bTaskIsUrgent = bIsUrgent;
+		return;
+	}
+
+	UTIL_ClearBotTask(pBot, Task);
+
+	Task->TaskType = TASK_PLACE_MINE;
+	Task->TaskTarget = Target;
+	Task->bTaskIsUrgent = bIsUrgent;
+	Task->TaskLocation = UTIL_GetNextMinePosition(Target);
+
+
 }

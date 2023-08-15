@@ -33,6 +33,7 @@ bool UTIL_IsWeldTaskStillValid(bot_t* pBot, bot_task* Task);
 bool UTIL_IsAttackTaskStillValid(bot_t* pBot, bot_task* Task);
 bool UTIL_IsResupplyTaskStillValid(bot_t* pBot, bot_task* Task);
 bool UTIL_IsGuardTaskStillValid(bot_t* pBot, bot_task* Task);
+bool UTIL_IsMineStructureTaskStillValid(bot_t* pBot, bot_task* Task);
 
 bool UTIL_IsAlienBuildTaskStillValid(bot_t* pBot, bot_task* Task);
 bool UTIL_IsMarineBuildTaskStillValid(bot_t* pBot, bot_task* Task);
@@ -66,6 +67,7 @@ void TASK_SetTouchTask(bot_t* pBot, bot_task* Task, edict_t* Target, bool bIsUrg
 void TASK_SetReinforceStructureTask(bot_t* pBot, bot_task* Task, edict_t* Target, bool bIsUrgent);
 void TASK_SetReinforceStructureTask(bot_t* pBot, bot_task* Task, edict_t* Target, const NSStructureType FirstStructureType, bool bIsUrgent);
 void TASK_SetSecureHiveTask(bot_t* pBot, bot_task* Task, edict_t* Target, const Vector WaitLocation, bool bIsUrgent);
+void TASK_SetMineStructureTask(bot_t* pBot, bot_task* Task, edict_t* Target, bool bIsUrgent);
 
 void BotProgressTask(bot_t* pBot, bot_task* Task);
 
@@ -73,6 +75,7 @@ void BotProgressMoveTask(bot_t* pBot, bot_task* Task);
 void BotProgressUseTask(bot_t* pBot, bot_task* Task);
 void BotProgressTouchTask(bot_t* pBot, bot_task* Task);
 void BotProgressPickupTask(bot_t* pBot, bot_task* Task);
+void BotProgressMineStructureTask(bot_t* pBot, bot_task* Task);
 void BotProgressGuardTask(bot_t* pBot, bot_task* Task);
 
 void BotProgressResupplyTask(bot_t* pBot, bot_task* Task);

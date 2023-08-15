@@ -518,6 +518,7 @@ typedef enum
 	STRUCTURE_ALIEN_OFFENCECHAMBER = 91,
 
 	STRUCTURE_MARINE_ADVARMOURY = 96,
+	STRUCTURE_MARINE_DEPLOYEDMINE,
 	STRUCTURE_MARINE_ANYARMOURY, // Can be armoury or advanced armoury (see UTIL_StructureTypesMatch())
 	STRUCTURE_MARINE_ADVTURRETFACTORY,
 	STRUCTURE_MARINE_ANYTURRETFACTORY, // Can be turret factory or advanced turret factory (see UTIL_StructureTypesMatch())
