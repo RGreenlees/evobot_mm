@@ -5400,6 +5400,7 @@ Vector UTIL_GetNextMinePosition(edict_t* StructureToMine)
 	}
 
 	float Size = fmaxf(StructureToMine->v.size.x, StructureToMine->v.size.y);
+	Size += 8.0f;
 
 	if (!bFwd)
 	{
