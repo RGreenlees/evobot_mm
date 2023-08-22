@@ -506,73 +506,6 @@ void MarineAssaultSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 void MarineSetSecondaryTask(bot_t* pBot, bot_task* Task)
 {
-	if (Task->TaskType == TASK_BUILD) { return; }
-
-	int MarineNavProfile = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
-
-	edict_t* UnbuiltStructure = UTIL_FindClosestMarineStructureUnbuiltWithoutBuilders(pBot, 2, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(30.0f), true);
-
-	if (!FNullEnt(UnbuiltStructure))
-	{
-		TASK_SetBuildTask(pBot, Task, UnbuiltStructure, true);
-		return;
-	}
-
-	const hive_definition* UnsecuredHive = UTIL_GetNearestHiveOfStatus(pBot->pEdict->v.origin, HIVE_STATUS_UNBUILT);
-
-	if (!UnsecuredHive || vDist2DSq(UnsecuredHive->FloorLocation, pBot->pEdict->v.origin) > sqrf(UTIL_MetresToGoldSrcUnits(10.0f)))
-	{
-		if (Task->TaskType == TASK_DEFEND) { return; }
-
-		edict_t* AttackedStructure = UTIL_GetNearestUndefendedStructureOfTypeUnderAttack(pBot, STRUCTURE_ANY_MARINE_STRUCTURE, true);
-
-		if (!FNullEnt(AttackedStructure))
-		{
-			NSStructureType AttackedStructureType = GetStructureTypeFromEdict(AttackedStructure);
-
-			// Critical structure if it's in base, or it's a turret factory or phase gate
-			bool bCriticalStructure = (UTIL_StructureTypesMatch(AttackedStructureType, STRUCTURE_MARINE_ANYTURRETFACTORY) || UTIL_StructureTypesMatch(AttackedStructureType, STRUCTURE_MARINE_PHASEGATE));
-
-			// Always defend if it's critical structure regardless of distance
-			if (bCriticalStructure || UTIL_GetPhaseDistanceBetweenPointsSq(pBot->pEdict->v.origin, AttackedStructure->v.origin) <= sqrf(UTIL_MetresToGoldSrcUnits(30.0f)))
-			{
-				TASK_SetDefendTask(pBot, Task, AttackedStructure, true);
-				return;
-			}
-		}
-	}
-
-	
-
-	if (PlayerHasWeapon(pBot->pEdict, WEAPON_MARINE_WELDER))
-	{
-		if (Task->TaskType == TASK_WELD) { return; }
-
-		edict_t* HurtPlayer = UTIL_GetClosestPlayerNeedsHealing(pBot->pEdict->v.origin, pBot->pEdict->v.team, UTIL_MetresToGoldSrcUnits(10.0f), pBot->pEdict, true);
-
-		if (!FNullEnt(HurtPlayer) && HurtPlayer->v.armorvalue < GetPlayerMaxArmour(HurtPlayer))
-		{
-			UTIL_ClearBotTask(pBot, Task);
-			Task->TaskType = TASK_WELD;
-			Task->TaskTarget = HurtPlayer;
-			Task->TaskLocation = HurtPlayer->v.origin;
-			Task->bTaskIsUrgent = false;
-			return;
-		}
-
-		edict_t* DamagedStructure = UTIL_FindClosestDamagedStructure(pBot->pEdict->v.origin, MARINE_TEAM, UTIL_MetresToGoldSrcUnits(30.0f), true);
-
-		if (!FNullEnt(DamagedStructure))
-		{
-			UTIL_ClearBotTask(pBot, Task);
-			Task->TaskType = TASK_WELD;
-			Task->TaskTarget = DamagedStructure;
-			Task->TaskLocation = DamagedStructure->v.origin;
-			Task->bTaskIsUrgent = false;
-			return;
-		}
-	}
-
 	if (PlayerHasWeapon(pBot->pEdict, WEAPON_MARINE_MINES))
 	{
 		if (Task->TaskType == TASK_PLACE_MINE) { return; }
@@ -609,6 +542,73 @@ void MarineSetSecondaryTask(bot_t* pBot, bot_task* Task)
 			return;
 		}
 	}
+
+	if (Task->TaskType == TASK_BUILD) { return; }
+
+	int MarineNavProfile = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
+
+	edict_t* UnbuiltStructure = UTIL_FindClosestMarineStructureUnbuiltWithoutBuilders(pBot, 2, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(30.0f), true);
+
+	if (!FNullEnt(UnbuiltStructure))
+	{
+		TASK_SetBuildTask(pBot, Task, UnbuiltStructure, true);
+		return;
+	}
+
+	const hive_definition* UnsecuredHive = UTIL_GetNearestHiveOfStatus(pBot->pEdict->v.origin, HIVE_STATUS_UNBUILT);
+
+	if (!UnsecuredHive || vDist2DSq(UnsecuredHive->FloorLocation, pBot->pEdict->v.origin) > sqrf(UTIL_MetresToGoldSrcUnits(10.0f)))
+	{
+		if (Task->TaskType == TASK_DEFEND) { return; }
+
+		edict_t* AttackedStructure = UTIL_GetNearestUndefendedStructureOfTypeUnderAttack(pBot, STRUCTURE_ANY_MARINE_STRUCTURE, true);
+
+		if (!FNullEnt(AttackedStructure))
+		{
+			NSStructureType AttackedStructureType = GetStructureTypeFromEdict(AttackedStructure);
+
+			// Critical structure if it's in base, or it's a turret factory or phase gate
+			bool bCriticalStructure = (UTIL_StructureTypesMatch(AttackedStructureType, STRUCTURE_MARINE_ANYTURRETFACTORY) || UTIL_StructureTypesMatch(AttackedStructureType, STRUCTURE_MARINE_PHASEGATE));
+
+			// Always defend if it's critical structure regardless of distance
+			if (bCriticalStructure || UTIL_GetPhaseDistanceBetweenPointsSq(pBot->pEdict->v.origin, AttackedStructure->v.origin) <= sqrf(UTIL_MetresToGoldSrcUnits(30.0f)))
+			{
+				TASK_SetDefendTask(pBot, Task, AttackedStructure, true);
+				return;
+			}
+		}
+	}	
+
+	if (PlayerHasWeapon(pBot->pEdict, WEAPON_MARINE_WELDER))
+	{
+		if (Task->TaskType == TASK_WELD) { return; }
+
+		edict_t* HurtPlayer = UTIL_GetClosestPlayerNeedsHealing(pBot->pEdict->v.origin, pBot->pEdict->v.team, UTIL_MetresToGoldSrcUnits(10.0f), pBot->pEdict, true);
+
+		if (!FNullEnt(HurtPlayer) && HurtPlayer->v.armorvalue < GetPlayerMaxArmour(HurtPlayer))
+		{
+			UTIL_ClearBotTask(pBot, Task);
+			Task->TaskType = TASK_WELD;
+			Task->TaskTarget = HurtPlayer;
+			Task->TaskLocation = HurtPlayer->v.origin;
+			Task->bTaskIsUrgent = false;
+			return;
+		}
+
+		edict_t* DamagedStructure = UTIL_FindClosestDamagedStructure(pBot->pEdict->v.origin, MARINE_TEAM, UTIL_MetresToGoldSrcUnits(30.0f), true);
+
+		if (!FNullEnt(DamagedStructure))
+		{
+			UTIL_ClearBotTask(pBot, Task);
+			Task->TaskType = TASK_WELD;
+			Task->TaskTarget = DamagedStructure;
+			Task->TaskLocation = DamagedStructure->v.origin;
+			Task->bTaskIsUrgent = false;
+			return;
+		}
+	}
+
+
 }
 
 void MarineSetCombatModeSecondaryTask(bot_t* pBot, bot_task* Task)

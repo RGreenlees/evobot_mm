@@ -345,7 +345,7 @@ void BotTakeDamage(bot_t* pBot, int damageTaken, edict_t* aggressor)
 		pBot->TrackedEnemies[aggressorIndex].LastSeenTime = gpGlobals->time;
 
 		// If the bot can't see the enemy (bCurrentlyVisible is false) then set the last seen location to a random point in the vicinity so the bot doesn't immediately know where they are
-		if (false)
+		if (pBot->TrackedEnemies[aggressorIndex].bIsVisible || vDist2DSq(pBot->TrackedEnemies[aggressorIndex].EnemyEdict->v.origin, pBot->pEdict->v.origin) < sqrf(UTIL_MetresToGoldSrcUnits(3.0f)))
 		{
 			pBot->TrackedEnemies[aggressorIndex].LastSeenLocation = aggressor->v.origin;
 		}
@@ -364,6 +364,7 @@ void BotTakeDamage(bot_t* pBot, int damageTaken, edict_t* aggressor)
 
 		pBot->TrackedEnemies[aggressorIndex].LastSeenVelocity = aggressor->v.velocity;
 		pBot->TrackedEnemies[aggressorIndex].bIsAwareOfPlayer = true;
+		pBot->TrackedEnemies[aggressorIndex].bHasLOS = true;
 	}
 }
 
@@ -2299,61 +2300,23 @@ void DroneThink(bot_t* pBot)
 
 void CustomThink(bot_t* pBot)
 {
-	if (IsPlayerAlien(pBot->pEdict)) { return; }
+	pBot->CurrentEnemy = BotGetNextEnemyTarget(pBot);
 
-	if (PlayerHasWeapon(pBot->pEdict, WEAPON_MARINE_MINES))
+	if (pBot->CurrentEnemy > -1)
 	{
-		if (pBot->PrimaryBotTask.TaskType != TASK_PLACE_MINE)
+		pBot->LastCombatTime = gpGlobals->time;
+
+		if (IsPlayerMarine(pBot->pEdict))
 		{
-			edict_t* Target = UTIL_GetNearestUnminedStructureOfType(STRUCTURE_MARINE_ANYARMOURY, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(100.0f), true);
-
-			if (!FNullEnt(Target))
-			{
-				TASK_SetMineStructureTask(pBot, &pBot->PrimaryBotTask, Target, true);
-				return;
-			}
-
-			Target = UTIL_GetNearestUnminedStructureOfType(STRUCTURE_MARINE_PHASEGATE, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(100.0f), true);
-
-			if (!FNullEnt(Target))
-			{
-				TASK_SetMineStructureTask(pBot, &pBot->PrimaryBotTask, Target, true);
-				return;
-			}
-
-			Target = UTIL_GetNearestUnminedStructureOfType(STRUCTURE_MARINE_ANYTURRETFACTORY, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(100.0f), true);
-
-			if (!FNullEnt(Target))
-			{
-				TASK_SetMineStructureTask(pBot, &pBot->PrimaryBotTask, Target, true);
-				return;
-			}
+			MarineThink(pBot);
 		}
-	}
-	else
-	{
-		if (pBot->PrimaryBotTask.TaskType != TASK_GET_WEAPON)
+		else
 		{
-			edict_t* MinesIndex = UTIL_GetNearestItemOfType(DEPLOYABLE_ITEM_MARINE_MINES, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(100.0f));
-
-			if (!FNullEnt(MinesIndex))
-			{
-				pBot->PrimaryBotTask.TaskType = TASK_GET_WEAPON;
-				pBot->PrimaryBotTask.TaskTarget = MinesIndex;
-				pBot->PrimaryBotTask.TaskLocation = MinesIndex->v.origin;
-				pBot->PrimaryBotTask.bTaskIsUrgent = true;
-			}
+			AlienThink(pBot);
 		}
 	}
 
-	if (UTIL_IsTaskStillValid(pBot, &pBot->PrimaryBotTask))
-	{
-		BotProgressTask(pBot, &pBot->PrimaryBotTask);
-	}
-	else
-	{
-		UTIL_ClearBotTask(pBot, &pBot->PrimaryBotTask);
-	}
+
 
 }
 

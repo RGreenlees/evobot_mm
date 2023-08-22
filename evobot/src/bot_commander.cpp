@@ -3123,9 +3123,37 @@ void COMM_SetNextSupportAction(bot_t* CommanderBot, commander_action* Action)
 
 	}
 
-	bool bShouldDropWelder = false;
+	bool bShouldDropMines = false;
 
-	
+	if (CommanderBot->resources > 100)
+	{
+		bShouldDropMines = (UTIL_GetItemCountOfTypeInArea(DEPLOYABLE_ITEM_MARINE_MINES, Armoury->v.origin, UTIL_MetresToGoldSrcUnits(5.0f)) < 1);
+	}
+	else
+	{
+		if (UTIL_GetNumWeaponsOfTypeInPlay(WEAPON_MARINE_MINES) == 0 && (UTIL_UnminedStructureOfTypeExists(STRUCTURE_MARINE_PHASEGATE) || UTIL_UnminedStructureOfTypeExists(STRUCTURE_MARINE_ANYTURRETFACTORY)))
+		{
+			bShouldDropMines = true;
+		}
+	}
+
+	if (bShouldDropMines)
+	{
+		if (Action->ActionType == ACTION_DEPLOY && Action->StructureToBuild == DEPLOYABLE_ITEM_MARINE_MINES) { return; }
+
+		Vector DeployLocation = UTIL_GetRandomPointOnNavmeshInRadius(GORGE_BUILD_NAV_PROFILE, Armoury->v.origin, UTIL_MetresToGoldSrcUnits(3.0f));
+
+		if (DeployLocation != ZERO_VECTOR)
+		{
+			Action->ActionType = ACTION_DEPLOY;
+			Action->StructureToBuild = DEPLOYABLE_ITEM_MARINE_MINES;
+			Action->BuildLocation = DeployLocation;
+		}
+
+		return;
+	}
+
+	bool bShouldDropWelder = false;	
 
 	if (CommanderBot->resources > 100)
 	{
@@ -3187,35 +3215,7 @@ void COMM_SetNextSupportAction(bot_t* CommanderBot, commander_action* Action)
 		return;
 	}
 
-	bool bShouldDropMines = false;
 
-	if (CommanderBot->resources > 100)
-	{
-		bShouldDropMines = (UTIL_GetItemCountOfTypeInArea(DEPLOYABLE_ITEM_MARINE_MINES, Armoury->v.origin, UTIL_MetresToGoldSrcUnits(5.0f)) < 1);
-	}
-	else
-	{
-		if (UTIL_GetNumWeaponsOfTypeInPlay(WEAPON_MARINE_MINES) == 0 && (UTIL_UnminedStructureOfTypeExists(STRUCTURE_MARINE_PHASEGATE) || UTIL_UnminedStructureOfTypeExists(STRUCTURE_MARINE_ANYTURRETFACTORY)))
-		{
-			bShouldDropMines = true;
-		}
-	}
-
-	if (bShouldDropMines)
-	{
-		if (Action->ActionType == ACTION_DEPLOY && Action->StructureToBuild == DEPLOYABLE_ITEM_MARINE_MINES) { return; }
-
-		Vector DeployLocation = UTIL_GetRandomPointOnNavmeshInRadius(GORGE_BUILD_NAV_PROFILE, Armoury->v.origin, UTIL_MetresToGoldSrcUnits(3.0f));
-
-		if (DeployLocation != ZERO_VECTOR)
-		{
-			Action->ActionType = ACTION_DEPLOY;
-			Action->StructureToBuild = DEPLOYABLE_ITEM_MARINE_MINES;
-			Action->BuildLocation = DeployLocation;
-		}
-
-		return;
-	}
 
 
 }
