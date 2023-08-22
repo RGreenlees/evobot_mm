@@ -2301,7 +2301,59 @@ void CustomThink(bot_t* pBot)
 {
 	if (IsPlayerAlien(pBot->pEdict)) { return; }
 
-	RegularModeThink(pBot);
+	if (PlayerHasWeapon(pBot->pEdict, WEAPON_MARINE_MINES))
+	{
+		if (pBot->PrimaryBotTask.TaskType != TASK_PLACE_MINE)
+		{
+			edict_t* Target = UTIL_GetNearestUnminedStructureOfType(STRUCTURE_MARINE_ANYARMOURY, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(100.0f), true);
+
+			if (!FNullEnt(Target))
+			{
+				TASK_SetMineStructureTask(pBot, &pBot->PrimaryBotTask, Target, true);
+				return;
+			}
+
+			Target = UTIL_GetNearestUnminedStructureOfType(STRUCTURE_MARINE_PHASEGATE, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(100.0f), true);
+
+			if (!FNullEnt(Target))
+			{
+				TASK_SetMineStructureTask(pBot, &pBot->PrimaryBotTask, Target, true);
+				return;
+			}
+
+			Target = UTIL_GetNearestUnminedStructureOfType(STRUCTURE_MARINE_ANYTURRETFACTORY, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(100.0f), true);
+
+			if (!FNullEnt(Target))
+			{
+				TASK_SetMineStructureTask(pBot, &pBot->PrimaryBotTask, Target, true);
+				return;
+			}
+		}
+	}
+	else
+	{
+		if (pBot->PrimaryBotTask.TaskType != TASK_GET_WEAPON)
+		{
+			edict_t* MinesIndex = UTIL_GetNearestItemOfType(DEPLOYABLE_ITEM_MARINE_MINES, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(100.0f));
+
+			if (!FNullEnt(MinesIndex))
+			{
+				pBot->PrimaryBotTask.TaskType = TASK_GET_WEAPON;
+				pBot->PrimaryBotTask.TaskTarget = MinesIndex;
+				pBot->PrimaryBotTask.TaskLocation = MinesIndex->v.origin;
+				pBot->PrimaryBotTask.bTaskIsUrgent = true;
+			}
+		}
+	}
+
+	if (UTIL_IsTaskStillValid(pBot, &pBot->PrimaryBotTask))
+	{
+		BotProgressTask(pBot, &pBot->PrimaryBotTask);
+	}
+	else
+	{
+		UTIL_ClearBotTask(pBot, &pBot->PrimaryBotTask);
+	}
 
 }
 

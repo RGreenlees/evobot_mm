@@ -812,7 +812,7 @@ void UTIL_OnStructureCreated(buildable_structure* NewStructure)
 
 	if (bGameIsActive)
 	{
-		if (bIsMarineStructure)
+		if (bIsMarineStructure && StructureType != STRUCTURE_MARINE_DEPLOYEDMINE)
 		{
 			for (int i = 0; i < 32; i++)
 			{
@@ -831,7 +831,7 @@ void UTIL_OnStructureCreated(buildable_structure* NewStructure)
 		{
 			for (int i = 0; i < 32; i++)
 			{
-				if (clients[i] && IsPlayerOnAlienTeam(clients[i]) && IsPlayerBot(clients[i]))
+				if (clients[i] && IsPlayerBot(clients[i]))
 				{
 					bot_t* BotRef = GetBotPointer(clients[i]);
 
@@ -2477,7 +2477,7 @@ edict_t* UTIL_GetNearestUnminedStructureOfType(NSStructureType StructureType, co
 
 	for (auto& it : MarineBuildableStructureMap)
 	{
-		if (!it.second.bOnNavmesh || !it.second.bIsReachableMarine) { continue; }
+		if (!it.second.bOnNavmesh || !it.second.bIsReachableMarine || !it.second.bFullyConstructed) { continue; }
 		if (!UTIL_StructureTypesMatch(StructureType, it.second.StructureType)) { continue; }
 
 		if (UTIL_GetNumPlacedStructuresOfTypeInRadius(STRUCTURE_MARINE_DEPLOYEDMINE, it.second.Location, UTIL_MetresToGoldSrcUnits(2.0f)) >= 4) { continue; }
@@ -2493,6 +2493,20 @@ edict_t* UTIL_GetNearestUnminedStructureOfType(NSStructureType StructureType, co
 	}
 
 	return Result;
+}
+
+bool UTIL_UnminedStructureOfTypeExists(NSStructureType StructureType)
+{
+	for (auto& it : MarineBuildableStructureMap)
+	{
+		if (!it.second.bOnNavmesh || !it.second.bIsReachableMarine || !it.second.bFullyConstructed) { continue; }
+		if (!UTIL_StructureTypesMatch(StructureType, it.second.StructureType)) { continue; }
+
+		if (UTIL_GetNumPlacedStructuresOfTypeInRadius(STRUCTURE_MARINE_DEPLOYEDMINE, it.second.Location, UTIL_MetresToGoldSrcUnits(2.0f)) < 4) { return true; }
+
+	}
+
+	return false;
 }
 
 edict_t* UTIL_GetNearestStructureOfTypeInLocation(const NSStructureType StructureType, const Vector& Location, const float SearchRadius, bool bAllowElectrified, bool bUsePhaseDistance)
@@ -4264,7 +4278,7 @@ void UTIL_LinkAlienStructureToTask(bot_t* pBot, edict_t* NewStructure)
 
 	if (StructureType == STRUCTURE_NONE) { return; }
 
-	if ((pBot->PrimaryBotTask.TaskType == TASK_BUILD || pBot->PrimaryBotTask.TaskType == TASK_CAP_RESNODE || pBot->PrimaryBotTask.TaskType == TASK_REINFORCE_STRUCTURE) && pBot->PrimaryBotTask.bIsWaitingForBuildLink)
+	if ((pBot->PrimaryBotTask.TaskType == TASK_BUILD || pBot->PrimaryBotTask.TaskType == TASK_CAP_RESNODE || pBot->PrimaryBotTask.TaskType == TASK_REINFORCE_STRUCTURE || pBot->PrimaryBotTask.TaskType == TASK_PLACE_MINE) && pBot->PrimaryBotTask.bIsWaitingForBuildLink)
 	{
 		if (pBot->PrimaryBotTask.StructureType == StructureType)
 		{
@@ -4285,7 +4299,7 @@ void UTIL_LinkAlienStructureToTask(bot_t* pBot, edict_t* NewStructure)
 		}
 	}
 
-	if ((pBot->SecondaryBotTask.TaskType == TASK_BUILD || pBot->SecondaryBotTask.TaskType == TASK_CAP_RESNODE || pBot->PrimaryBotTask.TaskType == TASK_REINFORCE_STRUCTURE) && pBot->SecondaryBotTask.bIsWaitingForBuildLink)
+	if ((pBot->SecondaryBotTask.TaskType == TASK_BUILD || pBot->SecondaryBotTask.TaskType == TASK_CAP_RESNODE || pBot->SecondaryBotTask.TaskType == TASK_REINFORCE_STRUCTURE || pBot->SecondaryBotTask.TaskType == TASK_PLACE_MINE) && pBot->SecondaryBotTask.bIsWaitingForBuildLink)
 	{
 		if (pBot->SecondaryBotTask.StructureType == StructureType)
 		{
@@ -4734,6 +4748,8 @@ NSStructureType UTIL_WeaponTypeToDeployableItem(const NSWeapon WeaponType)
 		return DEPLOYABLE_ITEM_MARINE_HMG;
 	case WEAPON_MARINE_WELDER:
 		return DEPLOYABLE_ITEM_MARINE_WELDER;
+	case WEAPON_MARINE_MINES:
+		return DEPLOYABLE_ITEM_MARINE_MINES;
 	default:
 		return STRUCTURE_NONE;
 	}
@@ -5355,7 +5371,7 @@ Vector UTIL_GetNextMinePosition(edict_t* StructureToMine)
 		if (!it.second.bOnNavmesh || !it.second.bIsReachableMarine) { continue; }
 		if (!UTIL_StructureTypesMatch(STRUCTURE_MARINE_DEPLOYEDMINE, it.second.StructureType)) { continue; }
 
-		if (vDist2DSq(StructureToMine->v.origin, it.second.Location) > sqrf(UTIL_MetresToGoldSrcUnits(3.0f))) { continue; }
+		if (vDist2DSq(StructureToMine->v.origin, it.second.Location) > sqrf(UTIL_MetresToGoldSrcUnits(2.0f))) { continue; }
 
 		NumMines++;
 
@@ -5382,8 +5398,6 @@ Vector UTIL_GetNextMinePosition(edict_t* StructureToMine)
 		}
 
 	}
-
-	if (NumMines >= 4) { return ZERO_VECTOR; }
 
 	float Size = fmaxf(StructureToMine->v.size.x, StructureToMine->v.size.y);
 
