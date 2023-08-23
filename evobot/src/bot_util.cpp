@@ -1121,7 +1121,21 @@ void BotAttackTarget(bot_t* pBot, edict_t* Target)
 
 void BotDropWeapon(bot_t* pBot)
 {
-	pBot->pEdict->v.impulse = IMPULSE_MARINE_DROP_WEAPON;
+	// Look straight ahead so we don't accidentally drop the weapon right at our feet and pick it up again instantly
+
+	Vector AimDir = UTIL_GetForwardVector(pBot->pEdict->v.v_angle);
+	Vector TargetAimDir = Vector(AimDir.x, AimDir.y, 0.0f);
+
+	Vector LookLoc = pBot->CurrentEyePosition + (TargetAimDir * 100.0f);
+
+	BotLookAt(pBot, LookLoc);
+
+	float AimDot = UTIL_GetDotProduct(AimDir, TargetAimDir);
+
+	if (AimDot >= 0.95f)
+	{
+		pBot->pEdict->v.impulse = IMPULSE_MARINE_DROP_WEAPON;
+	}
 }
 
 void BotReloadWeapons(bot_t* pBot)
@@ -2313,8 +2327,6 @@ void CustomThink(bot_t* pBot)
 			AlienThink(pBot);
 		}
 	}
-
-
 
 }
 

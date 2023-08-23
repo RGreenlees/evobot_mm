@@ -1078,6 +1078,45 @@ bool MarineCombatThink(bot_t* pBot)
 		}
 	}
 
+	bool bNeedHealing = (pBot->pEdict->v.health < 80.0f);
+
+	if (bNeedHealing)
+	{
+		edict_t* NearestHealthPack = UTIL_GetNearestItemOfType(DEPLOYABLE_ITEM_MARINE_HEALTHPACK, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(10.0f));
+
+		if (!FNullEnt(NearestHealthPack))
+		{
+			float Dist = vDist2DSq(pBot->pEdict->v.origin, NearestHealthPack->v.origin);
+			float EnemyDist = vDist2DSq(CurrentEnemy->v.origin, NearestHealthPack->v.origin);
+
+			if (Dist < EnemyDist)
+			{
+				MoveTo(pBot, NearestHealthPack->v.origin, MOVESTYLE_NORMAL);
+				return true;
+			}
+			
+		}
+	}
+
+	bool bNeedAmmo = (BotGetPrimaryWeaponAmmoReserve(pBot) < BotGetPrimaryWeaponMaxClipSize(pBot));
+
+	if (bNeedAmmo)
+	{
+		edict_t* NearestAmmoPack = UTIL_GetNearestItemOfType(DEPLOYABLE_ITEM_MARINE_AMMO, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(10.0f));
+
+		if (!FNullEnt(NearestAmmoPack))
+		{
+			float Dist = vDist2DSq(pBot->pEdict->v.origin, NearestAmmoPack->v.origin);
+			float EnemyDist = vDist2DSq(CurrentEnemy->v.origin, NearestAmmoPack->v.origin);
+
+			if (Dist < EnemyDist)
+			{
+				MoveTo(pBot, NearestAmmoPack->v.origin, MOVESTYLE_NORMAL);
+				return true;
+			}
+		}
+	}
+
 	// We're going to have the marine always try and use their primary weapon, which means
 	// that they will try and put enough distance between themselves and the enemy to use it effectively,
 	// and retreat if they need to reload or are out of ammo
@@ -1473,10 +1512,11 @@ void MarineCheckWantsAndNeeds(bot_t* pBot)
 
 	bool bUrgentlyNeedsHealth = (pEdict->v.health < 50.0f);
 
-	// GL is a terrible choice to defend the base with...
-	if (pBot->CurrentRole == BOT_ROLE_SWEEPER && PlayerHasWeapon(pBot->pEdict, WEAPON_MARINE_GL))
+	// If we're not acting in a bombardier role then get rid of the GL if we have it.
+	if (pBot->CurrentRole != BOT_ROLE_BOMBARDIER && PlayerHasWeapon(pBot->pEdict, WEAPON_MARINE_GL))
 	{
 		BotDropWeapon(pBot);
+		return;
 	}
 
 	edict_t* NearestArmoury = UTIL_GetNearestStructureIndexOfType(pEdict->v.origin, STRUCTURE_MARINE_ANYARMOURY, UTIL_MetresToGoldSrcUnits(100.0f), true, IsPlayerMarine(pBot->pEdict));
@@ -1737,6 +1777,16 @@ BotRole MarineGetBestBotRole(const bot_t* pBot)
 	if (NumDefenders < 1)
 	{
 		return BOT_ROLE_SWEEPER;
+	}
+
+	if (PlayerHasWeapon(pBot->pEdict, WEAPON_MARINE_GL))
+	{
+		int NumBombardiers = GAME_GetBotsWithRoleType(BOT_ROLE_BOMBARDIER, MARINE_TEAM, pBot->pEdict);
+
+		if (NumBombardiers < 2)
+		{
+			return BOT_ROLE_BOMBARDIER;
+		}
 	}
 
 	int NumPlayersOnTeam = GAME_GetNumPlayersOnTeam(MARINE_TEAM);

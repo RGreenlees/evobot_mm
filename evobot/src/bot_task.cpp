@@ -1039,6 +1039,7 @@ void BotProgressPickupTask(bot_t* pBot, bot_task* Task)
 		{
 			NSStructureType ItemType = UTIL_GetItemTypeFromEdict(Task->TaskTarget);
 
+			// Allows bots to drop their current primary weapon to pick up a new weapon
 			if (UTIL_DroppedItemIsPrimaryWeapon(ItemType))
 			{
 				NSWeapon CurrentPrimaryWeapon = GetBotMarinePrimaryWeapon(pBot);
