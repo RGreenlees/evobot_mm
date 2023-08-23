@@ -81,6 +81,15 @@ typedef enum _COMMANDERACTIONTYPE
 
 } CommanderActionType;
 
+// Type of goal the commander wants to achieve
+typedef enum _STRUCTUREPURPOSE
+{
+	STRUCTURE_PURPOSE_NONE = 0,
+	STRUCTURE_PURPOSE_SIEGE,
+	STRUCTURE_PURPOSE_FORTIFY
+
+} StructurePurpose;
+
 // Some commander actions are multi-step (e.g. click to select building, release to complete selection, input recycle command etc). Tracks where the commander is in the process
 typedef enum _COMMANDERACTIONSTEP
 {
@@ -112,7 +121,8 @@ typedef enum
 	TASK_USE,
 	TASK_TOUCH,
 	TASK_REINFORCE_STRUCTURE,
-	TASK_SECURE_HIVE
+	TASK_SECURE_HIVE,
+	TASK_PLACE_MINE
 }
 BotTaskType;
 
@@ -263,6 +273,7 @@ typedef struct _COMMANDER_ACTION
 	CommanderActionType ActionType = ACTION_NONE; // What action to perform (e.g. build, recycle, drop item etc)
 	CommanderActionStep ActionStep = ACTION_STEP_NONE; // Used for multi-stage processes such as selecting a building, issuing recycle command etc.
 	NSStructureType StructureToBuild = STRUCTURE_NONE; // What structure to build if build action
+	StructurePurpose ActionPurpose = STRUCTURE_PURPOSE_NONE;
 	Vector BuildLocation = ZERO_VECTOR; // Where to build the structure
 	Vector DesiredCommanderLocation = ZERO_VECTOR; // To perform this action, where does the commander's view need to be? For building, usually directly above location, but could be off to side if obstructed by geometry
 	Vector LastAttemptedCommanderLocation = ZERO_VECTOR; // The position of the commander's view at the last action attempt

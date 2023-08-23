@@ -903,6 +903,8 @@ void CommanderThink(bot_t* pBot)
 
 		COMM_SetNextResearchAction(&pBot->ResearchAction);
 
+		COMM_SetNextRecycleAction(pBot, &pBot->RecycleAction);
+
 		pBot->CurrentAction = COMM_GetNextAction(pBot);
 	}
 
@@ -2178,6 +2180,7 @@ void COMM_SetTurretBuildAction(edict_t* TurretFactory, commander_action* Action)
 	Action->BuildLocation = BuildLocation;
 	Action->StructureToBuild = STRUCTURE_MARINE_TURRET;
 	Action->bIsActionUrgent = true;
+	Action->ActionPurpose = STRUCTURE_PURPOSE_FORTIFY;
 
 }
 
@@ -2198,6 +2201,7 @@ void COMM_SetSiegeTurretBuildAction(edict_t* TurretFactory, commander_action* Ac
 	Action->BuildLocation = BuildLocation;
 	Action->StructureToBuild = STRUCTURE_MARINE_SIEGETURRET;
 	Action->bIsActionUrgent = bIsUrgent;
+	Action->ActionPurpose = STRUCTURE_PURPOSE_SIEGE;
 
 }
 
@@ -2484,6 +2488,7 @@ void COMM_SetNextSecureHiveAction(bot_t* CommanderBot, const hive_definition* Hi
 			Action->StructureToBuild = STRUCTURE_MARINE_PHASEGATE;
 			Action->BuildLocation = FinalBuildLocation;
 			Action->bIsActionUrgent = true;
+			Action->ActionPurpose = STRUCTURE_PURPOSE_FORTIFY;
 			return;
 		}
 	}
@@ -2539,6 +2544,7 @@ void COMM_SetNextSecureHiveAction(bot_t* CommanderBot, const hive_definition* Hi
 			Action->StructureToBuild = STRUCTURE_MARINE_TURRETFACTORY;
 			Action->BuildLocation = FinalBuildLocation;
 			Action->bIsActionUrgent = true;
+			Action->ActionPurpose = STRUCTURE_PURPOSE_FORTIFY;
 
 		}
 
@@ -2860,9 +2866,16 @@ void COMM_SetNextSiegeHiveAction(bot_t* CommanderBot, const hive_definition* Hiv
 					Action->StructureToBuild = STRUCTURE_MARINE_PHASEGATE;
 					Action->BuildLocation = FinalBuildLocation;
 					Action->bIsActionUrgent = true;
+					Action->ActionPurpose = STRUCTURE_PURPOSE_SIEGE;
 
 				}
 
+				return;
+			}
+
+			if (!UTIL_StructureIsFullyBuilt(PhaseGate) && FNullEnt(TF))
+			{
+				UTIL_ClearCommanderAction(Action);
 				return;
 			}
 		}
@@ -2902,6 +2915,7 @@ void COMM_SetNextSiegeHiveAction(bot_t* CommanderBot, const hive_definition* Hiv
 				Action->ActionTarget = Hive->edict;
 				Action->StructureToBuild = STRUCTURE_MARINE_TURRETFACTORY;
 				Action->BuildLocation = FinalBuildLocation;
+				Action->ActionPurpose = STRUCTURE_PURPOSE_SIEGE;
 				Action->bIsActionUrgent = true;
 			}
 
@@ -2918,8 +2932,6 @@ void COMM_SetNextSiegeHiveAction(bot_t* CommanderBot, const hive_definition* Hiv
 		{
 			Armoury = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ANYARMOURY, Hive->FloorLocation, UTIL_MetresToGoldSrcUnits(30.0f), true, false);
 		}
-		
-		
 
 		if (FNullEnt(Armoury))
 		{
@@ -2954,6 +2966,7 @@ void COMM_SetNextSiegeHiveAction(bot_t* CommanderBot, const hive_definition* Hiv
 				Action->ActionTarget = Hive->edict;
 				Action->StructureToBuild = STRUCTURE_MARINE_ARMOURY;
 				Action->BuildLocation = FinalBuildLocation;
+				Action->ActionPurpose = STRUCTURE_PURPOSE_SIEGE;
 				Action->bIsActionUrgent = true;
 			}
 
@@ -3041,6 +3054,7 @@ void COMM_SetNextSupportAction(bot_t* CommanderBot, commander_action* Action)
 		return;
 	}
 
+	// Don't drop stuff if we're critically low on resources
 	if (CommanderBot->resources < 20)
 	{
 		UTIL_ClearCommanderAction(Action);
@@ -3110,7 +3124,37 @@ void COMM_SetNextSupportAction(bot_t* CommanderBot, commander_action* Action)
 
 	}
 
-	bool bShouldDropWelder = false;
+	bool bShouldDropMines = false;
+
+	if (CommanderBot->resources > 100)
+	{
+		bShouldDropMines = (UTIL_GetItemCountOfTypeInArea(DEPLOYABLE_ITEM_MARINE_MINES, Armoury->v.origin, UTIL_MetresToGoldSrcUnits(5.0f)) < 1);
+	}
+	else
+	{
+		if (UTIL_GetNumWeaponsOfTypeInPlay(WEAPON_MARINE_MINES) == 0 && (UTIL_UnminedStructureOfTypeExists(STRUCTURE_MARINE_INFANTRYPORTAL) || UTIL_UnminedStructureOfTypeExists(STRUCTURE_MARINE_PHASEGATE) || UTIL_UnminedStructureOfTypeExists(STRUCTURE_MARINE_ANYTURRETFACTORY)))
+		{
+			bShouldDropMines = true;
+		}
+	}
+
+	if (bShouldDropMines)
+	{
+		if (Action->ActionType == ACTION_DEPLOY && Action->StructureToBuild == DEPLOYABLE_ITEM_MARINE_MINES) { return; }
+
+		Vector DeployLocation = UTIL_GetRandomPointOnNavmeshInRadius(GORGE_BUILD_NAV_PROFILE, Armoury->v.origin, UTIL_MetresToGoldSrcUnits(3.0f));
+
+		if (DeployLocation != ZERO_VECTOR)
+		{
+			Action->ActionType = ACTION_DEPLOY;
+			Action->StructureToBuild = DEPLOYABLE_ITEM_MARINE_MINES;
+			Action->BuildLocation = DeployLocation;
+		}
+
+		return;
+	}
+
+	bool bShouldDropWelder = false;	
 
 	if (CommanderBot->resources > 100)
 	{
@@ -3173,6 +3217,47 @@ void COMM_SetNextSupportAction(bot_t* CommanderBot, commander_action* Action)
 	}
 
 
+
+
+}
+
+void COMM_SetNextRecycleAction(bot_t* CommanderBot, commander_action* Action)
+{
+	edict_t* RedundantStructure = UTIL_GetRedundantMarineStructureOfType(STRUCTURE_MARINE_PHASEGATE);
+
+	if (!FNullEnt(RedundantStructure))
+	{
+		Action->ActionType = ACTION_RECYCLE;
+		Action->ActionTarget = RedundantStructure;
+		return;
+	}
+
+	RedundantStructure = UTIL_GetRedundantMarineStructureOfType(STRUCTURE_MARINE_ANYTURRETFACTORY);
+
+	if (!FNullEnt(RedundantStructure))
+	{
+		Action->ActionType = ACTION_RECYCLE;
+		Action->ActionTarget = RedundantStructure;
+		return;
+	}
+
+	RedundantStructure = UTIL_GetRedundantMarineStructureOfType(STRUCTURE_MARINE_ANYARMOURY);
+
+	if (!FNullEnt(RedundantStructure))
+	{
+		Action->ActionType = ACTION_RECYCLE;
+		Action->ActionTarget = RedundantStructure;
+		return;
+	}
+
+	RedundantStructure = UTIL_GetRedundantMarineStructureOfType(STRUCTURE_MARINE_SIEGETURRET);
+
+	if (!FNullEnt(RedundantStructure))
+	{
+		Action->ActionType = ACTION_RECYCLE;
+		Action->ActionTarget = RedundantStructure;
+		return;
+	}
 }
 
 void COMM_SetNextBuildAction(bot_t* CommanderBot, commander_action* Action)
@@ -3447,6 +3532,7 @@ void COMM_ConfirmObjectDeployed(bot_t* pBot, commander_action* Action, edict_t* 
 		{
 			Ref->LastSuccessfulCommanderLocation = Action->LastAttemptedCommanderLocation;
 			Ref->LastSuccessfulCommanderAngle = Action->LastAttemptedCommanderAngle;
+			Ref->Purpose = Action->ActionPurpose;
 		}
 
 		pBot->next_commander_action_time = gpGlobals->time + commander_action_cooldown;

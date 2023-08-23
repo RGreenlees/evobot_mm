@@ -43,8 +43,10 @@ typedef struct _BUILDABLE_STRUCTURE
 	bool bIsReachableMarine = false; // Is the building reachable by Marines/Gorge? Checks from the comm chair location
 	bool bIsReachableAlien = false; // Is the building reachable by Skulk/Fade/Lerk? Checks from the comm chair location
 	bool bIsReachableOnos = false; // Is the building reachable by Onos? Checks from the comm chair location
+	bool bMarkedForRecycle = false; // Should this building be recycled by the commander? Marine structures only
 	Vector LastSuccessfulCommanderLocation = ZERO_VECTOR; // Tracks the last commander view location where it successfully placed or selected the building
 	Vector LastSuccessfulCommanderAngle = ZERO_VECTOR; // Tracks the last commander input angle ("click" location) used to successfully place or select building
+	StructurePurpose Purpose = STRUCTURE_PURPOSE_NONE;
 
 } buildable_structure;
 
@@ -339,6 +341,14 @@ void UTIL_LinkAlienStructureToTask(bot_t* pBot, edict_t* NewStructure);
 int UTIL_GetNumWeaponsOfTypeInPlay(const NSWeapon WeaponType);
 // Returns how many heavy armour and jetpacks have been placed at base, and how many marines have heavy armour or a jetpack equipped
 int UTIL_GetNumEquipmentInPlay();
+
+edict_t* UTIL_GetRedundantMarineStructureOfType(NSStructureType StructureType);
+
+Vector UTIL_GetNextMinePosition(edict_t* StructureToMine);
+
+edict_t* UTIL_GetNearestUnminedStructureOfType(NSStructureType StructureType, const Vector SearchLocation, const float SearchRadius, bool bAllowPhaseDist);
+edict_t* UTIL_GetFurthestUnminedStructureOfType(NSStructureType StructureType, const Vector SearchLocation, const float SearchRadius, bool bAllowPhaseDist);
+bool UTIL_UnminedStructureOfTypeExists(NSStructureType StructureType);
 
 // Should the commander use distress beacon? Determines if the base is being overwhelmed by aliens
 bool UTIL_BaseIsInDistress();

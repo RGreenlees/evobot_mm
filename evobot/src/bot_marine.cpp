@@ -506,7 +506,64 @@ void MarineAssaultSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 void MarineSetSecondaryTask(bot_t* pBot, bot_task* Task)
 {
+	// Don't interrupt a build task if we're doing one. We don't want unfinished structures being left lying around
 	if (Task->TaskType == TASK_BUILD) { return; }
+
+
+	if (PlayerHasWeapon(pBot->pEdict, WEAPON_MARINE_MINES))
+	{
+		if (Task->TaskType == TASK_PLACE_MINE) { return; }
+
+		Vector CommChairLocation = UTIL_GetCommChairLocation();
+
+		edict_t* UnminedStructure = UTIL_GetFurthestUnminedStructureOfType(STRUCTURE_MARINE_PHASEGATE, CommChairLocation, UTIL_MetresToGoldSrcUnits(500.0f), false);
+
+		if (!FNullEnt(UnminedStructure))
+		{
+			TASK_SetMineStructureTask(pBot, Task, UnminedStructure, false);
+			return;
+		}
+
+		UnminedStructure = UTIL_GetNearestUnminedStructureOfType(STRUCTURE_MARINE_INFANTRYPORTAL, CommChairLocation, UTIL_MetresToGoldSrcUnits(10.0f), true);
+
+		if (!FNullEnt(UnminedStructure))
+		{
+			TASK_SetMineStructureTask(pBot, Task, UnminedStructure, false);
+			return;
+		}
+
+		UnminedStructure = UTIL_GetFurthestUnminedStructureOfType(STRUCTURE_MARINE_ANYTURRETFACTORY, CommChairLocation, UTIL_MetresToGoldSrcUnits(100.0f), true);
+
+		if (!FNullEnt(UnminedStructure))
+		{
+			TASK_SetMineStructureTask(pBot, Task, UnminedStructure, false);
+			return;
+		}
+
+		UnminedStructure = UTIL_GetNearestUnminedStructureOfType(STRUCTURE_MARINE_ARMSLAB, CommChairLocation, UTIL_MetresToGoldSrcUnits(100.0f), true);
+
+		if (!FNullEnt(UnminedStructure))
+		{
+			TASK_SetMineStructureTask(pBot, Task, UnminedStructure, false);
+			return;
+		}
+
+		UnminedStructure = UTIL_GetNearestUnminedStructureOfType(STRUCTURE_MARINE_OBSERVATORY, CommChairLocation, UTIL_MetresToGoldSrcUnits(100.0f), true);
+
+		if (!FNullEnt(UnminedStructure))
+		{
+			TASK_SetMineStructureTask(pBot, Task, UnminedStructure, false);
+			return;
+		}
+
+		UnminedStructure = UTIL_GetFurthestUnminedStructureOfType(STRUCTURE_MARINE_RESTOWER, CommChairLocation, UTIL_MetresToGoldSrcUnits(100.0f), true);
+
+		if (!FNullEnt(UnminedStructure))
+		{
+			TASK_SetMineStructureTask(pBot, Task, UnminedStructure, false);
+			return;
+		}
+	}	
 
 	int MarineNavProfile = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
 
@@ -540,14 +597,12 @@ void MarineSetSecondaryTask(bot_t* pBot, bot_task* Task)
 				return;
 			}
 		}
-	}
-
-	
-
-	if (Task->TaskType == TASK_WELD) { return; }
+	}	
 
 	if (PlayerHasWeapon(pBot->pEdict, WEAPON_MARINE_WELDER))
 	{
+		if (Task->TaskType == TASK_WELD) { return; }
+
 		edict_t* HurtPlayer = UTIL_GetClosestPlayerNeedsHealing(pBot->pEdict->v.origin, pBot->pEdict->v.team, UTIL_MetresToGoldSrcUnits(10.0f), pBot->pEdict, true);
 
 		if (!FNullEnt(HurtPlayer) && HurtPlayer->v.armorvalue < GetPlayerMaxArmour(HurtPlayer))
@@ -572,6 +627,8 @@ void MarineSetSecondaryTask(bot_t* pBot, bot_task* Task)
 			return;
 		}
 	}
+
+
 }
 
 void MarineSetCombatModeSecondaryTask(bot_t* pBot, bot_task* Task)
@@ -615,20 +672,21 @@ void MarineSweeperSetSecondaryTask(bot_t* pBot, bot_task* Task)
 		}
 	}
 
-	if (Task->TaskType == TASK_BUILD) { return; }
-
 	edict_t* UnbuiltStructure = UTIL_FindClosestMarineStructureUnbuilt(pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(30.0f), true);
 
 	if (!FNullEnt(UnbuiltStructure))
 	{
+		if (Task->TaskType == TASK_BUILD) { return; }
 		TASK_SetBuildTask(pBot, Task, UnbuiltStructure, true);
 		return;
 	}
 
-	if (Task->TaskType == TASK_WELD) { return; }
+	
 
 	if (PlayerHasWeapon(pBot->pEdict, WEAPON_MARINE_WELDER))
 	{
+
+		if (Task->TaskType == TASK_WELD) { return; }
 		edict_t* HurtPlayer = UTIL_GetClosestPlayerNeedsHealing(pBot->pEdict->v.origin, pBot->pEdict->v.team, UTIL_MetresToGoldSrcUnits(10.0f), pBot->pEdict, true);
 
 		if (!FNullEnt(HurtPlayer) && HurtPlayer->v.armorvalue < GetPlayerMaxArmour(HurtPlayer))
@@ -650,6 +708,45 @@ void MarineSweeperSetSecondaryTask(bot_t* pBot, bot_task* Task)
 			Task->TaskTarget = DamagedStructure;
 			Task->TaskLocation = DamagedStructure->v.origin;
 			Task->bTaskIsUrgent = false;
+			return;
+		}
+	}
+
+	
+	
+	if (PlayerHasWeapon(pBot->pEdict, WEAPON_MARINE_MINES))
+	{
+		if (Task->TaskType == TASK_PLACE_MINE) { return; }
+
+		edict_t* UnminedStructure = UTIL_GetNearestUnminedStructureOfType(STRUCTURE_MARINE_PHASEGATE, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(30.0f), true);
+
+		if (!FNullEnt(UnminedStructure))
+		{
+			TASK_SetMineStructureTask(pBot, Task, UnminedStructure, false);
+			return;
+		}
+
+		UnminedStructure = UTIL_GetNearestUnminedStructureOfType(STRUCTURE_MARINE_ANYTURRETFACTORY, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(30.0f), true);
+
+		if (!FNullEnt(UnminedStructure))
+		{
+			TASK_SetMineStructureTask(pBot, Task, UnminedStructure, false);
+			return;
+		}
+
+		UnminedStructure = UTIL_GetNearestUnminedStructureOfType(STRUCTURE_MARINE_ARMSLAB, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(30.0f), true);
+
+		if (!FNullEnt(UnminedStructure))
+		{
+			TASK_SetMineStructureTask(pBot, Task, UnminedStructure, false);
+			return;
+		}
+
+		UnminedStructure = UTIL_GetNearestUnminedStructureOfType(STRUCTURE_MARINE_RESTOWER, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(30.0f), true);
+
+		if (!FNullEnt(UnminedStructure))
+		{
+			TASK_SetMineStructureTask(pBot, Task, UnminedStructure, false);
 			return;
 		}
 	}
@@ -695,8 +792,47 @@ void MarineCapperSetSecondaryTask(bot_t* pBot, bot_task* Task)
 		return;
 	}
 
+	if (PlayerHasWeapon(pBot->pEdict, WEAPON_MARINE_MINES))
+	{
+		if (Task->TaskType == TASK_PLACE_MINE) { return; }
+
+		edict_t* UnminedStructure = UTIL_GetNearestUnminedStructureOfType(STRUCTURE_MARINE_PHASEGATE, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(30.0f), true);
+
+		if (!FNullEnt(UnminedStructure))
+		{
+			TASK_SetMineStructureTask(pBot, Task, UnminedStructure, false);
+			return;
+		}
+
+		UnminedStructure = UTIL_GetNearestUnminedStructureOfType(STRUCTURE_MARINE_ANYTURRETFACTORY, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(30.0f), true);
+
+		if (!FNullEnt(UnminedStructure))
+		{
+			TASK_SetMineStructureTask(pBot, Task, UnminedStructure, false);
+			return;
+		}
+
+		UnminedStructure = UTIL_GetNearestUnminedStructureOfType(STRUCTURE_MARINE_ARMSLAB, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(30.0f), true);
+
+		if (!FNullEnt(UnminedStructure))
+		{
+			TASK_SetMineStructureTask(pBot, Task, UnminedStructure, false);
+			return;
+		}
+
+		UnminedStructure = UTIL_GetNearestUnminedStructureOfType(STRUCTURE_MARINE_RESTOWER, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(30.0f), true);
+
+		if (!FNullEnt(UnminedStructure))
+		{
+			TASK_SetMineStructureTask(pBot, Task, UnminedStructure, false);
+			return;
+		}
+	}
+
 	if (PlayerHasWeapon(pBot->pEdict, WEAPON_MARINE_WELDER))
 	{
+		if (Task->TaskType == TASK_WELD) { return; }
+
 		edict_t* DamagedStructure = UTIL_FindClosestDamagedStructure(pBot->pEdict->v.origin, MARINE_TEAM, UTIL_MetresToGoldSrcUnits(20.0f), false);
 
 		if (!FNullEnt(DamagedStructure))
@@ -827,6 +963,43 @@ void MarineAssaultSetSecondaryTask(bot_t* pBot, bot_task* Task)
 				Task->TaskLength = 20.0f;
 				return;
 			}
+		}
+	}
+
+	if (PlayerHasWeapon(pBot->pEdict, WEAPON_MARINE_MINES))
+	{
+		if (Task->TaskType == TASK_PLACE_MINE) { return; }
+
+		edict_t* UnminedStructure = UTIL_GetNearestUnminedStructureOfType(STRUCTURE_MARINE_PHASEGATE, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(30.0f), true);
+
+		if (!FNullEnt(UnminedStructure))
+		{
+			TASK_SetMineStructureTask(pBot, Task, UnminedStructure, false);
+			return;
+		}
+
+		UnminedStructure = UTIL_GetNearestUnminedStructureOfType(STRUCTURE_MARINE_ANYTURRETFACTORY, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(30.0f), true);
+
+		if (!FNullEnt(UnminedStructure))
+		{
+			TASK_SetMineStructureTask(pBot, Task, UnminedStructure, false);
+			return;
+		}
+
+		UnminedStructure = UTIL_GetNearestUnminedStructureOfType(STRUCTURE_MARINE_ARMSLAB, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(30.0f), true);
+
+		if (!FNullEnt(UnminedStructure))
+		{
+			TASK_SetMineStructureTask(pBot, Task, UnminedStructure, false);
+			return;
+		}
+
+		UnminedStructure = UTIL_GetNearestUnminedStructureOfType(STRUCTURE_MARINE_RESTOWER, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(30.0f), true);
+
+		if (!FNullEnt(UnminedStructure))
+		{
+			TASK_SetMineStructureTask(pBot, Task, UnminedStructure, false);
+			return;
 		}
 	}
 	
@@ -1416,72 +1589,82 @@ void MarineCheckWantsAndNeeds(bot_t* pBot)
 
 	}
 
-	if (!PlayerHasWeapon(pEdict, WEAPON_MARINE_WELDER))
-	{
-		if (pBot->WantsAndNeedsTask.TaskType != TASK_GET_WEAPON)
-		{
-			edict_t* WelderIndex = UTIL_GetNearestItemIndexOfType(DEPLOYABLE_ITEM_MARINE_WELDER, pEdict->v.origin, UTIL_MetresToGoldSrcUnits(15.0f));
-
-			if (WelderIndex)
-			{
-				if (!UTIL_IsAnyHumanNearLocationWithoutWeapon(WEAPON_MARINE_WELDER, WelderIndex->v.origin, UTIL_MetresToGoldSrcUnits(5.0f)))
-				{
-					pBot->WantsAndNeedsTask.TaskType = TASK_GET_WEAPON;
-					pBot->WantsAndNeedsTask.bTaskIsUrgent = false;
-					pBot->WantsAndNeedsTask.TaskLocation = WelderIndex->v.origin;
-					pBot->WantsAndNeedsTask.TaskTarget = WelderIndex;
-
-					return;
-				}
-			}
-		}
-		else
-		{
-			return;
-		}
-	}
-
 	if (!PlayerHasEquipment(pEdict))
 	{
-		if (pBot->WantsAndNeedsTask.TaskType != TASK_GET_EQUIPMENT)
+		if (pBot->WantsAndNeedsTask.TaskType == TASK_GET_EQUIPMENT) { return; }
+		
+		edict_t* EquipmentIndex = UTIL_GetNearestEquipment(pEdict->v.origin, UTIL_MetresToGoldSrcUnits(15.0f), true);
+
+		if (EquipmentIndex)
 		{
-			edict_t* EquipmentIndex = UTIL_GetNearestEquipment(pEdict->v.origin, UTIL_MetresToGoldSrcUnits(15.0f), true);
-
-			if (EquipmentIndex)
+			// Don't grab the good stuff if there are humans who need it
+			if (!UTIL_IsAnyHumanNearLocationWithoutEquipment(EquipmentIndex->v.origin, UTIL_MetresToGoldSrcUnits(10.0f)))
 			{
-				// Don't grab the good stuff if there are humans who need it
-				if (!UTIL_IsAnyHumanNearLocationWithoutEquipment(EquipmentIndex->v.origin, UTIL_MetresToGoldSrcUnits(10.0f)))
-				{
 
-					pBot->WantsAndNeedsTask.TaskType = TASK_GET_EQUIPMENT;
-					pBot->WantsAndNeedsTask.bTaskIsUrgent = false;
-					pBot->WantsAndNeedsTask.TaskLocation = EquipmentIndex->v.origin;
-					pBot->WantsAndNeedsTask.TaskTarget = EquipmentIndex;
+				pBot->WantsAndNeedsTask.TaskType = TASK_GET_EQUIPMENT;
+				pBot->WantsAndNeedsTask.bTaskIsUrgent = false;
+				pBot->WantsAndNeedsTask.TaskLocation = EquipmentIndex->v.origin;
+				pBot->WantsAndNeedsTask.TaskTarget = EquipmentIndex;
 
-					return;
-				}
-			}
-			else
-			{
-				if (PlayerHasSpecialWeapon(pBot->pEdict))
-				{
-					if (!FNullEnt(NearestArmoury) && PlayerHasEquipment(pBot->pEdict))
-					{
-						pBot->WantsAndNeedsTask.TaskType = TASK_GUARD;
-						pBot->WantsAndNeedsTask.bTaskIsUrgent = false;
-						pBot->WantsAndNeedsTask.TaskLocation = NearestArmoury->v.origin;
-						pBot->WantsAndNeedsTask.TaskTarget = NearestArmoury;
-
-						return;
-					}
-				}
+				return;
 			}
 		}
 		else
 		{
+			if (PlayerHasSpecialWeapon(pBot->pEdict))
+			{
+				if (!FNullEnt(NearestArmoury) && PlayerHasEquipment(pBot->pEdict))
+				{
+					pBot->WantsAndNeedsTask.TaskType = TASK_GUARD;
+					pBot->WantsAndNeedsTask.bTaskIsUrgent = false;
+					pBot->WantsAndNeedsTask.TaskLocation = NearestArmoury->v.origin;
+					pBot->WantsAndNeedsTask.TaskTarget = NearestArmoury;
+
+					return;
+				}
+			}
+		}
+
+	}
+
+
+	if (!PlayerHasWeapon(pEdict, WEAPON_MARINE_WELDER))
+	{
+		if (pBot->WantsAndNeedsTask.TaskType == TASK_GET_WEAPON) { return; }
+		
+		edict_t* WelderIndex = UTIL_GetNearestItemIndexOfType(DEPLOYABLE_ITEM_MARINE_WELDER, pEdict->v.origin, UTIL_MetresToGoldSrcUnits(15.0f));
+
+		if (WelderIndex)
+		{
+			if (!UTIL_IsAnyHumanNearLocationWithoutWeapon(WEAPON_MARINE_WELDER, WelderIndex->v.origin, UTIL_MetresToGoldSrcUnits(5.0f)))
+			{
+				pBot->WantsAndNeedsTask.TaskType = TASK_GET_WEAPON;
+				pBot->WantsAndNeedsTask.bTaskIsUrgent = false;
+				pBot->WantsAndNeedsTask.TaskLocation = WelderIndex->v.origin;
+				pBot->WantsAndNeedsTask.TaskTarget = WelderIndex;
+
+				return;
+			}
+		}
+	}
+
+	if (pBot->CurrentRole == BOT_ROLE_SWEEPER && !PlayerHasWeapon(pEdict, WEAPON_MARINE_MINES))
+	{
+		if (pBot->WantsAndNeedsTask.TaskType == TASK_GET_WEAPON) { return; }
+
+		edict_t* MineIndex = UTIL_GetNearestItemIndexOfType(DEPLOYABLE_ITEM_MARINE_MINES, pEdict->v.origin, UTIL_MetresToGoldSrcUnits(15.0f));
+
+		if (MineIndex)
+		{
+			pBot->WantsAndNeedsTask.TaskType = TASK_GET_WEAPON;
+			pBot->WantsAndNeedsTask.bTaskIsUrgent = false;
+			pBot->WantsAndNeedsTask.TaskLocation = MineIndex->v.origin;
+			pBot->WantsAndNeedsTask.TaskTarget = MineIndex;
 			return;
 		}
 	}
+
+
 }
 
 BotRole MarineGetBestCombatModeRole(const bot_t* pBot)

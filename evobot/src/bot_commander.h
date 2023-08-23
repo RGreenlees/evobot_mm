@@ -136,6 +136,7 @@ void COMM_SetNextResearchAction(commander_action* Action);
 
 void COMM_SetNextBuildAction(bot_t* CommanderBot, commander_action* Action);
 void COMM_SetNextSupportAction(bot_t* CommanderBot, commander_action* Action);
+void COMM_SetNextRecycleAction(bot_t* CommanderBot, commander_action* Action);
 
 commander_action* COMM_GetNextAction(bot_t* CommanderBot);
 
