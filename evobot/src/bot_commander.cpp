@@ -3054,6 +3054,7 @@ void COMM_SetNextSupportAction(bot_t* CommanderBot, commander_action* Action)
 		return;
 	}
 
+	// Don't drop stuff if we're critically low on resources
 	if (CommanderBot->resources < 20)
 	{
 		UTIL_ClearCommanderAction(Action);
@@ -3131,7 +3132,7 @@ void COMM_SetNextSupportAction(bot_t* CommanderBot, commander_action* Action)
 	}
 	else
 	{
-		if (UTIL_GetNumWeaponsOfTypeInPlay(WEAPON_MARINE_MINES) == 0 && (UTIL_UnminedStructureOfTypeExists(STRUCTURE_MARINE_PHASEGATE) || UTIL_UnminedStructureOfTypeExists(STRUCTURE_MARINE_ANYTURRETFACTORY)))
+		if (UTIL_GetNumWeaponsOfTypeInPlay(WEAPON_MARINE_MINES) == 0 && (UTIL_UnminedStructureOfTypeExists(STRUCTURE_MARINE_INFANTRYPORTAL) || UTIL_UnminedStructureOfTypeExists(STRUCTURE_MARINE_PHASEGATE) || UTIL_UnminedStructureOfTypeExists(STRUCTURE_MARINE_ANYTURRETFACTORY)))
 		{
 			bShouldDropMines = true;
 		}

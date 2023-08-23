@@ -26,4 +26,8 @@ builder.options.add_argument('--enable-optimize', action='store_const', const='1
                        help='Enable optimization')
 builder.options.add_argument('--enable-debug', action='store_const', const='1', dest='debug',
                        help='Enable debug')
+builder.options.add_argument('--enable-static-lib', action='store_const', const='1', dest='staticlib',
+                       help='Enable statically link the sanitizer runtime')
+builder.options.add_argument('--enable-shared-lib', action='store_const', const='1', dest='sharedlib',
+                       help='Enable dynamically link the sanitizer runtime')
 builder.Configure()

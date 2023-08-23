@@ -347,6 +347,7 @@ edict_t* UTIL_GetRedundantMarineStructureOfType(NSStructureType StructureType);
 Vector UTIL_GetNextMinePosition(edict_t* StructureToMine);
 
 edict_t* UTIL_GetNearestUnminedStructureOfType(NSStructureType StructureType, const Vector SearchLocation, const float SearchRadius, bool bAllowPhaseDist);
+edict_t* UTIL_GetFurthestUnminedStructureOfType(NSStructureType StructureType, const Vector SearchLocation, const float SearchRadius, bool bAllowPhaseDist);
 bool UTIL_UnminedStructureOfTypeExists(NSStructureType StructureType);
 
 // Should the commander use distress beacon? Determines if the base is being overwhelmed by aliens

@@ -3,30 +3,8 @@
 import os, sys
 
 builder.cxx = builder.DetectCxx(target_arch = 'x86')
-if builder.cxx.like('gcc'):
-    builder.cxx.defines += ['_LINUX', 'POSIX', 'LINUX', 'linux']
-    builder.cxx.cflags += [
-        '-pipe',
-        '-fno-strict-aliasing',
-        '-Wall',
-        '-Werror',
-        '-Wno-uninitialized',
-        '-Wno-unused',
-        '-Wno-switch',
-        '-Wno-format',
-        '-Wno-format-security',
-        '-Wno-unknown-attributes',
-        '-Wno-logical-op-parentheses',
-        '-Wno-return-stack-address',
-        '-m32',
-    ]
-    builder.cxx.cxxflags += [
-        '-Wno-invalid-offsetof',
-        '-Wno-write-strings',
-        '-std=c++17',
-    ]
-    builder.cxx.linkflags += ['-m32', '-ldl', '-lm']
 
+# Include search paths
 include_paths = [
   # os.path.join(builder.options.hl1sdk_path, 'public'),
   # os.path.join(builder.options.hl1sdk_path, 'common'),
@@ -46,18 +24,37 @@ include_paths = [
   os.path.join(builder.currentSourcePath, 'evobot', 'src'),
 ]
 
-builder.cxx.cxxincludes += include_paths
-
-library = builder.cxx.Library('evobot_mm')
-
-if builder.cxx.family== 'msvc':
-  builder.cxx.cxxflags += [ '/std:c++17', '/openmp:experimental', '/Qvec-report:2', '/fp:precise' ]
-  library.compiler.linkflags += [
-    '/EXPORT:GiveFnptrsToDll=_GiveFnptrsToDll@8,@1',
-    '/SECTION:.data,RW',
+# Compiler setup
+if builder.cxx.target.platform == 'linux':
+  # Linux defines
+  builder.cxx.defines += ['_LINUX', 'POSIX', 'LINUX', 'linux']
+  # Linux compiler C flags
+  builder.cxx.cflags += [
+    '-pipe',
+    '-fno-strict-aliasing',
+    '-Wall',
+    '-Werror',
+    '-Wno-uninitialized',
+    '-Wno-unused',
+    '-Wno-switch',
+    '-Wno-format',
+    '-Wno-format-security',
+    '-Wno-unknown-attributes',
+    '-Wno-logical-op-parentheses',
+    '-Wno-return-stack-address',
+    '-m32',
   ]
-  library.compiler.linkflags += ['/MACHINE:X86']
-  library.compiler.defines += [
+  # Linux compiler C++ flags
+  builder.cxx.cxxflags += [
+    '-Wno-invalid-offsetof',
+    '-Wno-write-strings',
+    '-std=c++17',
+  ]
+  # Linux linker flags
+  builder.cxx.linkflags += ['-m32', '-ldl', '-lm']
+elif builder.cxx.target.platform == 'windows':
+  # Windows defines
+  builder.cxx.defines += [
     '_CRT_SECURE_NO_DEPRECATE',
     '_CRT_SECURE_NO_WARNINGS',
     '_CRT_NONSTDC_NO_DEPRECATE',
@@ -65,16 +62,62 @@ if builder.cxx.family== 'msvc':
     'WIN32',
     '_WINDOWS'
   ]
+  # Windows compiler C flags
+  builder.cxx.cflags += []
+  # Windows compiler C++ flags
+  builder.cxx.cxxflags += [
+    '/std:c++17',
+    '/fp:precise'
+  ]
+  # Windows linker flags
+  builder.cxx.linkflags += [
+    '/EXPORT:GiveFnptrsToDll=_GiveFnptrsToDll@8,@1',
+    '/SECTION:.data,RW',
+    '/MACHINE:X86'
+  ]
 
+# Compiler options for optimization ( --enable-optimize )
 if builder.options.optimize == '1':
-  if builder.cxx.family== 'msvc':
-    library.compiler.cflags += ['/Ox', '/Zo']
-    library.compiler.linkflags += ['/OPT:ICF', '/OPT:REF']
+  # Shared optimization definitions
+  builder.cxx.defines += ['NDEBUG']
+  if builder.cxx.target.platform == 'linux':
+    # Linux optimization flags
+    builder.cxx.cflags += ['-O3']
+  elif builder.cxx.target.platform == 'windows':
+    # Windows optimization flags
+    builder.cxx.cflags += ['/Ox', '/Zo']
+    # Windows optimization link flags
+    builder.cxx.linkflags += ['/OPT:ICF', '/OPT:REF']
 
+# Compiler options for debugging ( --enable-debug )
 if builder.options.debug == '1':
-  if builder.cxx.family== 'msvc':
-    library.compiler.cflags += ['/MTd']
-    library.compiler.linkflags += ['/NODEFAULTLIB:libcmt']
+  # Shared debug definitions
+  builder.cxx.defines += ['DEBUG', '_DEBUG']
+  if builder.cxx.target.platform == 'linux':
+    # Linux debug flags
+    builder.cxx.cflags += ['-g3', '-O0']
+  elif builder.cxx.target.platform == 'windows':
+    # Windows debug flags
+    builder.cxx.cflags += ['/Od', '/RTC1', '/MTd']
+    # Windows debug link flags
+    builder.cxx.linkflags += ['/NODEFAULTLIB:libcmt']
+
+# Handle --enable-static-lib and --enable-shared-li
+if builder.cxx.target.platform == 'linux':
+  if builder.options.staticlib == '1':
+    builder.cxx.linkflags += [
+      '-static-libgcc',
+      '-static-libstdc++'
+    ]
+  elif builder.options.sharedlib == '1':
+    builder.cxx.linkflags += [
+      '-shared-libgcc',
+    ]
+
+
+library = builder.cxx.Library('evobot_mm')
+
+library.compiler.includes += include_paths
 
 library.sources += [
     'Detour/Source/DetourNavMeshQuery.cpp',

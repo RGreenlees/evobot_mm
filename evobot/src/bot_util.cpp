@@ -360,8 +360,6 @@ void BotTakeDamage(bot_t* pBot, int damageTaken, edict_t* aggressor)
 			}
 		}
 
-		//UTIL_DrawLine(clients[0], pBot->pEdict->v.origin, pBot->TrackedEnemies[aggressorIndex].LastSeenLocation, 5.0f);
-
 		pBot->TrackedEnemies[aggressorIndex].LastSeenVelocity = aggressor->v.velocity;
 		pBot->TrackedEnemies[aggressorIndex].bIsAwareOfPlayer = true;
 		pBot->TrackedEnemies[aggressorIndex].bHasLOS = true;

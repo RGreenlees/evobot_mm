@@ -506,11 +506,17 @@ void MarineAssaultSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 void MarineSetSecondaryTask(bot_t* pBot, bot_task* Task)
 {
+	// Don't interrupt a build task if we're doing one. We don't want unfinished structures being left lying around
+	if (Task->TaskType == TASK_BUILD) { return; }
+
+
 	if (PlayerHasWeapon(pBot->pEdict, WEAPON_MARINE_MINES))
 	{
 		if (Task->TaskType == TASK_PLACE_MINE) { return; }
 
-		edict_t* UnminedStructure = UTIL_GetNearestUnminedStructureOfType(STRUCTURE_MARINE_PHASEGATE, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(30.0f), true);
+		Vector CommChairLocation = UTIL_GetCommChairLocation();
+
+		edict_t* UnminedStructure = UTIL_GetFurthestUnminedStructureOfType(STRUCTURE_MARINE_PHASEGATE, CommChairLocation, UTIL_MetresToGoldSrcUnits(500.0f), false);
 
 		if (!FNullEnt(UnminedStructure))
 		{
@@ -518,7 +524,7 @@ void MarineSetSecondaryTask(bot_t* pBot, bot_task* Task)
 			return;
 		}
 
-		UnminedStructure = UTIL_GetNearestUnminedStructureOfType(STRUCTURE_MARINE_ANYTURRETFACTORY, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(30.0f), true);
+		UnminedStructure = UTIL_GetNearestUnminedStructureOfType(STRUCTURE_MARINE_INFANTRYPORTAL, CommChairLocation, UTIL_MetresToGoldSrcUnits(10.0f), true);
 
 		if (!FNullEnt(UnminedStructure))
 		{
@@ -526,7 +532,7 @@ void MarineSetSecondaryTask(bot_t* pBot, bot_task* Task)
 			return;
 		}
 
-		UnminedStructure = UTIL_GetNearestUnminedStructureOfType(STRUCTURE_MARINE_ARMSLAB, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(30.0f), true);
+		UnminedStructure = UTIL_GetFurthestUnminedStructureOfType(STRUCTURE_MARINE_ANYTURRETFACTORY, CommChairLocation, UTIL_MetresToGoldSrcUnits(100.0f), true);
 
 		if (!FNullEnt(UnminedStructure))
 		{
@@ -534,16 +540,30 @@ void MarineSetSecondaryTask(bot_t* pBot, bot_task* Task)
 			return;
 		}
 
-		UnminedStructure = UTIL_GetNearestUnminedStructureOfType(STRUCTURE_MARINE_RESTOWER, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(30.0f), true);
+		UnminedStructure = UTIL_GetNearestUnminedStructureOfType(STRUCTURE_MARINE_ARMSLAB, CommChairLocation, UTIL_MetresToGoldSrcUnits(100.0f), true);
 
 		if (!FNullEnt(UnminedStructure))
 		{
 			TASK_SetMineStructureTask(pBot, Task, UnminedStructure, false);
 			return;
 		}
-	}
 
-	if (Task->TaskType == TASK_BUILD) { return; }
+		UnminedStructure = UTIL_GetNearestUnminedStructureOfType(STRUCTURE_MARINE_OBSERVATORY, CommChairLocation, UTIL_MetresToGoldSrcUnits(100.0f), true);
+
+		if (!FNullEnt(UnminedStructure))
+		{
+			TASK_SetMineStructureTask(pBot, Task, UnminedStructure, false);
+			return;
+		}
+
+		UnminedStructure = UTIL_GetFurthestUnminedStructureOfType(STRUCTURE_MARINE_RESTOWER, CommChairLocation, UTIL_MetresToGoldSrcUnits(100.0f), true);
+
+		if (!FNullEnt(UnminedStructure))
+		{
+			TASK_SetMineStructureTask(pBot, Task, UnminedStructure, false);
+			return;
+		}
+	}	
 
 	int MarineNavProfile = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
 

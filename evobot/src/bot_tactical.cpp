@@ -2495,6 +2495,32 @@ edict_t* UTIL_GetNearestUnminedStructureOfType(NSStructureType StructureType, co
 	return Result;
 }
 
+edict_t* UTIL_GetFurthestUnminedStructureOfType(NSStructureType StructureType, const Vector SearchLocation, const float SearchRadius, bool bAllowPhaseDist)
+{
+	edict_t* Result = nullptr;
+	float DistSq = sqrf(SearchRadius);
+	float MinDist = 0.0f;
+
+	for (auto& it : MarineBuildableStructureMap)
+	{
+		if (!it.second.bOnNavmesh || !it.second.bIsReachableMarine || !it.second.bFullyConstructed) { continue; }
+		if (!UTIL_StructureTypesMatch(StructureType, it.second.StructureType)) { continue; }
+
+		if (UTIL_GetNumPlacedStructuresOfTypeInRadius(STRUCTURE_MARINE_DEPLOYEDMINE, it.second.Location, UTIL_MetresToGoldSrcUnits(2.0f)) >= 4) { continue; }
+
+		float ThisDist = (bAllowPhaseDist) ? UTIL_GetPhaseDistanceBetweenPointsSq(it.second.Location, SearchLocation) : vDist2DSq(it.second.Location, SearchLocation);
+
+		if (ThisDist <= DistSq && (FNullEnt(Result) || ThisDist > MinDist))
+		{
+			Result = it.second.edict;
+			MinDist = ThisDist;
+		}
+
+	}
+
+	return Result;
+}
+
 bool UTIL_UnminedStructureOfTypeExists(NSStructureType StructureType)
 {
 	for (auto& it : MarineBuildableStructureMap)
