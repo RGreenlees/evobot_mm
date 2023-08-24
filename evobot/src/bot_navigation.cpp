@@ -6408,7 +6408,7 @@ Vector UTIL_GetFurthestVisiblePointOnPath(const bot_t* pBot)
 	return pBot->BotNavInfo.CurrentPath[lastVisiblePathPoint].Location;
 }
 
-Vector UTIL_GetFurthestVisiblePointOnPath(const Vector ViewerLocation, const bot_path_node* path, const int pathSize)
+Vector UTIL_GetFurthestVisiblePointOnPath(const Vector ViewerLocation, const bot_path_node* path, const int pathSize, bool bPrecise)
 {
 	if (pathSize == 0) { return ZERO_VECTOR; }
 
@@ -6419,7 +6419,71 @@ Vector UTIL_GetFurthestVisiblePointOnPath(const Vector ViewerLocation, const bot
 
 		if (UTIL_QuickTrace(NULL, ViewerLocation, path[i].Location))
 		{
-			return path[i].Location;
+			if (!bPrecise || i == (pathSize - 1))
+			{
+				return path[i].Location;
+			}
+			else
+			{
+				Vector FromLoc = path[i].Location;
+				Vector ToLoc = path[i + 1].Location;
+
+				Vector Dir = UTIL_GetVectorNormal(ToLoc - FromLoc);
+
+				float Dist = vDist3D(FromLoc, ToLoc);
+				int Steps = (int)floorf(Dist / 50.0f);
+
+				if (Steps == 0) { return FromLoc; }
+
+				Vector FinalView = FromLoc;
+				Vector ThisView = FromLoc + (Dir * 50.0f);
+
+				for (int i = 0; i < Steps; i++)
+				{
+					if (UTIL_QuickTrace(NULL, ViewerLocation, ThisView))
+					{
+						FinalView = ThisView;
+					}
+
+					ThisView = ThisView + (Dir * 50.0f);
+				}
+
+				return FinalView;
+			}
+		}
+		else
+		{
+			if (bPrecise && i < (pathSize - 1))
+			{
+				Vector FromLoc = path[i].Location;
+				Vector ToLoc = path[i + 1].Location;
+
+				Vector Dir = UTIL_GetVectorNormal(ToLoc - FromLoc);
+
+				float Dist = vDist3D(FromLoc, ToLoc);
+				int Steps = (int)floorf(Dist / 50.0f);
+
+				if (Steps == 0) { continue; }
+
+				Vector FinalView = ZERO_VECTOR;
+				Vector ThisView = FromLoc + (Dir * 50.0f);
+
+				for (int i = 0; i < Steps; i++)
+				{
+					if (UTIL_QuickTrace(NULL, ViewerLocation, ThisView))
+					{
+						FinalView = ThisView;
+					}
+
+					ThisView = ThisView + (Dir * 50.0f);
+				}
+
+				if (FinalView != ZERO_VECTOR)
+				{
+					return FinalView;
+				}
+				
+			}
 		}
 	}
 

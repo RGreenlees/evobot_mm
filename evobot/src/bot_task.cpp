@@ -956,7 +956,10 @@ void BotProgressMoveTask(bot_t* pBot, bot_task* Task)
 
 	if (IsPlayerMarine(pBot->pEdict))
 	{
-		BotReloadWeapons(pBot);
+		if (gpGlobals->time - pBot->LastCombatTime > 5.0f)
+		{
+			BotReloadWeapons(pBot);
+		}
 	}
 }
 
@@ -1511,7 +1514,10 @@ void MarineProgressBuildTask(bot_t* pBot, bot_task* Task)
 
 	if (IsPlayerMarine(pBot->pEdict))
 	{
-		BotReloadWeapons(pBot);
+		if (gpGlobals->time - pBot->LastCombatTime > 5.0f)
+		{
+			BotReloadWeapons(pBot);
+		}
 	}
 
 	if (vDist2DSq(pBot->pEdict->v.origin, Task->TaskTarget->v.origin) < sqrf(UTIL_MetresToGoldSrcUnits(5.0f)))
@@ -1525,7 +1531,10 @@ void BotProgressGuardTask(bot_t* pBot, bot_task* Task)
 {
 	if (IsPlayerMarine(pBot->pEdict))
 	{
-		BotReloadWeapons(pBot);
+		if (gpGlobals->time - pBot->LastCombatTime > 5.0f)
+		{
+			BotReloadWeapons(pBot);
+		}
 	}
 
 	if (vDist2DSq(pBot->pEdict->v.origin, Task->TaskLocation) > sqrf(UTIL_MetresToGoldSrcUnits(5.0f)))
@@ -2096,7 +2105,7 @@ void AlienProgressCapResNodeTask(bot_t* pBot, bot_task* Task)
 
 void BotProgressTask(bot_t* pBot, bot_task* Task)
 {
-	if (!Task) { return; }
+	if (!Task || Task->TaskType == TASK_NONE) { return; }
 
 	switch (Task->TaskType)
 	{
@@ -2327,7 +2336,10 @@ void MarineProgressCapResNodeTask(bot_t* pBot, bot_task* Task)
 	{
 		MoveTo(pBot, Task->TaskLocation, MOVESTYLE_NORMAL);
 
-		BotReloadWeapons(pBot);
+		if (gpGlobals->time - pBot->LastCombatTime > 5.0f)
+		{
+			BotReloadWeapons(pBot);
+		}
 
 		return;
 	}
@@ -2616,6 +2628,8 @@ char* UTIL_TaskTypeToChar(const BotTaskType TaskType)
 		return "Reinforce Structure";
 	case TASK_SECURE_HIVE:
 		return "Secure Hive";
+	case TASK_PLACE_MINE:
+		return "Place Mine";
 	default:
 		return "INVALID";
 	}

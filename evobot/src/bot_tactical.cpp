@@ -4968,6 +4968,8 @@ char* UTIL_BotRoleToChar(const BotRole Role)
 		return "Resource Capper";
 	case BOT_ROLE_ASSAULT:
 		return "Assault";
+	case BOT_ROLE_BOMBARDIER:
+		return "Bombardier";
 	default:
 		return "INVALID";
 	}

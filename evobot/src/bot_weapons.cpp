@@ -427,16 +427,16 @@ NSWeapon GetBotAlienPrimaryWeapon(const bot_t* pBot)
 	return WEAPON_NONE;
 }
 
-Vector UTIL_GetGrenadeThrowTarget(bot_t* pBot, const Vector TargetLocation, const float ExplosionRadius)
+Vector UTIL_GetGrenadeThrowTarget(edict_t* Player, const Vector TargetLocation, const float ExplosionRadius, bool bPrecise)
 {
-	if (UTIL_PlayerHasLOSToLocation(pBot->pEdict, TargetLocation, UTIL_MetresToGoldSrcUnits(10.0f)))
+	if (UTIL_PlayerHasLOSToLocation(Player, TargetLocation, UTIL_MetresToGoldSrcUnits(10.0f)))
 	{
 		return TargetLocation;
 	}
 
-	if (UTIL_PointIsDirectlyReachable(pBot->pEdict->v.origin, TargetLocation))
+	if (UTIL_PointIsDirectlyReachable(Player->v.origin, TargetLocation))
 	{
-		Vector Orientation = UTIL_GetVectorNormal(pBot->pEdict->v.origin - TargetLocation);
+		Vector Orientation = UTIL_GetVectorNormal(Player->v.origin - TargetLocation);
 
 		Vector NewSpot = TargetLocation + (Orientation * UTIL_MetresToGoldSrcUnits(1.5f));
 
@@ -453,18 +453,18 @@ Vector UTIL_GetGrenadeThrowTarget(bot_t* pBot, const Vector TargetLocation, cons
 	bot_path_node CheckPath[MAX_PATH_SIZE];
 	int PathSize = 0;
 
-	dtStatus Status = FindPathClosestToPoint(ALL_NAV_PROFILE, pBot->pEdict->v.origin, TargetLocation, CheckPath, &PathSize, ExplosionRadius);
+	dtStatus Status = FindPathClosestToPoint(ALL_NAV_PROFILE, Player->v.origin, TargetLocation, CheckPath, &PathSize, ExplosionRadius);
 
 	if (dtStatusSucceed(Status))
 	{
-		Vector FurthestPointVisible = UTIL_GetFurthestVisiblePointOnPath(pBot->CurrentEyePosition, CheckPath, PathSize);
+		Vector FurthestPointVisible = UTIL_GetFurthestVisiblePointOnPath(GetPlayerEyePosition(Player), CheckPath, PathSize, bPrecise);
 
 		if (vDist3DSq(FurthestPointVisible, TargetLocation) <= sqrf(ExplosionRadius))
 		{
 			return FurthestPointVisible;
 		}
 
-		Vector ThrowDir = UTIL_GetVectorNormal(FurthestPointVisible - pBot->pEdict->v.origin);
+		Vector ThrowDir = UTIL_GetVectorNormal(FurthestPointVisible - Player->v.origin);
 
 		Vector LineEnd = FurthestPointVisible + (ThrowDir * UTIL_MetresToGoldSrcUnits(5.0f));
 
@@ -473,7 +473,7 @@ Vector UTIL_GetGrenadeThrowTarget(bot_t* pBot, const Vector TargetLocation, cons
 		ClosestPointInTrajectory = UTIL_ProjectPointToNavmesh(ClosestPointInTrajectory);
 		ClosestPointInTrajectory.z += 10.0f;
 
-		if (vDist2DSq(ClosestPointInTrajectory, TargetLocation) < sqrf(ExplosionRadius) && UTIL_PlayerHasLOSToLocation(pBot->pEdict, ClosestPointInTrajectory, UTIL_MetresToGoldSrcUnits(10.0f)) && UTIL_PointIsDirectlyReachable(ClosestPointInTrajectory, TargetLocation))
+		if (vDist2DSq(ClosestPointInTrajectory, TargetLocation) < sqrf(ExplosionRadius) && UTIL_PlayerHasLOSToLocation(Player, ClosestPointInTrajectory, UTIL_MetresToGoldSrcUnits(10.0f)) && UTIL_PointIsDirectlyReachable(ClosestPointInTrajectory, TargetLocation))
 		{
 			return ClosestPointInTrajectory;
 		}
@@ -491,7 +491,7 @@ Vector UTIL_GetGrenadeThrowTarget(bot_t* pBot, const Vector TargetLocation, cons
 NSWeapon BotMarineChooseBestWeapon(bot_t* pBot, edict_t* target)
 {
 
-	if (!target)
+	if (FNullEnt(target))
 	{
 		if (BotGetPrimaryWeaponClipAmmo(pBot) > 0 || BotGetPrimaryWeaponAmmoReserve(pBot) > 0)
 		{
@@ -510,6 +510,21 @@ NSWeapon BotMarineChooseBestWeapon(bot_t* pBot, edict_t* target)
 	if (IsEdictPlayer(target))
 	{
 		float DistFromEnemy = vDist2DSq(pBot->pEdict->v.origin, target->v.origin);
+
+		if (GetBotMarinePrimaryWeapon(pBot) == WEAPON_MARINE_GL)
+		{
+			if (BotGetPrimaryWeaponClipAmmo(pBot) > 0 && DistFromEnemy > sqrf(UTIL_MetresToGoldSrcUnits(5.0f)))
+			{
+				return WEAPON_MARINE_GL;
+			}
+
+			if (BotGetSecondaryWeaponClipAmmo(pBot) > 0)
+			{
+				return GetBotMarineSecondaryWeapon(pBot);
+			}
+
+			return WEAPON_MARINE_KNIFE;
+		}
 
 		if (DistFromEnemy <= sqrf(UTIL_MetresToGoldSrcUnits(2.0f)))
 		{

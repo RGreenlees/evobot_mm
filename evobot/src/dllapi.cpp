@@ -48,6 +48,7 @@
 #include "bot_task.h"
 #include "bot_bsp.h"
 #include "bot_commander.h"
+#include "bot_weapons.h"
 
 extern int m_spriteTexture;
 
@@ -144,13 +145,22 @@ void ClientCommand(edict_t* pEntity)
 		RETURN_META(MRES_SUPERCEDE);
 	}
 
-	if (FStrEq(pcmd, "testbackpath"))
+	if (FStrEq(pcmd, "grenadetest"))
 	{
-		Vector Result = DEBUG_FindClosestPointBackOnPath(pEntity);
+		edict_t* ResTower = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_ALIEN_RESTOWER, pEntity->v.origin, UTIL_MetresToGoldSrcUnits(500.0f), true, false);
 
-		if (Result != ZERO_VECTOR)
+		if (!FNullEnt(ResTower))
 		{
-			UTIL_DrawLine(pEntity, pEntity->v.origin, Result, 5.0f);
+			Vector GrenLoc = UTIL_GetGrenadeThrowTarget(pEntity, ResTower->v.origin, UTIL_MetresToGoldSrcUnits(3.0f), true);
+
+			if (GrenLoc != ZERO_VECTOR)
+			{
+				UTIL_DrawLine(pEntity, pEntity->v.origin, GrenLoc, 10.0f);
+			}
+			else
+			{
+				UTIL_SayText("No Grenade Location\n", pEntity);
+			}
 		}
 
 		RETURN_META(MRES_SUPERCEDE);
