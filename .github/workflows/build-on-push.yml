@@ -1,0 +1,94 @@
+name: Build on Push
+
+# Workflow is triggered when a push is made to ANY branch or on pull request open/reopen!
+on:
+  push:
+  pull_request:
+    types: [opened, reopened]
+
+jobs:
+  build_main:
+    name: Build for ${{ matrix.os_short }} (${{ matrix.type }})
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-20.04
+          - ubuntu-latest
+          - windows-latest
+        type: [ optimized, debug ]
+        include:
+          - os: ubuntu-latest
+            os_short: linux-latest
+            binary_ext: so
+            debug_ext: dbg
+            cc: clang-14
+            cxx: clang++-14
+
+          - os: ubuntu-20.04
+            os_short: linux-old
+            binary_ext: so
+            debug_ext: dbg
+            cc: clang-9
+            cxx: clang++-9
+
+          - os: windows-latest
+            os_short: windows-latest
+            binary_ext: dll
+            debug_ext: pdb
+            cc: not-used
+            cxx: not-used
+          - type: optimized
+            ambuild_params: "--enable-optimize --symbol-files"
+          - type: debug
+            ambuild_params: "--enable-debug"
+
+    steps:
+    - name: Install (Linux)
+      if: runner.os == 'Linux'
+      run: |
+        sudo dpkg --add-architecture i386
+        sudo apt-get update
+        sudo apt-get install -y ${{ matrix.cc }} ${{ matrix.cxx }} g++-multilib
+        echo "CC=${{ matrix.cc }}" >> $GITHUB_ENV
+        echo "CXX=${{ matrix.cxx }}" >> $GITHUB_ENV
+
+    - name: Setup MSBuild (Windows)
+      if: runner.os == 'Windows'
+      uses: microsoft/setup-msbuild@v1.3.1
+
+    - name: Setup Python
+      uses: actions/setup-python@v4.7.0
+      with:
+        python-version: '3.11'
+
+    - name: Setup ambuild
+      run: |
+        python -m pip install wheel
+        pip install git+https://github.com/alliedmodders/ambuild
+
+    - name: Fetch Evobot MM
+      uses: actions/checkout@v3.6.0
+      with:
+        path: evobot_mm
+
+    - name: Build Files
+      working-directory: evobot_mm
+      run: |
+        mkdir build
+        cd build
+        python3 ../configure.py ${{ matrix.ambuild_params }}
+        ambuild
+
+    - uses: benjlevesque/short-sha@v2.2
+      id: short-sha
+
+    - name: Upload Build Artifacts
+      uses: actions/upload-artifact@v3.1.2
+      with:
+        name: evobot_mm-${{ matrix.os_short }}-${{ matrix.type }}-${{ steps.short-sha.outputs.sha }}
+        path: |
+            evobot_mm/build/**/*.${{ matrix.binary_ext }}
+            evobot_mm/build/**/*.${{ matrix.debug_ext }}
