@@ -391,7 +391,7 @@ float clampi(int input, int inMin, int inMax)
 
 Vector GetPitchForProjectile(Vector LaunchPoint, Vector TargetPoint, const float ProjectileSpeed, const float Gravity)
 {
-	const Vector FlightDelta = TargetPoint - LaunchPoint;
+	/*const Vector FlightDelta = TargetPoint - LaunchPoint;
 	const Vector DirXY = UTIL_GetVectorNormal2D(FlightDelta);
 	const float DeltaXY = vSize2D(FlightDelta);
 
@@ -439,9 +439,41 @@ Vector GetPitchForProjectile(Vector LaunchPoint, Vector TargetPoint, const float
 	// final answer!
 	Vector OutTossVelocity = (DirXY * MagXY) + (UP_VECTOR * MagZ * ZSign);
 
-	return OutTossVelocity;
+	return OutTossVelocity;*/
+
+	double start_x = LaunchPoint.x;
+	double start_y = LaunchPoint.y;
+	double start_z = LaunchPoint.z;
+	double target_x = TargetPoint.x;
+	double target_y = TargetPoint.y;
+	double target_z = TargetPoint.z;
+
+	double x = target_x - start_x;
+	double y = target_y - start_y;
+	double z = target_z - start_z;
+
+	double range = sqrt(x * x + y * y);
+
+	double discriminant = pow(ProjectileSpeed, 4) - Gravity * (Gravity * pow(range, 2) + 2 * z * pow(ProjectileSpeed, 2));
+
+	if (discriminant < 0)
+	{
+		return ZERO_VECTOR;
+	}
+
+	double launch_angle = atan((pow(ProjectileSpeed, 2) - sqrt(discriminant)) / (Gravity * range));
+
+	// Calculate the components of the unit vector
+	double unit_vector_x = cos(launch_angle) * cos(atan2(y, x));
+	double unit_vector_y = cos(launch_angle) * sin(atan2(y, x));
+	double unit_vector_z = sin(launch_angle);
+
+	Vector LaunchVector = Vector(unit_vector_x, unit_vector_y, unit_vector_z);
+	return LaunchVector;
 
 }
+
+
 
 void UTIL_AnglesToVector(const Vector angles, Vector* fwd, Vector* right, Vector* up)
 {

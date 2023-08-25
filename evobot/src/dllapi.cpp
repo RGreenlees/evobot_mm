@@ -147,7 +147,7 @@ void ClientCommand(edict_t* pEntity)
 
 	if (FStrEq(pcmd, "grenadetest"))
 	{
-		edict_t* ResTower = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_ALIEN_RESTOWER, pEntity->v.origin, UTIL_MetresToGoldSrcUnits(500.0f), true, false);
+		edict_t* ResTower = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_ALIEN_OFFENCECHAMBER, pEntity->v.origin, UTIL_MetresToGoldSrcUnits(500.0f), true, false);
 
 		if (!FNullEnt(ResTower))
 		{

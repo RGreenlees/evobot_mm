@@ -763,9 +763,7 @@ void BotShootLocation(bot_t* pBot, NSWeapon AttackWeapon, const Vector TargetLoc
 	if (CurrentWeapon == WEAPON_MARINE_GL || CurrentWeapon == WEAPON_MARINE_GRENADE)
 	{
 		Vector AimLocation = TargetLocation;
-		Vector NewAimAngle = GetPitchForProjectile(pBot->CurrentEyePosition, AimLocation, 800.0f, 640.0f);
-
-		NewAimAngle = UTIL_GetVectorNormal(NewAimAngle);
+		Vector NewAimAngle = GetPitchForProjectile(pBot->CurrentEyePosition, AimLocation, UTIL_GetProjectileVelocityForWeapon(CurrentWeapon), GOLDSRC_GRAVITY);
 
 		AimLocation = pBot->CurrentEyePosition + (NewAimAngle * 200.0f);
 
@@ -809,6 +807,7 @@ void BotShootLocation(bot_t* pBot, NSWeapon AttackWeapon, const Vector TargetLoc
 	float AimDot = UTIL_GetDotProduct(AimDir, TargetAimDir);
 
 	float MinAcceptableAccuracy = (CurrentWeapon == WEAPON_LERK_SPORES || CurrentWeapon == WEAPON_LERK_UMBRA) ? 0.8f : 0.9f;
+	if (CurrentWeapon == WEAPON_MARINE_GRENADE || CurrentWeapon == WEAPON_MARINE_GL) { MinAcceptableAccuracy = 0.95f; }
 
 	if (AimDot >= MinAcceptableAccuracy)
 	{
@@ -940,11 +939,9 @@ void BotShootTarget(bot_t* pBot, NSWeapon AttackWeapon, edict_t* Target)
 	{
 		Vector AimLocation = UTIL_GetCentreOfEntity(Target);
 
-		float ProjectileVelocity = (CurrentWeapon == WEAPON_GORGE_BILEBOMB) ? 750.0f : 800.0f;
+		float ProjectileVelocity = UTIL_GetProjectileVelocityForWeapon(CurrentWeapon);
 
-		Vector NewAimAngle = GetPitchForProjectile(pBot->CurrentEyePosition, AimLocation, ProjectileVelocity, 640.0f);
-
-		NewAimAngle = UTIL_GetVectorNormal(NewAimAngle);
+		Vector NewAimAngle = GetPitchForProjectile(pBot->CurrentEyePosition, AimLocation, ProjectileVelocity, GOLDSRC_GRAVITY);
 
 		AimLocation = pBot->CurrentEyePosition + (NewAimAngle * 200.0f);
 
@@ -1022,13 +1019,10 @@ void BombardierAttackTarget(bot_t* pBot, edict_t* Target)
 	{
 		if (vDist3DSq(pBot->pEdict->v.origin, BombTarget->v.origin) < sqrf(UTIL_MetresToGoldSrcUnits(5.0f)))
 		{
-			if (UTIL_QuickTrace(pBot->pEdict, pBot->CurrentEyePosition, UTIL_GetCentreOfEntity(BombTarget)))
-			{
-				BotLookAt(pBot, BombTarget);
-				MoveTo(pBot, UTIL_GetCommChairLocation(), MOVESTYLE_NORMAL);
-				return;
-			}
+			Vector BackDir = UTIL_GetVectorNormal2D(pBot->pEdict->v.origin - BombTarget->v.origin);
+			pBot->desiredMovementDir = BackDir;
 		}
+
 		Vector GrenadeLoc = UTIL_GetGrenadeThrowTarget(pBot->pEdict, BombTarget->v.origin, UTIL_MetresToGoldSrcUnits(5.0f), true);
 
 		if (GrenadeLoc != ZERO_VECTOR)
@@ -1242,9 +1236,6 @@ void BotReloadWeapons(bot_t* pBot)
 
 void BotThrowGrenadeAtTarget(bot_t* pBot, const Vector TargetPoint)
 {
-	float ProjectileSpeed = 800.0f;
-	float ProjectileGravity = 640.0f;
-
 	if (PlayerHasWeapon(pBot->pEdict, WEAPON_MARINE_GL) && (BotGetPrimaryWeaponClipAmmo(pBot) > 0 || BotGetPrimaryWeaponAmmoReserve(pBot) > 0))
 	{
 		pBot->DesiredCombatWeapon = WEAPON_MARINE_GL;
@@ -1260,14 +1251,8 @@ void BotThrowGrenadeAtTarget(bot_t* pBot, const Vector TargetPoint)
 		return;
 	}
 
-	if (pBot->DesiredCombatWeapon == WEAPON_MARINE_GL)
-	{
-		// I *think* the grenade launcher projectiles have lower gravity than a thrown grenade, but the same velocity.
-		// Lower gravity means the bot has to aim lower as it has a flatter arc. Seems to work in practice anyway...
-		ProjectileGravity = 400.0f;
-	}
 
-	Vector ThrowAngle = GetPitchForProjectile(pBot->CurrentEyePosition, TargetPoint, ProjectileSpeed, ProjectileGravity);
+	Vector ThrowAngle = GetPitchForProjectile(pBot->CurrentEyePosition, TargetPoint, UTIL_GetProjectileVelocityForWeapon(GetBotCurrentWeapon(pBot)), GOLDSRC_GRAVITY);
 
 	ThrowAngle = UTIL_GetVectorNormal(ThrowAngle);
 

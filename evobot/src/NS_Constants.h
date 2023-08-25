@@ -132,6 +132,8 @@ const int kGestateBaseArmor = 150;
 const int kSpitVelocity = 1500;
 const int kShootCloudVelocity = 1100;
 const int kAcidRocketVelocity = 2000;
+const int kGrenadeForce = 800;
+const int kBileBombVelocity = 650;
 
 const float kBiteRange = 80.0f;
 const float kBite2Range = 80.0f; // Lerk bite range

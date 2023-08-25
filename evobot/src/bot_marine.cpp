@@ -229,6 +229,10 @@ void BotMarineSetPrimaryTask(bot_t* pBot, bot_task* Task)
 
 void MarineBombardierSetPrimaryTask(bot_t* pBot, bot_task* Task)
 {
+	// This is a bit of a hacky way of ensuring bot doesn't fall into a loop of head for hive -> spot offence chamber -> back up to kill it and lose sight -> head for hive
+	// A better option is to have the bot head for hive and target offence chambers that are along their path rather than base it on sight
+	if (Task->TaskType == TASK_ATTACK && GetStructureTypeFromEdict(Task->TaskTarget) == STRUCTURE_ALIEN_OFFENCECHAMBER) { return; }
+
 	edict_t* DangerTurret = BotGetNearestDangerTurret(pBot, UTIL_MetresToGoldSrcUnits(15.0f));
 
 	if (!FNullEnt(DangerTurret))
@@ -1315,6 +1319,45 @@ void MarineBombardierCombatThink(bot_t* pBot)
 		}
 	}
 
+	bool bNeedHealing = (pBot->pEdict->v.health < 80.0f);
+
+	if (bNeedHealing)
+	{
+		edict_t* NearestHealthPack = UTIL_GetNearestItemOfType(DEPLOYABLE_ITEM_MARINE_HEALTHPACK, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(10.0f));
+
+		if (!FNullEnt(NearestHealthPack))
+		{
+			float Dist = vDist2DSq(pBot->pEdict->v.origin, NearestHealthPack->v.origin);
+			float EnemyDist = vDist2DSq(CurrentEnemy->v.origin, NearestHealthPack->v.origin);
+
+			if (Dist < EnemyDist)
+			{
+				MoveTo(pBot, NearestHealthPack->v.origin, MOVESTYLE_NORMAL);
+				return;
+			}
+
+		}
+	}
+
+	bool bNeedAmmo = (BotGetPrimaryWeaponAmmoReserve(pBot) < BotGetPrimaryWeaponMaxClipSize(pBot));
+
+	if (bNeedAmmo)
+	{
+		edict_t* NearestAmmoPack = UTIL_GetNearestItemOfType(DEPLOYABLE_ITEM_MARINE_AMMO, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(10.0f));
+
+		if (!FNullEnt(NearestAmmoPack))
+		{
+			float Dist = vDist2DSq(pBot->pEdict->v.origin, NearestAmmoPack->v.origin);
+			float EnemyDist = vDist2DSq(CurrentEnemy->v.origin, NearestAmmoPack->v.origin);
+
+			if (Dist < EnemyDist)
+			{
+				MoveTo(pBot, NearestAmmoPack->v.origin, MOVESTYLE_NORMAL);
+				return;
+			}
+		}
+	}
+
 	edict_t* CoverPlayer = UTIL_GetClosestPlayerOnTeamWithLOS(pBot->pEdict->v.origin, MARINE_TEAM, UTIL_MetresToGoldSrcUnits(10.0f), pBot->pEdict);
 
 	if (FNullEnt(CoverPlayer))
@@ -1341,6 +1384,7 @@ void MarineBombardierCombatThink(bot_t* pBot)
 		else
 		{
 			BotGuardLocation(pBot, pBot->pEdict->v.origin);
+			BotLookAt(pBot, TrackedEnemyRef->LastSeenLocation);
 		}
 		
 	}

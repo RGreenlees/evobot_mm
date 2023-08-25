@@ -40,6 +40,11 @@ float UTIL_GetProjectileVelocityForWeapon(const NSWeapon Weapon)
 		return (float)kShootCloudVelocity;
 	case WEAPON_FADE_ACIDROCKET:
 		return (float)kAcidRocketVelocity;
+	case WEAPON_GORGE_BILEBOMB:
+		return (float)kBileBombVelocity;
+	case WEAPON_MARINE_GRENADE:
+	case WEAPON_MARINE_GL:
+		return (float)kGrenadeForce;
 	default:
 		return 0.0f; // Hitscan. We don't bother with bile bomb as it's so short range that it doesn't really need leading the target
 	}
