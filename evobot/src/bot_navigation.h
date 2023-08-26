@@ -444,7 +444,7 @@ bool UTIL_PointIsReachable(const int NavProfileIndex, const Vector FromLocation,
 // If the bot has a path, it will work out how far along the path it can see and return the furthest point. Used so that the bot looks ahead along the path rather than just at its next path point
 Vector UTIL_GetFurthestVisiblePointOnPath(const bot_t* pBot);
 // For the given viewer location and path, will return the furthest point along the path the viewer could see
-Vector UTIL_GetFurthestVisiblePointOnPath(const Vector ViewerLocation, const bot_path_node* path, const int pathSize);
+Vector UTIL_GetFurthestVisiblePointOnPath(const Vector ViewerLocation, const bot_path_node* path, const int pathSize, bool bPrecise);
 
 
 // Returns the nearest nav mesh poly reference for the edict's current world position

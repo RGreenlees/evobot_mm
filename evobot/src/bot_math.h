@@ -21,7 +21,7 @@ static const Vector FWD_VECTOR = Vector(0.0f, 1.0f, 0.0f); // Normalized "forwar
 static const float MATH_PI = 3.141592654f;
 static const float DEGREES_RADIANS_CONV = (MATH_PI / 180.0f);
 
-static const float GOLDSRC_GRAVITY = 800.0f; // Default speed of gravity in GoldSrc units per second squared
+static const float GOLDSRC_GRAVITY = 400.0f; // Default speed of gravity in GoldSrc units per second squared
 
 // Defines a frustum plane
 typedef struct _FRUSTUM_PLANE_T

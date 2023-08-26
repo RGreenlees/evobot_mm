@@ -218,10 +218,44 @@ void BotMarineSetPrimaryTask(bot_t* pBot, bot_task* Task)
 	case BOT_ROLE_ASSAULT:
 		MarineAssaultSetPrimaryTask(pBot, Task);
 		return;
+	case BOT_ROLE_BOMBARDIER:
+		MarineBombardierSetPrimaryTask(pBot, Task);
+		return;
 	default:
 		return;
 	}
 
+}
+
+void MarineBombardierSetPrimaryTask(bot_t* pBot, bot_task* Task)
+{
+	// This is a bit of a hacky way of ensuring bot doesn't fall into a loop of head for hive -> spot offence chamber -> back up to kill it and lose sight -> head for hive
+	// A better option is to have the bot head for hive and target offence chambers that are along their path rather than base it on sight
+	if (Task->TaskType == TASK_ATTACK && GetStructureTypeFromEdict(Task->TaskTarget) == STRUCTURE_ALIEN_OFFENCECHAMBER) { return; }
+
+	edict_t* DangerTurret = BotGetNearestDangerTurret(pBot, UTIL_MetresToGoldSrcUnits(15.0f));
+
+	if (!FNullEnt(DangerTurret))
+	{
+		TASK_SetAttackTask(pBot, Task, DangerTurret, false);
+		return;
+	}
+	
+	const hive_definition* SiegedHive = UTIL_GetNearestHiveUnderSiege(pBot->pEdict->v.origin);
+
+	if (SiegedHive)
+	{
+		TASK_SetAttackTask(pBot, Task, SiegedHive->edict, false);
+		return;
+	}
+
+	edict_t* NearestAlienRT = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_ALIEN_RESTOWER, UTIL_GetCommChairLocation(), UTIL_MetresToGoldSrcUnits(500.0f), true, true);
+
+	if (!FNullEnt(NearestAlienRT))
+	{
+		TASK_SetAttackTask(pBot, Task, NearestAlienRT, false);
+		return;
+	}
 }
 
 void BotMarineSetCombatModePrimaryTask(bot_t* pBot, bot_task* Task)
@@ -1011,6 +1045,12 @@ bool MarineCombatThink(bot_t* pBot)
 
 	if (pBot->CurrentEnemy < 0) { return false; }
 
+	if (GetBotMarinePrimaryWeapon(pBot) == WEAPON_MARINE_GL)
+	{
+		MarineBombardierCombatThink(pBot);
+		return true;
+	}
+
 	edict_t* CurrentEnemy = pBot->TrackedEnemies[pBot->CurrentEnemy].EnemyEdict;
 	enemy_status* TrackedEnemyRef = &pBot->TrackedEnemies[pBot->CurrentEnemy];
 
@@ -1042,7 +1082,10 @@ bool MarineCombatThink(bot_t* pBot)
 				else
 				{
 					MoveTo(pBot, Armoury->v.origin, MOVESTYLE_NORMAL);
-					BotReloadWeapons(pBot);
+					if (gpGlobals->time - TrackedEnemyRef->LastSeenTime > 5.0f)
+					{
+						BotReloadWeapons(pBot);
+					}
 				}
 				return true;
 			}
@@ -1129,7 +1172,10 @@ bool MarineCombatThink(bot_t* pBot)
 		if (LOSCheck == ATTACK_OUTOFRANGE)
 		{			
 			MoveTo(pBot, TrackedEnemyRef->LastFloorPosition, MOVESTYLE_NORMAL);
-			BotReloadWeapons(pBot);
+			if (gpGlobals->time - TrackedEnemyRef->LastSeenTime > 5.0f)
+			{
+				BotReloadWeapons(pBot);
+			}
 			return true;
 		}
 
@@ -1217,11 +1263,142 @@ bool MarineCombatThink(bot_t* pBot)
 
 		MoveTo(pBot, RetreatLocation, MOVESTYLE_NORMAL);
 
-		BotReloadWeapons(pBot);
+		if (gpGlobals->time - TrackedEnemyRef->LastSeenTime > 5.0f)
+		{
+			BotReloadWeapons(pBot);
+		}
 	}
 
 
 	return true;
+}
+
+void MarineBombardierCombatThink(bot_t* pBot)
+{
+	edict_t* pEdict = pBot->pEdict;
+
+	if (pBot->CurrentEnemy < 0) { return; }
+
+	edict_t* CurrentEnemy = pBot->TrackedEnemies[pBot->CurrentEnemy].EnemyEdict;
+	enemy_status* TrackedEnemyRef = &pBot->TrackedEnemies[pBot->CurrentEnemy];
+
+	if (!TrackedEnemyRef || FNullEnt(CurrentEnemy) || IsPlayerDead(CurrentEnemy)) { return; }
+
+	if (TrackedEnemyRef->bHasLOS)
+	{
+		NSWeapon BestWeapon = BotMarineChooseBestWeapon(pBot, CurrentEnemy);
+
+		BotShootTarget(pBot, BestWeapon, CurrentEnemy);
+
+		if (WeaponCanBeReloaded(BestWeapon) && BotGetCurrentWeaponClipAmmo(pBot) == 0)
+		{
+			BotReloadWeapons(pBot);
+		}
+
+	}
+	else
+	{
+		if (BotGetPrimaryWeaponClipAmmo(pBot) > 0 && gpGlobals->time - TrackedEnemyRef->LastSeenTime < 5.0f)
+		{
+			Vector GrenadeLoc = UTIL_GetGrenadeThrowTarget(pBot->pEdict, TrackedEnemyRef->LastSeenLocation, UTIL_MetresToGoldSrcUnits(5.0f), true);
+
+			if (GrenadeLoc != ZERO_VECTOR)
+			{
+				BotShootLocation(pBot, WEAPON_MARINE_GL, GrenadeLoc);
+				return;
+			}
+		}
+		else
+		{
+			BotLookAt(pBot, TrackedEnemyRef->LastSeenLocation);
+
+			if (gpGlobals->time - TrackedEnemyRef->LastSeenTime > 3.0f)
+			{
+				BotReloadWeapons(pBot);
+			}
+		}
+	}
+
+	bool bNeedHealing = (pBot->pEdict->v.health < 80.0f);
+
+	if (bNeedHealing)
+	{
+		edict_t* NearestHealthPack = UTIL_GetNearestItemOfType(DEPLOYABLE_ITEM_MARINE_HEALTHPACK, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(10.0f));
+
+		if (!FNullEnt(NearestHealthPack))
+		{
+			float Dist = vDist2DSq(pBot->pEdict->v.origin, NearestHealthPack->v.origin);
+			float EnemyDist = vDist2DSq(CurrentEnemy->v.origin, NearestHealthPack->v.origin);
+
+			if (Dist < EnemyDist)
+			{
+				MoveTo(pBot, NearestHealthPack->v.origin, MOVESTYLE_NORMAL);
+				return;
+			}
+
+		}
+	}
+
+	bool bNeedAmmo = (BotGetPrimaryWeaponAmmoReserve(pBot) < BotGetPrimaryWeaponMaxClipSize(pBot));
+
+	if (bNeedAmmo)
+	{
+		edict_t* NearestAmmoPack = UTIL_GetNearestItemOfType(DEPLOYABLE_ITEM_MARINE_AMMO, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(10.0f));
+
+		if (!FNullEnt(NearestAmmoPack))
+		{
+			float Dist = vDist2DSq(pBot->pEdict->v.origin, NearestAmmoPack->v.origin);
+			float EnemyDist = vDist2DSq(CurrentEnemy->v.origin, NearestAmmoPack->v.origin);
+
+			if (Dist < EnemyDist)
+			{
+				MoveTo(pBot, NearestAmmoPack->v.origin, MOVESTYLE_NORMAL);
+				return;
+			}
+		}
+	}
+
+	edict_t* CoverPlayer = UTIL_GetClosestPlayerOnTeamWithLOS(pBot->pEdict->v.origin, MARINE_TEAM, UTIL_MetresToGoldSrcUnits(10.0f), pBot->pEdict);
+
+	if (FNullEnt(CoverPlayer))
+	{
+		if (TrackedEnemyRef->bHasLOS)
+		{
+			MoveTo(pBot, UTIL_GetCommChairLocation(), MOVESTYLE_NORMAL);
+		}
+		else
+		{
+			BotGuardLocation(pBot, pBot->pEdict->v.origin);
+		}
+
+		return;
+	}
+
+	if (vDist2DSq(CoverPlayer->v.origin, CurrentEnemy->v.origin) < vDist2DSq(pBot->pEdict->v.origin, CurrentEnemy->v.origin))
+	{
+		if (vDist2DSq(pBot->pEdict->v.origin, CoverPlayer->v.origin) < sqrf(UTIL_MetresToGoldSrcUnits(3.0f)))
+		{
+			Vector MoveDir = UTIL_GetVectorNormal2D(pBot->pEdict->v.origin - CoverPlayer->v.origin);
+			pBot->desiredMovementDir = MoveDir;
+		}
+		else
+		{
+			BotGuardLocation(pBot, pBot->pEdict->v.origin);
+			BotLookAt(pBot, TrackedEnemyRef->LastSeenLocation);
+		}
+		
+	}
+	else
+	{
+		Vector EscapeLocation = pBot->BotNavInfo.TargetDestination;
+
+		if (!EscapeLocation || vDist2DSq(EscapeLocation, TrackedEnemyRef->LastSeenLocation) <= vDist2DSq(CoverPlayer->v.origin, TrackedEnemyRef->LastSeenLocation))
+		{
+			EscapeLocation = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, CoverPlayer->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
+		}
+
+		MoveTo(pBot, EscapeLocation, MOVESTYLE_HIDE);
+	}
 }
 
 void BotReceiveCommanderOrder(bot_t* pBot, AvHOrderType orderType, AvHUser3 TargetType, Vector destination)
@@ -1436,7 +1613,7 @@ void MarineHuntEnemy(bot_t* pBot, enemy_status* TrackedEnemy)
 	{
 		if (TimeSinceLastSighting < 5.0f && vDist3DSq(pBot->pEdict->v.origin, TrackedEnemy->LastSeenLocation) <= sqrf(UTIL_MetresToGoldSrcUnits(10.0f)))
 		{
-			Vector GrenadeThrowLocation = UTIL_GetGrenadeThrowTarget(pBot, TrackedEnemy->LastSeenLocation, UTIL_MetresToGoldSrcUnits(5.0f));
+			Vector GrenadeThrowLocation = UTIL_GetGrenadeThrowTarget(pBot->pEdict, TrackedEnemy->LastSeenLocation, UTIL_MetresToGoldSrcUnits(5.0f), false);
 
 			if (GrenadeThrowLocation != ZERO_VECTOR)
 			{
@@ -1494,7 +1671,6 @@ void MarineCombatModeCheckWantsAndNeeds(bot_t* pBot)
 		pBot->WantsAndNeedsTask.TaskLocation = NearestArmoury->v.origin;
 		pBot->WantsAndNeedsTask.TaskTarget = NearestArmoury;
 	}
-
 
 }
 

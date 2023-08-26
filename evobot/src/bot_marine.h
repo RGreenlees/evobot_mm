@@ -17,6 +17,7 @@ void MarineThink(bot_t* pBot);
 void MarineCombatModeThink(bot_t* pBot);
 
 bool MarineCombatThink(bot_t* pBot);
+void MarineBombardierCombatThink(bot_t* pBot);
 void MarineHuntEnemy(bot_t* pBot, enemy_status* TrackedEnemy);
 
 
@@ -30,6 +31,7 @@ void MarineSetCombatModeSecondaryTask(bot_t* pBot, bot_task* Task);
 void MarineSweeperSetPrimaryTask(bot_t* pBot, bot_task* Task);
 void MarineCapperSetPrimaryTask(bot_t* pBot, bot_task* Task);
 void MarineAssaultSetPrimaryTask(bot_t* pBot, bot_task* Task);
+void MarineBombardierSetPrimaryTask(bot_t* pBot, bot_task* Task);
 
 void MarineSweeperSetCombatModePrimaryTask(bot_t* pBot, bot_task* Task);
 void MarineAssaultSetCombatModePrimaryTask(bot_t* pBot, bot_task* Task);

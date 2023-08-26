@@ -3069,14 +3069,16 @@ void COMM_SetNextSupportAction(bot_t* CommanderBot, commander_action* Action)
 	{
 		edict_t* PrototypeLab = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_PROTOTYPELAB, UTIL_GetCommChairLocation(), UTIL_MetresToGoldSrcUnits(15.0f), true, false);
 
+		NSStructureType SpecialWeaponToDrop = (UTIL_GetNumWeaponsOfTypeInPlay(WEAPON_MARINE_GL) == 0) ? DEPLOYABLE_ITEM_MARINE_GRENADELAUNCHER : DEPLOYABLE_ITEM_MARINE_HMG;
+
 		bool bShouldDropHeavyArmour = false;
-		bool bShouldDropHMG = false;
+		bool bShouldDropWeapon = false;
 		bool bShouldDropWelder = false;
 
 		if (CommanderBot->resources > 100)
 		{
 			bShouldDropHeavyArmour = UTIL_GetItemCountOfTypeInArea(DEPLOYABLE_ITEM_MARINE_HEAVYARMOUR, PrototypeLab->v.origin, UTIL_MetresToGoldSrcUnits(5.0f)) < 3;
-			bShouldDropHMG = UTIL_GetItemCountOfTypeInArea(DEPLOYABLE_ITEM_MARINE_HMG, AdvArmoury->v.origin, UTIL_MetresToGoldSrcUnits(5.0f)) < 3;
+			bShouldDropWeapon = UTIL_GetItemCountOfTypeInArea(SpecialWeaponToDrop, AdvArmoury->v.origin, UTIL_MetresToGoldSrcUnits(5.0f)) < 3;
 			bShouldDropWelder = UTIL_GetItemCountOfTypeInArea(DEPLOYABLE_ITEM_MARINE_WELDER, AdvArmoury->v.origin, UTIL_MetresToGoldSrcUnits(5.0f)) < 3;
 		}
 		else
@@ -3084,11 +3086,11 @@ void COMM_SetNextSupportAction(bot_t* CommanderBot, commander_action* Action)
 			edict_t* MarineNeedingLoadout = UTIL_GetNearestMarineWithoutFullLoadout(AdvArmoury->v.origin, UTIL_MetresToGoldSrcUnits(10.0f));
 
 			int NumHeavyArmour = UTIL_GetItemCountOfTypeInArea(DEPLOYABLE_ITEM_MARINE_HEAVYARMOUR, PrototypeLab->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
-			int NumHMG = UTIL_GetItemCountOfTypeInArea(DEPLOYABLE_ITEM_MARINE_HMG, AdvArmoury->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
+			int NumWeapons = UTIL_GetItemCountOfTypeInArea(SpecialWeaponToDrop, AdvArmoury->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
 			int NumWelder = UTIL_GetItemCountOfTypeInArea(DEPLOYABLE_ITEM_MARINE_WELDER, AdvArmoury->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
 
 			bShouldDropHeavyArmour = (!FNullEnt(MarineNeedingLoadout) && !PlayerHasEquipment(MarineNeedingLoadout) && NumHeavyArmour == 0);
-			bShouldDropHMG = (!FNullEnt(MarineNeedingLoadout) && !PlayerHasSpecialWeapon(MarineNeedingLoadout) && NumHMG == 0);
+			bShouldDropWeapon = (!FNullEnt(MarineNeedingLoadout) && !PlayerHasSpecialWeapon(MarineNeedingLoadout) && NumWeapons == 0);
 			bShouldDropWelder = (!FNullEnt(MarineNeedingLoadout) && !PlayerHasWeapon(MarineNeedingLoadout, WEAPON_MARINE_WELDER) && NumWelder == 0);
 		}		
 
@@ -3102,12 +3104,12 @@ void COMM_SetNextSupportAction(bot_t* CommanderBot, commander_action* Action)
 			return;
 		}
 
-		if (bShouldDropHMG)
+		if (bShouldDropWeapon)
 		{
-			if (Action->ActionType == ACTION_DEPLOY && Action->StructureToBuild == DEPLOYABLE_ITEM_MARINE_HMG) { return; }
+			if (Action->ActionType == ACTION_DEPLOY && Action->StructureToBuild == SpecialWeaponToDrop) { return; }
 
 			Action->ActionType = ACTION_DEPLOY;
-			Action->StructureToBuild = DEPLOYABLE_ITEM_MARINE_HMG;
+			Action->StructureToBuild = SpecialWeaponToDrop;
 			Action->BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, AdvArmoury->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
 			return;
 		}

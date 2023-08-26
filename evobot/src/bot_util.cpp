@@ -763,9 +763,7 @@ void BotShootLocation(bot_t* pBot, NSWeapon AttackWeapon, const Vector TargetLoc
 	if (CurrentWeapon == WEAPON_MARINE_GL || CurrentWeapon == WEAPON_MARINE_GRENADE)
 	{
 		Vector AimLocation = TargetLocation;
-		Vector NewAimAngle = GetPitchForProjectile(pBot->CurrentEyePosition, AimLocation, 800.0f, 640.0f);
-
-		NewAimAngle = UTIL_GetVectorNormal(NewAimAngle);
+		Vector NewAimAngle = GetPitchForProjectile(pBot->CurrentEyePosition, AimLocation, UTIL_GetProjectileVelocityForWeapon(CurrentWeapon), GOLDSRC_GRAVITY);
 
 		AimLocation = pBot->CurrentEyePosition + (NewAimAngle * 200.0f);
 
@@ -809,6 +807,7 @@ void BotShootLocation(bot_t* pBot, NSWeapon AttackWeapon, const Vector TargetLoc
 	float AimDot = UTIL_GetDotProduct(AimDir, TargetAimDir);
 
 	float MinAcceptableAccuracy = (CurrentWeapon == WEAPON_LERK_SPORES || CurrentWeapon == WEAPON_LERK_UMBRA) ? 0.8f : 0.9f;
+	if (CurrentWeapon == WEAPON_MARINE_GRENADE || CurrentWeapon == WEAPON_MARINE_GL) { MinAcceptableAccuracy = 0.95f; }
 
 	if (AimDot >= MinAcceptableAccuracy)
 	{
@@ -940,11 +939,9 @@ void BotShootTarget(bot_t* pBot, NSWeapon AttackWeapon, edict_t* Target)
 	{
 		Vector AimLocation = UTIL_GetCentreOfEntity(Target);
 
-		float ProjectileVelocity = (CurrentWeapon == WEAPON_GORGE_BILEBOMB) ? 750.0f : 800.0f;
+		float ProjectileVelocity = UTIL_GetProjectileVelocityForWeapon(CurrentWeapon);
 
-		Vector NewAimAngle = GetPitchForProjectile(pBot->CurrentEyePosition, AimLocation, ProjectileVelocity, 640.0f);
-
-		NewAimAngle = UTIL_GetVectorNormal(NewAimAngle);
+		Vector NewAimAngle = GetPitchForProjectile(pBot->CurrentEyePosition, AimLocation, ProjectileVelocity, GOLDSRC_GRAVITY);
 
 		AimLocation = pBot->CurrentEyePosition + (NewAimAngle * 200.0f);
 
@@ -1012,6 +1009,58 @@ void BotShootTarget(bot_t* pBot, NSWeapon AttackWeapon, edict_t* Target)
 	}
 }
 
+void BombardierAttackTarget(bot_t* pBot, edict_t* Target)
+{
+	edict_t* DangerTurret = BotGetNearestDangerTurret(pBot, UTIL_MetresToGoldSrcUnits(15.0f));
+
+	edict_t* BombTarget = (!FNullEnt(DangerTurret)) ? DangerTurret : Target;
+	
+	if (!IsBotReloading(pBot))
+	{
+		if (vDist3DSq(pBot->pEdict->v.origin, BombTarget->v.origin) < sqrf(UTIL_MetresToGoldSrcUnits(5.0f)))
+		{
+			Vector BackDir = UTIL_GetVectorNormal2D(pBot->pEdict->v.origin - BombTarget->v.origin);
+			pBot->desiredMovementDir = BackDir;
+		}
+
+		Vector GrenadeLoc = UTIL_GetGrenadeThrowTarget(pBot->pEdict, BombTarget->v.origin, UTIL_MetresToGoldSrcUnits(5.0f), true);
+
+		if (GrenadeLoc != ZERO_VECTOR)
+		{
+			BotShootLocation(pBot, WEAPON_MARINE_GL, GrenadeLoc);
+		}
+		else
+		{
+			Vector AttackPoint = BombTarget->v.origin;
+
+			if (GetStructureTypeFromEdict(BombTarget) == STRUCTURE_ALIEN_HIVE)
+			{
+				const hive_definition* HiveDefinition = UTIL_GetHiveFromEdict(BombTarget);
+
+				if (HiveDefinition)
+				{
+					AttackPoint = HiveDefinition->FloorLocation;
+				}
+			}
+
+			MoveTo(pBot, AttackPoint, MOVESTYLE_NORMAL);
+		}
+
+		return;
+	}
+
+	// Back off to reload
+	if (GetStructureTypeFromEdict(BombTarget) == STRUCTURE_ALIEN_OFFENCECHAMBER && UTIL_QuickTrace(pBot->pEdict, pBot->CurrentEyePosition, UTIL_GetCentreOfEntity(BombTarget)))
+	{
+		BotLookAt(pBot, BombTarget);
+		MoveTo(pBot, UTIL_GetCommChairLocation(), MOVESTYLE_NORMAL);
+		return;
+	}
+
+
+	
+}
+
 void BotAttackTarget(bot_t* pBot, edict_t* Target)
 {
 	if (FNullEnt(Target) || (Target->v.deadflag != DEAD_NO)) { return; }
@@ -1025,6 +1074,14 @@ void BotAttackTarget(bot_t* pBot, edict_t* Target)
 	else
 	{
 		Weapon = BotAlienChooseBestWeaponForStructure(pBot, Target);
+	}
+
+	// Add special logic for grenade launchers since they aren't used like regular marine hitscan weapons
+	// This will handle things like firing from around corners, making sure they have cover from allies etc.
+	if (Weapon == WEAPON_MARINE_GL)
+	{
+		BombardierAttackTarget(pBot, Target);
+		return;
 	}
 
 	BotAttackResult AttackResult = PerformAttackLOSCheck(pBot, Weapon, Target);
@@ -1070,7 +1127,10 @@ void BotAttackTarget(bot_t* pBot, edict_t* Target)
 
 		if (IsPlayerMarine(pBot->pEdict))
 		{
-			BotReloadWeapons(pBot);
+			if (gpGlobals->time - pBot->LastCombatTime > 5.0f)
+			{
+				BotReloadWeapons(pBot);
+			}
 		}
 		
 		return;
@@ -1156,9 +1216,9 @@ void BotReloadWeapons(bot_t* pBot)
 			if (CurrentWeapon == PrimaryWeapon)
 			{
 				BotReloadCurrentWeapon(pBot);
-				
-				return;
 			}
+
+			return;
 		}
 
 		if (WeaponCanBeReloaded(SecondaryWeapon) && BotGetSecondaryWeaponClipAmmo(pBot) < BotGetSecondaryWeaponMaxClipSize(pBot) && BotGetSecondaryWeaponAmmoReserve(pBot) > 0)
@@ -1168,17 +1228,14 @@ void BotReloadWeapons(bot_t* pBot)
 			if (CurrentWeapon == SecondaryWeapon)
 			{
 				BotReloadCurrentWeapon(pBot);
-				return;
 			}
+			return;
 		}
 	}
 }
 
 void BotThrowGrenadeAtTarget(bot_t* pBot, const Vector TargetPoint)
 {
-	float ProjectileSpeed = 800.0f;
-	float ProjectileGravity = 640.0f;
-
 	if (PlayerHasWeapon(pBot->pEdict, WEAPON_MARINE_GL) && (BotGetPrimaryWeaponClipAmmo(pBot) > 0 || BotGetPrimaryWeaponAmmoReserve(pBot) > 0))
 	{
 		pBot->DesiredCombatWeapon = WEAPON_MARINE_GL;
@@ -1194,14 +1251,8 @@ void BotThrowGrenadeAtTarget(bot_t* pBot, const Vector TargetPoint)
 		return;
 	}
 
-	if (pBot->DesiredCombatWeapon == WEAPON_MARINE_GL)
-	{
-		// I *think* the grenade launcher projectiles have lower gravity than a thrown grenade, but the same velocity.
-		// Lower gravity means the bot has to aim lower as it has a flatter arc. Seems to work in practice anyway...
-		ProjectileGravity = 400.0f;
-	}
 
-	Vector ThrowAngle = GetPitchForProjectile(pBot->CurrentEyePosition, TargetPoint, ProjectileSpeed, ProjectileGravity);
+	Vector ThrowAngle = GetPitchForProjectile(pBot->CurrentEyePosition, TargetPoint, UTIL_GetProjectileVelocityForWeapon(GetBotCurrentWeapon(pBot)), GOLDSRC_GRAVITY);
 
 	ThrowAngle = UTIL_GetVectorNormal(ThrowAngle);
 
@@ -1252,7 +1303,7 @@ bool IsBotWeaponPlayingReloadAnimation(bot_t* pBot)
 	case WEAPON_MARINE_HMG:
 		return pBot->pEdict->v.weaponanim == 3;
 	case WEAPON_MARINE_GL:
-		return (pBot->pEdict->v.weaponanim == 1 || pBot->pEdict->v.weaponanim == 2 || pBot->pEdict->v.weaponanim == 4 || pBot->pEdict->v.weaponanim == 5 || pBot->pEdict->v.weaponanim == 6 || pBot->pEdict->v.weaponanim == 7);
+		return (pBot->pEdict->v.weaponanim >= 1 && pBot->pEdict->v.weaponanim <= 7);
 	default:
 		return false;
 	}
@@ -2312,21 +2363,41 @@ void DroneThink(bot_t* pBot)
 
 void CustomThink(bot_t* pBot)
 {
-	pBot->CurrentEnemy = BotGetNextEnemyTarget(pBot);
+	if (IsPlayerAlien(pBot->pEdict)) { return; }
 
-	if (pBot->CurrentEnemy > -1)
+	if (!PlayerHasWeapon(pBot->pEdict, WEAPON_MARINE_GL))
 	{
-		pBot->LastCombatTime = gpGlobals->time;
+		if (pBot->PrimaryBotTask.TaskType != TASK_GET_WEAPON)
+		{
+			edict_t* GL = UTIL_GetNearestItemOfType(DEPLOYABLE_ITEM_MARINE_GRENADELAUNCHER, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(50.0f));
 
-		if (IsPlayerMarine(pBot->pEdict))
-		{
-			MarineThink(pBot);
-		}
-		else
-		{
-			AlienThink(pBot);
+			if (!FNullEnt(GL))
+			{
+				pBot->PrimaryBotTask.TaskType = TASK_GET_WEAPON;
+				pBot->PrimaryBotTask.TaskTarget = GL;
+				pBot->PrimaryBotTask.TaskLocation = GL->v.origin;
+			}
 		}
 	}
+	else
+	{
+		if (pBot->PrimaryBotTask.TaskType != TASK_ATTACK)
+		{
+			const hive_definition* Hive = UTIL_GetNearestHiveOfStatus(pBot->pEdict->v.origin, HIVE_STATUS_BUILT);
+
+			if (Hive)
+			{
+				TASK_SetAttackTask(pBot, &pBot->PrimaryBotTask, Hive->edict, false);
+			}
+		}
+	}
+
+	if (!UTIL_IsTaskStillValid(pBot, &pBot->PrimaryBotTask))
+	{
+		UTIL_ClearBotTask(pBot, &pBot->PrimaryBotTask);
+	}
+
+	BotProgressTask(pBot, &pBot->PrimaryBotTask);
 
 }
 

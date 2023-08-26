@@ -35,7 +35,7 @@ float GetMinIdealWeaponRange(const NSWeapon Weapon);
 bool WeaponCanBeReloaded(const NSWeapon CheckWeapon);
 bool IsMeleeWeapon(const NSWeapon Weapon);
 
-Vector UTIL_GetGrenadeThrowTarget(bot_t* pBot, const Vector TargetLocation, const float ExplosionRadius);
+Vector UTIL_GetGrenadeThrowTarget(edict_t* Player, const Vector TargetLocation, const float ExplosionRadius, bool bPrecise);
 
 NSWeapon BotMarineChooseBestWeaponForStructure(bot_t* pBot, edict_t* target);
 NSWeapon BotAlienChooseBestWeaponForStructure(bot_t* pBot, edict_t* target);
