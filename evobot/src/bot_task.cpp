@@ -1047,7 +1047,7 @@ void BotProgressPickupTask(bot_t* pBot, bot_task* Task)
 			{
 				NSWeapon CurrentPrimaryWeapon = GetBotMarinePrimaryWeapon(pBot);
 
-				if (CurrentPrimaryWeapon != WEAPON_NONE && CurrentPrimaryWeapon != WEAPON_MARINE_MG)
+				if (CurrentPrimaryWeapon != WEAPON_NONE && CurrentPrimaryWeapon != UTIL_GetWeaponTypeFromEdict(Task->TaskTarget))
 				{
 					if (GetBotCurrentWeapon(pBot) != CurrentPrimaryWeapon)
 					{
