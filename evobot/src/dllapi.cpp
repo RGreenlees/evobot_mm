@@ -94,8 +94,7 @@ void ClientCommand(edict_t* pEntity)
 			{
 				if (clients[i] && bots[i].is_used && IsPlayerCommander(clients[i]))
 				{
-					//cant use GetBotPointer since it checks for FAKECLIENT and the commander does not have that flag
-					BotRef = GetBotPointerThirdParty(clients[i]);
+					BotRef = GetBotPointer(clients[i]);
 					BotEdict = clients[i];
 				}
 			}
@@ -119,8 +118,7 @@ void ClientCommand(edict_t* pEntity)
 			{
 				if (clients[i] && bots[i].is_used && IsPlayerCommander(clients[i]))
 				{
-					//cant use GetBotPointer since it checks for FAKECLIENT and the commander does not have that flag
-					BotRef = GetBotPointerThirdParty(clients[i]);
+					BotRef = GetBotPointer(clients[i]);
 					BotEdict = clients[i];
 				}
 			}
@@ -144,8 +142,7 @@ void ClientCommand(edict_t* pEntity)
 			{
 				if (clients[i] && bots[i].is_used && IsPlayerCommander(clients[i]))
 				{
-					//cant use GetBotPointer since it checks for FAKECLIENT and the commander does not have that flag
-					BotRef = GetBotPointerThirdParty(clients[i]);
+					BotRef = GetBotPointer(clients[i]);
 					BotEdict = clients[i];
 				}
 			}
@@ -180,8 +177,7 @@ void ClientCommand(edict_t* pEntity)
 			{
 				if (clients[i] && bots[i].is_used && IsPlayerCommander(clients[i]))
 				{
-					//cant use GetBotPointer since it checks for FAKECLIENT and the commander does not have that flag
-					BotRef = GetBotPointerThirdParty(clients[i]);
+					BotRef = GetBotPointer(clients[i]);
 					BotEdict = clients[i];
 				}
 			}
