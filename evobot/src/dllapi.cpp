@@ -121,30 +121,6 @@ void ClientCommand(edict_t* pEntity)
 		RETURN_META(MRES_SUPERCEDE);
 	}
 
-	if (FStrEq(pcmd, "togglecomplexfov"))
-	{
-		GAME_SetUseComplexFOV(!GAME_UseComplexFOV());
-
-		RETURN_META(MRES_SUPERCEDE);
-	}
-
-	if (FStrEq(pcmd, "testmine"))
-	{
-		edict_t* Armoury = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ARMOURY, pEntity->v.origin, UTIL_MetresToGoldSrcUnits(50.0f), true, false);
-
-		if (!FNullEnt(Armoury))
-		{
-			Vector MinePosition = UTIL_GetNextMinePosition(Armoury);
-
-			if (MinePosition != ZERO_VECTOR)
-			{
-				UTIL_DrawLine(pEntity, pEntity->v.origin, MinePosition, 10.0f, 255, 255, 0);
-			}
-		}
-
-		RETURN_META(MRES_SUPERCEDE);
-	}
-
 	if (FStrEq(pcmd, "grenadetest"))
 	{
 		edict_t* ResTower = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_ALIEN_OFFENCECHAMBER, pEntity->v.origin, UTIL_MetresToGoldSrcUnits(500.0f), true, false);
@@ -164,21 +140,6 @@ void ClientCommand(edict_t* pEntity)
 		}
 
 		RETURN_META(MRES_SUPERCEDE);
-	}
-
-	if (FStrEq(pcmd, "testumbra"))
-	{
-		if (UTIL_IsAreaAffectedByUmbra(pEntity->v.origin))
-		{
-			UTIL_SayText("True\n", pEntity);
-		}
-		else
-		{
-			UTIL_SayText("False\n", pEntity);
-		}
-
-		RETURN_META(MRES_SUPERCEDE);
-
 	}
 
 	if (FStrEq(pcmd, "testambush"))
@@ -219,43 +180,6 @@ void ClientCommand(edict_t* pEntity)
 			{
 				UTIL_DrawBox(pEntity, currWeldable->v.absmin, currWeldable->v.absmax, 10.0f);
 			}
-		}
-
-		RETURN_META(MRES_SUPERCEDE);
-	}
-
-	if (FStrEq(pcmd, "testreload"))
-	{
-		NSWeapon CurrentWeapon = WEAPON_MARINE_MG;
-
-		bool IsReloading = false;
-
-		switch (CurrentWeapon)
-		{
-		case WEAPON_MARINE_SHOTGUN:
-		case WEAPON_MARINE_PISTOL:
-			IsReloading = (pEntity->v.weaponanim == 2 || pEntity->v.weaponanim == 3);
-			break;
-		case WEAPON_MARINE_MG:
-			IsReloading =  pEntity->v.weaponanim == 2;
-			break;
-		case WEAPON_MARINE_HMG:
-			IsReloading = pEntity->v.weaponanim == 3;
-			break;
-		case WEAPON_MARINE_GL:
-			IsReloading = (pEntity->v.weaponanim == 1 || pEntity->v.weaponanim == 2 || pEntity->v.weaponanim == 4 || pEntity->v.weaponanim == 5 || pEntity->v.weaponanim == 6 || pEntity->v.weaponanim == 7);
-			break;
-		default:
-			IsReloading = false;
-		}
-
-		if (IsReloading)
-		{
-			UTIL_SayText("True\n", pEntity);
-		}
-		else
-		{
-			UTIL_SayText("False\n", pEntity);
 		}
 
 		RETURN_META(MRES_SUPERCEDE);

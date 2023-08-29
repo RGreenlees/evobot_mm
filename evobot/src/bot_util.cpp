@@ -215,10 +215,6 @@ void BotLeap(bot_t* pBot, const Vector TargetLocation)
 		return;
 	}
 
-	bool bShouldLeap = pBot->BotNavInfo.IsOnGround && (gpGlobals->time - pBot->BotNavInfo.LandedTime >= 0.2f && gpGlobals->time - pBot->BotNavInfo.LeapAttemptedTime >= 0.5f);
-
-	if (!bShouldLeap) { return; }
-
 	NSWeapon LeapWeapon = (IsPlayerSkulk(pBot->pEdict)) ? WEAPON_SKULK_LEAP : WEAPON_FADE_BLINK;
 
 	if (GetBotCurrentWeapon(pBot) != LeapWeapon)
@@ -226,6 +222,10 @@ void BotLeap(bot_t* pBot, const Vector TargetLocation)
 		pBot->DesiredMoveWeapon = LeapWeapon;
 		return;
 	}
+
+	bool bShouldLeap = !IsPlayerSkulk(pBot->pEdict) || (pBot->BotNavInfo.IsOnGround && (gpGlobals->time - pBot->BotNavInfo.LandedTime >= 0.2f && gpGlobals->time - pBot->BotNavInfo.LeapAttemptedTime >= 0.5f));
+
+	if (!bShouldLeap) { return; }
 
 	Vector LookLocation = TargetLocation;
 
@@ -278,7 +278,7 @@ void BotLeap(bot_t* pBot, const Vector TargetLocation)
 		float RequiredVelocity = UTIL_GetVelocityRequiredToReachTarget(pBot->pEdict->v.origin, TargetLocation, GOLDSRC_GRAVITY);
 		float CurrentVelocity = vSize3D(pBot->pEdict->v.velocity);
 
-		bShouldLeap = (CurrentVelocity < RequiredVelocity);
+		bShouldLeap = (CurrentVelocity <= RequiredVelocity);
 	}
 
 	if (bShouldLeap)
@@ -2363,41 +2363,17 @@ void DroneThink(bot_t* pBot)
 
 void CustomThink(bot_t* pBot)
 {
-	if (IsPlayerAlien(pBot->pEdict)) { return; }
 
-	if (!PlayerHasWeapon(pBot->pEdict, WEAPON_MARINE_GL))
+	int NextEnemy = BotGetNextEnemyTarget(pBot);
+
+	if (NextEnemy > -1)
 	{
-		if (pBot->PrimaryBotTask.TaskType != TASK_GET_WEAPON)
-		{
-			edict_t* GL = UTIL_GetNearestItemOfType(DEPLOYABLE_ITEM_MARINE_GRENADELAUNCHER, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(50.0f));
+		RegularModeThink(pBot);
 
-			if (!FNullEnt(GL))
-			{
-				pBot->PrimaryBotTask.TaskType = TASK_GET_WEAPON;
-				pBot->PrimaryBotTask.TaskTarget = GL;
-				pBot->PrimaryBotTask.TaskLocation = GL->v.origin;
-			}
-		}
-	}
-	else
-	{
-		if (pBot->PrimaryBotTask.TaskType != TASK_ATTACK)
-		{
-			const hive_definition* Hive = UTIL_GetNearestHiveOfStatus(pBot->pEdict->v.origin, HIVE_STATUS_BUILT);
-
-			if (Hive)
-			{
-				TASK_SetAttackTask(pBot, &pBot->PrimaryBotTask, Hive->edict, false);
-			}
-		}
+		BotDrawPath(pBot, 0.0f, false);
 	}
 
-	if (!UTIL_IsTaskStillValid(pBot, &pBot->PrimaryBotTask))
-	{
-		UTIL_ClearBotTask(pBot, &pBot->PrimaryBotTask);
-	}
 
-	BotProgressTask(pBot, &pBot->PrimaryBotTask);
 
 }
 

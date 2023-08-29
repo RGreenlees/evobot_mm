@@ -4677,7 +4677,7 @@ bool AbortCurrentMove(bot_t* pBot, const Vector NewDestination)
 
 	bool bAtOrPastMovement = (vEquals2D(ClosestPointOnLine, MoveFrom, 1.0f) || vEquals2D(ClosestPointOnLine, MoveTo, 1.0f));
 
-	if ((pBot->pEdict->v.flags & FL_ONGROUND) && (bAtOrPastMovement || UTIL_PointIsDirectlyReachable(pBot->pEdict->v.origin, MoveFrom) || UTIL_PointIsDirectlyReachable(pBot->pEdict->v.origin, MoveTo)))
+	if ((pBot->pEdict->v.flags & FL_ONGROUND) && bAtOrPastMovement)
 	{
 		return true;
 	}
@@ -4688,6 +4688,11 @@ bool AbortCurrentMove(bot_t* pBot, const Vector NewDestination)
 
 	if (area == SAMPLE_POLYAREA_GROUND || area == SAMPLE_POLYAREA_CROUCH)
 	{
+		if (UTIL_PointIsDirectlyReachable(pBot->pEdict->v.origin, MoveFrom) || UTIL_PointIsDirectlyReachable(pBot->pEdict->v.origin, MoveTo))
+		{
+			return true;
+		}
+
 		if (bReverseCourse)
 		{
 			GroundMove(pBot, MoveTo, MoveFrom);
@@ -4747,38 +4752,14 @@ bool AbortCurrentMove(bot_t* pBot, const Vector NewDestination)
 
 	if (area == SAMPLE_POLYAREA_JUMP || area == SAMPLE_POLYAREA_HIGHJUMP || area == SAMPLE_POLYAREA_BLOCKED)
 	{
-		if (pBot->pEdict->v.flags & FL_ONGROUND)
+		if (bReverseCourse)
 		{
-			if (bReverseCourse)
-			{
-				if (UTIL_PointIsDirectlyReachable(MoveFrom, pBot->pEdict->v.origin))
-				{
-					GroundMove(pBot, MoveTo, MoveFrom);
-				}
-				else
-				{
-					JumpMove(pBot, MoveFrom, MoveTo);
-				}
-			}
-			else
-			{
-				if (UTIL_PointIsDirectlyReachable(MoveTo, pBot->pEdict->v.origin))
-				{
-					GroundMove(pBot, MoveFrom, MoveTo);
-				}
-				else
-				{
-					JumpMove(pBot, MoveFrom, MoveTo);
-				}
-			}
-
+			JumpMove(pBot, MoveTo, MoveFrom);
 		}
 		else
 		{
 			JumpMove(pBot, MoveFrom, MoveTo);
 		}
-
-
 	}
 
 	if (area == SAMPLE_POLYAREA_FALL || area == SAMPLE_POLYAREA_HIGHFALL)
@@ -4846,7 +4827,7 @@ bool MoveTo(bot_t* pBot, const Vector Destination, const BotMoveStyle MoveStyle,
 		else
 		{
 			// This should only be a short movement, if we don't get there in a few seconds then give up
-			if ((gpGlobals->time - BotNavInfo->UnstuckMoveLocationStartTime) > 10.0f)
+			if ((gpGlobals->time - BotNavInfo->UnstuckMoveLocationStartTime) > 5.0f)
 			{
 				ClearBotStuckMovement(pBot);
 				return true;
@@ -5378,7 +5359,11 @@ void BotFollowFlightPath(bot_t* pBot)
 		}
 	}
 
-	if (vDist3DSq(pBot->pEdict->v.origin, ClosestPointToPath) > sqrf(100.0f) || !UTIL_QuickTrace(pBot->pEdict, pBot->pEdict->v.origin, ClosestPointToPath))
+	Vector MoveDir = UTIL_GetVectorNormal(NextPoint - pBot->pEdict->v.origin);
+
+	Vector ObstacleCheck = pBot->pEdict->v.origin + (MoveDir * 32.0f);
+
+	if (vDist3DSq(pBot->pEdict->v.origin, ClosestPointToPath) > sqrf(100.0f) || !UTIL_QuickTrace(pBot->pEdict, pBot->pEdict->v.origin, ClosestPointToPath) || !UTIL_QuickTrace(pBot->pEdict, pBot->pEdict->v.origin, ObstacleCheck))
 	{
 		BotRecalcPath(pBot, BotNavInfo->ActualMoveDestination);
 		return;

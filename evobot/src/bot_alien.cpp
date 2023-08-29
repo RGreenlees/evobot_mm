@@ -1539,96 +1539,84 @@ void LerkCombatThink(bot_t* pBot)
 	bool bLowOnHealth = (HealthPercent < 0.5f);
 	bool bNeedsHealth = (HealthPercent < 0.9f);
 
-	edict_t* NearestHealingSource = (bNeedsHealth) ? UTIL_AlienFindNearestHealingSpot(pBot, pEdict->v.origin) : nullptr;
-
-	// Run away if low on health
-	if ((bLowOnHealth || bNeedsHealth) && !FNullEnt(NearestHealingSource))
+	if (!bNeedsHealth)
 	{
-		float DesiredDistFromHealingSource = (IsEdictPlayer(NearestHealingSource)) ? UTIL_MetresToGoldSrcUnits(2.0f) : UTIL_MetresToGoldSrcUnits(5.0f);
+		pBot->bRetreatForHealth = false;
+	}
 
-		// We're at the healing source
-		if (vDist2DSq(pEdict->v.origin, NearestHealingSource->v.origin) <= sqrf(DesiredDistFromHealingSource))
+	if (pBot->bRetreatForHealth)
+	{
+		edict_t* NearestHealingSource = UTIL_AlienFindNearestHealingSpot(pBot, pEdict->v.origin);
+
+		// Run away if low on health and have a healing spot
+		if (!FNullEnt(NearestHealingSource))
 		{
-			// Not in enemy LOS, hang around to heal up
-			if (!TrackedEnemyRef->bHasLOS)
+			edict_t* NearestHealingSource = UTIL_AlienFindNearestHealingSpot(pBot, pEdict->v.origin);
+
+			if (!FNullEnt(NearestHealingSource))
 			{
-				BotGuardLocation(pBot, pBot->pEdict->v.origin);
-				return;
-			}
+				float DesiredDistFromHealingSource = (IsEdictPlayer(NearestHealingSource)) ? UTIL_MetresToGoldSrcUnits(2.0f) : UTIL_MetresToGoldSrcUnits(8.0f);
 
-			// We are dangerously low on health and the enemy has LOS to us
-			if (bLowOnHealth)
-			{
-				// If we're healing at a gorge or defence chamber, but can be seen by the enemy then displace back to hive so we don't get killed
-				if (IsEdictPlayer(NearestHealingSource) || GetStructureTypeFromEdict(NearestHealingSource) == STRUCTURE_ALIEN_DEFENCECHAMBER)
-				{
-					const hive_definition* Hive = UTIL_GetNearestBuiltHiveToLocation(pEdict->v.origin);
+				bool bOutOfEnemyLOS = !DoesPlayerHaveLOSToPlayer(CurrentEnemy, pEdict);
 
-					if (Hive && vDist3DSq(pEdict->v.origin, Hive->FloorLocation) > sqrf(UTIL_MetresToGoldSrcUnits(5.0f)))
-					{
-						MoveTo(pBot, UTIL_GetFloorUnderEntity(NearestHealingSource), MOVESTYLE_NORMAL, UTIL_MetresToGoldSrcUnits(5.0f));
-						return;
-					}
-				}
+				float DistFromHealingSourceSq = vDist2DSq(pBot->pEdict->v.origin, NearestHealingSource->v.origin);
 
-				// If we're already at a hive, find a better healing spot which isn't in their LOS
-				Vector CurrentHealSpot = pBot->BotNavInfo.ActualMoveDestination;
+				bool bInHealingRange = (DistFromHealingSourceSq <= sqrf(DesiredDistFromHealingSource));
 
-				if (!CurrentHealSpot || UTIL_QuickTrace(pEdict, CurrentHealSpot + Vector(0.0f, 0.0f, 32.0f), GetPlayerEyePosition(CurrentEnemy)))
-				{
-					int BotMoveProfile = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_NORMAL);
-					CurrentHealSpot = UTIL_GetRandomPointOnNavmeshInRadius(BotMoveProfile, pBot->CurrentFloorPosition, UTIL_MetresToGoldSrcUnits(5.0f));
-
-					if (CurrentHealSpot != ZERO_VECTOR && vDist2DSq(CurrentHealSpot, NearestHealingSource->v.origin) < DesiredDistFromHealingSource && !UTIL_QuickTrace(pEdict, CurrentHealSpot + Vector(0.0f, 0.0f, 32.0f), GetPlayerEyePosition(CurrentEnemy)))
-					{
-						MoveTo(pBot, CurrentHealSpot, MOVESTYLE_NORMAL);
-						return;
-					}
-				}
-			}
-		}
-		// We're not at the healing source
-		else
-		{
-			// Only retreat to the healing source if we're critically low on health, we don't want to fly away every time we take a hit
-			// if we aren't critically low on health then we continue on to the combat bit below
-			if (bLowOnHealth)
-			{
 				Vector SporeLocation = (TrackedEnemyRef->bHasLOS) ? TrackedEnemyRef->LastSeenLocation : TrackedEnemyRef->LastLOSPosition;
-				SporeLocation = SporeLocation + Vector(0.0f, 0.0f, 5.0f);
 
-				// If we're out of LOS but can see the last point we had LOS, drop some spores there to discourage the enemy chasing us
-				if (SporeLocation != ZERO_VECTOR)
+				// We will cover our tracks with spores if we have a valid target location, we have enough energy, the area isn't affected by spores already and we have LOS to the spore location
+				bool bCanSpore = (SporeLocation != ZERO_VECTOR && pBot->Adrenaline > (GetEnergyCostForWeapon(WEAPON_LERK_SPORES) * 1.1f) && !UTIL_IsAreaAffectedBySpores(SporeLocation) && UTIL_QuickTrace(pEdict, pBot->CurrentEyePosition, SporeLocation));
+
+				// If we are super low on health then just get the hell out of there
+				if (HealthPercent <= 0.2) { bCanSpore = false; }
+
+				if (bOutOfEnemyLOS)
 				{
-					if (!UTIL_IsAreaAffectedBySpores(SporeLocation))
+					if (bInHealingRange)
 					{
-						if (UTIL_QuickTrace(pEdict, pBot->CurrentEyePosition, SporeLocation))
+						BotGuardLocation(pBot, NearestHealingSource->v.origin);
+
+						if (bCanSpore)
 						{
-							if (pBot->Adrenaline > (GetEnergyCostForWeapon(WEAPON_LERK_SPORES) * 1.1f))
-							{
-								BotShootLocation(pBot, WEAPON_LERK_SPORES, SporeLocation);
-								return;
-							}
+							BotShootLocation(pBot, WEAPON_LERK_SPORES, SporeLocation);
+						}
+
+					}
+					else
+					{
+						MoveTo(pBot, UTIL_GetEntityGroundLocation(NearestHealingSource), MOVESTYLE_NORMAL, DesiredDistFromHealingSource);
+
+						if (bCanSpore)
+						{
+							BotShootLocation(pBot, WEAPON_LERK_SPORES, SporeLocation);
 						}
 					}
-				}
 
-				Vector CurrentHealSpot = pBot->BotNavInfo.TargetDestination;
-
-				if (!CurrentHealSpot || vDist2DSq(CurrentHealSpot, NearestHealingSource->v.origin) > sqrf(DesiredDistFromHealingSource))
-				{
-					CurrentHealSpot = FindClosestNavigablePointToDestination(LERK_FLYING_NAV_PROFILE, pBot->CurrentFloorPosition, UTIL_GetFloorUnderEntity(NearestHealingSource), DesiredDistFromHealingSource);
-				}
-
-				if (CurrentHealSpot != ZERO_VECTOR)
-				{
-					MoveTo(pBot, CurrentHealSpot, MOVESTYLE_NORMAL, DesiredDistFromHealingSource);
 					return;
 				}
+
+				if (!bInHealingRange)
+				{
+					MoveTo(pBot, UTIL_GetEntityGroundLocation(NearestHealingSource), MOVESTYLE_NORMAL, DesiredDistFromHealingSource);
+
+					if (bCanSpore)
+					{
+						BotShootLocation(pBot, WEAPON_LERK_SPORES, SporeLocation);
+					}
+
+					return;
+				}
+
 				
 			}
 		}
+	}
 
+	if (bLowOnHealth)
+	{
+		pBot->bRetreatForHealth = true;
+		return;
 	}
 
 	// How many allies does our target have providing cover? We don't want to charge in and get shot to pieces
