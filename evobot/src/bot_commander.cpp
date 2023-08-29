@@ -1976,6 +1976,8 @@ bool UTIL_ItemCanBeDeployed(NSStructureType ItemToDeploy)
 		return UTIL_ResearchIsComplete(RESEARCH_PROTOTYPELAB_JETPACKS);
 	case DEPLOYABLE_ITEM_MARINE_SCAN:
 		return UTIL_ObservatoryResearchIsAvailable(RESEARCH_OBSERVATORY_SCAN);
+	case DEPLOYABLE_ITEM_MARINE_CATALYSTS:
+		return UTIL_ResearchIsComplete(RESEARCH_ARMSLAB_CATALYSTS);
 	default:
 		return false;
 	}
