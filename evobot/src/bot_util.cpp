@@ -2299,51 +2299,60 @@ void DroneThink(bot_t* pBot)
 
 void CustomThink(bot_t* pBot)
 {
-	if (!bGameIsActive)
+	if (IsPlayerAlien(pBot->pEdict)) { return; }
+
+	if (PlayerHasWeapon(pBot->pEdict, WEAPON_MARINE_MINES))
 	{
-		WaitGameStartThink(pBot);
-		return;
-	}
-
-	pBot->pEdict->v.button |= IN_ATTACK;
-
-	return;
-
-	pBot->CurrentEnemy = BotGetNextEnemyTarget(pBot);
-
-	if (pBot->CurrentEnemy > -1)
-	{
-		const enemy_status* TrackedEnemy = &pBot->TrackedEnemies[pBot->CurrentEnemy];
-
-		edict_t* CurrentEnemy = TrackedEnemy->EnemyEdict;
-
-		if (FNullEnt(CurrentEnemy)) { return; }
-
-		if (!TrackedEnemy->bHasLOS)
+		if (pBot->PrimaryBotTask.TaskType != TASK_PLACE_MINE)
 		{
+			edict_t* Target = UTIL_GetNearestUnminedStructureOfType(STRUCTURE_MARINE_ANYARMOURY, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(100.0f), true);
 
-			float TimeSinceLastSighting = (gpGlobals->time - TrackedEnemy->LastSeenTime);
-
-			// If the enemy is being motion tracked, or the last seen time was within the last 5 seconds, and the suspected location is close enough, then throw a grenade!
-			if (PlayerHasWeapon(pBot->pEdict, WEAPON_MARINE_GRENADE) || ((PlayerHasWeapon(pBot->pEdict, WEAPON_MARINE_GL) && (BotGetPrimaryWeaponClipAmmo(pBot) > 0 || BotGetPrimaryWeaponAmmoReserve(pBot) > 0))))
+			if (!FNullEnt(Target))
 			{
-				if (TimeSinceLastSighting < 5.0f && vDist3DSq(pBot->pEdict->v.origin, TrackedEnemy->LastSeenLocation) <= sqrf(UTIL_MetresToGoldSrcUnits(10.0f)))
-				{
-					Vector GrenadeThrowLocation = UTIL_GetGrenadeThrowTarget(pBot, TrackedEnemy->LastSeenLocation, UTIL_MetresToGoldSrcUnits(5.0f));
+				TASK_SetMineStructureTask(pBot, &pBot->PrimaryBotTask, Target, true);
+				return;
+			}
 
-					if (GrenadeThrowLocation != ZERO_VECTOR)
-					{
-						BotThrowGrenadeAtTarget(pBot, GrenadeThrowLocation);
-						return;
-					}
-				}
+			Target = UTIL_GetNearestUnminedStructureOfType(STRUCTURE_MARINE_PHASEGATE, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(100.0f), true);
+
+			if (!FNullEnt(Target))
+			{
+				TASK_SetMineStructureTask(pBot, &pBot->PrimaryBotTask, Target, true);
+				return;
+			}
+
+			Target = UTIL_GetNearestUnminedStructureOfType(STRUCTURE_MARINE_ANYTURRETFACTORY, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(100.0f), true);
+
+			if (!FNullEnt(Target))
+			{
+				TASK_SetMineStructureTask(pBot, &pBot->PrimaryBotTask, Target, true);
+				return;
 			}
 		}
-		else
+	}
+	else
+	{
+		if (pBot->PrimaryBotTask.TaskType != TASK_GET_WEAPON)
 		{
-			BotDirectLookAt(pBot, CurrentEnemy->v.origin);
-			BotShootLocation(pBot, GetBotCurrentWeapon(pBot), TrackedEnemy->LastSeenLocation);
+			edict_t* MinesIndex = UTIL_GetNearestItemOfType(DEPLOYABLE_ITEM_MARINE_MINES, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(100.0f));
+
+			if (!FNullEnt(MinesIndex))
+			{
+				pBot->PrimaryBotTask.TaskType = TASK_GET_WEAPON;
+				pBot->PrimaryBotTask.TaskTarget = MinesIndex;
+				pBot->PrimaryBotTask.TaskLocation = MinesIndex->v.origin;
+				pBot->PrimaryBotTask.bTaskIsUrgent = true;
+			}
 		}
+	}
+
+	if (UTIL_IsTaskStillValid(pBot, &pBot->PrimaryBotTask))
+	{
+		BotProgressTask(pBot, &pBot->PrimaryBotTask);
+	}
+	else
+	{
+		UTIL_ClearBotTask(pBot, &pBot->PrimaryBotTask);
 	}
 
 }

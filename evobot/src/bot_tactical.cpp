@@ -714,6 +714,12 @@ void UTIL_RefreshBuildableStructures()
 		UTIL_UpdateBuildableStructure(currStructure);
 	}
 
+	currStructure = NULL;
+	while (((currStructure = UTIL_FindEntityByClassname(currStructure, "item_mine")) != NULL) && (!FNullEnt(currStructure)))
+	{
+		UTIL_UpdateBuildableStructure(currStructure);
+	}
+
 
 	// Alien Structures
 	currStructure = NULL;
@@ -806,7 +812,7 @@ void UTIL_OnStructureCreated(buildable_structure* NewStructure)
 
 	if (bGameIsActive)
 	{
-		if (bIsMarineStructure)
+		if (bIsMarineStructure && StructureType != STRUCTURE_MARINE_DEPLOYEDMINE)
 		{
 			for (int i = 0; i < 32; i++)
 			{
@@ -825,7 +831,7 @@ void UTIL_OnStructureCreated(buildable_structure* NewStructure)
 		{
 			for (int i = 0; i < 32; i++)
 			{
-				if (clients[i] && IsPlayerOnAlienTeam(clients[i]) && IsPlayerBot(clients[i]))
+				if (clients[i] && IsPlayerBot(clients[i]))
 				{
 					bot_t* BotRef = GetBotPointer(clients[i]);
 
@@ -2463,6 +2469,46 @@ edict_t* UTIL_GetFurthestStructureOfTypeFromLocation(const NSStructureType Struc
 	return Result;
 }
 
+edict_t* UTIL_GetNearestUnminedStructureOfType(NSStructureType StructureType, const Vector SearchLocation, const float SearchRadius, bool bAllowPhaseDist)
+{
+	edict_t* Result = nullptr;
+	float DistSq = sqrf(SearchRadius);
+	float MinDist = 0.0f;
+
+	for (auto& it : MarineBuildableStructureMap)
+	{
+		if (!it.second.bOnNavmesh || !it.second.bIsReachableMarine || !it.second.bFullyConstructed) { continue; }
+		if (!UTIL_StructureTypesMatch(StructureType, it.second.StructureType)) { continue; }
+
+		if (UTIL_GetNumPlacedStructuresOfTypeInRadius(STRUCTURE_MARINE_DEPLOYEDMINE, it.second.Location, UTIL_MetresToGoldSrcUnits(2.0f)) >= 4) { continue; }
+
+		float ThisDist = (bAllowPhaseDist) ? UTIL_GetPhaseDistanceBetweenPointsSq(it.second.Location, SearchLocation) : vDist2DSq(it.second.Location, SearchLocation);
+
+		if (ThisDist <= DistSq && (FNullEnt(Result) || ThisDist < MinDist))
+		{
+			Result = it.second.edict;
+			MinDist = ThisDist;
+		}
+
+	}
+
+	return Result;
+}
+
+bool UTIL_UnminedStructureOfTypeExists(NSStructureType StructureType)
+{
+	for (auto& it : MarineBuildableStructureMap)
+	{
+		if (!it.second.bOnNavmesh || !it.second.bIsReachableMarine || !it.second.bFullyConstructed) { continue; }
+		if (!UTIL_StructureTypesMatch(StructureType, it.second.StructureType)) { continue; }
+
+		if (UTIL_GetNumPlacedStructuresOfTypeInRadius(STRUCTURE_MARINE_DEPLOYEDMINE, it.second.Location, UTIL_MetresToGoldSrcUnits(2.0f)) < 4) { return true; }
+
+	}
+
+	return false;
+}
+
 edict_t* UTIL_GetNearestStructureOfTypeInLocation(const NSStructureType StructureType, const Vector& Location, const float SearchRadius, bool bAllowElectrified, bool bUsePhaseDistance)
 {
 	edict_t* Result = nullptr;
@@ -3442,6 +3488,12 @@ void UTIL_RefreshMarineItems()
 	}
 
 	currItem = NULL;
+	while (((currItem = UTIL_FindEntityByClassname(currItem, "weapon_mine")) != NULL) && (!FNullEnt(currItem)))
+	{
+		UTIL_UpdateMarineItem(currItem, DEPLOYABLE_ITEM_MARINE_MINES);
+	}
+
+	currItem = NULL;
 	while (((currItem = UTIL_FindEntityByClassname(currItem, "scan")) != NULL) && (!FNullEnt(currItem)))
 	{
 		UTIL_UpdateMarineItem(currItem, DEPLOYABLE_ITEM_MARINE_SCAN);
@@ -3536,6 +3588,7 @@ bool UTIL_ShouldStructureCollide(NSStructureType StructureType)
 	case STRUCTURE_MARINE_INFANTRYPORTAL:
 	case STRUCTURE_MARINE_PHASEGATE:
 	case STRUCTURE_MARINE_TURRET:
+	case STRUCTURE_MARINE_DEPLOYEDMINE:
 		return false;
 	default:
 		return true;
@@ -4193,6 +4246,7 @@ bool UTIL_IsMarineStructure(const NSStructureType StructureType)
 	case STRUCTURE_MARINE_TURRET:
 	case STRUCTURE_MARINE_ANYTURRET:
 	case STRUCTURE_ANY_MARINE_STRUCTURE:
+	case STRUCTURE_MARINE_DEPLOYEDMINE:
 		return true;
 	default:
 		return false;
@@ -4224,7 +4278,7 @@ void UTIL_LinkAlienStructureToTask(bot_t* pBot, edict_t* NewStructure)
 
 	if (StructureType == STRUCTURE_NONE) { return; }
 
-	if ((pBot->PrimaryBotTask.TaskType == TASK_BUILD || pBot->PrimaryBotTask.TaskType == TASK_CAP_RESNODE || pBot->PrimaryBotTask.TaskType == TASK_REINFORCE_STRUCTURE) && pBot->PrimaryBotTask.bIsWaitingForBuildLink)
+	if ((pBot->PrimaryBotTask.TaskType == TASK_BUILD || pBot->PrimaryBotTask.TaskType == TASK_CAP_RESNODE || pBot->PrimaryBotTask.TaskType == TASK_REINFORCE_STRUCTURE || pBot->PrimaryBotTask.TaskType == TASK_PLACE_MINE) && pBot->PrimaryBotTask.bIsWaitingForBuildLink)
 	{
 		if (pBot->PrimaryBotTask.StructureType == StructureType)
 		{
@@ -4245,7 +4299,7 @@ void UTIL_LinkAlienStructureToTask(bot_t* pBot, edict_t* NewStructure)
 		}
 	}
 
-	if ((pBot->SecondaryBotTask.TaskType == TASK_BUILD || pBot->SecondaryBotTask.TaskType == TASK_CAP_RESNODE || pBot->PrimaryBotTask.TaskType == TASK_REINFORCE_STRUCTURE) && pBot->SecondaryBotTask.bIsWaitingForBuildLink)
+	if ((pBot->SecondaryBotTask.TaskType == TASK_BUILD || pBot->SecondaryBotTask.TaskType == TASK_CAP_RESNODE || pBot->SecondaryBotTask.TaskType == TASK_REINFORCE_STRUCTURE || pBot->SecondaryBotTask.TaskType == TASK_PLACE_MINE) && pBot->SecondaryBotTask.bIsWaitingForBuildLink)
 	{
 		if (pBot->SecondaryBotTask.StructureType == StructureType)
 		{
@@ -4284,6 +4338,47 @@ int UTIL_GetNumWeaponsOfTypeInPlay(const NSWeapon WeaponType)
 
 
 	return NumPlacedWeapons + NumHeldWeapons;
+}
+
+edict_t* UTIL_GetRedundantMarineStructureOfType(NSStructureType StructureType)
+{
+	buildable_structure* Result = nullptr;
+
+	for (auto& it : MarineBuildableStructureMap)
+	{
+		if (!it.second.bOnNavmesh) { continue; }
+		if (!UTIL_StructureTypesMatch(it.second.StructureType, StructureType)) { continue; }
+		if (UTIL_StructureIsRecycling(it.second.edict)) { continue; }
+		if (it.second.Purpose == STRUCTURE_PURPOSE_NONE) { continue; }
+
+		if (it.second.Purpose == STRUCTURE_PURPOSE_SIEGE)
+		{
+			const hive_definition* NearestHive = UTIL_GetNearestHiveAtLocation(it.second.Location);
+
+			if (!NearestHive || NearestHive->Status != HIVE_STATUS_UNBUILT) { continue; }
+
+			if (StructureType == STRUCTURE_MARINE_SIEGETURRET || UTIL_StructureTypesMatch(StructureType, STRUCTURE_MARINE_ANYARMOURY)) { return it.second.edict; }
+
+			edict_t* NearestStructureOfType = UTIL_GetNearestStructureOfTypeInLocation(StructureType, NearestHive->FloorLocation, UTIL_MetresToGoldSrcUnits(25.0f), true, false);
+
+			if (FNullEnt(NearestStructureOfType) || NearestStructureOfType == it.second.edict) { continue; }
+
+			const buildable_structure* BuildRef = UTIL_GetBuildableStructureRefFromEdict(NearestStructureOfType);
+
+			float ThisDist = vDist2DSq(it.second.Location, NearestHive->FloorLocation);
+			float OtherDist = vDist2DSq(it.second.Location, NearestHive->FloorLocation);
+
+			if (!BuildRef || !BuildRef->bFullyConstructed || !BuildRef->bOnNavmesh || OtherDist > ThisDist) { continue; }
+
+			if (BuildRef->Purpose == STRUCTURE_PURPOSE_FORTIFY)
+			{
+				return it.second.edict;
+			}
+		}
+
+	}
+
+	return nullptr;
 }
 
 int UTIL_GetNumEquipmentInPlay()
@@ -4541,6 +4636,7 @@ NSStructureType UTIL_IUSER3ToStructureType(const int inIUSER3)
 	if (inIUSER3 == AVH_USER3_PROTOTYPE_LAB) { return STRUCTURE_MARINE_PROTOTYPELAB; }
 	if (inIUSER3 == AVH_USER3_OBSERVATORY) { return STRUCTURE_MARINE_OBSERVATORY; }
 	if (inIUSER3 == AVH_USER3_PHASEGATE) { return STRUCTURE_MARINE_PHASEGATE; }
+	if (inIUSER3 == AVH_USER3_MINE) { return STRUCTURE_MARINE_DEPLOYEDMINE; }
 
 	if (inIUSER3 == AVH_USER3_HIVE) { return STRUCTURE_ALIEN_HIVE; }
 	if (inIUSER3 == AVH_USER3_ALIENRESTOWER) { return STRUCTURE_ALIEN_RESTOWER; }
@@ -4652,6 +4748,8 @@ NSStructureType UTIL_WeaponTypeToDeployableItem(const NSWeapon WeaponType)
 		return DEPLOYABLE_ITEM_MARINE_HMG;
 	case WEAPON_MARINE_WELDER:
 		return DEPLOYABLE_ITEM_MARINE_WELDER;
+	case WEAPON_MARINE_MINES:
+		return DEPLOYABLE_ITEM_MARINE_MINES;
 	default:
 		return STRUCTURE_NONE;
 	}
@@ -5252,4 +5350,107 @@ bool UTIL_IsHiveFullySecuredByMarines(bot_t* CommanderBot, const hive_definition
 	bool bShouldElectrifyResNode = (ResNode && bSecuredResNode && CommanderBot->resources > 100 && UTIL_ElectricalResearchIsAvailable(ResNode->TowerEdict));
 
 	return ((!bPhaseGatesAvailable || bHasPhaseGate) && bHasTurretFactory && bTurretFactoryElectrified && NumTurrets >= 5 && bSecuredResNode && !bShouldElectrifyResNode);
+}
+
+Vector UTIL_GetNextMinePosition(edict_t* StructureToMine)
+{
+	if (FNullEnt(StructureToMine)) { return ZERO_VECTOR; }
+
+	Vector FwdVector = UTIL_GetForwardVector2D(StructureToMine->v.angles);
+	Vector RightVector = UTIL_GetVectorNormal2D(UTIL_GetCrossProduct(FwdVector, UP_VECTOR));
+
+	bool bFwd = false;
+	bool bRight = false;
+	bool bBack = false;
+	bool bLeft = false;
+
+	int NumMines = 0;
+
+	for (auto& it : MarineBuildableStructureMap)
+	{
+		if (!it.second.bOnNavmesh || !it.second.bIsReachableMarine) { continue; }
+		if (!UTIL_StructureTypesMatch(STRUCTURE_MARINE_DEPLOYEDMINE, it.second.StructureType)) { continue; }
+
+		if (vDist2DSq(StructureToMine->v.origin, it.second.Location) > sqrf(UTIL_MetresToGoldSrcUnits(2.0f))) { continue; }
+
+		NumMines++;
+
+		Vector Dir = UTIL_GetVectorNormal2D(it.second.Location - StructureToMine->v.origin);
+
+		if (UTIL_GetDotProduct2D(FwdVector, Dir) > 0.7f)
+		{
+			bFwd = true;
+		}
+
+		if (UTIL_GetDotProduct2D(FwdVector, Dir) < -0.7f)
+		{
+			bBack = true;
+		}
+
+		if (UTIL_GetDotProduct2D(RightVector, Dir) > 0.7f)
+		{
+			bRight = true;
+		}
+
+		if (UTIL_GetDotProduct2D(RightVector, Dir) < -0.7f)
+		{
+			bLeft = true;
+		}
+
+	}
+
+	float Size = fmaxf(StructureToMine->v.size.x, StructureToMine->v.size.y);
+	Size += 8.0f;
+
+	if (!bFwd)
+	{
+		Vector SearchLocation = StructureToMine->v.origin + (FwdVector * Size);
+
+		Vector BuildLocation = UTIL_ProjectPointToNavmesh(SearchLocation);
+
+		if (BuildLocation != ZERO_VECTOR)
+		{
+			return BuildLocation;
+		}
+	}
+
+	if (!bBack)
+	{
+		Vector SearchLocation = StructureToMine->v.origin - (FwdVector * Size);
+
+		Vector BuildLocation = UTIL_ProjectPointToNavmesh(SearchLocation);
+
+		if (BuildLocation != ZERO_VECTOR)
+		{
+			return BuildLocation;
+		}
+	}
+
+	if (!bRight)
+	{
+		Vector SearchLocation = StructureToMine->v.origin + (RightVector * Size);
+
+		Vector BuildLocation = UTIL_ProjectPointToNavmesh(SearchLocation);
+
+		if (BuildLocation != ZERO_VECTOR)
+		{
+			return BuildLocation;
+		}
+	}
+
+	if (!bLeft)
+	{
+		Vector SearchLocation = StructureToMine->v.origin - (RightVector * Size);
+
+		Vector BuildLocation = UTIL_ProjectPointToNavmesh(SearchLocation);
+
+		if (BuildLocation != ZERO_VECTOR)
+		{
+			return BuildLocation;
+		}
+	}
+
+	Vector BuildLocation = UTIL_GetRandomPointOnNavmeshInDonut(MARINE_REGULAR_NAV_PROFILE, StructureToMine->v.origin, Size, Size + 16.0f);
+
+	return BuildLocation;
 }

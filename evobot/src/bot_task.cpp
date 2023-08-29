@@ -347,6 +347,8 @@ bool UTIL_IsTaskStillValid(bot_t* pBot, bot_task* Task)
 		return true;
 	case TASK_SECURE_HIVE:
 		return UTIL_IsSecureHiveTaskStillValid(pBot, Task);
+	case TASK_PLACE_MINE:
+		return UTIL_IsMineStructureTaskStillValid(pBot, Task);
 	default:
 		return false;
 	}
@@ -475,6 +477,17 @@ bool UTIL_IsGuardTaskStillValid(bot_t* pBot, bot_task* Task)
 	{
 		return false;
 	}
+
+	return true;
+}
+
+bool UTIL_IsMineStructureTaskStillValid(bot_t* pBot, bot_task* Task)
+{
+	if (FNullEnt(Task->TaskTarget) || UTIL_StructureIsRecycling(Task->TaskTarget)) { return false; }
+
+	if (!PlayerHasWeapon(pBot->pEdict, WEAPON_MARINE_MINES)) { return false; }
+
+	if (UTIL_GetNumPlacedStructuresOfTypeInRadius(STRUCTURE_MARINE_DEPLOYEDMINE, Task->TaskTarget->v.origin, UTIL_MetresToGoldSrcUnits(2.0f)) >= 4) { return false; }
 
 	return true;
 }
@@ -1042,6 +1055,83 @@ void BotProgressPickupTask(bot_t* pBot, bot_task* Task)
 					}
 				}
 			}
+		}
+	}
+}
+
+void BotProgressMineStructureTask(bot_t* pBot, bot_task* Task)
+{
+	float DistToPlaceLocation = vDist2DSq(pBot->pEdict->v.origin, Task->TaskLocation);
+
+	if (DistToPlaceLocation < sqrf(UTIL_MetresToGoldSrcUnits(3.0f)))
+	{
+		pBot->DesiredCombatWeapon = WEAPON_MARINE_MINES;
+	}
+
+	if (!FNullEnt(Task->TaskSecondaryTarget))
+	{
+		Task->TaskLocation = ZERO_VECTOR;
+		Task->TaskSecondaryTarget = nullptr;
+		Task->BuildAttempts = 0;
+		return;
+	}
+
+	if (Task->bIsWaitingForBuildLink)
+	{
+		
+		if (gpGlobals->time - Task->LastBuildAttemptTime > 1.0f)
+		{
+			Task->bIsWaitingForBuildLink = false;
+			if (Task->BuildAttempts > 3)
+			{
+				float Size = fmaxf(Task->TaskTarget->v.size.x, Task->TaskTarget->v.size.y);
+				Task->TaskLocation = UTIL_GetRandomPointOnNavmeshInRadius(BUILDING_REGULAR_NAV_PROFILE, Task->TaskTarget->v.origin, Size + 8.0f);
+			}
+			else
+			{
+				Vector Dir = UTIL_GetVectorNormal2D(Task->TaskLocation - Task->TaskTarget->v.origin);
+				Task->TaskLocation = Task->TaskLocation + (Dir * 8.0f);
+			}
+		}
+		return;
+	}
+
+	if (Task->TaskLocation == ZERO_VECTOR)
+	{
+		Task->TaskLocation = UTIL_GetNextMinePosition(Task->TaskTarget);
+
+		if (Task->TaskLocation == ZERO_VECTOR)
+		{
+			UTIL_ClearBotTask(pBot, Task);
+			return;
+		}
+	}	
+
+	if (DistToPlaceLocation < sqrf(16.0f))
+	{
+		Vector MoveDir = UTIL_GetVectorNormal2D(Task->TaskLocation - pBot->pEdict->v.origin);
+		MoveDirectlyTo(pBot, Task->TaskLocation - (MoveDir * 28.0f));
+		return;
+	}
+
+	if (DistToPlaceLocation > sqrf(32.0f))
+	{
+		MoveTo(pBot, Task->TaskLocation, MOVESTYLE_NORMAL);
+		return;
+	}
+
+	BotLookAt(pBot, Task->TaskLocation);
+
+	if (GetBotCurrentWeapon(pBot) == WEAPON_MARINE_MINES)
+	{
+		float LookDot = UTIL_GetDotProduct(UTIL_GetForwardVector(pBot->pEdict->v.v_angle), UTIL_GetVectorNormal(Task->TaskLocation - pBot->CurrentEyePosition));
+
+		if (LookDot > 0.95f)
+		{
+			pBot->pEdict->v.button |= IN_ATTACK;
+			Task->LastBuildAttemptTime = gpGlobals->time;
+			Task->BuildAttempts++;
+			Task->bIsWaitingForBuildLink = true;
 		}
 	}
 }
@@ -2083,6 +2173,9 @@ void BotProgressTask(bot_t* pBot, bot_task* Task)
 	case TASK_EVOLVE:
 		BotProgressEvolveTask(pBot, Task);
 		break;
+	case TASK_PLACE_MINE:
+		BotProgressMineStructureTask(pBot, Task);
+		break;
 	case TASK_HEAL:
 		AlienProgressHealTask(pBot, Task);
 		break;
@@ -2852,4 +2945,23 @@ void TASK_SetSecureHiveTask(bot_t* pBot, bot_task* Task, edict_t* Target, const 
 	Task->TaskTarget = Target;
 	Task->bTaskIsUrgent = bIsUrgent;
 	Task->TaskLocation = WaitLocation;
+}
+
+void TASK_SetMineStructureTask(bot_t* pBot, bot_task* Task, edict_t* Target, bool bIsUrgent)
+{
+	if (Task->TaskType == TASK_PLACE_MINE && Target == Task->TaskTarget)
+	{
+		Task->bTaskIsUrgent = bIsUrgent;
+		return;
+	}
+
+	UTIL_ClearBotTask(pBot, Task);
+
+	Task->TaskType = TASK_PLACE_MINE;
+	Task->TaskTarget = Target;
+	Task->bTaskIsUrgent = bIsUrgent;
+	Task->TaskLocation = UTIL_GetNextMinePosition(Target);
+	Task->StructureType = STRUCTURE_MARINE_DEPLOYEDMINE;
+
+
 }
