@@ -147,7 +147,7 @@ void ClientCommand(edict_t* pEntity)
 				}
 			}
 
-			if (BotRef && BotEdict && BotEdict->v.team == pEntity->v.team && UTIL_GetNumPlacedStructuresOfType(STRUCTURE_MARINE_RESTOWER) >= min_desired_resource_towers && UTIL_ItemCanBeDeployed(DEPLOYABLE_ITEM_MARINE_WELDER) && UTIL_GetNumWeaponsOfTypeInPlay(WEAPON_MARINE_WELDER) < 2 && UTIL_GetQueuedItemDropRequestsOfType(BotRef, ITEM_MARINE_WELDER) == 0)
+			if (BotRef && BotEdict && BotEdict->v.team == pEntity->v.team && UTIL_GetNumPlacedStructuresOfType(STRUCTURE_MARINE_RESTOWER) >= min_desired_resource_towers && UTIL_ItemCanBeDeployed(DEPLOYABLE_ITEM_MARINE_WELDER) && UTIL_GetNumWeaponsOfTypeInPlay(WEAPON_MARINE_WELDER) < 4)
 			{
 				edict_t* NearestArmoury = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ANYARMOURY, UTIL_GetCommChairLocation(), UTIL_MetresToGoldSrcUnits(30.0f), true, false);
 
@@ -157,11 +157,39 @@ void ClientCommand(edict_t* pEntity)
 
 					if (NewWelderLocation != ZERO_VECTOR)
 					{
-						CommanderQueueItemDrop(BotRef, ITEM_MARINE_WELDER, NewWelderLocation, NULL, 1);
+						
+						//Need something in COMM_GetNextAction for the bot com to go and immediately place our welder
+
+
 					}
 				}
 			}
 
+			return;
+		}
+
+		if (FStrEq(arg1, "pg") || FStrEq(arg1, "phase") || FStrEq(arg1, "gate") || FStrEq(arg1, "phasegate"))
+		{
+			bool CheckedTeams = false;
+
+			bot_t* BotRef = nullptr;
+			edict_t* BotEdict = nullptr;
+
+			for (int i = 0; i < 32; i++)
+			{
+				if (clients[i] && bots[i].is_used && IsPlayerCommander(clients[i]))
+				{
+					BotRef = GetBotPointer(clients[i]);
+					BotEdict = clients[i];
+				}
+			}
+
+			if (BotRef && BotEdict && BotEdict->v.team == pEntity->v.team && UTIL_GetNumPlacedStructuresOfType(STRUCTURE_MARINE_RESTOWER) >= min_desired_resource_towers && UTIL_ItemCanBeDeployed(STRUCTURE_MARINE_PHASEGATE))
+			{
+
+				//Need something in COMM_GetNextAction for the bot com to go and immediately place our phase gate
+
+			}
 
 			return;
 		}

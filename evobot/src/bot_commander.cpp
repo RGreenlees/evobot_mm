@@ -402,6 +402,11 @@ void CommanderReceiveHealthRequest(bot_t* pBot, edict_t* Requestor)
 	}
 }
 
+void CommanderReceiveCatalystRequest(bot_t* pBot, edict_t* Requestor)
+{
+
+}
+
 void CommanderReceiveAmmoRequest(bot_t* pBot, edict_t* Requestor)
 {
 	if (!Requestor) { return; }
