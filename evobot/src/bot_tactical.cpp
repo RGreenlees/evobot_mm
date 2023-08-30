@@ -39,7 +39,6 @@ int NumMapLocations;
 float CommanderViewZHeight;
 
 extern edict_t* clients[MAX_CLIENTS];
-extern bool bGameIsActive;
 
 extern bot_t bots[MAX_CLIENTS];
 
@@ -630,6 +629,22 @@ void UTIL_RefreshResourceNodes()
 	}
 }
 
+void UTIL_UpdateMapAIData()
+{
+	if (gpGlobals->time - last_structure_refresh_time >= structure_inventory_refresh_rate)
+	{
+		UTIL_RefreshBuildableStructures();
+		UTIL_RefreshResourceNodes();
+		last_structure_refresh_time = gpGlobals->time;
+	}
+
+	if (gpGlobals->time - last_item_refresh_time >= item_inventory_refresh_rate)
+	{
+		UTIL_RefreshMarineItems();
+		last_item_refresh_time = gpGlobals->time;
+	}
+}
+
 void UTIL_RefreshBuildableStructures()
 {
 	if (!NavmeshLoaded()) { return; }
@@ -810,7 +825,7 @@ void UTIL_OnStructureCreated(buildable_structure* NewStructure)
 
 	bool bIsMarineStructure = UTIL_IsMarineStructure(StructureType);
 
-	if (bGameIsActive)
+	if (GAME_GetGameStatus() == GAME_STATUS_ACTIVE)
 	{
 		if (bIsMarineStructure && StructureType != STRUCTURE_MARINE_DEPLOYEDMINE)
 		{

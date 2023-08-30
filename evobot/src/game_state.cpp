@@ -26,7 +26,7 @@ int IsDedicatedServer = 0;
 
 edict_t* listenserver_edict = nullptr;
 
-int GameStatus = 0;
+NSGameStatus GameStatus = GAME_STATUS_NOTSTARTED;
 
 bool bGameHasStarted = false;
 bool bGameIsActive = false;
@@ -35,12 +35,6 @@ float GameStartTime = 0.0f;
 float last_bot_count_check_time = 0.0f;
 
 int ServerMSecVal = 0;
-
-extern float last_structure_refresh_time;
-extern float last_item_refresh_time;
-
-extern int StructureRefreshFrame;
-extern int ItemRefreshFrame;
 
 float BotDeltaTime = 0.016f;
 
@@ -51,6 +45,30 @@ int CurrentDebugFlags = EVO_DFLAG_NONE;
 NSGameMode CurrentGameMode = GAME_MODE_NONE;
 
 bool bUseComplexFOV = true;
+
+void GAME_SetGameStatus(NSGameStatus NewStatus)
+{
+	if (NewStatus != GameStatus)
+	{
+		if (NewStatus == GAME_STATUS_ACTIVE)
+		{
+			GAME_OnGameStart();
+		}
+		else
+		{
+			UTIL_ClearMapAIData();
+		}
+
+		GameStatus = NewStatus;
+	}
+
+	
+}
+
+NSGameStatus GAME_GetGameStatus()
+{
+	return GameStatus;
+}
 
 EvobotDebugMode GAME_GetDebugMode()
 {
@@ -197,6 +215,11 @@ int GAME_GetClientIndex(edict_t* Client)
 	}
 
 	return -1;
+}
+
+bool GAME_IsDedicatedServer()
+{
+	return IsDedicatedServer;
 }
 
 void GAME_Reset()
@@ -511,22 +534,12 @@ void GAME_BotCreate(edict_t* pPlayer, int Team)
 
 	memcpy(&pBot->BotSkillSettings, &BotSkillSettings, sizeof(bot_skill));
 
-	//char logName[64];
-
-	//sprintf(logName, "Bot_%d_log.txt", index);
-
-	//pBot->logFile = fopen(logName, "w+");
-
-	//if (pBot->logFile)
-	//{
-	//	fprintf(pBot->logFile, "Log for %s\n\n", c_name);
-	//}
 }
 
 void GAME_UpdateBotCounts()
 {
 	// Don't do any population checks while the game is in the ended state, as nobody can join a team so it can't assess the player counts properly
-	if (GameStatus == kGameStatusEnded)
+	if (GameStatus == GAME_STATUS_ENDED)
 	{
 		GAME_RemoveAllBotsInReadyRoom();
 		return; 

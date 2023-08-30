@@ -22,8 +22,6 @@
 extern bot_t bots[MAX_CLIENTS];
 extern edict_t* clients[MAX_CLIENTS];
 
-extern bool bGameIsActive;
-
 extern char g_argv[1024];
 bool isFakeClientCommand;
 int fake_arg_count;
@@ -2069,6 +2067,7 @@ void BotThink(bot_t* pBot)
 	if (pBot->bBotThinkPaused)
 	{
 		BotRestartPlay(pBot);
+		return;
 	}
 
 	if (IsPlayerGestating(pBot->pEdict)) { return; }
@@ -2099,7 +2098,7 @@ void BotThink(bot_t* pBot)
 		break;
 	default:
 	{
-		if (!bGameIsActive)
+		if (GAME_GetGameStatus() != GAME_STATUS_ACTIVE)
 		{
 			WaitGameStartThink(pBot);
 		}
@@ -2287,14 +2286,7 @@ void ReadyRoomThink(bot_t* pBot)
 
 void WaitGameStartThink(bot_t* pBot)
 {
-	Vector NewGuardLocation = pBot->GuardInfo.GuardLocation;
-
-	if (NewGuardLocation == ZERO_VECTOR || vDist2DSq(NewGuardLocation, pBot->pEdict->v.origin) > sqrf(UTIL_MetresToGoldSrcUnits(5.0f)))
-	{
-		NewGuardLocation = pBot->pEdict->v.origin;
-	}
-
-	BotGuardLocation(pBot, NewGuardLocation);
+	// Don't do anything for now
 }
 
 int BotGetNextEnemyTarget(bot_t* pBot)
@@ -2379,7 +2371,7 @@ void CustomThink(bot_t* pBot)
 
 void TestAimThink(bot_t* pBot)
 {
-	if (!bGameIsActive)
+	if (GAME_GetGameStatus() != GAME_STATUS_ACTIVE)
 	{
 		WaitGameStartThink(pBot);
 		return;
@@ -2404,7 +2396,7 @@ void TestAimThink(bot_t* pBot)
 
 void TestGuardThink(bot_t* pBot)
 {
-	if (!bGameIsActive)
+	if (GAME_GetGameStatus() != GAME_STATUS_ACTIVE)
 	{
 		WaitGameStartThink(pBot);
 		return;
@@ -2417,7 +2409,7 @@ void TestGuardThink(bot_t* pBot)
 
 void TestNavThink(bot_t* pBot)
 {
-	if (!bGameIsActive)
+	if (GAME_GetGameStatus() != GAME_STATUS_ACTIVE)
 	{
 		WaitGameStartThink(pBot);
 		return;
@@ -2485,7 +2477,7 @@ bool ShouldBotThink(const bot_t* bot)
 
 void BotRestartPlay(bot_t* pBot)
 {
-	ClearBotPath(pBot);
+	ClearBotMovement(pBot);
 	pBot->bBotThinkPaused = false;
 }
 

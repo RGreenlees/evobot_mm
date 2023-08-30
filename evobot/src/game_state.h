@@ -17,7 +17,18 @@
 
 static const int MAX_CLIENTS = 32;
 
+typedef enum
+{
+	GAME_STATUS_NOTSTARTED,
+	GAME_STATUS_ACTIVE,
+	GAME_STATUS_ENDED
+}
+NSGameStatus;
+
 NSGameMode GAME_GetGameMode();
+
+void GAME_SetGameStatus(NSGameStatus NewStatus);
+NSGameStatus GAME_GetGameStatus();
 
 void GAME_AddClient(edict_t* NewClient);
 void GAME_RemoveClient(edict_t* DisconnectedClient);
@@ -57,6 +68,8 @@ int GAME_GetNumBotsInGame();
 int GAME_GetNumBotsOnTeam(const int Team);
 void GAME_AddBotToTeam(const int Team);
 void GAME_RemoveBotFromTeam(const int Team);
+
+bool GAME_IsDedicatedServer();
 
 bool GAME_UseComplexFOV();
 void GAME_SetUseComplexFOV(bool bNewValue);

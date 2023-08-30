@@ -57,15 +57,9 @@ extern int NumClients;
 
 extern bot_t bots[MAX_CLIENTS];
 
-extern int IsDedicatedServer;
-
 extern edict_t* listenserver_edict;
 
-extern bool bGameIsActive;
-
 extern bool bGameHasStarted;
-
-extern int GameStatus;
 
 float last_think_time;
 
@@ -84,7 +78,7 @@ void ClientCommand(edict_t* pEntity)
 	// only allow custom commands if deathmatch mode and NOT dedicated server and
 	// client sending command is the listen server client...
 
-	if (!gpGlobals->deathmatch || IsDedicatedServer || pEntity != listenserver_edict)
+	if (!gpGlobals->deathmatch || GAME_IsDedicatedServer() || pEntity != listenserver_edict)
 	{
 		return;
 	}
@@ -865,13 +859,7 @@ void StartFrame(void)
 	static float last_structure_refresh_time = 0.0f;
 	static float last_item_refresh_time = 0.0f;
 
-	static double DeltaTime = 0.0f;
-
-	static float previous_time = -1.0;
-
 	currTime = clock();
-	DeltaTime = currTime - prevtime;
-	DeltaTime = DeltaTime / CLOCKS_PER_SEC;
 
 	if (gpGlobals->deathmatch)
 	{
@@ -888,28 +876,9 @@ void StartFrame(void)
 
 		if (NavmeshLoaded())
 		{
-			if (bGameIsActive)
+			if (GAME_GetGameStatus() == GAME_STATUS_ACTIVE)
 			{
-				if (!bGameHasStarted)
-				{
-					GAME_OnGameStart();
-					bGameHasStarted = true;
-					last_structure_refresh_time = 0.0f;
-					last_item_refresh_time = 0.0f;
-				}
-
-				if (gpGlobals->time - last_structure_refresh_time >= structure_inventory_refresh_rate)
-				{
-					UTIL_RefreshBuildableStructures();
-					UTIL_RefreshResourceNodes();
-					last_structure_refresh_time = gpGlobals->time;
-				}
-
-				if (gpGlobals->time - last_item_refresh_time >= item_inventory_refresh_rate)
-				{
-					UTIL_RefreshMarineItems();
-					last_item_refresh_time = gpGlobals->time;
-				}
+				UTIL_UpdateMapAIData();
 
 				if (!FNullEnt(GAME_GetListenServerEdict()))
 				{
@@ -942,9 +911,9 @@ void StartFrame(void)
 				}
 			}
 
-			float timeSinceLastThink = ((currTime - last_think_time) / CLOCKS_PER_SEC);
+			double timeSinceLastThink = (double)((currTime - last_think_time) / CLOCKS_PER_SEC);
 
-			if (timeSinceLastThink >= BOT_MIN_FRAME_TIME)
+			if (GAME_IsDedicatedServer() || timeSinceLastThink >= BOT_MIN_FRAME_TIME)
 			{
 				GAME_SetBotDeltaTime(timeSinceLastThink);
 

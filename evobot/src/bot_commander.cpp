@@ -27,8 +27,6 @@ extern std::unordered_map<int, buildable_structure> MarineBuildableStructureMap;
 extern edict_t* clients[MAX_CLIENTS];
 extern bot_t bots[MAX_CLIENTS];
 
-extern bool bGameIsActive;
-
 void COMM_CommanderProgressAction(bot_t* CommanderBot, commander_action* Action)
 {
 	if (!Action || Action->ActionType == ACTION_NONE) { return; }
