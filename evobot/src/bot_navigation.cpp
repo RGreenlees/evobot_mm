@@ -4594,6 +4594,7 @@ int UTIL_GetMoveProfileForSkulk(const BotMoveStyle MoveStyle)
 	switch (MoveStyle)
 	{
 	case MOVESTYLE_AMBUSH:
+	case MOVESTYLE_HIDE:
 		return SKULK_AMBUSH_NAV_PROFILE;
 	default:
 		return SKULK_REGULAR_NAV_PROFILE;

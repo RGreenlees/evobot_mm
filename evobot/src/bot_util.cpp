@@ -1724,7 +1724,9 @@ void BotUpdateView(bot_t* pBot)
 
 			TrackingInfo->NextUpdateTime = gpGlobals->time + bot_reaction_time;
 			continue;
-		}		
+		}
+
+		TrackingInfo->bHasLOS = bHasLOS;
 
 		if (bInFOV && (bHasLOS || bIsTracked))
 		{
@@ -1743,7 +1745,7 @@ void BotUpdateView(bot_t* pBot)
 			}
 
 			TrackingInfo->bIsAwareOfPlayer = true;
-			TrackingInfo->LastSeenLocation = VisiblePoint;
+			TrackingInfo->LastSeenLocation = (bHasLOS) ? VisiblePoint : Enemy->v.origin;
 			TrackingInfo->LastFloorPosition = FloorLocation;
 
 			if (bHasLOS)
@@ -2355,17 +2357,9 @@ void DroneThink(bot_t* pBot)
 
 void CustomThink(bot_t* pBot)
 {
+	if (!IsPlayerAlien(pBot->pEdict)) { return; }
 
-	int NextEnemy = BotGetNextEnemyTarget(pBot);
-
-	if (NextEnemy > -1)
-	{
-		RegularModeThink(pBot);
-
-		BotDrawPath(pBot, 0.0f, false);
-	}
-
-
+	RegularModeThink(pBot);
 
 }
 

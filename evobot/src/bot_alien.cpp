@@ -1233,33 +1233,24 @@ void SkulkCombatThink(bot_t* pBot)
 
 	if (DoesAnyPlayerOnTeamHaveLOSToPlayer(MARINE_TEAM, pEdict))
 	{
-		int MoveProfile = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_HIDE);
+		int MoveProfile = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_AMBUSH);
 
-		Vector EscapeLocation = ZERO_VECTOR;//pBot->LastSafeLocation;
+		Vector EscapeLocation = ZERO_VECTOR;
 
-		if (!EscapeLocation)
+		const hive_definition* NearestHive = UTIL_GetNearestHiveAtLocation(pBot->pEdict->v.origin);
+
+		if (NearestHive)
 		{
-			const hive_definition* NearestHive = UTIL_GetNearestHiveAtLocation(pBot->pEdict->v.origin);
-
-			if (NearestHive)
-			{
-				EscapeLocation = NearestHive->FloorLocation;
-			}
+			EscapeLocation = NearestHive->FloorLocation;
 		}
 
-		MoveTo(pBot, EscapeLocation, MOVESTYLE_NORMAL);
-
-		return;
+		MoveTo(pBot, EscapeLocation, MOVESTYLE_AMBUSH);
 	}
 
-	if (TrackedEnemyRef->LastLOSPosition != ZERO_VECTOR)
-	{
-		BotLookAt(pBot, TrackedEnemyRef->LastSeenLocation);
+	Vector LookLocation = (TrackedEnemyRef->LastLOSPosition != ZERO_VECTOR && !TrackedEnemyRef->bHasLOS) ? TrackedEnemyRef->LastLOSPosition : TrackedEnemyRef->LastSeenLocation;
 
-		return;
-	}
+	BotLookAt(pBot, LookLocation);
 
-	MoveTo(pBot, TrackedEnemyRef->LastFloorPosition, MOVESTYLE_AMBUSH);
 	
 }
 
@@ -1300,6 +1291,12 @@ void FadeCombatThink(bot_t* pBot)
 
 			bool bInHealingRange = (DistFromHealingSourceSq <= sqrf(DesiredDistFromHealingSource));
 
+			if (!bInHealingRange)
+			{
+				MoveTo(pBot, UTIL_GetEntityGroundLocation(NearestHealingSource), MOVESTYLE_NORMAL, DesiredDistFromHealingSource);
+				return;
+			}
+
 			if (bOutOfEnemyLOS)
 			{
 				if (PlayerHasWeapon(pBot->pEdict, WEAPON_FADE_METABOLIZE))
@@ -1314,7 +1311,7 @@ void FadeCombatThink(bot_t* pBot)
 
 				if (bInHealingRange)
 				{
-					BotGuardLocation(pBot, NearestHealingSource->v.origin);
+					BotLookAt(pBot, TrackedEnemyRef->LastLOSPosition);
 				}
 				else
 				{
@@ -1324,11 +1321,12 @@ void FadeCombatThink(bot_t* pBot)
 				return;
 			}
 
-			if (!bInHealingRange)
+			if (!UTIL_PlayerHasLOSToLocation(TrackedEnemyRef->EnemyEdict, UTIL_GetEntityGroundLocation(NearestHealingSource) + Vector(0.0f, 0.0f, 16.0f), UTIL_MetresToGoldSrcUnits(30.0f)))
 			{
 				MoveTo(pBot, UTIL_GetEntityGroundLocation(NearestHealingSource), MOVESTYLE_NORMAL, DesiredDistFromHealingSource);
 				return;
 			}
+
 		}		
 	}
 
@@ -1571,11 +1569,23 @@ void LerkCombatThink(bot_t* pBot)
 				// If we are super low on health then just get the hell out of there
 				if (HealthPercent <= 0.2) { bCanSpore = false; }
 
+				if (!bInHealingRange)
+				{
+					MoveTo(pBot, UTIL_GetEntityGroundLocation(NearestHealingSource), MOVESTYLE_NORMAL, DesiredDistFromHealingSource);
+
+					if (bCanSpore)
+					{
+						BotShootLocation(pBot, WEAPON_LERK_SPORES, SporeLocation);
+					}
+
+					return;
+				}
+
 				if (bOutOfEnemyLOS)
 				{
 					if (bInHealingRange)
 					{
-						BotGuardLocation(pBot, NearestHealingSource->v.origin);
+						BotLookAt(pBot, TrackedEnemyRef->LastLOSPosition);
 
 						if (bCanSpore)
 						{
@@ -1594,20 +1604,13 @@ void LerkCombatThink(bot_t* pBot)
 					}
 
 					return;
-				}
+				}				
 
-				if (!bInHealingRange)
+				if (!UTIL_PlayerHasLOSToLocation(TrackedEnemyRef->EnemyEdict, UTIL_GetEntityGroundLocation(NearestHealingSource) + Vector(0.0f, 0.0f, 16.0f), UTIL_MetresToGoldSrcUnits(30.0f)))
 				{
 					MoveTo(pBot, UTIL_GetEntityGroundLocation(NearestHealingSource), MOVESTYLE_NORMAL, DesiredDistFromHealingSource);
-
-					if (bCanSpore)
-					{
-						BotShootLocation(pBot, WEAPON_LERK_SPORES, SporeLocation);
-					}
-
 					return;
 				}
-
 				
 			}
 		}
@@ -1616,7 +1619,6 @@ void LerkCombatThink(bot_t* pBot)
 	if (bLowOnHealth)
 	{
 		pBot->bRetreatForHealth = true;
-		return;
 	}
 
 	// How many allies does our target have providing cover? We don't want to charge in and get shot to pieces
@@ -1776,11 +1778,17 @@ void OnosCombatThink(bot_t* pBot)
 
 			bool bInHealingRange = (DistFromHealingSourceSq <= sqrf(DesiredDistFromHealingSource));
 
+			if (!bInHealingRange)
+			{
+				MoveTo(pBot, UTIL_GetEntityGroundLocation(NearestHealingSource), MOVESTYLE_NORMAL, DesiredDistFromHealingSource);
+				return;
+			}
+
 			if (bOutOfEnemyLOS)
 			{
 				if (bInHealingRange)
 				{
-					BotGuardLocation(pBot, NearestHealingSource->v.origin);
+					BotLookAt(pBot, TrackedEnemyRef->LastLOSPosition);
 				}
 				else
 				{
@@ -1790,7 +1798,7 @@ void OnosCombatThink(bot_t* pBot)
 				return;
 			}
 
-			if (!bInHealingRange)
+			if (!UTIL_PlayerHasLOSToLocation(TrackedEnemyRef->EnemyEdict, UTIL_GetEntityGroundLocation(NearestHealingSource) + Vector(0.0f, 0.0f, 16.0f), UTIL_MetresToGoldSrcUnits(30.0f)))
 			{
 				MoveTo(pBot, UTIL_GetEntityGroundLocation(NearestHealingSource), MOVESTYLE_NORMAL, DesiredDistFromHealingSource);
 				return;
