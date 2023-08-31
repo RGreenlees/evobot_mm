@@ -50,6 +50,10 @@ CommanderMode CONFIG_GetCommanderMode();
 // Returns the current lerk cooldown (how long aliens wait before evolving another lerk after the last one died)
 float CONFIG_GetLerkCooldown();
 
+bool CONFIG_IsLerkAllowed();
+bool CONFIG_IsFadeAllowed();
+bool CONFIG_IsOnosAllowed();
+
 // Returns the max time a bot is allowed to be stuck before suiciding (0 means forever)
 float CONFIG_GetMaxStuckTime();
 

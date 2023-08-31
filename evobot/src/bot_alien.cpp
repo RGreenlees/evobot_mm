@@ -457,8 +457,6 @@ void AlienHarasserSetCombatModePrimaryTask(bot_t* pBot, bot_task* Task)
 
 void AlienCapperSetPrimaryTask(bot_t* pBot, bot_task* Task)
 {
-	bool bCappingIsUrgent = UTIL_GetNumPlacedStructuresOfType(STRUCTURE_ALIEN_RESTOWER) < 3;
-
 	int RequiredRes = kResourceTowerCost;
 
 	if (!IsPlayerGorge(pBot->pEdict))
@@ -471,13 +469,11 @@ void AlienCapperSetPrimaryTask(bot_t* pBot, bot_task* Task)
 	{
 		const resource_node* RandomResNode = nullptr;
 
-		if (!IsPlayerGorge(pBot->pEdict) || PlayerHasWeapon(pBot->pEdict, WEAPON_GORGE_BILEBOMB))
+		RandomResNode = UTIL_AlienFindUnclaimedResNodeFurthestFromLocation(pBot, UTIL_GetCommChairLocation(), !IsPlayerSkulk(pBot->pEdict));
+
+		if (!RandomResNode && (!IsPlayerGorge(pBot->pEdict) || PlayerHasWeapon(pBot->pEdict, WEAPON_GORGE_BILEBOMB)))
 		{
 			RandomResNode = UTIL_FindEligibleResNodeFurthestFromLocation(UTIL_GetCommChairLocation(), ALIEN_TEAM, !IsPlayerSkulk(pBot->pEdict));
-		}
-		else
-		{
-			RandomResNode = UTIL_AlienFindUnclaimedResNodeFurthestFromLocation(pBot, UTIL_GetCommChairLocation(), !IsPlayerSkulk(pBot->pEdict));
 		}
 
 		if (RandomResNode)
@@ -492,12 +488,10 @@ void AlienCapperSetPrimaryTask(bot_t* pBot, bot_task* Task)
 	// Don't have enough to cap right now, take out marine towers
 	if (!IsPlayerGorge(pBot->pEdict) || PlayerHasWeapon(pBot->pEdict, WEAPON_GORGE_BILEBOMB))
 	{
-		edict_t* EnemyResTower = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_RESTOWER, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(200.0f), false, false);
+		edict_t* EnemyResTower = UTIL_GetFurthestStructureOfTypeFromLocation(STRUCTURE_MARINE_RESTOWER, UTIL_GetCommChairLocation(), !IsPlayerSkulk(pBot->pEdict));
 
 		if (!FNullEnt(EnemyResTower))
 		{
-			// Don't set a new attack or move task if we have one already
-			if (Task->TaskType == TASK_ATTACK && Task->TaskTarget == EnemyResTower) { return; }
 			TASK_SetAttackTask(pBot, Task, EnemyResTower, false);
 			return;
 		}
@@ -802,24 +796,29 @@ void AlienDestroyerSetPrimaryTask(bot_t* pBot, bot_task* Task)
 		if (pBot->resources >= kFadeEvolutionCost)
 		{
 			int NumOnos = GAME_GetNumPlayersOnTeamOfClass(pBot->pEdict->v.team, CLASS_ONOS);
-			int Evolution = IMPULSE_ALIEN_EVOLVE_FADE;
+			int Evolution = (CONFIG_IsFadeAllowed()) ? IMPULSE_ALIEN_EVOLVE_FADE : 0;
 
-			if (pBot->resources >= kOnosEvolutionCost && NumOnos < 2)
+			// Normally we only want 2 Onos at any one time, but if Fade isn't allowed and Onos is then we will skip that check and have more rhino boys
+			if (CONFIG_IsOnosAllowed() && pBot->resources >= kOnosEvolutionCost && (!CONFIG_IsFadeAllowed() || NumOnos < 2))
 			{
 				Evolution = IMPULSE_ALIEN_EVOLVE_ONOS;
 			}
 
-			const hive_definition* NearestHive = UTIL_GetNearestHiveOfStatus(pBot->pEdict->v.origin, HIVE_STATUS_BUILT);
+			// Skip this bit if we aren't allowed to go fade, and aren't allowed or can't go onos
+			if (Evolution > 0)
+			{
+				const hive_definition* NearestHive = UTIL_GetNearestHiveOfStatus(pBot->pEdict->v.origin, HIVE_STATUS_BUILT);
 
-			if (NearestHive)
-			{
-				TASK_SetEvolveTask(pBot, Task, NearestHive->edict, Evolution, true);
+				if (NearestHive)
+				{
+					TASK_SetEvolveTask(pBot, Task, NearestHive->edict, Evolution, true);
+				}
+				else
+				{
+					TASK_SetEvolveTask(pBot, Task, pBot->pEdict->v.origin, Evolution, true);
+				}
+				return;
 			}
-			else
-			{
-				TASK_SetEvolveTask(pBot, Task, pBot->pEdict->v.origin, Evolution, true);
-			}
-			return;
 		}
 	}
 
@@ -2173,7 +2172,7 @@ BotRole AlienGetBestBotRole(bot_t* pBot)
 		}
 	}
 
-	bool bCanGoLerk = ((gpGlobals->time - GAME_GetLastLerkSeenTime()) >= CONFIG_GetLerkCooldown());
+	bool bCanGoLerk = (CONFIG_IsLerkAllowed() && ((gpGlobals->time - GAME_GetLastLerkSeenTime()) >= CONFIG_GetLerkCooldown()));
 
 	// If we have enough resources, or nearly enough, and we don't have any lerks already on the team then prioritise this
 	// Also, if we're close to fade then save for that
