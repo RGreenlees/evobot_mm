@@ -944,7 +944,14 @@ bool COMM_IsWaitingOnBuildLink(bot_t* CommanderBot)
 
 commander_action* COMM_GetNextAction(bot_t* CommanderBot)
 {
+	if (CommanderBot->SupportAction.bIsActionUrgent) { return &CommanderBot->SupportAction; }
+
 	if (CommanderBot->BuildAction.bIsActionUrgent) { return &CommanderBot->BuildAction; }
+
+	if (CommanderBot->ResearchAction.bIsActionUrgent) { return &CommanderBot->ResearchAction; }
+
+	if (CommanderBot->RecycleAction.bIsActionUrgent) { return &CommanderBot->RecycleAction; }
+
 
 	if (CommanderBot->RecycleAction.ActionType != ACTION_NONE) { return &CommanderBot->RecycleAction; }
 	
@@ -954,6 +961,7 @@ commander_action* COMM_GetNextAction(bot_t* CommanderBot)
 
 	if (CommanderBot->BuildAction.ActionType != ACTION_NONE) { return &CommanderBot->BuildAction; }
 	
+
 	return nullptr;
 }
 
@@ -2611,6 +2619,8 @@ void COMM_SetNextSecureHiveAction(bot_t* CommanderBot, const hive_definition* Hi
 
 void COMM_SetNextResearchAction(commander_action* Action)
 {
+	if (Action->ActionType != ACTION_NONE && Action->bIsActionUrgent) { return; }
+
 	if (UTIL_ArmouryResearchIsAvailable(RESEARCH_ARMOURY_GRENADES))
 	{
 		if (Action->ActionType == ACTION_RESEARCH && Action->ResearchId == RESEARCH_ARMOURY_GRENADES) { return; }
@@ -3044,6 +3054,8 @@ void COMM_SetElectrifyStructureAction(edict_t* Structure, commander_action* Acti
 
 void COMM_SetNextSupportAction(bot_t* CommanderBot, commander_action* Action)
 {
+	if (Action->ActionType != ACTION_NONE && Action->bIsActionUrgent) { return; }
+
 	edict_t* Armoury = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ANYARMOURY, UTIL_GetCommChairLocation(), UTIL_MetresToGoldSrcUnits(15.0f), true, false);
 
 	if (FNullEnt(Armoury))
@@ -3223,6 +3235,8 @@ void COMM_SetNextSupportAction(bot_t* CommanderBot, commander_action* Action)
 
 void COMM_SetNextRecycleAction(bot_t* CommanderBot, commander_action* Action)
 {
+	if (Action->ActionType != ACTION_NONE && Action->bIsActionUrgent) { return; }
+
 	edict_t* RedundantStructure = UTIL_GetRedundantMarineStructureOfType(STRUCTURE_MARINE_PHASEGATE);
 
 	if (!FNullEnt(RedundantStructure))
@@ -3262,6 +3276,8 @@ void COMM_SetNextRecycleAction(bot_t* CommanderBot, commander_action* Action)
 
 void COMM_SetNextBuildAction(bot_t* CommanderBot, commander_action* Action)
 {
+	if (Action->ActionType != ACTION_NONE && Action->bIsActionUrgent) { return; }
+
 	edict_t* CommChair = UTIL_GetCommChair();
 
 	if (FNullEnt(CommChair)) { return; }
