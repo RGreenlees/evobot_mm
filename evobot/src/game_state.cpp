@@ -15,6 +15,7 @@
 
 edict_t* clients[MAX_CLIENTS];
 bot_t bots[MAX_CLIENTS];
+TrackedEvolution tracked_evolutions[MAX_CLIENTS];
 
 int NumClients;
 int NumBots;
@@ -45,6 +46,9 @@ int CurrentDebugFlags = EVO_DFLAG_NONE;
 NSGameMode CurrentGameMode = GAME_MODE_NONE;
 
 bool bUseComplexFOV = true;
+
+// When was there last a lerk flying around on the alien team?
+float LastLerkSeenTime = 0.0f;
 
 void GAME_SetGameStatus(NSGameStatus NewStatus)
 {
@@ -955,6 +959,8 @@ void GAME_OnGameStart()
 		}
 	}
 
+	LastLerkSeenTime = 0.0f;
+
 	UTIL_ClearMapAIData();
 
 	if (!NavmeshLoaded()) { return; }
@@ -1387,4 +1393,151 @@ void EvoBot_ServerCommand(void)
 		return;
 	}
 
+}
+
+void GAME_TrackPlayerEvolutions()
+{
+	for (int i = 0; i < MAX_CLIENTS; i++)
+	{
+		if (FNullEnt(clients[i]))
+		{
+			tracked_evolutions[i].PlayerEdict = nullptr;
+			tracked_evolutions[i].LastKnownRes = 0;
+			tracked_evolutions[i].EvolvingClass = CLASS_NONE;
+			continue;
+		}
+
+		tracked_evolutions[i].PlayerEdict = clients[i];
+
+		if (IsPlayerSpectator(clients[i]) || IsPlayerInReadyRoom(clients[i]) || IsPlayerMarine(clients[i]) || IsPlayerCommander(clients[i]))
+		{
+			tracked_evolutions[i].LastKnownRes = 0;
+			tracked_evolutions[i].EvolvingClass = CLASS_NONE;
+			continue;
+		}
+
+		tracked_evolutions[i].bIsEvolving = IsPlayerGestating(clients[i]);
+
+		if (tracked_evolutions[i].bIsEvolving)
+		{
+			if (tracked_evolutions[i].EvolvingClass != CLASS_NONE)
+			{
+				tracked_evolutions[i].LastKnownRes = GetPlayerResources(clients[i]);
+
+				if (tracked_evolutions[i].EvolvingClass == CLASS_LERK)
+				{
+					LastLerkSeenTime = gpGlobals->time;
+				}
+
+				continue;
+			}
+
+			int CurrentResources = GetPlayerResources(clients[i]);
+
+			// If player has not lost resources, it must be getting upgrades or evolving to skulk
+			if (CurrentResources >= tracked_evolutions[i].LastKnownRes)
+			{
+				tracked_evolutions[i].LastKnownRes = CurrentResources;
+				tracked_evolutions[i].EvolvingClass = CLASS_NONE;
+
+				if (tracked_evolutions[i].LastSeenClass == CLASS_LERK)
+				{
+					LastLerkSeenTime = gpGlobals->time;
+				}
+				continue;
+			}
+
+			int LostRes = abs(tracked_evolutions[i].LastKnownRes - CurrentResources);
+
+			NSPlayerClass EvolvingClass = CLASS_NONE;
+
+			if (abs(LostRes - kGorgeEvolutionCost) <= 2)
+			{
+				EvolvingClass = CLASS_GORGE;
+			}
+
+			if (abs(LostRes - kLerkEvolutionCost) <= 2)
+			{
+				EvolvingClass = CLASS_LERK;
+			}
+
+			if (abs(LostRes - kFadeEvolutionCost) <= 2)
+			{
+				EvolvingClass = CLASS_FADE;
+			}
+
+			if (abs(LostRes - kFadeEvolutionCost) <= 2)
+			{
+				EvolvingClass = CLASS_ONOS;
+			}
+
+			tracked_evolutions[i].LastKnownRes = GetPlayerResources(clients[i]);
+			tracked_evolutions[i].EvolvingClass = EvolvingClass;
+
+			if (tracked_evolutions[i].EvolvingClass == CLASS_LERK)
+			{
+				LastLerkSeenTime = gpGlobals->time;
+			}
+
+			continue;
+		}
+
+		tracked_evolutions[i].LastKnownRes = GetPlayerResources(clients[i]);
+		tracked_evolutions[i].EvolvingClass = CLASS_NONE;
+		tracked_evolutions[i].LastSeenClass = GetPlayerClass(clients[i]);
+
+		if (tracked_evolutions[i].LastSeenClass == CLASS_LERK)
+		{
+			LastLerkSeenTime = gpGlobals->time;
+		}
+	}
+}
+
+bool GAME_IsPlayerEvolvingToClass(NSPlayerClass Class)
+{
+	for (int i = 0; i < MAX_CLIENTS; i++)
+	{
+		if (tracked_evolutions[i].EvolvingClass == Class || (tracked_evolutions[i].bIsEvolving && tracked_evolutions[i].EvolvingClass == CLASS_NONE && tracked_evolutions[i].LastSeenClass == Class)) { return true; }
+	}
+
+	return false;
+}
+
+int GAME_GetNumPlayersEvolvingToClass(NSPlayerClass Class)
+{
+	int Result = 0;
+
+	for (int i = 0; i < MAX_CLIENTS; i++)
+	{
+		if (tracked_evolutions[i].EvolvingClass == Class || (tracked_evolutions[i].bIsEvolving && tracked_evolutions[i].EvolvingClass == CLASS_NONE && tracked_evolutions[i].LastSeenClass == Class)) { Result++; }
+	}
+
+	return Result;
+}
+
+bool GAME_IsPlayerEvolvingToClass(NSPlayerClass Class, edict_t* IgnorePlayer)
+{
+	for (int i = 0; i < MAX_CLIENTS; i++)
+	{
+		if (tracked_evolutions[i].PlayerEdict != IgnorePlayer && (tracked_evolutions[i].EvolvingClass == Class || (tracked_evolutions[i].bIsEvolving && tracked_evolutions[i].EvolvingClass == CLASS_NONE && tracked_evolutions[i].LastSeenClass == Class))) { return true; }
+	}
+
+	return false;
+}
+
+int GAME_GetNumPlayersEvolvingToClass(NSPlayerClass Class, edict_t* IgnorePlayer)
+{
+	int Result = 0;
+
+	for (int i = 0; i < MAX_CLIENTS; i++)
+	{
+		if (tracked_evolutions[i].PlayerEdict != IgnorePlayer && (tracked_evolutions[i].EvolvingClass == Class || (tracked_evolutions[i].bIsEvolving && tracked_evolutions[i].EvolvingClass == CLASS_NONE && tracked_evolutions[i].LastSeenClass == Class))) { Result++; }
+	}
+
+	return Result;
+}
+
+float GAME_GetLastLerkSeenTime()
+{
+	return LastLerkSeenTime;
 }

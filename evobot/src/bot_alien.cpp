@@ -43,7 +43,7 @@ void AlienThink(bot_t* pBot)
 
 	BotUpdateAndClearTasks(pBot);
 
-	if (pBot->PrimaryBotTask.TaskType == TASK_NONE || !pBot->PrimaryBotTask.bTaskIsUrgent)
+	if (CanAlienSwitchRole(pBot))
 	{
 		BotRole RequiredRole = AlienGetBestBotRole(pBot);
 
@@ -56,8 +56,10 @@ void AlienThink(bot_t* pBot)
 			pBot->CurrentTask = &pBot->PrimaryBotTask;
 		}
 
-		BotAlienSetPrimaryTask(pBot, &pBot->PrimaryBotTask);
+		
 	}
+
+	BotAlienSetPrimaryTask(pBot, &pBot->PrimaryBotTask);
 
 	// We don't want the bot trying to attack or defend as a gorge
 	if (IsPlayerGorge(pBot->pEdict) && pBot->SecondaryBotTask.TaskType != TASK_HEAL)
@@ -96,8 +98,6 @@ void AlienThink(bot_t* pBot)
 		BotProgressTask(pBot, pBot->CurrentTask);
 	}
 }
-
-
 
 void AlienCombatThink(bot_t* pBot)
 {
@@ -195,6 +195,8 @@ void AlienCombatModeThink(bot_t* pBot)
 
 void BotAlienSetPrimaryTask(bot_t* pBot, bot_task* Task)
 {
+	if (pBot->PrimaryBotTask.TaskType != TASK_NONE && pBot->PrimaryBotTask.bTaskIsUrgent) { return; }
+
 	// If we're in the middle of building something and close enough to finish it off, then do that first
 	if (IsPlayerGorge(pBot->pEdict))
 	{
@@ -2105,6 +2107,39 @@ int GetDesiredAlienUpgrade(const bot_t* pBot, const HiveTechStatus TechType)
 	return 0;
 }
 
+bool CanAlienSwitchRole(bot_t* pBot)
+{
+	switch (pBot->CurrentRole)
+	{
+		case BOT_ROLE_DESTROYER:
+		case BOT_ROLE_RES_CAPPER:
+		case BOT_ROLE_BUILDER:
+			return (pBot->PrimaryBotTask.TaskType == TASK_NONE || !pBot->PrimaryBotTask.bTaskIsUrgent);
+		case BOT_ROLE_HARASS:
+			return IsHarasserRoleStillValid(pBot);
+		default:
+			return true;
+	}
+
+	return true;
+}
+
+bool IsHarasserRoleStillValid(bot_t* pBot)
+{
+	if (IsPlayerLerk(pBot->pEdict) || IsPlayerGestating(pBot->pEdict)) { return true; }
+
+	int NumLerks = GAME_GetNumPlayersOnTeamOfClass(ALIEN_TEAM, CLASS_LERK);
+	int NumHarassers = GAME_GetBotsWithRoleType(BOT_ROLE_HARASS, ALIEN_TEAM, pBot->pEdict);
+
+	if ((NumLerks + NumHarassers) > 1) { return false; }
+
+	int NumLerkEvolvers = GAME_GetNumPlayersEvolvingToClass(CLASS_LERK, pBot->pEdict);
+
+	if (NumLerkEvolvers > 1) { return false; }
+
+	return true;
+}
+
 BotRole AlienGetBestBotRole(bot_t* pBot)
 {
 	// Don't switch roles if already fade/onos or those resources are potentially wasted
@@ -2138,15 +2173,23 @@ BotRole AlienGetBestBotRole(bot_t* pBot)
 		}
 	}
 
+	bool bCanGoLerk = ((gpGlobals->time - GAME_GetLastLerkSeenTime()) >= CONFIG_GetLerkCooldown());
+
 	// If we have enough resources, or nearly enough, and we don't have any lerks already on the team then prioritise this
-	if (GetPlayerResources(pBot->pEdict) >= ((float)kLerkEvolutionCost * 0.8f))
+	// Also, if we're close to fade then save for that
+	if (bCanGoLerk && GetPlayerResources(pBot->pEdict) >= ((float)kLerkEvolutionCost * 0.9f) && GetPlayerResources(pBot->pEdict) < ((float)kFadeEvolutionCost * 0.8f))
 	{
 		int NumLerks = GAME_GetNumPlayersOnTeamOfClass(ALIEN_TEAM, CLASS_LERK);
 		int NumHarassers = GAME_GetBotsWithRoleType(BOT_ROLE_HARASS, ALIEN_TEAM, pBot->pEdict);
 
 		if (NumLerks + NumHarassers < 1)
 		{
-			return BOT_ROLE_HARASS;
+			int NumEvolvers = GAME_GetNumPlayersEvolvingToClass(CLASS_LERK, pBot->pEdict);
+
+			if (NumEvolvers < 1)
+			{
+				return BOT_ROLE_HARASS;
+			}
 		}
 	}
 

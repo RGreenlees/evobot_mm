@@ -33,6 +33,7 @@ int CurrNameIndex = 0;
 bool bConfigOverride = false;
 
 float fCommanderWaitTime = 10.0f;
+float fLerkCooldown = 60.0f;
 BotFillMode eBotFillMode = BOTFILL_MANUAL;
 CommanderMode eCommanderMode = COMMANDERMODE_ALWAYS;
 int NSVersion = 33; // 32 for 3.2, 33 for 3.3 (including betas)
@@ -252,6 +253,16 @@ void ParseConfigFile(bool bOverride)
                 {
                     fCommanderWaitTime = (float)atoi(value.c_str());
                     fCommanderWaitTime = fmaxf(0.0f, fCommanderWaitTime);
+                }
+                continue;
+            }
+
+            if (key.compare("LerkCooldown") == 0)
+            {
+                if (isNumber(value.c_str()))
+                {
+                    fLerkCooldown = (float)atoi(value.c_str());
+                    fLerkCooldown = fmaxf(0.0f, fLerkCooldown);
                 }
                 continue;
             }
@@ -662,6 +673,11 @@ void CONFIG_RegenerateConfigFile()
     fprintf(NewConfigFile, "ChamberSequence:defense/movement/sensory\n\n");
 
 
+    fprintf(NewConfigFile, "# Lerk cooldown in seconds.How long should bots wait after a lerk has died to replace them?");
+    fprintf(NewConfigFile, "# Lerks are fragile, so this prevents bots taking it in turns to go lerk every time one dies and burning through all their res.");
+    fprintf(NewConfigFile, "LerkCooldown=60\n\n");
+
+
     fclose(NewConfigFile);
 
     LOG_CONSOLE(PLID, "New config generated at %s\n", filename);
@@ -691,6 +707,11 @@ BotFillMode CONFIG_GetBotFillMode()
 float CONFIG_GetCommanderWaitTime()
 {
     return fCommanderWaitTime;
+}
+
+float CONFIG_GetLerkCooldown()
+{
+    return fLerkCooldown;
 }
 
 float CONFIG_GetMaxStuckTime()

@@ -402,31 +402,21 @@ void ClientCommand(edict_t* pEntity)
 		RETURN_META(MRES_SUPERCEDE);
 	}
 	
-	if (FStrEq(pcmd, "traceplat"))
+	if (FStrEq(pcmd, "trackevolutions"))
 	{
 
-		Vector TraceStart = GetPlayerEyePosition(pEntity); // origin + pev->view_ofs
-		Vector LookDir = UTIL_GetForwardVector(pEntity->v.v_angle); // Converts view angles to normalized unit vector
+		char buf[128];
 
-		Vector TraceEnd = TraceStart + (LookDir * 1000.0f);
-
-		TraceResult hit;
-		UTIL_TraceLine(TraceStart, TraceEnd, dont_ignore_monsters, dont_ignore_glass, pEntity, &hit);
-
-		edict_t* TracedEntity = hit.pHit;
-
-		if (!FNullEnt(TracedEntity))
+		if (GAME_IsPlayerEvolvingToClass(CLASS_LERK))
 		{
-			if (FStrEq(STRING(TracedEntity->v.classname), "func_plat"))
-			{
-				UTIL_DrawLine(pEntity, pEntity->v.origin, UTIL_GetCentreOfEntity(TracedEntity), 10.0f);
-			}
-
-			if (FStrEq(STRING(TracedEntity->v.classname), "func_train"))
-			{
-				UTIL_DrawLine(pEntity, pEntity->v.origin, UTIL_GetCentreOfEntity(TracedEntity), 10.0f);
-			}
+			sprintf(buf, "True (%4.2f)\n", GAME_GetLastLerkSeenTime());
 		}
+		else
+		{
+			sprintf(buf, "False (%4.2f)\n", GAME_GetLastLerkSeenTime());
+		}
+
+		UTIL_SayText(buf, pEntity);
 
 		RETURN_META(MRES_SUPERCEDE);
 	}
@@ -1063,6 +1053,8 @@ void StartFrame(void)
 				UTIL_UpdateWeldableObstacles();
 
 				UTIL_UpdateTileCache();
+
+				GAME_TrackPlayerEvolutions();
 
 				for (bot_index = 0; bot_index < gpGlobals->maxClients; bot_index++)
 				{

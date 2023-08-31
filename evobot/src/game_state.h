@@ -25,6 +25,15 @@ typedef enum
 }
 NSGameStatus;
 
+typedef struct _TRACKED_EVOLUTION
+{
+	edict_t* PlayerEdict = nullptr;
+	int LastKnownRes = 0;
+	NSPlayerClass EvolvingClass = CLASS_NONE;
+	NSPlayerClass LastSeenClass = CLASS_NONE;
+	bool bIsEvolving = false;
+} TrackedEvolution;
+
 NSGameMode GAME_GetGameMode();
 
 void GAME_SetGameStatus(NSGameStatus NewStatus);
@@ -92,5 +101,13 @@ void DEBUG_SetShowBotPath(bool bNewValue);
 void DEBUG_SetShowTaskInfo(bool bNewValue);
 bool DEBUG_ShouldShowTaskInfo();
 bool DEBUG_ShouldShowBotPath();
+
+void GAME_TrackPlayerEvolutions();
+bool GAME_IsPlayerEvolvingToClass(NSPlayerClass Class);
+int GAME_GetNumPlayersEvolvingToClass(NSPlayerClass Class);
+bool GAME_IsPlayerEvolvingToClass(NSPlayerClass Class, edict_t* IgnorePlayer);
+int GAME_GetNumPlayersEvolvingToClass(NSPlayerClass Class, edict_t* IgnorePlayer);
+
+float GAME_GetLastLerkSeenTime();
 
 #endif
