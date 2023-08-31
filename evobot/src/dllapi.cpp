@@ -80,47 +80,27 @@ void ClientCommand(edict_t* pEntity)
 	{
 		if (FStrEq(arg1, "ammo") || FStrEq(arg1, "ammo"))
 		{
-			bool CheckedTeams = false;
-
-			bot_t* BotRef = nullptr;
-			edict_t* BotEdict = nullptr;
-
 			for (int i = 0; i < 32; i++)
 			{
-				if (clients[i] && bots[i].is_used && IsPlayerCommander(clients[i]))
+				if (bots[i].is_used && IsPlayerCommander(bots[i].pEdict))
 				{
-					BotRef = GetBotPointer(clients[i]);
-					BotEdict = clients[i];
+					CommanderReceiveAmmoRequest(&bots[i], pEntity);
+					return;
 				}
-			}
-
-			if (BotRef && BotEdict && BotEdict->v.team == pEntity->v.team)
-			{
-				CommanderReceiveAmmoRequest(BotRef, pEntity);
 			}
 
 			return;
 		}
 
-		if (FStrEq(arg1, "med") || FStrEq(arg1, "heal"))
+		if (FStrEq(arg1, "med") || FStrEq(arg1, "heal") || FStrEq(arg1, "medpack") || FStrEq(arg1, "health"))
 		{
-			bool CheckedTeams = false;
-
-			bot_t* BotRef = nullptr;
-			edict_t* BotEdict = nullptr;
-
 			for (int i = 0; i < 32; i++)
 			{
-				if (clients[i] && bots[i].is_used && IsPlayerCommander(clients[i]))
+				if (bots[i].is_used && IsPlayerCommander(bots[i].pEdict))
 				{
-					BotRef = GetBotPointer(clients[i]);
-					BotEdict = clients[i];
+					CommanderReceiveHealthRequest(&bots[i], pEntity);
+					return;
 				}
-			}
-
-			if (BotRef && BotEdict && BotEdict->v.team == pEntity->v.team)
-			{
-				CommanderReceiveHealthRequest(BotRef, pEntity);
 			}
 
 			return;
@@ -128,35 +108,68 @@ void ClientCommand(edict_t* pEntity)
 
 		if (FStrEq(arg1, "welder"))
 		{
-			bool CheckedTeams = false;
-
-			bot_t* BotRef = nullptr;
-			edict_t* BotEdict = nullptr;
-
 			for (int i = 0; i < 32; i++)
 			{
-				if (clients[i] && bots[i].is_used && IsPlayerCommander(clients[i]))
+				if (bots[i].is_used && IsPlayerCommander(bots[i].pEdict))
 				{
-					BotRef = GetBotPointer(clients[i]);
-					BotEdict = clients[i];
+					CommanderReceiveWeaponRequest(&bots[i], pEntity, DEPLOYABLE_ITEM_MARINE_WELDER);
+					return;
 				}
 			}
 
-			if (BotRef && BotEdict && BotEdict->v.team == pEntity->v.team && UTIL_GetNumPlacedStructuresOfType(STRUCTURE_MARINE_RESTOWER) >= min_desired_resource_towers && UTIL_ItemCanBeDeployed(DEPLOYABLE_ITEM_MARINE_WELDER) && UTIL_GetNumWeaponsOfTypeInPlay(WEAPON_MARINE_WELDER) < 4)
+			return;
+		}
+
+		if (FStrEq(arg1, "shotgun") || FStrEq(arg1, "sg") || FStrEq(arg1, "shotty"))
+		{
+			for (int i = 0; i < 32; i++)
 			{
-				edict_t* NearestArmoury = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ANYARMOURY, UTIL_GetCommChairLocation(), UTIL_MetresToGoldSrcUnits(30.0f), true, false);
-
-				if (!FNullEnt(NearestArmoury))
+				if (bots[i].is_used && IsPlayerCommander(bots[i].pEdict))
 				{
-					Vector NewWelderLocation = UTIL_GetRandomPointOnNavmeshInDonut(MARINE_REGULAR_NAV_PROFILE, NearestArmoury->v.origin, UTIL_MetresToGoldSrcUnits(2.0f), UTIL_MetresToGoldSrcUnits(3.0f));
+					CommanderReceiveWeaponRequest(&bots[i], pEntity, DEPLOYABLE_ITEM_MARINE_SHOTGUN);
+					return;
+				}
+			}
 
-					if (NewWelderLocation != ZERO_VECTOR)
-					{
-						
-						//Need something in COMM_GetNextAction for the bot com to go and immediately place our welder
+			return;
+		}
 
+		if (FStrEq(arg1, "mines") || FStrEq(arg1, "mine"))
+		{
+			for (int i = 0; i < 32; i++)
+			{
+				if (bots[i].is_used && IsPlayerCommander(bots[i].pEdict))
+				{
+					CommanderReceiveWeaponRequest(&bots[i], pEntity, DEPLOYABLE_ITEM_MARINE_MINES);
+					return;
+				}
+			}
 
-					}
+			return;
+		}
+
+		if (FStrEq(arg1, "gl") || FStrEq(arg1, "GL"))
+		{
+			for (int i = 0; i < 32; i++)
+			{
+				if (bots[i].is_used && IsPlayerCommander(bots[i].pEdict))
+				{
+					CommanderReceiveWeaponRequest(&bots[i], pEntity, DEPLOYABLE_ITEM_MARINE_GRENADELAUNCHER);
+					return;
+				}
+			}
+
+			return;
+		}
+
+		if (FStrEq(arg1, "hmg") || FStrEq(arg1, "HMG"))
+		{
+			for (int i = 0; i < 32; i++)
+			{
+				if (bots[i].is_used && IsPlayerCommander(bots[i].pEdict))
+				{
+					CommanderReceiveWeaponRequest(&bots[i], pEntity, DEPLOYABLE_ITEM_MARINE_HMG);
+					return;
 				}
 			}
 
@@ -191,23 +204,13 @@ void ClientCommand(edict_t* pEntity)
 
 		if (FStrEq(arg1, "catalyst") || FStrEq(arg1, "catpack") || FStrEq(arg1, "cat"))
 		{
-			bool CheckedTeams = false;
-
-			bot_t* BotRef = nullptr;
-			edict_t* BotEdict = nullptr;
-
 			for (int i = 0; i < 32; i++)
 			{
-				if (clients[i] && bots[i].is_used && IsPlayerCommander(clients[i]))
+				if (bots[i].is_used && IsPlayerCommander(bots[i].pEdict))
 				{
-					BotRef = GetBotPointer(clients[i]);
-					BotEdict = clients[i];
+					CommanderReceiveCatalystRequest(&bots[i], pEntity);
+					return;
 				}
-			}
-
-			if (BotRef && BotEdict && BotEdict->v.team == pEntity->v.team)
-			{
-				CommanderReceiveCatalystRequest(BotRef, pEntity);
 			}
 
 			return;

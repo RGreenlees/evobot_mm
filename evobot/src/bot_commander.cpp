@@ -391,23 +391,110 @@ void CommanderReceiveAlert(bot_t* pBot, const Vector Location, const PlayerAlert
 	}
 }
 
+void CommanderReceiveWeaponRequest(bot_t* pBot, edict_t* Requestor, NSStructureType ItemToDrop)
+{
+	edict_t* Armoury = nullptr;
+
+	bool bNeedsAdvancedArmoury = false;
+
+	if (ItemToDrop == DEPLOYABLE_ITEM_MARINE_HMG || ItemToDrop == DEPLOYABLE_ITEM_MARINE_GRENADELAUNCHER)
+	{
+		Armoury = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ADVARMOURY, Requestor->v.origin, UTIL_MetresToGoldSrcUnits(15.0f), true, false);
+		bNeedsAdvancedArmoury = true;
+	}
+	else
+	{
+		Armoury = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ANYARMOURY, Requestor->v.origin, UTIL_MetresToGoldSrcUnits(15.0f), true, false);
+	}
+
+	if (FNullEnt(Armoury))
+	{
+		char buf[512];
+		if (bNeedsAdvancedArmoury)
+		{
+			Armoury = UTIL_GetFirstCompletedStructureOfType(STRUCTURE_MARINE_ADVARMOURY);
+
+			if (!FNullEnt(Armoury))
+			{
+				sprintf(buf, "Get to the advanced armoury, %s", STRING(Requestor->v.netname));
+			}
+			else
+			{
+				sprintf(buf, "Don't have an advanced armoury yet, %s", STRING(Requestor->v.netname));
+			}
+
+			
+		}
+		else
+		{
+			sprintf(buf, "Get near an armoury, %s", STRING(Requestor->v.netname));
+		}
+		
+		BotTeamSay(pBot, 2.0f, buf);
+		return;
+	}
+
+	pBot->SupportAction.ActionType = ACTION_DEPLOY;
+	pBot->SupportAction.StructureToBuild = ItemToDrop;
+	pBot->SupportAction.BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, Armoury->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
+	pBot->SupportAction.bIsActionUrgent = true;
+}
+
 void CommanderReceiveHealthRequest(bot_t* pBot, edict_t* Requestor)
 {
+	if (FNullEnt(Requestor) || !IsPlayerActiveInGame(Requestor) || Requestor->v.health >= 100.0f) { return; }
 
-	if (Requestor->v.health < 100.0f)
+	if (UTIL_StructureOfTypeExistsInLocation(STRUCTURE_MARINE_ANYARMOURY, Requestor->v.origin, UTIL_MetresToGoldSrcUnits(15.0f)))
 	{
-
+		char buf[512];
+		sprintf(buf, "Can you use the armoury please, %s?", STRING(Requestor->v.netname));
+		BotTeamSay(pBot, 2.0f, buf);
+		return;
 	}
+
+	if (UTIL_GetItemCountOfTypeInArea(DEPLOYABLE_ITEM_MARINE_HEALTHPACK, Requestor->v.origin, UTIL_MetresToGoldSrcUnits(10.0f)) > 0)
+	{
+		char buf[512];
+		sprintf(buf, "I've already dropped health there, %s", STRING(Requestor->v.netname));
+		BotTeamSay(pBot, 2.0f, buf);
+		return;
+	}
+
+	pBot->SupportAction.ActionType = ACTION_DEPLOY;
+	pBot->SupportAction.StructureToBuild = DEPLOYABLE_ITEM_MARINE_HEALTHPACK;
+	pBot->SupportAction.BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, Requestor->v.origin, UTIL_MetresToGoldSrcUnits(2.0f));
+	pBot->SupportAction.bIsActionUrgent = true;
 }
 
 void CommanderReceiveCatalystRequest(bot_t* pBot, edict_t* Requestor)
 {
+	if (FNullEnt(Requestor) || !IsPlayerActiveInGame(Requestor)) { return; }
 
+	if (!UTIL_ResearchIsComplete(RESEARCH_ARMSLAB_CATALYSTS))
+	{
+		char buf[512];
+		sprintf(buf, "Can't drop catalysts yet, %s", STRING(Requestor->v.netname));
+		BotTeamSay(pBot, 2.0f, buf);
+		return;
+	}
+
+	if (UTIL_GetItemCountOfTypeInArea(DEPLOYABLE_ITEM_MARINE_CATALYSTS, Requestor->v.origin, UTIL_MetresToGoldSrcUnits(10.0f)) > 0)
+	{
+		char buf[512];
+		sprintf(buf, "I've already dropped cat packs there, %s", STRING(Requestor->v.netname));
+		BotTeamSay(pBot, 2.0f, buf);
+		return;
+	}
+
+	pBot->SupportAction.ActionType = ACTION_DEPLOY;
+	pBot->SupportAction.StructureToBuild = DEPLOYABLE_ITEM_MARINE_CATALYSTS;
+	pBot->SupportAction.BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, Requestor->v.origin, UTIL_MetresToGoldSrcUnits(2.0f));
+	pBot->SupportAction.bIsActionUrgent = true;
 }
 
 void CommanderReceiveAmmoRequest(bot_t* pBot, edict_t* Requestor)
 {
-	if (!Requestor) { return; }
+	if (FNullEnt(Requestor) || !IsPlayerActiveInGame(Requestor)) { return; }
 
 	if (UTIL_StructureOfTypeExistsInLocation(STRUCTURE_MARINE_ANYARMOURY, Requestor->v.origin, UTIL_MetresToGoldSrcUnits(15.0f)))
 	{
@@ -424,6 +511,11 @@ void CommanderReceiveAmmoRequest(bot_t* pBot, edict_t* Requestor)
 		BotTeamSay(pBot, 2.0f, buf);
 		return;
 	}
+
+	pBot->SupportAction.ActionType = ACTION_DEPLOY;
+	pBot->SupportAction.StructureToBuild = DEPLOYABLE_ITEM_MARINE_AMMO;
+	pBot->SupportAction.BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, Requestor->v.origin, UTIL_MetresToGoldSrcUnits(2.0f));
+	pBot->SupportAction.bIsActionUrgent = true;
 
 }
 

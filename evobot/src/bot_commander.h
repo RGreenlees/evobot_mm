@@ -39,6 +39,8 @@ void COMM_IssueMarineSiegeHiveOrder(bot_t* CommanderBot, edict_t* Recipient, con
 void COMM_IssueMarineSecureResNodeOrder(bot_t* CommanderBot, edict_t* Recipient, const resource_node* ResNode);
 
 void CommanderReceiveAlert(bot_t* pBot, const Vector Location, const PlayerAlertType AlertType);
+
+void CommanderReceiveWeaponRequest(bot_t* pBot, edict_t* Requestor, NSStructureType ItemToDrop);
 void CommanderReceiveHealthRequest(bot_t* pBot, edict_t* Requestor);
 void CommanderReceiveCatalystRequest(bot_t* pBot, edict_t* Requestor);
 void CommanderReceiveAmmoRequest(bot_t* pBot, edict_t* Requestor);
