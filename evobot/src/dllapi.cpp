@@ -75,6 +75,145 @@ void ClientCommand(edict_t* pEntity)
 	const char* arg4 = CMD_ARGV(4);
 	const char* arg5 = CMD_ARGV(5);
 
+	// commands that anyone on your team is allowed to use
+	if (FStrEq(pcmd, "say") || FStrEq(pcmd, "say_team"))
+	{
+		if (FStrEq(arg1, "ammo") || FStrEq(arg1, "ammo"))
+		{
+			bool CheckedTeams = false;
+
+			bot_t* BotRef = nullptr;
+			edict_t* BotEdict = nullptr;
+
+			for (int i = 0; i < 32; i++)
+			{
+				if (clients[i] && bots[i].is_used && IsPlayerCommander(clients[i]))
+				{
+					BotRef = GetBotPointer(clients[i]);
+					BotEdict = clients[i];
+				}
+			}
+
+			if (BotRef && BotEdict && BotEdict->v.team == pEntity->v.team)
+			{
+				CommanderReceiveAmmoRequest(BotRef, pEntity);
+			}
+
+			return;
+		}
+
+		if (FStrEq(arg1, "med") || FStrEq(arg1, "heal"))
+		{
+			bool CheckedTeams = false;
+
+			bot_t* BotRef = nullptr;
+			edict_t* BotEdict = nullptr;
+
+			for (int i = 0; i < 32; i++)
+			{
+				if (clients[i] && bots[i].is_used && IsPlayerCommander(clients[i]))
+				{
+					BotRef = GetBotPointer(clients[i]);
+					BotEdict = clients[i];
+				}
+			}
+
+			if (BotRef && BotEdict && BotEdict->v.team == pEntity->v.team)
+			{
+				CommanderReceiveHealthRequest(BotRef, pEntity);
+			}
+
+			return;
+		}
+
+		if (FStrEq(arg1, "welder"))
+		{
+			bool CheckedTeams = false;
+
+			bot_t* BotRef = nullptr;
+			edict_t* BotEdict = nullptr;
+
+			for (int i = 0; i < 32; i++)
+			{
+				if (clients[i] && bots[i].is_used && IsPlayerCommander(clients[i]))
+				{
+					BotRef = GetBotPointer(clients[i]);
+					BotEdict = clients[i];
+				}
+			}
+
+			if (BotRef && BotEdict && BotEdict->v.team == pEntity->v.team && UTIL_GetNumPlacedStructuresOfType(STRUCTURE_MARINE_RESTOWER) >= min_desired_resource_towers && UTIL_ItemCanBeDeployed(DEPLOYABLE_ITEM_MARINE_WELDER) && UTIL_GetNumWeaponsOfTypeInPlay(WEAPON_MARINE_WELDER) < 4)
+			{
+				edict_t* NearestArmoury = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ANYARMOURY, UTIL_GetCommChairLocation(), UTIL_MetresToGoldSrcUnits(30.0f), true, false);
+
+				if (!FNullEnt(NearestArmoury))
+				{
+					Vector NewWelderLocation = UTIL_GetRandomPointOnNavmeshInDonut(MARINE_REGULAR_NAV_PROFILE, NearestArmoury->v.origin, UTIL_MetresToGoldSrcUnits(2.0f), UTIL_MetresToGoldSrcUnits(3.0f));
+
+					if (NewWelderLocation != ZERO_VECTOR)
+					{
+						
+						//Need something in COMM_GetNextAction for the bot com to go and immediately place our welder
+
+
+					}
+				}
+			}
+
+			return;
+		}
+
+		if (FStrEq(arg1, "pg") || FStrEq(arg1, "phase") || FStrEq(arg1, "gate") || FStrEq(arg1, "phasegate"))
+		{
+			bool CheckedTeams = false;
+
+			bot_t* BotRef = nullptr;
+			edict_t* BotEdict = nullptr;
+
+			for (int i = 0; i < 32; i++)
+			{
+				if (clients[i] && bots[i].is_used && IsPlayerCommander(clients[i]))
+				{
+					BotRef = GetBotPointer(clients[i]);
+					BotEdict = clients[i];
+				}
+			}
+
+			if (BotRef && BotEdict && BotEdict->v.team == pEntity->v.team && UTIL_GetNumPlacedStructuresOfType(STRUCTURE_MARINE_RESTOWER) >= min_desired_resource_towers && UTIL_ItemCanBeDeployed(STRUCTURE_MARINE_PHASEGATE))
+			{
+
+				//Need something in COMM_GetNextAction for the bot com to go and immediately place our phase gate
+
+			}
+
+			return;
+		}
+
+		if (FStrEq(arg1, "catalyst") || FStrEq(arg1, "catpack") || FStrEq(arg1, "cat"))
+		{
+			bool CheckedTeams = false;
+
+			bot_t* BotRef = nullptr;
+			edict_t* BotEdict = nullptr;
+
+			for (int i = 0; i < 32; i++)
+			{
+				if (clients[i] && bots[i].is_used && IsPlayerCommander(clients[i]))
+				{
+					BotRef = GetBotPointer(clients[i]);
+					BotEdict = clients[i];
+				}
+			}
+
+			if (BotRef && BotEdict && BotEdict->v.team == pEntity->v.team)
+			{
+				CommanderReceiveCatalystRequest(BotRef, pEntity);
+			}
+
+			return;
+		}
+	}
+
 	// only allow custom commands if deathmatch mode and NOT dedicated server and
 	// client sending command is the listen server client...
 

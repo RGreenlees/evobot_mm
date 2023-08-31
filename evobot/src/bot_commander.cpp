@@ -400,6 +400,11 @@ void CommanderReceiveHealthRequest(bot_t* pBot, edict_t* Requestor)
 	}
 }
 
+void CommanderReceiveCatalystRequest(bot_t* pBot, edict_t* Requestor)
+{
+
+}
+
 void CommanderReceiveAmmoRequest(bot_t* pBot, edict_t* Requestor)
 {
 	if (!Requestor) { return; }
@@ -1977,6 +1982,8 @@ bool UTIL_ItemCanBeDeployed(NSStructureType ItemToDeploy)
 		return UTIL_ResearchIsComplete(RESEARCH_PROTOTYPELAB_JETPACKS);
 	case DEPLOYABLE_ITEM_MARINE_SCAN:
 		return UTIL_ObservatoryResearchIsAvailable(RESEARCH_OBSERVATORY_SCAN);
+	case DEPLOYABLE_ITEM_MARINE_CATALYSTS:
+		return UTIL_ResearchIsComplete(RESEARCH_ARMSLAB_CATALYSTS);
 	default:
 		return false;
 	}
