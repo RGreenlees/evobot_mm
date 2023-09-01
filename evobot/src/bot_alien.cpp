@@ -2113,7 +2113,7 @@ bool CanAlienSwitchRole(bot_t* pBot)
 		case BOT_ROLE_DESTROYER:
 		case BOT_ROLE_RES_CAPPER:
 		case BOT_ROLE_BUILDER:
-			return (pBot->PrimaryBotTask.TaskType == TASK_NONE || !pBot->PrimaryBotTask.bTaskIsUrgent);
+			return ((pBot->PrimaryBotTask.TaskType == TASK_NONE || pBot->PrimaryBotTask.TaskType == TASK_EVOLVE) || !pBot->PrimaryBotTask.bTaskIsUrgent);
 		case BOT_ROLE_HARASS:
 			return IsHarasserRoleStillValid(pBot);
 		default:
@@ -2157,47 +2157,20 @@ BotRole AlienGetBestBotRole(bot_t* pBot)
 
 	if (NumPlayersOnTeam == 0) { return BOT_ROLE_DESTROYER; } // Shouldn't ever happen but let's not risk a divide by zero later on...
 
-	// If we have enough resources, or nearly enough, and we don't have any fades already on the team then prioritise this
-	if (GetPlayerResources(pBot->pEdict) >= ((float)kFadeEvolutionCost * 0.8f))
-	{
-		if (GetPlayerResources(pBot->pEdict) > 60) { return BOT_ROLE_DESTROYER; }
-
-		int NumFadesAndOnos = GAME_GetNumPlayersOnTeamOfClass(ALIEN_TEAM, CLASS_FADE) + GAME_GetNumPlayersOnTeamOfClass(ALIEN_TEAM, CLASS_ONOS);
-		int NumDestroyers = GAME_GetBotsWithRoleType(BOT_ROLE_DESTROYER, ALIEN_TEAM, pBot->pEdict);
-		int Existing = NumPlayersOnTeam - NumDestroyers;
-
-		if (Existing > 0 && ((float)NumFadesAndOnos / (float)Existing < 0.33f))
-		{
-			return BOT_ROLE_DESTROYER;
-		}
-	}
-
-	bool bCanGoLerk = (CONFIG_IsLerkAllowed() && ((gpGlobals->time - GAME_GetLastLerkSeenTime()) >= CONFIG_GetLerkCooldown()));
-
-	// If we have enough resources, or nearly enough, and we don't have any lerks already on the team then prioritise this
-	// Also, if we're close to fade then save for that
-	if (bCanGoLerk && GetPlayerResources(pBot->pEdict) >= ((float)kLerkEvolutionCost * 0.9f) && GetPlayerResources(pBot->pEdict) < ((float)kFadeEvolutionCost * 0.8f))
-	{
-		int NumLerks = GAME_GetNumPlayersOnTeamOfClass(ALIEN_TEAM, CLASS_LERK);
-		int NumHarassers = GAME_GetBotsWithRoleType(BOT_ROLE_HARASS, ALIEN_TEAM, pBot->pEdict);
-
-		if (NumLerks + NumHarassers < 1)
-		{
-			int NumEvolvers = GAME_GetNumPlayersEvolvingToClass(CLASS_LERK, pBot->pEdict);
-
-			if (NumEvolvers < 1)
-			{
-				return BOT_ROLE_HARASS;
-			}
-		}
-	}
-
 	int NumTotalResNodes = UTIL_GetNumResNodes();
 
-	// Again, shouldn't ever have a map with no resource nodes, but avoids a potential divide by zero
-	if (NumTotalResNodes == 0)
+	if (NumTotalResNodes == 0) { return BOT_ROLE_DESTROYER; } // Again, shouldn't ever have a map with no resource nodes, but avoids a potential divide by zero
+
+	// Don't go builder if we have nothing to build...
+	if (IsAlienBuilderTaskNeeded(pBot))
 	{
-		return BOT_ROLE_DESTROYER;
+		int NumRequiredBuilders = CalcNumAlienBuildersRequired();
+		int NumBuilders = GAME_GetBotsWithRoleType(BOT_ROLE_BUILDER, ALIEN_TEAM, pBot->pEdict);
+
+		if (NumBuilders < NumRequiredBuilders)
+		{
+			return BOT_ROLE_BUILDER;
+		}
 	}
 
 	// Don't go capper if we have nothing to cap...
@@ -2235,19 +2208,26 @@ BotRole AlienGetBestBotRole(bot_t* pBot)
 		}
 	}
 
-	// Don't go builder if we have nothing to build...
-	if (IsAlienBuilderTaskNeeded(pBot))
-	{
-		int NumRequiredBuilders = CalcNumAlienBuildersRequired();
-		int NumBuilders = GAME_GetBotsWithRoleType(BOT_ROLE_BUILDER, ALIEN_TEAM, pBot->pEdict);
+	bool bCanGoLerk = (CONFIG_IsLerkAllowed() && ((gpGlobals->time - GAME_GetLastLerkSeenTime()) >= CONFIG_GetLerkCooldown()));
 
-		if (NumBuilders < NumRequiredBuilders)
+	// If we have enough resources, or nearly enough, and we don't have any lerks already on the team then prioritise this
+	// Also, if we're close to fade then save for that
+	if (bCanGoLerk && GetPlayerResources(pBot->pEdict) >= ((float)kLerkEvolutionCost * 0.9f) && GetPlayerResources(pBot->pEdict) < ((float)kFadeEvolutionCost * 0.8f))
+	{
+		int NumLerks = GAME_GetNumPlayersOnTeamOfClass(ALIEN_TEAM, CLASS_LERK);
+		int NumHarassers = GAME_GetBotsWithRoleType(BOT_ROLE_HARASS, ALIEN_TEAM, pBot->pEdict);
+
+		if (NumLerks + NumHarassers < 1)
 		{
-			return BOT_ROLE_BUILDER;
+			int NumEvolvers = GAME_GetNumPlayersEvolvingToClass(CLASS_LERK, pBot->pEdict);
+
+			if (NumEvolvers < 1)
+			{
+				return BOT_ROLE_HARASS;
+			}
 		}
 	}
 
-	
 
 	return BOT_ROLE_DESTROYER;
 }

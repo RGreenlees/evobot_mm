@@ -103,10 +103,11 @@ bool DEBUG_ShouldShowTaskInfo();
 bool DEBUG_ShouldShowBotPath();
 
 void GAME_TrackPlayerEvolutions();
-bool GAME_IsPlayerEvolvingToClass(NSPlayerClass Class);
+bool GAME_IsAnyPlayerEvolvingToClass(NSPlayerClass Class);
 int GAME_GetNumPlayersEvolvingToClass(NSPlayerClass Class);
-bool GAME_IsPlayerEvolvingToClass(NSPlayerClass Class, edict_t* IgnorePlayer);
+bool GAME_IsAnyPlayerEvolvingToClass(NSPlayerClass Class, edict_t* IgnorePlayer);
 int GAME_GetNumPlayersEvolvingToClass(NSPlayerClass Class, edict_t* IgnorePlayer);
+bool GAME_IsPlayerEvolvingToClass(NSPlayerClass Class, edict_t* Player);
 
 float GAME_GetLastLerkSeenTime();
 

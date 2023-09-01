@@ -1493,7 +1493,7 @@ void GAME_TrackPlayerEvolutions()
 	}
 }
 
-bool GAME_IsPlayerEvolvingToClass(NSPlayerClass Class)
+bool GAME_IsAnyPlayerEvolvingToClass(NSPlayerClass Class)
 {
 	for (int i = 0; i < MAX_CLIENTS; i++)
 	{
@@ -1515,7 +1515,7 @@ int GAME_GetNumPlayersEvolvingToClass(NSPlayerClass Class)
 	return Result;
 }
 
-bool GAME_IsPlayerEvolvingToClass(NSPlayerClass Class, edict_t* IgnorePlayer)
+bool GAME_IsAnyPlayerEvolvingToClass(NSPlayerClass Class, edict_t* IgnorePlayer)
 {
 	for (int i = 0; i < MAX_CLIENTS; i++)
 	{
@@ -1535,6 +1535,21 @@ int GAME_GetNumPlayersEvolvingToClass(NSPlayerClass Class, edict_t* IgnorePlayer
 	}
 
 	return Result;
+}
+
+bool GAME_IsPlayerEvolvingToClass(NSPlayerClass Class, edict_t* Player)
+{
+	if (FNullEnt(Player) || IsPlayerMarine(Player)) { return false; }
+
+	for (int i = 0; i < MAX_CLIENTS; i++)
+	{
+		if (tracked_evolutions[i].PlayerEdict == Player)
+		{
+			return (tracked_evolutions[i].EvolvingClass == Class || (tracked_evolutions[i].bIsEvolving && tracked_evolutions[i].EvolvingClass == CLASS_NONE && tracked_evolutions[i].LastSeenClass == Class));
+		}
+	}
+
+	return false;
 }
 
 float GAME_GetLastLerkSeenTime()

@@ -802,7 +802,7 @@ void UTIL_RefreshBuildableStructures()
 	{
 		if (Hives[i].NextFloorLocationCheck > 0.0f && gpGlobals->time >= Hives[i].NextFloorLocationCheck)
 		{
-			Vector ClosestPoint = FindClosestNavigablePointToDestination(MARINE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), UTIL_GetFloorUnderEntity(Hives[i].edict), UTIL_MetresToGoldSrcUnits(20.0f));
+			Vector ClosestPoint = FindClosestNavigablePointToDestination(MARINE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), UTIL_GetFloorUnderEntity(Hives[i].edict), UTIL_MetresToGoldSrcUnits(10.0f));
 
 			if (!ClosestPoint)
 			{
@@ -2192,13 +2192,6 @@ const resource_node* UTIL_AlienFindUnclaimedResNodeFurthestFromLocation(const bo
 			continue;
 		}
 
-		edict_t* Egg = UTIL_GetNearestPlayerOfClass(ResourceNodes[i].origin, CLASS_EGG, UTIL_MetresToGoldSrcUnits(5.0f), pBot->pEdict);
-
-		if (Egg && (GetPlayerResources(Egg) >= kResourceTowerCost && vDist2DSq(Egg->v.origin, ResourceNodes[i].origin) < vDist2DSq(pBot->pEdict->v.origin, ResourceNodes[i].origin)))
-		{
-			continue;
-		}
-
 		float Dist = vDist2DSq(Location, ResourceNodes[i].origin);
 		if (Result < 0 || Dist > MaxDist)
 		{
@@ -2827,7 +2820,7 @@ edict_t* UTIL_GetNearestPlayerOfClass(const Vector Location, const NSPlayerClass
 	{
 		if (FNullEnt(clients[i]) || clients[i] == PlayerToIgnore || IsPlayerDead(clients[i])) { continue; }
 
-		if (!IsPlayerInReadyRoom(clients[i]) && !IsPlayerBeingDigested(clients[i]) && GetPlayerClass(clients[i]) == SearchClass)
+		if (!IsPlayerInReadyRoom(clients[i]) && !IsPlayerBeingDigested(clients[i]) && (GetPlayerClass(clients[i]) == SearchClass || GAME_IsPlayerEvolvingToClass(SearchClass, clients[i])))
 		{
 			float ThisDist = vDist2DSq(Location, clients[i]->v.origin);
 

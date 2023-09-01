@@ -45,7 +45,7 @@ bool bOnosAllowed = true;
 
 float MaxStuckTime = 0.0f;
 
-HiveTechStatus ChamberSequence[3];
+HiveTechStatus ChamberSequence[3] = { HIVE_TECH_DEFENCE, HIVE_TECH_MOVEMENT, HIVE_TECH_SENSORY };
 
 std::unordered_map<std::string, TeamSizeDefinitions> TeamSizeMap;
 
@@ -448,7 +448,7 @@ void ParseConfigFile(bool bOverride)
                 HiveTechStatus HiveTwoTech = HIVE_TECH_NONE;
                 HiveTechStatus HiveThreeTech = HIVE_TECH_NONE;
 
-                std::vector<HiveTechStatus> AvailableTechs = { HIVE_TECH_MOVEMENT, HIVE_TECH_DEFENCE, HIVE_TECH_SENSORY };
+                std::vector<HiveTechStatus> AvailableTechs = { HIVE_TECH_DEFENCE, HIVE_TECH_MOVEMENT, HIVE_TECH_SENSORY };
 
                 auto firstTechDelimiter = value.find("/");
 
@@ -577,8 +577,6 @@ void ParseConfigFile(bool bOverride)
 
                 continue;
             }
-
-
         }
         LOG_CONSOLE(PLID, "Config loaded for NS Version %s. If this is incorrect, please update evobot.cfg with the correct version (32 or 33)\n", (CONFIG_GetNSVersion() == 33) ? "3.3" : "3.2");
     }
@@ -667,7 +665,17 @@ void CONFIG_RegenerateConfigFile()
     fprintf(NewConfigFile, "# ViewSpeed = How fast the bot can swivel its view (0.1 - 2.0)\n");
     fprintf(NewConfigFile, "# Reference the difficulties by name using the 'botskill' command (see Help.txt)\n\n");
 
-    fprintf(NewConfigFile, "BotSkillName=MyCustomSkill\n");
+    fprintf(NewConfigFile, "BotSkillName=Easy\n");
+    fprintf(NewConfigFile, "MarineReactionTime=0.5\n");
+    fprintf(NewConfigFile, "MarineAimSkill=0.1\n");
+    fprintf(NewConfigFile, "MarineMovementTracking=0.1\n");
+    fprintf(NewConfigFile, "MarineViewSpeed=0.5\n");
+    fprintf(NewConfigFile, "AlienReactionTime=0.5\n");
+    fprintf(NewConfigFile, "AlienAimSkill=0.2\n");
+    fprintf(NewConfigFile, "AlienMovementTracking=0.2\n");
+    fprintf(NewConfigFile, "AlienViewSpeed=0.75\n\n");
+
+    fprintf(NewConfigFile, "BotSkillName=Medium\n");
     fprintf(NewConfigFile, "MarineReactionTime=0.2\n");
     fprintf(NewConfigFile, "MarineAimSkill=0.2\n");
     fprintf(NewConfigFile, "MarineMovementTracking=0.2\n");
@@ -677,8 +685,28 @@ void CONFIG_RegenerateConfigFile()
     fprintf(NewConfigFile, "AlienMovementTracking=0.5\n");
     fprintf(NewConfigFile, "AlienViewSpeed=1.3\n\n");
 
+    fprintf(NewConfigFile, "BotSkillName=Hard\n");
+    fprintf(NewConfigFile, "MarineReactionTime=0.2\n");
+    fprintf(NewConfigFile, "MarineAimSkill=0.6\n");
+    fprintf(NewConfigFile, "MarineMovementTracking=0.6\n");
+    fprintf(NewConfigFile, "MarineViewSpeed=1.5\n");
+    fprintf(NewConfigFile, "AlienReactionTime=0.2\n");
+    fprintf(NewConfigFile, "AlienAimSkill=0.8\n");
+    fprintf(NewConfigFile, "AlienMovementTracking=0.8\n");
+    fprintf(NewConfigFile, "AlienViewSpeed=1.5\n\n");
+
+    fprintf(NewConfigFile, "BotSkillName=Godlike\n");
+    fprintf(NewConfigFile, "MarineReactionTime=0.1\n");
+    fprintf(NewConfigFile, "MarineAimSkill=1.0\n");
+    fprintf(NewConfigFile, "MarineMovementTracking=1.0\n");
+    fprintf(NewConfigFile, "MarineViewSpeed=2.0\n");
+    fprintf(NewConfigFile, "AlienReactionTime=0.1\n");
+    fprintf(NewConfigFile, "AlienAimSkill=1.0\n");
+    fprintf(NewConfigFile, "AlienMovementTracking=1.0\n");
+    fprintf(NewConfigFile, "AlienViewSpeed=2.0\n\n");
+
     fprintf(NewConfigFile, "# Default bot skill level for all bots created. Must be a valid skill defined above\n");
-    fprintf(NewConfigFile, "DefaultSkillLevel=MyCustomSkill\n\n\n\n");
+    fprintf(NewConfigFile, "DefaultSkillLevel=Medium\n\n\n\n");
 
 
 
@@ -701,7 +729,7 @@ void CONFIG_RegenerateConfigFile()
     fprintf(NewConfigFile, "# ChamberSequence:movement/?/?\n");
     fprintf(NewConfigFile, "# # Or if you want sensory always last, but movement and defence random, use\n");
     fprintf(NewConfigFile, "# ChamberSequence=?/?/sensory\n");
-    fprintf(NewConfigFile, "ChamberSequence:defense/movement/sensory\n\n");
+    fprintf(NewConfigFile, "ChamberSequence=defense/movement/sensory\n\n");
 
     fprintf(NewConfigFile, "# Lerk cooldown in seconds. How long should bots wait after a lerk has died to replace them?\n");
     fprintf(NewConfigFile, "# Lerks are fragile, so this prevents bots taking it in turns to go lerk every time one dies and burning through all their res.\n");

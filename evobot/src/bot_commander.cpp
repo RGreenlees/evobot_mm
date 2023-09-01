@@ -554,7 +554,19 @@ void COMM_UpdateAndClearCommanderOrders(bot_t* CommanderBot)
 
 	int MaxMarines = GAME_GetNumActivePlayersOnTeam(MARINE_TEAM);
 
-	const hive_definition* NearestEmptyHive = COMM_GetUnsecuredEmptyHiveNearestLocation(CommanderBot, UTIL_GetCommChairLocation());
+	const hive_definition* NearestAlienHive = UTIL_GetNearestHiveOfStatus(UTIL_GetCommChairLocation(), HIVE_STATUS_BUILT);
+	const hive_definition* NearestEmptyHive = nullptr;
+	
+	if (NearestAlienHive)
+	{
+		NearestEmptyHive = COMM_GetUnsecuredEmptyHiveFurthestToLocation(CommanderBot, NearestAlienHive->Location);
+	}
+	else
+	{
+		NearestEmptyHive = COMM_GetUnsecuredEmptyHiveNearestLocation(CommanderBot, UTIL_GetCommChairLocation());
+	}
+	
+	
 
 	if (NearestEmptyHive != nullptr)
 	{

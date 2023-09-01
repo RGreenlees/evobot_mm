@@ -78,7 +78,7 @@ void ClientCommand(edict_t* pEntity)
 	// commands that anyone on your team is allowed to use
 	if (FStrEq(pcmd, "say") || FStrEq(pcmd, "say_team"))
 	{
-		if (FStrEq(arg1, "ammo") || FStrEq(arg1, "ammo"))
+		if (FStrEq(arg1, "ammo"))
 		{
 			for (int i = 0; i < 32; i++)
 			{
@@ -407,7 +407,7 @@ void ClientCommand(edict_t* pEntity)
 
 		char buf[128];
 
-		if (GAME_IsPlayerEvolvingToClass(CLASS_LERK))
+		if (GAME_IsAnyPlayerEvolvingToClass(CLASS_LERK))
 		{
 			sprintf(buf, "True (%4.2f)\n", GAME_GetLastLerkSeenTime());
 		}
