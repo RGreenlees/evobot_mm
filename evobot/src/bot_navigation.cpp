@@ -3465,7 +3465,21 @@ void LadderMove(bot_t* pBot, const Vector StartPoint, const Vector EndPoint, flo
 	// If we're going down the ladder and are approaching it, just keep moving towards it
 	if (pBot->BotNavInfo.IsOnGround && !bIsGoingUpLadder)
 	{
-		pBot->desiredMovementDir = vForward;
+		Vector ApproachDir = UTIL_GetVectorNormal2D(EndPoint - pBot->pEdict->v.origin);
+
+		float Dot = UTIL_GetDotProduct2D(ApproachDir, vForward);
+
+		if (Dot > 45.0f)
+		{
+			pBot->desiredMovementDir = vForward;
+			pBot->BotNavInfo.bShouldWalk = true;
+		}
+		else
+		{
+			Vector nearestLadderPoint = UTIL_GetNearestLadderCentrePoint(pEdict);
+			pBot->desiredMovementDir = UTIL_GetVectorNormal2D(nearestLadderPoint - StartPoint);
+		}
+
 		return;
 	}
 
@@ -4802,6 +4816,8 @@ bool MoveTo(bot_t* pBot, const Vector Destination, const BotMoveStyle MoveStyle,
 	UTIL_UpdateBotMovementStatus(pBot);
 
 	nav_status* BotNavInfo = &pBot->BotNavInfo;
+
+	BotNavInfo->bShouldWalk = false;
 
 	// If we are currently in the process of getting back on the navmesh, don't interrupt
 	if (BotNavInfo->UnstuckMoveLocation != ZERO_VECTOR)
@@ -6287,7 +6303,7 @@ void BotMovementInputs(bot_t* pBot)
 	float moveDelta = UTIL_VecToAngles(pBot->desiredMovementDir).y;
 	float angleDelta = currentYaw - moveDelta;
 
-	float botSpeed = pBot->pEdict->v.maxspeed;
+	float botSpeed = (pBot->BotNavInfo.bShouldWalk) ? (pBot->pEdict->v.maxspeed * 0.4f) : pBot->pEdict->v.maxspeed;
 
 	if (angleDelta < -180.0f)
 	{
