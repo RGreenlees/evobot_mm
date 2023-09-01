@@ -2044,6 +2044,8 @@ void StartNewBotFrame(bot_t* pBot)
 		}
 	}
 
+	pBot->BotNavInfo.bShouldWalk = false;
+
 	if (IsBotReloading(pBot))
 	{
 		

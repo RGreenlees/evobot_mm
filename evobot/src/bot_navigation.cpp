@@ -4817,8 +4817,6 @@ bool MoveTo(bot_t* pBot, const Vector Destination, const BotMoveStyle MoveStyle,
 
 	nav_status* BotNavInfo = &pBot->BotNavInfo;
 
-	BotNavInfo->bShouldWalk = false;
-
 	// If we are currently in the process of getting back on the navmesh, don't interrupt
 	if (BotNavInfo->UnstuckMoveLocation != ZERO_VECTOR)
 	{
