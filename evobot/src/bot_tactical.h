@@ -98,6 +98,8 @@ void UTIL_UpdateMarineItem(edict_t* Item, NSStructureType ItemType);
 void UTIL_RefreshBuildableStructures();
 void UTIL_RefreshResourceNodes();
 
+void UTIL_UpdateMapAIData();
+
 void UTIL_RegisterNewMarineStructure(edict_t* Structure);
 void UTIL_UpdateMarineStructureDetails(edict_t* Structure);
 void UTIL_RegisterNewAlienStructure(edict_t* Structure);

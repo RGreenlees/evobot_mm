@@ -22,8 +22,6 @@
 extern bot_t bots[MAX_CLIENTS];
 extern edict_t* clients[MAX_CLIENTS];
 
-extern bool bGameIsActive;
-
 extern char g_argv[1024];
 bool isFakeClientCommand;
 int fake_arg_count;
@@ -215,10 +213,6 @@ void BotLeap(bot_t* pBot, const Vector TargetLocation)
 		return;
 	}
 
-	bool bShouldLeap = pBot->BotNavInfo.IsOnGround && (gpGlobals->time - pBot->BotNavInfo.LandedTime >= 0.2f && gpGlobals->time - pBot->BotNavInfo.LeapAttemptedTime >= 0.5f);
-
-	if (!bShouldLeap) { return; }
-
 	NSWeapon LeapWeapon = (IsPlayerSkulk(pBot->pEdict)) ? WEAPON_SKULK_LEAP : WEAPON_FADE_BLINK;
 
 	if (GetBotCurrentWeapon(pBot) != LeapWeapon)
@@ -226,6 +220,10 @@ void BotLeap(bot_t* pBot, const Vector TargetLocation)
 		pBot->DesiredMoveWeapon = LeapWeapon;
 		return;
 	}
+
+	bool bShouldLeap = !IsPlayerSkulk(pBot->pEdict) || (pBot->BotNavInfo.IsOnGround && (gpGlobals->time - pBot->BotNavInfo.LandedTime >= 0.2f && gpGlobals->time - pBot->BotNavInfo.LeapAttemptedTime >= 0.5f));
+
+	if (!bShouldLeap) { return; }
 
 	Vector LookLocation = TargetLocation;
 
@@ -278,7 +276,7 @@ void BotLeap(bot_t* pBot, const Vector TargetLocation)
 		float RequiredVelocity = UTIL_GetVelocityRequiredToReachTarget(pBot->pEdict->v.origin, TargetLocation, GOLDSRC_GRAVITY);
 		float CurrentVelocity = vSize3D(pBot->pEdict->v.velocity);
 
-		bShouldLeap = (CurrentVelocity < RequiredVelocity);
+		bShouldLeap = (CurrentVelocity <= RequiredVelocity);
 	}
 
 	if (bShouldLeap)
@@ -1726,7 +1724,9 @@ void BotUpdateView(bot_t* pBot)
 
 			TrackingInfo->NextUpdateTime = gpGlobals->time + bot_reaction_time;
 			continue;
-		}		
+		}
+
+		TrackingInfo->bHasLOS = bHasLOS;
 
 		if (bInFOV && (bHasLOS || bIsTracked))
 		{
@@ -1745,7 +1745,7 @@ void BotUpdateView(bot_t* pBot)
 			}
 
 			TrackingInfo->bIsAwareOfPlayer = true;
-			TrackingInfo->LastSeenLocation = VisiblePoint;
+			TrackingInfo->LastSeenLocation = (bHasLOS) ? VisiblePoint : Enemy->v.origin;
 			TrackingInfo->LastFloorPosition = FloorLocation;
 
 			if (bHasLOS)
@@ -2044,6 +2044,8 @@ void StartNewBotFrame(bot_t* pBot)
 		}
 	}
 
+	pBot->BotNavInfo.bShouldWalk = false;
+
 	if (IsBotReloading(pBot))
 	{
 		
@@ -2069,6 +2071,7 @@ void BotThink(bot_t* pBot)
 	if (pBot->bBotThinkPaused)
 	{
 		BotRestartPlay(pBot);
+		return;
 	}
 
 	if (IsPlayerGestating(pBot->pEdict)) { return; }
@@ -2099,7 +2102,7 @@ void BotThink(bot_t* pBot)
 		break;
 	default:
 	{
-		if (!bGameIsActive)
+		if (GAME_GetGameStatus() != GAME_STATUS_ACTIVE)
 		{
 			WaitGameStartThink(pBot);
 		}
@@ -2287,14 +2290,7 @@ void ReadyRoomThink(bot_t* pBot)
 
 void WaitGameStartThink(bot_t* pBot)
 {
-	Vector NewGuardLocation = pBot->GuardInfo.GuardLocation;
-
-	if (NewGuardLocation == ZERO_VECTOR || vDist2DSq(NewGuardLocation, pBot->pEdict->v.origin) > sqrf(UTIL_MetresToGoldSrcUnits(5.0f)))
-	{
-		NewGuardLocation = pBot->pEdict->v.origin;
-	}
-
-	BotGuardLocation(pBot, NewGuardLocation);
+	// Don't do anything for now
 }
 
 int BotGetNextEnemyTarget(bot_t* pBot)
@@ -2363,47 +2359,15 @@ void DroneThink(bot_t* pBot)
 
 void CustomThink(bot_t* pBot)
 {
-	if (IsPlayerAlien(pBot->pEdict)) { return; }
+	if (!IsPlayerAlien(pBot->pEdict)) { return; }
 
-	if (!PlayerHasWeapon(pBot->pEdict, WEAPON_MARINE_GL))
-	{
-		if (pBot->PrimaryBotTask.TaskType != TASK_GET_WEAPON)
-		{
-			edict_t* GL = UTIL_GetNearestItemOfType(DEPLOYABLE_ITEM_MARINE_GRENADELAUNCHER, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(50.0f));
-
-			if (!FNullEnt(GL))
-			{
-				pBot->PrimaryBotTask.TaskType = TASK_GET_WEAPON;
-				pBot->PrimaryBotTask.TaskTarget = GL;
-				pBot->PrimaryBotTask.TaskLocation = GL->v.origin;
-			}
-		}
-	}
-	else
-	{
-		if (pBot->PrimaryBotTask.TaskType != TASK_ATTACK)
-		{
-			const hive_definition* Hive = UTIL_GetNearestHiveOfStatus(pBot->pEdict->v.origin, HIVE_STATUS_BUILT);
-
-			if (Hive)
-			{
-				TASK_SetAttackTask(pBot, &pBot->PrimaryBotTask, Hive->edict, false);
-			}
-		}
-	}
-
-	if (!UTIL_IsTaskStillValid(pBot, &pBot->PrimaryBotTask))
-	{
-		UTIL_ClearBotTask(pBot, &pBot->PrimaryBotTask);
-	}
-
-	BotProgressTask(pBot, &pBot->PrimaryBotTask);
+	RegularModeThink(pBot);
 
 }
 
 void TestAimThink(bot_t* pBot)
 {
-	if (!bGameIsActive)
+	if (GAME_GetGameStatus() != GAME_STATUS_ACTIVE)
 	{
 		WaitGameStartThink(pBot);
 		return;
@@ -2428,7 +2392,7 @@ void TestAimThink(bot_t* pBot)
 
 void TestGuardThink(bot_t* pBot)
 {
-	if (!bGameIsActive)
+	if (GAME_GetGameStatus() != GAME_STATUS_ACTIVE)
 	{
 		WaitGameStartThink(pBot);
 		return;
@@ -2441,7 +2405,7 @@ void TestGuardThink(bot_t* pBot)
 
 void TestNavThink(bot_t* pBot)
 {
-	if (!bGameIsActive)
+	if (GAME_GetGameStatus() != GAME_STATUS_ACTIVE)
 	{
 		WaitGameStartThink(pBot);
 		return;
@@ -2509,7 +2473,7 @@ bool ShouldBotThink(const bot_t* bot)
 
 void BotRestartPlay(bot_t* pBot)
 {
-	ClearBotPath(pBot);
+	ClearBotMovement(pBot);
 	pBot->bBotThinkPaused = false;
 }
 

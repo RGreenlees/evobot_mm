@@ -57,15 +57,9 @@ extern int NumClients;
 
 extern bot_t bots[MAX_CLIENTS];
 
-extern int IsDedicatedServer;
-
 extern edict_t* listenserver_edict;
 
-extern bool bGameIsActive;
-
 extern bool bGameHasStarted;
-
-extern int GameStatus;
 
 float last_think_time;
 
@@ -81,10 +75,152 @@ void ClientCommand(edict_t* pEntity)
 	const char* arg4 = CMD_ARGV(4);
 	const char* arg5 = CMD_ARGV(5);
 
+	// commands that anyone on your team is allowed to use
+	if (FStrEq(pcmd, "say") || FStrEq(pcmd, "say_team"))
+	{
+		if (FStrEq(arg1, "ammo"))
+		{
+			for (int i = 0; i < 32; i++)
+			{
+				if (bots[i].is_used && IsPlayerCommander(bots[i].pEdict))
+				{
+					CommanderReceiveAmmoRequest(&bots[i], pEntity);
+					return;
+				}
+			}
+
+			return;
+		}
+
+		if (FStrEq(arg1, "med") || FStrEq(arg1, "heal") || FStrEq(arg1, "medpack") || FStrEq(arg1, "health"))
+		{
+			for (int i = 0; i < 32; i++)
+			{
+				if (bots[i].is_used && IsPlayerCommander(bots[i].pEdict))
+				{
+					CommanderReceiveHealthRequest(&bots[i], pEntity);
+					return;
+				}
+			}
+
+			return;
+		}
+
+		if (FStrEq(arg1, "welder"))
+		{
+			for (int i = 0; i < 32; i++)
+			{
+				if (bots[i].is_used && IsPlayerCommander(bots[i].pEdict))
+				{
+					CommanderReceiveWeaponRequest(&bots[i], pEntity, DEPLOYABLE_ITEM_MARINE_WELDER);
+					return;
+				}
+			}
+
+			return;
+		}
+
+		if (FStrEq(arg1, "shotgun") || FStrEq(arg1, "sg") || FStrEq(arg1, "shotty"))
+		{
+			for (int i = 0; i < 32; i++)
+			{
+				if (bots[i].is_used && IsPlayerCommander(bots[i].pEdict))
+				{
+					CommanderReceiveWeaponRequest(&bots[i], pEntity, DEPLOYABLE_ITEM_MARINE_SHOTGUN);
+					return;
+				}
+			}
+
+			return;
+		}
+
+		if (FStrEq(arg1, "mines") || FStrEq(arg1, "mine"))
+		{
+			for (int i = 0; i < 32; i++)
+			{
+				if (bots[i].is_used && IsPlayerCommander(bots[i].pEdict))
+				{
+					CommanderReceiveWeaponRequest(&bots[i], pEntity, DEPLOYABLE_ITEM_MARINE_MINES);
+					return;
+				}
+			}
+
+			return;
+		}
+
+		if (FStrEq(arg1, "gl") || FStrEq(arg1, "GL"))
+		{
+			for (int i = 0; i < 32; i++)
+			{
+				if (bots[i].is_used && IsPlayerCommander(bots[i].pEdict))
+				{
+					CommanderReceiveWeaponRequest(&bots[i], pEntity, DEPLOYABLE_ITEM_MARINE_GRENADELAUNCHER);
+					return;
+				}
+			}
+
+			return;
+		}
+
+		if (FStrEq(arg1, "hmg") || FStrEq(arg1, "HMG"))
+		{
+			for (int i = 0; i < 32; i++)
+			{
+				if (bots[i].is_used && IsPlayerCommander(bots[i].pEdict))
+				{
+					CommanderReceiveWeaponRequest(&bots[i], pEntity, DEPLOYABLE_ITEM_MARINE_HMG);
+					return;
+				}
+			}
+
+			return;
+		}
+
+		if (FStrEq(arg1, "pg") || FStrEq(arg1, "phase") || FStrEq(arg1, "gate") || FStrEq(arg1, "phasegate"))
+		{
+			bool CheckedTeams = false;
+
+			bot_t* BotRef = nullptr;
+			edict_t* BotEdict = nullptr;
+
+			for (int i = 0; i < 32; i++)
+			{
+				if (clients[i] && bots[i].is_used && IsPlayerCommander(clients[i]))
+				{
+					BotRef = GetBotPointer(clients[i]);
+					BotEdict = clients[i];
+				}
+			}
+
+			if (BotRef && BotEdict && BotEdict->v.team == pEntity->v.team && UTIL_GetNumPlacedStructuresOfType(STRUCTURE_MARINE_RESTOWER) >= min_desired_resource_towers && UTIL_ItemCanBeDeployed(STRUCTURE_MARINE_PHASEGATE))
+			{
+
+				//Need something in COMM_GetNextAction for the bot com to go and immediately place our phase gate
+
+			}
+
+			return;
+		}
+
+		if (FStrEq(arg1, "catalyst") || FStrEq(arg1, "catpack") || FStrEq(arg1, "cat"))
+		{
+			for (int i = 0; i < 32; i++)
+			{
+				if (bots[i].is_used && IsPlayerCommander(bots[i].pEdict))
+				{
+					CommanderReceiveCatalystRequest(&bots[i], pEntity);
+					return;
+				}
+			}
+
+			return;
+		}
+	}
+
 	// only allow custom commands if deathmatch mode and NOT dedicated server and
 	// client sending command is the listen server client...
 
-	if (!gpGlobals->deathmatch || IsDedicatedServer || pEntity != listenserver_edict)
+	if (!gpGlobals->deathmatch || GAME_IsDedicatedServer() || pEntity != listenserver_edict)
 	{
 		return;
 	}
@@ -121,30 +257,6 @@ void ClientCommand(edict_t* pEntity)
 		RETURN_META(MRES_SUPERCEDE);
 	}
 
-	if (FStrEq(pcmd, "togglecomplexfov"))
-	{
-		GAME_SetUseComplexFOV(!GAME_UseComplexFOV());
-
-		RETURN_META(MRES_SUPERCEDE);
-	}
-
-	if (FStrEq(pcmd, "testmine"))
-	{
-		edict_t* Armoury = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ARMOURY, pEntity->v.origin, UTIL_MetresToGoldSrcUnits(50.0f), true, false);
-
-		if (!FNullEnt(Armoury))
-		{
-			Vector MinePosition = UTIL_GetNextMinePosition(Armoury);
-
-			if (MinePosition != ZERO_VECTOR)
-			{
-				UTIL_DrawLine(pEntity, pEntity->v.origin, MinePosition, 10.0f, 255, 255, 0);
-			}
-		}
-
-		RETURN_META(MRES_SUPERCEDE);
-	}
-
 	if (FStrEq(pcmd, "grenadetest"))
 	{
 		edict_t* ResTower = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_ALIEN_OFFENCECHAMBER, pEntity->v.origin, UTIL_MetresToGoldSrcUnits(500.0f), true, false);
@@ -164,21 +276,6 @@ void ClientCommand(edict_t* pEntity)
 		}
 
 		RETURN_META(MRES_SUPERCEDE);
-	}
-
-	if (FStrEq(pcmd, "testumbra"))
-	{
-		if (UTIL_IsAreaAffectedByUmbra(pEntity->v.origin))
-		{
-			UTIL_SayText("True\n", pEntity);
-		}
-		else
-		{
-			UTIL_SayText("False\n", pEntity);
-		}
-
-		RETURN_META(MRES_SUPERCEDE);
-
 	}
 
 	if (FStrEq(pcmd, "testambush"))
@@ -219,43 +316,6 @@ void ClientCommand(edict_t* pEntity)
 			{
 				UTIL_DrawBox(pEntity, currWeldable->v.absmin, currWeldable->v.absmax, 10.0f);
 			}
-		}
-
-		RETURN_META(MRES_SUPERCEDE);
-	}
-
-	if (FStrEq(pcmd, "testreload"))
-	{
-		NSWeapon CurrentWeapon = WEAPON_MARINE_MG;
-
-		bool IsReloading = false;
-
-		switch (CurrentWeapon)
-		{
-		case WEAPON_MARINE_SHOTGUN:
-		case WEAPON_MARINE_PISTOL:
-			IsReloading = (pEntity->v.weaponanim == 2 || pEntity->v.weaponanim == 3);
-			break;
-		case WEAPON_MARINE_MG:
-			IsReloading =  pEntity->v.weaponanim == 2;
-			break;
-		case WEAPON_MARINE_HMG:
-			IsReloading = pEntity->v.weaponanim == 3;
-			break;
-		case WEAPON_MARINE_GL:
-			IsReloading = (pEntity->v.weaponanim == 1 || pEntity->v.weaponanim == 2 || pEntity->v.weaponanim == 4 || pEntity->v.weaponanim == 5 || pEntity->v.weaponanim == 6 || pEntity->v.weaponanim == 7);
-			break;
-		default:
-			IsReloading = false;
-		}
-
-		if (IsReloading)
-		{
-			UTIL_SayText("True\n", pEntity);
-		}
-		else
-		{
-			UTIL_SayText("False\n", pEntity);
 		}
 
 		RETURN_META(MRES_SUPERCEDE);
@@ -342,31 +402,21 @@ void ClientCommand(edict_t* pEntity)
 		RETURN_META(MRES_SUPERCEDE);
 	}
 	
-	if (FStrEq(pcmd, "traceplat"))
+	if (FStrEq(pcmd, "trackevolutions"))
 	{
 
-		Vector TraceStart = GetPlayerEyePosition(pEntity); // origin + pev->view_ofs
-		Vector LookDir = UTIL_GetForwardVector(pEntity->v.v_angle); // Converts view angles to normalized unit vector
+		char buf[128];
 
-		Vector TraceEnd = TraceStart + (LookDir * 1000.0f);
-
-		TraceResult hit;
-		UTIL_TraceLine(TraceStart, TraceEnd, dont_ignore_monsters, dont_ignore_glass, pEntity, &hit);
-
-		edict_t* TracedEntity = hit.pHit;
-
-		if (!FNullEnt(TracedEntity))
+		if (GAME_IsAnyPlayerEvolvingToClass(CLASS_LERK))
 		{
-			if (FStrEq(STRING(TracedEntity->v.classname), "func_plat"))
-			{
-				UTIL_DrawLine(pEntity, pEntity->v.origin, UTIL_GetCentreOfEntity(TracedEntity), 10.0f);
-			}
-
-			if (FStrEq(STRING(TracedEntity->v.classname), "func_train"))
-			{
-				UTIL_DrawLine(pEntity, pEntity->v.origin, UTIL_GetCentreOfEntity(TracedEntity), 10.0f);
-			}
+			sprintf(buf, "True (%4.2f)\n", GAME_GetLastLerkSeenTime());
 		}
+		else
+		{
+			sprintf(buf, "False (%4.2f)\n", GAME_GetLastLerkSeenTime());
+		}
+
+		UTIL_SayText(buf, pEntity);
 
 		RETURN_META(MRES_SUPERCEDE);
 	}
@@ -775,6 +825,27 @@ void ClientCommand(edict_t* pEntity)
 		RETURN_META(MRES_SUPERCEDE);
 	}
 
+	if (FStrEq(pcmd, "evolveskulk"))
+	{
+		if (!NavmeshLoaded())
+		{
+			UTIL_SayText("Navmesh is not loaded", pEntity);
+			RETURN_META(MRES_SUPERCEDE);
+		}
+
+		for (int i = 0; i < gpGlobals->maxClients; i++)
+		{
+			if (bots[i].is_used)  // not respawning
+			{
+				if (IsPlayerOnAlienTeam(bots[i].pEdict) && !IsPlayerDead(bots[i].pEdict))
+				{
+					TASK_SetEvolveTask(&bots[i], &bots[i].PrimaryBotTask, bots[i].pEdict->v.origin, IMPULSE_ALIEN_EVOLVE_SKULK, true);
+				}
+			}
+		}
+		RETURN_META(MRES_SUPERCEDE);
+	}
+
 	if (FStrEq(pcmd, "evolvegorge"))
 	{
 		if (!NavmeshLoaded())
@@ -941,13 +1012,7 @@ void StartFrame(void)
 	static float last_structure_refresh_time = 0.0f;
 	static float last_item_refresh_time = 0.0f;
 
-	static double DeltaTime = 0.0f;
-
-	static float previous_time = -1.0;
-
 	currTime = clock();
-	DeltaTime = currTime - prevtime;
-	DeltaTime = DeltaTime / CLOCKS_PER_SEC;
 
 	if (gpGlobals->deathmatch)
 	{
@@ -964,28 +1029,9 @@ void StartFrame(void)
 
 		if (NavmeshLoaded())
 		{
-			if (bGameIsActive)
+			if (GAME_GetGameStatus() == GAME_STATUS_ACTIVE)
 			{
-				if (!bGameHasStarted)
-				{
-					GAME_OnGameStart();
-					bGameHasStarted = true;
-					last_structure_refresh_time = 0.0f;
-					last_item_refresh_time = 0.0f;
-				}
-
-				if (gpGlobals->time - last_structure_refresh_time >= structure_inventory_refresh_rate)
-				{
-					UTIL_RefreshBuildableStructures();
-					UTIL_RefreshResourceNodes();
-					last_structure_refresh_time = gpGlobals->time;
-				}
-
-				if (gpGlobals->time - last_item_refresh_time >= item_inventory_refresh_rate)
-				{
-					UTIL_RefreshMarineItems();
-					last_item_refresh_time = gpGlobals->time;
-				}
+				UTIL_UpdateMapAIData();
 
 				if (!FNullEnt(GAME_GetListenServerEdict()))
 				{
@@ -1018,9 +1064,9 @@ void StartFrame(void)
 				}
 			}
 
-			float timeSinceLastThink = ((currTime - last_think_time) / CLOCKS_PER_SEC);
+			double timeSinceLastThink = (double)((currTime - last_think_time) / CLOCKS_PER_SEC);
 
-			if (timeSinceLastThink >= BOT_MIN_FRAME_TIME)
+			if (GAME_IsDedicatedServer() || timeSinceLastThink >= BOT_MIN_FRAME_TIME)
 			{
 				GAME_SetBotDeltaTime(timeSinceLastThink);
 
@@ -1028,6 +1074,8 @@ void StartFrame(void)
 				UTIL_UpdateWeldableObstacles();
 
 				UTIL_UpdateTileCache();
+
+				GAME_TrackPlayerEvolutions();
 
 				for (bot_index = 0; bot_index < gpGlobals->maxClients; bot_index++)
 				{

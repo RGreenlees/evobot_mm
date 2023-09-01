@@ -17,7 +17,27 @@
 
 static const int MAX_CLIENTS = 32;
 
+typedef enum
+{
+	GAME_STATUS_NOTSTARTED,
+	GAME_STATUS_ACTIVE,
+	GAME_STATUS_ENDED
+}
+NSGameStatus;
+
+typedef struct _TRACKED_EVOLUTION
+{
+	edict_t* PlayerEdict = nullptr;
+	int LastKnownRes = 0;
+	NSPlayerClass EvolvingClass = CLASS_NONE;
+	NSPlayerClass LastSeenClass = CLASS_NONE;
+	bool bIsEvolving = false;
+} TrackedEvolution;
+
 NSGameMode GAME_GetGameMode();
+
+void GAME_SetGameStatus(NSGameStatus NewStatus);
+NSGameStatus GAME_GetGameStatus();
 
 void GAME_AddClient(edict_t* NewClient);
 void GAME_RemoveClient(edict_t* DisconnectedClient);
@@ -58,6 +78,8 @@ int GAME_GetNumBotsOnTeam(const int Team);
 void GAME_AddBotToTeam(const int Team);
 void GAME_RemoveBotFromTeam(const int Team);
 
+bool GAME_IsDedicatedServer();
+
 bool GAME_UseComplexFOV();
 void GAME_SetUseComplexFOV(bool bNewValue);
 
@@ -79,5 +101,14 @@ void DEBUG_SetShowBotPath(bool bNewValue);
 void DEBUG_SetShowTaskInfo(bool bNewValue);
 bool DEBUG_ShouldShowTaskInfo();
 bool DEBUG_ShouldShowBotPath();
+
+void GAME_TrackPlayerEvolutions();
+bool GAME_IsAnyPlayerEvolvingToClass(NSPlayerClass Class);
+int GAME_GetNumPlayersEvolvingToClass(NSPlayerClass Class);
+bool GAME_IsAnyPlayerEvolvingToClass(NSPlayerClass Class, edict_t* IgnorePlayer);
+int GAME_GetNumPlayersEvolvingToClass(NSPlayerClass Class, edict_t* IgnorePlayer);
+bool GAME_IsPlayerEvolvingToClass(NSPlayerClass Class, edict_t* Player);
+
+float GAME_GetLastLerkSeenTime();
 
 #endif

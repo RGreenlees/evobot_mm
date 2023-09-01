@@ -22,8 +22,11 @@ void AlienCheckCombatModeWantsAndNeeds(bot_t* pBot);
 
 int GetDesiredAlienUpgrade(const bot_t* pBot, const HiveTechStatus TechType);
 
+bool CanAlienSwitchRole(bot_t* pBot);
 BotRole AlienGetBestBotRole(bot_t* pBot);
 BotRole AlienGetBestCombatModeRole(const bot_t* pBot);
+
+bool IsHarasserRoleStillValid(bot_t* pBot);
 
 void BotAlienSetPrimaryTask(bot_t* pBot, bot_task* Task);
 void AlienCapperSetPrimaryTask(bot_t* pBot, bot_task* Task);

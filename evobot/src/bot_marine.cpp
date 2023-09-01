@@ -662,7 +662,6 @@ void MarineSetSecondaryTask(bot_t* pBot, bot_task* Task)
 		}
 	}
 
-
 }
 
 void MarineSetCombatModeSecondaryTask(bot_t* pBot, bot_task* Task)

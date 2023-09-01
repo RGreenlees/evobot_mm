@@ -673,6 +673,20 @@ bool UTIL_IsAlienCapResNodeTaskStillValid(bot_t* pBot, bot_task* Task)
 		return false;
 	}
 
+	// If another gorge is claiming this spot, then move on
+	if (!IsPlayerGorge(pBot->pEdict) && !ResNodeIndex->bIsOccupied)
+	{
+		edict_t* OtherBuilder = UTIL_GetNearestPlayerOfClass(ResNodeIndex->origin, CLASS_GORGE, UTIL_MetresToGoldSrcUnits(5.0f), pBot->pEdict);
+
+		if (!FNullEnt(OtherBuilder))
+		{
+			if (GetPlayerResources(OtherBuilder) >= (int)(kResourceTowerCost * 0.7f))
+			{
+				return false;
+			}
+		}
+	}
+
 
 	if (ResNodeIndex->bIsOccupied)
 	{
