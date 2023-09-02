@@ -3631,7 +3631,7 @@ void COMM_SetNextBuildAction(bot_t* CommanderBot, commander_action* Action)
 
 	if (Resources > 100)
 	{
-		edict_t* UnelectrifiedResTower = UTIL_GetFurthestStructureOfTypeFromLocation(STRUCTURE_MARINE_RESTOWER, UTIL_GetCommChairLocation(), false);
+		edict_t* UnelectrifiedResTower = UTIL_GetFurthestStructureOfTypeFromLocation(STRUCTURE_MARINE_RESTOWER, UTIL_GetCommChairLocation(), false, true);
 
 		if (!FNullEnt(UnelectrifiedResTower) && UTIL_ElectricalResearchIsAvailable(UnelectrifiedResTower))
 		{

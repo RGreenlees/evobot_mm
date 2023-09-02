@@ -2240,15 +2240,17 @@ bool UTIL_PointIsReachable(const int NavProfileIndex, const Vector FromLocation,
 	dtPolyRef PolyPath[MAX_PATH_POLY];
 	int nPathCount = 0;
 
+	float searchExtents[3] = { MaxAcceptableDistance, 50.0f, MaxAcceptableDistance };
+
 	// find the start polygon
-	status = m_navQuery->findNearestPoly(pStartPos, pExtents, m_navFilter, &StartPoly, StartNearest);
+	status = m_navQuery->findNearestPoly(pStartPos, searchExtents, m_navFilter, &StartPoly, StartNearest);
 	if ((status & DT_FAILURE) || (status & DT_STATUS_DETAIL_MASK))
 	{
 		return false; // couldn't find a polygon
 	}
 
 	// find the end polygon
-	status = m_navQuery->findNearestPoly(pEndPos, pExtents, m_navFilter, &EndPoly, EndNearest);
+	status = m_navQuery->findNearestPoly(pEndPos, searchExtents, m_navFilter, &EndPoly, EndNearest);
 	if ((status & DT_FAILURE) || (status & DT_STATUS_DETAIL_MASK))
 	{
 		return false; // couldn't find a polygon

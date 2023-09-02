@@ -380,8 +380,7 @@ int GAME_GetNumPlayersOnTeamOfClass(const int Team, const NSPlayerClass SearchCl
 	{
 		if (!FNullEnt(clients[i]) && clients[i]->v.team == Team)
 		{
-			const NSPlayerClass ThisPlayerClass = GetPlayerClass(clients[i]);
-			if (ThisPlayerClass == SearchClass)
+			if (GetPlayerClass(clients[i]) == SearchClass || GAME_IsPlayerEvolvingToClass(SearchClass, clients[i]))
 			{
 				Result++;
 			}

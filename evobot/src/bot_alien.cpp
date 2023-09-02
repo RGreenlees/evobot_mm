@@ -488,7 +488,7 @@ void AlienCapperSetPrimaryTask(bot_t* pBot, bot_task* Task)
 	// Don't have enough to cap right now, take out marine towers
 	if (!IsPlayerGorge(pBot->pEdict) || PlayerHasWeapon(pBot->pEdict, WEAPON_GORGE_BILEBOMB))
 	{
-		edict_t* EnemyResTower = UTIL_GetFurthestStructureOfTypeFromLocation(STRUCTURE_MARINE_RESTOWER, UTIL_GetCommChairLocation(), !IsPlayerSkulk(pBot->pEdict));
+		edict_t* EnemyResTower = UTIL_GetFurthestStructureOfTypeFromLocation(STRUCTURE_MARINE_RESTOWER, UTIL_GetCommChairLocation(), !IsPlayerSkulk(pBot->pEdict), true);
 
 		if (!FNullEnt(EnemyResTower))
 		{
@@ -799,9 +799,27 @@ void AlienDestroyerSetPrimaryTask(bot_t* pBot, bot_task* Task)
 			int Evolution = (CONFIG_IsFadeAllowed()) ? IMPULSE_ALIEN_EVOLVE_FADE : 0;
 
 			// Normally we only want 2 Onos at any one time, but if Fade isn't allowed and Onos is then we will skip that check and have more rhino boys
-			if (CONFIG_IsOnosAllowed() && pBot->resources >= kOnosEvolutionCost && (!CONFIG_IsFadeAllowed() || NumOnos < 2))
+			if (CONFIG_IsOnosAllowed())
 			{
-				Evolution = IMPULSE_ALIEN_EVOLVE_ONOS;
+				if (pBot->resources >= kOnosEvolutionCost && (!CONFIG_IsFadeAllowed() || NumOnos < 2))
+				{
+					Evolution = IMPULSE_ALIEN_EVOLVE_ONOS;
+				}
+				else
+				{
+					int NumAliens = GAME_GetNumPlayersOnTeam(ALIEN_TEAM);
+					int NumFades = GAME_GetNumPlayersOnTeamOfClass(ALIEN_TEAM, CLASS_FADE);
+
+					float FadeRatio = ((float)NumFades / (float)NumAliens);
+
+					// If a quarter of the team are already fades (that would be 2 on a standard team of 7), then save for Onos
+					if (FadeRatio > 0.25f)
+					{
+						Evolution = 0;
+					}
+				}
+
+				
 			}
 
 			// Skip this bit if we aren't allowed to go fade, and aren't allowed or can't go onos
@@ -865,6 +883,26 @@ void AlienDestroyerSetPrimaryTask(bot_t* pBot, bot_task* Task)
 		TASK_SetAttackTask(pBot, Task, BlockingStructure, false);
 		return;
 	}
+
+	int NumTotalResNodes = UTIL_GetNumResNodes();
+	int NumMarineResTowers = UTIL_GetNumPlacedStructuresOfType(STRUCTURE_MARINE_RESTOWER);
+
+	int NumRemainingResNodes = NumTotalResNodes - NumMarineResTowers;
+
+	// How much of the map do we currently dominate?
+	float ResTowerRatio = ((float)NumMarineResTowers / (float)NumTotalResNodes);
+
+	if (ResTowerRatio >= 0.4f)
+	{
+		edict_t* EnemyResTower = UTIL_GetFurthestStructureOfTypeFromLocation(STRUCTURE_MARINE_RESTOWER, UTIL_GetCommChairLocation(), !IsPlayerSkulk(pBot->pEdict), true);
+
+		if (!FNullEnt(EnemyResTower))
+		{
+			TASK_SetAttackTask(pBot, Task, EnemyResTower, false);
+			return;
+		}
+	}
+
 
 	// Take out the observatory first to prevent beacon and phase gates
 	edict_t* Obs = UTIL_GetFirstCompletedStructureOfType(STRUCTURE_MARINE_OBSERVATORY);
@@ -2180,6 +2218,24 @@ BotRole AlienGetBestBotRole(bot_t* pBot)
 
 		int NumRemainingResNodes = NumTotalResNodes - NumAlienResTowers;
 
+		// How much of the map do we currently dominate?
+		float ResTowerRatio = ((float)NumAlienResTowers / (float)NumTotalResNodes);
+
+		if (pBot->resources > 50)
+		{
+			if (ResTowerRatio >= 0.5f)
+			{
+				return BOT_ROLE_DESTROYER;
+			}
+
+			const resource_node* EmptyNode = UTIL_FindEmptyResNodeClosestToLocation(pBot->pEdict->v.origin);
+
+			if (!EmptyNode)
+			{
+				return BOT_ROLE_DESTROYER;
+			}
+		}
+
 		int NumCappers = GAME_GetBotsWithRoleType(BOT_ROLE_RES_CAPPER, ALIEN_TEAM, pBot->pEdict);
 
 		// Always have one capper on the team as long as there are nodes we can cap
@@ -2187,9 +2243,6 @@ BotRole AlienGetBestBotRole(bot_t* pBot)
 		{
 			return BOT_ROLE_RES_CAPPER;
 		}
-
-		// How much of the map do we currently dominate?
-		float ResTowerRatio = ((float)NumAlienResTowers / (float)NumTotalResNodes);
 
 		// If we own less than a third of the map, prioritise capping resource nodes
 		if (ResTowerRatio < 0.30f && NumCappers < 3)

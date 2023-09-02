@@ -1968,6 +1968,31 @@ void UTIL_ClearMapAIData()
 	last_item_refresh_time = 0.0f;
 }
 
+const resource_node* UTIL_FindEmptyResNodeClosestToLocation(const Vector& Location)
+{
+	int Result = -1;
+	float MinDist = 0.0f;
+
+	for (int i = 0; i < NumTotalResNodes; i++)
+	{
+		if (ResourceNodes[i].bIsOccupied) { continue; }
+
+		float Dist = vDist2DSq(Location, ResourceNodes[i].origin);
+		if (Result < 0 || Dist < MinDist)
+		{
+			Result = i;
+			MinDist = Dist;
+		}
+	}
+
+	if (Result > -1)
+	{
+		return &ResourceNodes[Result];
+	}
+
+	return nullptr;
+}
+
 const resource_node* UTIL_FindEligibleResNodeClosestToLocation(const Vector& Location, const int Team, bool bIgnoreElectrified)
 {
 	int Result = -1;
@@ -2431,7 +2456,7 @@ edict_t* UTIL_FindSafePlayerInArea(const int Team, const Vector SearchLocation, 
 	return nullptr;
 }
 
-edict_t* UTIL_GetFurthestStructureOfTypeFromLocation(const NSStructureType StructureType, const Vector& Location, bool bAllowElectrified)
+edict_t* UTIL_GetFurthestStructureOfTypeFromLocation(const NSStructureType StructureType, const Vector& Location, bool bAllowElectrified, bool bUsePhaseDistance)
 {
 	edict_t* Result = nullptr;
 	float MaxDist = 0.0f;
@@ -2446,7 +2471,7 @@ edict_t* UTIL_GetFurthestStructureOfTypeFromLocation(const NSStructureType Struc
 			if (!it.second.bOnNavmesh || !it.second.bIsReachableAlien) { continue; }
 			if (!UTIL_StructureTypesMatch(StructureType, it.second.StructureType) || (!bAllowElectrified && it.second.bIsElectrified)) { continue; }
 
-			float ThisDist = vDist2DSq(it.second.Location, Location);
+			float ThisDist = (bUsePhaseDistance) ? UTIL_GetPhaseDistanceBetweenPointsSq(it.second.Location, Location) : vDist2DSq(it.second.Location, Location);
 
 			if (FNullEnt(Result) || ThisDist > MaxDist)
 			{
@@ -2464,7 +2489,7 @@ edict_t* UTIL_GetFurthestStructureOfTypeFromLocation(const NSStructureType Struc
 			if (!it.second.bOnNavmesh || !it.second.bIsReachableAlien) { continue; }
 			if (!UTIL_StructureTypesMatch(StructureType, it.second.StructureType)) { continue; }
 
-			float ThisDist = vDist2DSq(it.second.Location, Location);
+			float ThisDist = (bUsePhaseDistance) ? UTIL_GetPhaseDistanceBetweenPointsSq(it.second.Location, Location) : vDist2DSq(it.second.Location, Location);
 
 			if (FNullEnt(Result) || ThisDist > MaxDist)
 			{
@@ -3679,6 +3704,10 @@ void UTIL_UpdateMarineItem(edict_t* Item, NSStructureType ItemType)
 			if (MarineDroppedItemMap[EntIndex].bOnNavMesh)
 			{
 				MarineDroppedItemMap[EntIndex].bIsReachableMarine = UTIL_PointIsReachable(MARINE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), Item->v.origin, max_player_use_reach);
+			}
+			else
+			{
+				MarineDroppedItemMap[EntIndex].bIsReachableMarine = false;
 			}
 		}
 	}
