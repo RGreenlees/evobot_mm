@@ -1971,21 +1971,22 @@ void AlienCheckWantsAndNeeds(bot_t* pBot)
 
 	if (gpGlobals->time - pBot->LastCombatTime > 5.0f)
 	{
-		if (UTIL_ActiveHiveWithTechExists(HIVE_TECH_MOVEMENT) && !PlayerHasAlienUpgradeOfType(pEdict, HIVE_TECH_MOVEMENT) && UTIL_StructureExistsOfType(STRUCTURE_ALIEN_MOVEMENTCHAMBER))
+
+		if (!PlayerHasAlienUpgradeOfType(pEdict, HIVE_TECH_MOVEMENT) && UTIL_StructureExistsOfType(STRUCTURE_ALIEN_MOVEMENTCHAMBER, true))
 		{
 			pEdict->v.impulse = GetDesiredAlienUpgrade(pBot, HIVE_TECH_MOVEMENT);
 
 			return;
 		}
 
-		if (UTIL_ActiveHiveWithTechExists(HIVE_TECH_DEFENCE) && !PlayerHasAlienUpgradeOfType(pEdict, HIVE_TECH_DEFENCE) && UTIL_StructureExistsOfType(STRUCTURE_ALIEN_DEFENCECHAMBER))
+		if (!PlayerHasAlienUpgradeOfType(pEdict, HIVE_TECH_DEFENCE) && UTIL_StructureExistsOfType(STRUCTURE_ALIEN_DEFENCECHAMBER, true))
 		{
 			pEdict->v.impulse = GetDesiredAlienUpgrade(pBot, HIVE_TECH_DEFENCE);
 
 			return;
 		}
 
-		if (UTIL_ActiveHiveWithTechExists(HIVE_TECH_SENSORY) && !PlayerHasAlienUpgradeOfType(pEdict, HIVE_TECH_SENSORY) && UTIL_StructureExistsOfType(STRUCTURE_ALIEN_SENSORYCHAMBER))
+		if (!PlayerHasAlienUpgradeOfType(pEdict, HIVE_TECH_SENSORY) && UTIL_StructureExistsOfType(STRUCTURE_ALIEN_SENSORYCHAMBER, true))
 		{
 			pEdict->v.impulse = GetDesiredAlienUpgrade(pBot, HIVE_TECH_SENSORY);
 

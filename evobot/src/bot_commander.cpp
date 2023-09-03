@@ -1226,11 +1226,11 @@ bool UTIL_CommanderBuildActionIsValid(bot_t* CommanderBot, commander_action* Act
 	case STRUCTURE_MARINE_ADVTURRETFACTORY:
 		return (UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ANYTURRETFACTORY, Action->BuildLocation, UTIL_MetresToGoldSrcUnits(10.0f), true, false) == nullptr);
 	case STRUCTURE_MARINE_PHASEGATE:
-		return (UTIL_StructureExistsOfType(STRUCTURE_MARINE_OBSERVATORY) && UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_PHASEGATE, Action->BuildLocation, UTIL_MetresToGoldSrcUnits(10.0f), true, false) == nullptr);
+		return (UTIL_StructureExistsOfType(STRUCTURE_MARINE_OBSERVATORY, false) && UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_PHASEGATE, Action->BuildLocation, UTIL_MetresToGoldSrcUnits(10.0f), true, false) == nullptr);
 	case STRUCTURE_MARINE_OBSERVATORY:
 	case STRUCTURE_MARINE_ARMSLAB:
 	case STRUCTURE_MARINE_PROTOTYPELAB:
-		return !UTIL_StructureExistsOfType(Action->StructureToBuild);
+		return !UTIL_StructureExistsOfType(Action->StructureToBuild, false);
 	case STRUCTURE_MARINE_TURRET:
 		return (UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ANYTURRETFACTORY, Action->BuildLocation, UTIL_MetresToGoldSrcUnits(5.0f), true, false) != nullptr);
 	case STRUCTURE_MARINE_SIEGETURRET:
@@ -3558,7 +3558,7 @@ void COMM_SetNextBuildAction(bot_t* CommanderBot, commander_action* Action)
 		}
 	}
 
-	bool bHasArmsLab = UTIL_StructureExistsOfType(STRUCTURE_MARINE_ARMSLAB);
+	bool bHasArmsLab = UTIL_StructureExistsOfType(STRUCTURE_MARINE_ARMSLAB, false);
 
 	if (!bHasArmsLab)
 	{
@@ -3579,7 +3579,7 @@ void COMM_SetNextBuildAction(bot_t* CommanderBot, commander_action* Action)
 		return;
 	}
 
-	bool bHasObservatory = UTIL_StructureExistsOfType(STRUCTURE_MARINE_OBSERVATORY);
+	bool bHasObservatory = UTIL_StructureExistsOfType(STRUCTURE_MARINE_OBSERVATORY, false);
 
 	if (!bHasObservatory)
 	{
@@ -3616,7 +3616,7 @@ void COMM_SetNextBuildAction(bot_t* CommanderBot, commander_action* Action)
 		}
 	}
 
-	bool bHasAdvArmoury = UTIL_StructureExistsOfType(STRUCTURE_MARINE_ADVARMOURY);
+	bool bHasAdvArmoury = UTIL_StructureExistsOfType(STRUCTURE_MARINE_ADVARMOURY, false);
 	bool bIsResearchingArmoury = false;
 	
 	if (!bHasAdvArmoury)
@@ -3647,7 +3647,7 @@ void COMM_SetNextBuildAction(bot_t* CommanderBot, commander_action* Action)
 		return;
 	}
 
-	bool bHasPrototypeLab = UTIL_StructureExistsOfType(STRUCTURE_MARINE_PROTOTYPELAB);
+	bool bHasPrototypeLab = UTIL_StructureExistsOfType(STRUCTURE_MARINE_PROTOTYPELAB, false);
 
 	if (!bHasPrototypeLab && bHasAdvArmoury)
 	{

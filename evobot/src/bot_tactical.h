@@ -361,7 +361,7 @@ bool UTIL_BaseIsInDistress();
 // e.g. phase tech will return false if there are no completed observatories even if the tech itself was previously researched
 bool UTIL_ResearchIsComplete(const NSResearch Research);
 
-bool UTIL_StructureExistsOfType(const NSStructureType StructureType);
+bool UTIL_StructureExistsOfType(const NSStructureType StructureType, const bool bCompletedOnly);
 
 float UTIL_DistToNearestFriendlyPlayer(const Vector& Location, int DesiredTeam);
 

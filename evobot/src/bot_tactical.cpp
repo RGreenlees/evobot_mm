@@ -78,7 +78,7 @@ void PopulateEmptyHiveList()
 	}
 }
 
-bool UTIL_StructureExistsOfType(const NSStructureType StructureType)
+bool UTIL_StructureExistsOfType(const NSStructureType StructureType, const bool bCompletedOnly)
 {
 	bool bIsMarineStructure = UTIL_IsMarineStructure(StructureType);
 
@@ -87,6 +87,7 @@ bool UTIL_StructureExistsOfType(const NSStructureType StructureType)
 		for (auto& it : MarineBuildableStructureMap)
 		{
 			if (!it.second.bOnNavmesh) { continue; }
+			if (bCompletedOnly && !it.second.bFullyConstructed) { continue; }
 			if (UTIL_StructureTypesMatch(StructureType, it.second.StructureType)) { return true; }
 
 		}
@@ -96,6 +97,7 @@ bool UTIL_StructureExistsOfType(const NSStructureType StructureType)
 		for (auto& it : AlienBuildableStructureMap)
 		{
 			if (!it.second.bOnNavmesh) { continue; }
+			if (bCompletedOnly && !it.second.bFullyConstructed) { continue; }
 			if (UTIL_StructureTypesMatch(StructureType, it.second.StructureType)) { return true; }
 		}
 	}
