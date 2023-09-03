@@ -393,6 +393,26 @@ void CommanderReceiveAlert(bot_t* pBot, const Vector Location, const PlayerAlert
 
 void CommanderReceiveWeaponRequest(bot_t* pBot, edict_t* Requestor, NSStructureType ItemToDrop)
 {
+	NSWeapon WeaponType = UTIL_DeployableItemToWeaponType(ItemToDrop);
+
+	if (PlayerHasWeapon(Requestor, WeaponType))
+	{
+		char buf[512];
+		sprintf(buf, "You already have one, %s", STRING(Requestor->v.netname));
+		BotTeamSay(pBot, 2.0f, buf);
+		return;
+	}
+
+	edict_t* NearbyWeapon = UTIL_GetNearestItemIndexOfType(ItemToDrop, Requestor->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
+
+	if (!FNullEnt(NearbyWeapon))
+	{
+		char buf[512];
+		sprintf(buf, "There's already one on the ground for you, %s", STRING(Requestor->v.netname));
+		BotTeamSay(pBot, 2.0f, buf);
+		return;
+	}
+
 	edict_t* Armoury = nullptr;
 
 	bool bNeedsAdvancedArmoury = false;
@@ -430,8 +450,7 @@ void CommanderReceiveWeaponRequest(bot_t* pBot, edict_t* Requestor, NSStructureT
 			sprintf(buf, "Get near an armoury, %s", STRING(Requestor->v.netname));
 		}
 		
-		BotTeamSay(pBot, 2.0f, buf);
-		return;
+		
 	}
 
 	pBot->SupportAction.ActionType = ACTION_DEPLOY;
@@ -469,6 +488,17 @@ void CommanderReceiveHealthRequest(bot_t* pBot, edict_t* Requestor)
 void CommanderReceiveCatalystRequest(bot_t* pBot, edict_t* Requestor)
 {
 	if (FNullEnt(Requestor) || !IsPlayerActiveInGame(Requestor)) { return; }
+
+	edict_t* NearbyCats = UTIL_GetNearestItemIndexOfType(DEPLOYABLE_ITEM_MARINE_CATALYSTS, Requestor->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
+
+	if (!FNullEnt(NearbyCats))
+	{
+		char buf[512];
+		sprintf(buf, "There's a cat pack already on the ground for you, %s", STRING(Requestor->v.netname));
+		BotTeamSay(pBot, 2.0f, buf);
+		return;
+	}
+
 
 	if (!UTIL_ResearchIsComplete(RESEARCH_ARMSLAB_CATALYSTS))
 	{
@@ -1196,11 +1226,11 @@ bool UTIL_CommanderBuildActionIsValid(bot_t* CommanderBot, commander_action* Act
 	case STRUCTURE_MARINE_ADVTURRETFACTORY:
 		return (UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ANYTURRETFACTORY, Action->BuildLocation, UTIL_MetresToGoldSrcUnits(10.0f), true, false) == nullptr);
 	case STRUCTURE_MARINE_PHASEGATE:
-		return (UTIL_StructureExistsOfType(STRUCTURE_MARINE_OBSERVATORY) && UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_PHASEGATE, Action->BuildLocation, UTIL_MetresToGoldSrcUnits(10.0f), true, false) == nullptr);
+		return (UTIL_StructureExistsOfType(STRUCTURE_MARINE_OBSERVATORY, false) && UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_PHASEGATE, Action->BuildLocation, UTIL_MetresToGoldSrcUnits(10.0f), true, false) == nullptr);
 	case STRUCTURE_MARINE_OBSERVATORY:
 	case STRUCTURE_MARINE_ARMSLAB:
 	case STRUCTURE_MARINE_PROTOTYPELAB:
-		return !UTIL_StructureExistsOfType(Action->StructureToBuild);
+		return !UTIL_StructureExistsOfType(Action->StructureToBuild, false);
 	case STRUCTURE_MARINE_TURRET:
 		return (UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ANYTURRETFACTORY, Action->BuildLocation, UTIL_MetresToGoldSrcUnits(5.0f), true, false) != nullptr);
 	case STRUCTURE_MARINE_SIEGETURRET:
@@ -2844,6 +2874,22 @@ void COMM_SetNextResearchAction(commander_action* Action)
 		}
 	}
 
+	if (UTIL_ArmsLabResearchIsAvailable(RESEARCH_ARMSLAB_CATALYSTS))
+	{
+		if (Action->ActionType == ACTION_RESEARCH && Action->ResearchId == RESEARCH_ARMSLAB_CATALYSTS) { return; }
+
+		edict_t* ArmsLab = UTIL_GetFirstIdleStructureOfType(STRUCTURE_MARINE_ARMSLAB);
+
+		if (!FNullEnt(ArmsLab))
+		{
+			Action->ActionType = ACTION_RESEARCH;
+			Action->ActionTarget = ArmsLab;
+			Action->ResearchId = RESEARCH_ARMSLAB_CATALYSTS;
+
+			return;
+		}
+	}
+
 	if (UTIL_GetFirstPlacedStructureOfType(STRUCTURE_MARINE_PROTOTYPELAB) == nullptr) { return; }
 
 	if (UTIL_PrototypeLabResearchIsAvailable(RESEARCH_PROTOTYPELAB_HEAVYARMOUR))
@@ -3512,7 +3558,7 @@ void COMM_SetNextBuildAction(bot_t* CommanderBot, commander_action* Action)
 		}
 	}
 
-	bool bHasArmsLab = UTIL_StructureExistsOfType(STRUCTURE_MARINE_ARMSLAB);
+	bool bHasArmsLab = UTIL_StructureExistsOfType(STRUCTURE_MARINE_ARMSLAB, false);
 
 	if (!bHasArmsLab)
 	{
@@ -3533,7 +3579,7 @@ void COMM_SetNextBuildAction(bot_t* CommanderBot, commander_action* Action)
 		return;
 	}
 
-	bool bHasObservatory = UTIL_StructureExistsOfType(STRUCTURE_MARINE_OBSERVATORY);
+	bool bHasObservatory = UTIL_StructureExistsOfType(STRUCTURE_MARINE_OBSERVATORY, false);
 
 	if (!bHasObservatory)
 	{
@@ -3570,7 +3616,7 @@ void COMM_SetNextBuildAction(bot_t* CommanderBot, commander_action* Action)
 		}
 	}
 
-	bool bHasAdvArmoury = UTIL_StructureExistsOfType(STRUCTURE_MARINE_ADVARMOURY);
+	bool bHasAdvArmoury = UTIL_StructureExistsOfType(STRUCTURE_MARINE_ADVARMOURY, false);
 	bool bIsResearchingArmoury = false;
 	
 	if (!bHasAdvArmoury)
@@ -3601,7 +3647,7 @@ void COMM_SetNextBuildAction(bot_t* CommanderBot, commander_action* Action)
 		return;
 	}
 
-	bool bHasPrototypeLab = UTIL_StructureExistsOfType(STRUCTURE_MARINE_PROTOTYPELAB);
+	bool bHasPrototypeLab = UTIL_StructureExistsOfType(STRUCTURE_MARINE_PROTOTYPELAB, false);
 
 	if (!bHasPrototypeLab && bHasAdvArmoury)
 	{
@@ -3631,7 +3677,7 @@ void COMM_SetNextBuildAction(bot_t* CommanderBot, commander_action* Action)
 
 	if (Resources > 100)
 	{
-		edict_t* UnelectrifiedResTower = UTIL_GetFurthestStructureOfTypeFromLocation(STRUCTURE_MARINE_RESTOWER, UTIL_GetCommChairLocation(), false);
+		edict_t* UnelectrifiedResTower = UTIL_GetFurthestStructureOfTypeFromLocation(STRUCTURE_MARINE_RESTOWER, UTIL_GetCommChairLocation(), false, true);
 
 		if (!FNullEnt(UnelectrifiedResTower) && UTIL_ElectricalResearchIsAvailable(UnelectrifiedResTower))
 		{

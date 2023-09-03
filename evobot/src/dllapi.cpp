@@ -78,6 +78,9 @@ void ClientCommand(edict_t* pEntity)
 	// commands that anyone on your team is allowed to use
 	if (FStrEq(pcmd, "say") || FStrEq(pcmd, "say_team"))
 	{
+		// Don't allow aliens to request stuff from the commander...
+		if (!IsPlayerMarine(pEntity)) { RETURN_META(MRES_IGNORED); }
+
 		if (FStrEq(arg1, "ammo"))
 		{
 			for (int i = 0; i < 32; i++)
@@ -85,11 +88,11 @@ void ClientCommand(edict_t* pEntity)
 				if (bots[i].is_used && IsPlayerCommander(bots[i].pEdict))
 				{
 					CommanderReceiveAmmoRequest(&bots[i], pEntity);
-					return;
+					RETURN_META(MRES_IGNORED);
 				}
 			}
 
-			return;
+			RETURN_META(MRES_IGNORED);
 		}
 
 		if (FStrEq(arg1, "med") || FStrEq(arg1, "heal") || FStrEq(arg1, "medpack") || FStrEq(arg1, "health"))
@@ -99,11 +102,11 @@ void ClientCommand(edict_t* pEntity)
 				if (bots[i].is_used && IsPlayerCommander(bots[i].pEdict))
 				{
 					CommanderReceiveHealthRequest(&bots[i], pEntity);
-					return;
+					RETURN_META(MRES_IGNORED);
 				}
 			}
 
-			return;
+			RETURN_META(MRES_IGNORED);
 		}
 
 		if (FStrEq(arg1, "welder"))
@@ -113,11 +116,11 @@ void ClientCommand(edict_t* pEntity)
 				if (bots[i].is_used && IsPlayerCommander(bots[i].pEdict))
 				{
 					CommanderReceiveWeaponRequest(&bots[i], pEntity, DEPLOYABLE_ITEM_MARINE_WELDER);
-					return;
+					RETURN_META(MRES_IGNORED);
 				}
 			}
 
-			return;
+			RETURN_META(MRES_IGNORED);
 		}
 
 		if (FStrEq(arg1, "shotgun") || FStrEq(arg1, "sg") || FStrEq(arg1, "shotty"))
@@ -127,11 +130,11 @@ void ClientCommand(edict_t* pEntity)
 				if (bots[i].is_used && IsPlayerCommander(bots[i].pEdict))
 				{
 					CommanderReceiveWeaponRequest(&bots[i], pEntity, DEPLOYABLE_ITEM_MARINE_SHOTGUN);
-					return;
+					RETURN_META(MRES_IGNORED);
 				}
 			}
 
-			return;
+			RETURN_META(MRES_IGNORED);
 		}
 
 		if (FStrEq(arg1, "mines") || FStrEq(arg1, "mine"))
@@ -141,11 +144,11 @@ void ClientCommand(edict_t* pEntity)
 				if (bots[i].is_used && IsPlayerCommander(bots[i].pEdict))
 				{
 					CommanderReceiveWeaponRequest(&bots[i], pEntity, DEPLOYABLE_ITEM_MARINE_MINES);
-					return;
+					RETURN_META(MRES_IGNORED);
 				}
 			}
 
-			return;
+			RETURN_META(MRES_IGNORED);
 		}
 
 		if (FStrEq(arg1, "gl") || FStrEq(arg1, "GL"))
@@ -155,11 +158,11 @@ void ClientCommand(edict_t* pEntity)
 				if (bots[i].is_used && IsPlayerCommander(bots[i].pEdict))
 				{
 					CommanderReceiveWeaponRequest(&bots[i], pEntity, DEPLOYABLE_ITEM_MARINE_GRENADELAUNCHER);
-					return;
+					RETURN_META(MRES_IGNORED);
 				}
 			}
 
-			return;
+			RETURN_META(MRES_IGNORED);
 		}
 
 		if (FStrEq(arg1, "hmg") || FStrEq(arg1, "HMG"))
@@ -169,51 +172,30 @@ void ClientCommand(edict_t* pEntity)
 				if (bots[i].is_used && IsPlayerCommander(bots[i].pEdict))
 				{
 					CommanderReceiveWeaponRequest(&bots[i], pEntity, DEPLOYABLE_ITEM_MARINE_HMG);
-					return;
+					RETURN_META(MRES_IGNORED);
 				}
 			}
 
-			return;
+			RETURN_META(MRES_IGNORED);
 		}
 
 		if (FStrEq(arg1, "pg") || FStrEq(arg1, "phase") || FStrEq(arg1, "gate") || FStrEq(arg1, "phasegate"))
 		{
-			bool CheckedTeams = false;
-
-			bot_t* BotRef = nullptr;
-			edict_t* BotEdict = nullptr;
-
-			for (int i = 0; i < 32; i++)
-			{
-				if (clients[i] && bots[i].is_used && IsPlayerCommander(clients[i]))
-				{
-					BotRef = GetBotPointer(clients[i]);
-					BotEdict = clients[i];
-				}
-			}
-
-			if (BotRef && BotEdict && BotEdict->v.team == pEntity->v.team && UTIL_GetNumPlacedStructuresOfType(STRUCTURE_MARINE_RESTOWER) >= min_desired_resource_towers && UTIL_ItemCanBeDeployed(STRUCTURE_MARINE_PHASEGATE))
-			{
-
-				//Need something in COMM_GetNextAction for the bot com to go and immediately place our phase gate
-
-			}
-
-			return;
+			RETURN_META(MRES_IGNORED);
 		}
 
-		if (FStrEq(arg1, "catalyst") || FStrEq(arg1, "catpack") || FStrEq(arg1, "cat"))
+		if (FStrEq(arg1, "catalyst") || FStrEq(arg1, "catpack") || FStrEq(arg1, "cat") || FStrEq(arg1, "cats"))
 		{
 			for (int i = 0; i < 32; i++)
 			{
 				if (bots[i].is_used && IsPlayerCommander(bots[i].pEdict))
 				{
 					CommanderReceiveCatalystRequest(&bots[i], pEntity);
-					return;
+					RETURN_META(MRES_IGNORED);
 				}
 			}
 
-			return;
+			RETURN_META(MRES_IGNORED);
 		}
 	}
 
@@ -222,7 +204,7 @@ void ClientCommand(edict_t* pEntity)
 
 	if (!gpGlobals->deathmatch || GAME_IsDedicatedServer() || pEntity != listenserver_edict)
 	{
-		return;
+		RETURN_META(MRES_IGNORED);
 	}
 
 	if (FStrEq(pcmd, "drawobstacles"))

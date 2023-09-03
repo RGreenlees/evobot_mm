@@ -218,10 +218,12 @@ const resource_node* UTIL_FindEligibleResNodeFurthestFromLocation(const Vector& 
 const resource_node* UTIL_MarineFindUnclaimedResNodeNearestLocation(const bot_t* pBot, const Vector& Location, float MinDist);
 const resource_node* UTIL_AlienFindUnclaimedResNodeFurthestFromLocation(const bot_t* pBot, const Vector& Location, bool bIgnoreElectrified);
 
+const resource_node* UTIL_FindEmptyResNodeClosestToLocation(const Vector& Location);
+
 edict_t* UTIL_GetNearestUndefendedStructureOfType(bot_t* pBot, const NSStructureType StructureType);
 edict_t* UTIL_GetNearestUndefendedStructureOfTypeUnderAttack(bot_t* pBot, const NSStructureType StructureType, bool bByPlayersOnly);
 edict_t* UTIL_GetNearestStructureOfTypeInLocation(const NSStructureType StructureType, const Vector& Location, const float SearchRadius, bool bAllowElectrified, bool bUsePhaseDistance);
-edict_t* UTIL_GetFurthestStructureOfTypeFromLocation(const NSStructureType StructureType, const Vector& Location, bool bAllowElectrified);
+edict_t* UTIL_GetFurthestStructureOfTypeFromLocation(const NSStructureType StructureType, const Vector& Location, bool bAllowElectrified, bool bUsePhaseDistance);
 edict_t* UTIL_GetNearestUnbuiltStructureOfTypeInLocation(const NSStructureType StructureType, const Vector& Location, const float SearchRadius);
 bool UTIL_StructureOfTypeExistsInLocation(const NSStructureType StructureType, const Vector& Location, const float SearchRadius);
 bool UTIL_StructureOfTypeExistsInLocation(const NSStructureType StructureType, const Vector& Location, const float SearchRadius, const bool bFullyConstructedOnly);
@@ -359,7 +361,7 @@ bool UTIL_BaseIsInDistress();
 // e.g. phase tech will return false if there are no completed observatories even if the tech itself was previously researched
 bool UTIL_ResearchIsComplete(const NSResearch Research);
 
-bool UTIL_StructureExistsOfType(const NSStructureType StructureType);
+bool UTIL_StructureExistsOfType(const NSStructureType StructureType, const bool bCompletedOnly);
 
 float UTIL_DistToNearestFriendlyPlayer(const Vector& Location, int DesiredTeam);
 
@@ -381,6 +383,7 @@ bool UTIL_StructureIsResearching(const edict_t* Structure, const NSResearch Rese
 bool UTIL_IsStructureElectrified(const edict_t* Structure);
 
 NSStructureType UTIL_WeaponTypeToDeployableItem(const NSWeapon WeaponType);
+NSWeapon UTIL_DeployableItemToWeaponType(const NSStructureType DeployableItem);
 
 AvHUpgradeMask UTIL_GetResearchMask(const NSResearch Research);
 
