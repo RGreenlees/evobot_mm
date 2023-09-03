@@ -383,6 +383,7 @@ bool UTIL_StructureIsResearching(const edict_t* Structure, const NSResearch Rese
 bool UTIL_IsStructureElectrified(const edict_t* Structure);
 
 NSStructureType UTIL_WeaponTypeToDeployableItem(const NSWeapon WeaponType);
+NSWeapon UTIL_DeployableItemToWeaponType(const NSStructureType DeployableItem);
 
 AvHUpgradeMask UTIL_GetResearchMask(const NSResearch Research);
 

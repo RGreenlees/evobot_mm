@@ -393,6 +393,26 @@ void CommanderReceiveAlert(bot_t* pBot, const Vector Location, const PlayerAlert
 
 void CommanderReceiveWeaponRequest(bot_t* pBot, edict_t* Requestor, NSStructureType ItemToDrop)
 {
+	NSWeapon WeaponType = UTIL_DeployableItemToWeaponType(ItemToDrop);
+
+	if (PlayerHasWeapon(Requestor, WeaponType))
+	{
+		char buf[512];
+		sprintf(buf, "You already have one, %s", STRING(Requestor->v.netname));
+		BotTeamSay(pBot, 2.0f, buf);
+		return;
+	}
+
+	edict_t* NearbyWeapon = UTIL_GetNearestItemIndexOfType(ItemToDrop, Requestor->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
+
+	if (!FNullEnt(NearbyWeapon))
+	{
+		char buf[512];
+		sprintf(buf, "There's already one on the ground for you, %s", STRING(Requestor->v.netname));
+		BotTeamSay(pBot, 2.0f, buf);
+		return;
+	}
+
 	edict_t* Armoury = nullptr;
 
 	bool bNeedsAdvancedArmoury = false;
@@ -430,8 +450,7 @@ void CommanderReceiveWeaponRequest(bot_t* pBot, edict_t* Requestor, NSStructureT
 			sprintf(buf, "Get near an armoury, %s", STRING(Requestor->v.netname));
 		}
 		
-		BotTeamSay(pBot, 2.0f, buf);
-		return;
+		
 	}
 
 	pBot->SupportAction.ActionType = ACTION_DEPLOY;
@@ -469,6 +488,17 @@ void CommanderReceiveHealthRequest(bot_t* pBot, edict_t* Requestor)
 void CommanderReceiveCatalystRequest(bot_t* pBot, edict_t* Requestor)
 {
 	if (FNullEnt(Requestor) || !IsPlayerActiveInGame(Requestor)) { return; }
+
+	edict_t* NearbyCats = UTIL_GetNearestItemIndexOfType(DEPLOYABLE_ITEM_MARINE_CATALYSTS, Requestor->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
+
+	if (!FNullEnt(NearbyCats))
+	{
+		char buf[512];
+		sprintf(buf, "There's a cat pack already on the ground for you, %s", STRING(Requestor->v.netname));
+		BotTeamSay(pBot, 2.0f, buf);
+		return;
+	}
+
 
 	if (!UTIL_ResearchIsComplete(RESEARCH_ARMSLAB_CATALYSTS))
 	{
@@ -2839,6 +2869,22 @@ void COMM_SetNextResearchAction(commander_action* Action)
 			Action->ActionType = ACTION_RESEARCH;
 			Action->ActionTarget = ArmsLab;
 			Action->ResearchId = RESEARCH_ARMSLAB_WEAPONS2;
+
+			return;
+		}
+	}
+
+	if (UTIL_ArmsLabResearchIsAvailable(RESEARCH_ARMSLAB_CATALYSTS))
+	{
+		if (Action->ActionType == ACTION_RESEARCH && Action->ResearchId == RESEARCH_ARMSLAB_CATALYSTS) { return; }
+
+		edict_t* ArmsLab = UTIL_GetFirstIdleStructureOfType(STRUCTURE_MARINE_ARMSLAB);
+
+		if (!FNullEnt(ArmsLab))
+		{
+			Action->ActionType = ACTION_RESEARCH;
+			Action->ActionTarget = ArmsLab;
+			Action->ResearchId = RESEARCH_ARMSLAB_CATALYSTS;
 
 			return;
 		}

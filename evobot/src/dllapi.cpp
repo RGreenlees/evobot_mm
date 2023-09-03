@@ -202,7 +202,7 @@ void ClientCommand(edict_t* pEntity)
 			return;
 		}
 
-		if (FStrEq(arg1, "catalyst") || FStrEq(arg1, "catpack") || FStrEq(arg1, "cat"))
+		if (FStrEq(arg1, "catalyst") || FStrEq(arg1, "catpack") || FStrEq(arg1, "cat") || FStrEq(arg1, "cats"))
 		{
 			for (int i = 0; i < 32; i++)
 			{

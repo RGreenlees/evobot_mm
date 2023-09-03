@@ -4820,7 +4820,26 @@ NSStructureType UTIL_WeaponTypeToDeployableItem(const NSWeapon WeaponType)
 	return STRUCTURE_NONE;
 }
 
+NSWeapon UTIL_DeployableItemToWeaponType(const NSStructureType DeployableItem)
+{
+	switch (DeployableItem)
+	{
+	case DEPLOYABLE_ITEM_MARINE_SHOTGUN:
+		return WEAPON_MARINE_SHOTGUN;
+	case DEPLOYABLE_ITEM_MARINE_GRENADELAUNCHER:
+		return WEAPON_MARINE_GL;
+	case DEPLOYABLE_ITEM_MARINE_HMG:
+		return WEAPON_MARINE_HMG;
+	case DEPLOYABLE_ITEM_MARINE_WELDER:
+		return WEAPON_MARINE_WELDER;
+	case DEPLOYABLE_ITEM_MARINE_MINES:
+		return WEAPON_MARINE_MINES;
+	default:
+		return WEAPON_NONE;
+	}
 
+	return WEAPON_NONE;
+}
 
 AvHUpgradeMask UTIL_GetResearchMask(const NSResearch Research)
 {
