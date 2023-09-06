@@ -2240,15 +2240,17 @@ bool UTIL_PointIsReachable(const int NavProfileIndex, const Vector FromLocation,
 	dtPolyRef PolyPath[MAX_PATH_POLY];
 	int nPathCount = 0;
 
+	float searchExtents[3] = { MaxAcceptableDistance, 50.0f, MaxAcceptableDistance };
+
 	// find the start polygon
-	status = m_navQuery->findNearestPoly(pStartPos, pExtents, m_navFilter, &StartPoly, StartNearest);
+	status = m_navQuery->findNearestPoly(pStartPos, searchExtents, m_navFilter, &StartPoly, StartNearest);
 	if ((status & DT_FAILURE) || (status & DT_STATUS_DETAIL_MASK))
 	{
 		return false; // couldn't find a polygon
 	}
 
 	// find the end polygon
-	status = m_navQuery->findNearestPoly(pEndPos, pExtents, m_navFilter, &EndPoly, EndNearest);
+	status = m_navQuery->findNearestPoly(pEndPos, searchExtents, m_navFilter, &EndPoly, EndNearest);
 	if ((status & DT_FAILURE) || (status & DT_STATUS_DETAIL_MASK))
 	{
 		return false; // couldn't find a polygon
@@ -3465,7 +3467,21 @@ void LadderMove(bot_t* pBot, const Vector StartPoint, const Vector EndPoint, flo
 	// If we're going down the ladder and are approaching it, just keep moving towards it
 	if (pBot->BotNavInfo.IsOnGround && !bIsGoingUpLadder)
 	{
-		pBot->desiredMovementDir = vForward;
+		Vector ApproachDir = UTIL_GetVectorNormal2D(EndPoint - pBot->pEdict->v.origin);
+
+		float Dot = UTIL_GetDotProduct2D(ApproachDir, vForward);
+
+		if (Dot > 45.0f)
+		{
+			pBot->desiredMovementDir = vForward;
+			pBot->BotNavInfo.bShouldWalk = true;
+		}
+		else
+		{
+			Vector nearestLadderPoint = UTIL_GetNearestLadderCentrePoint(pEdict);
+			pBot->desiredMovementDir = UTIL_GetVectorNormal2D(nearestLadderPoint - StartPoint);
+		}
+
 		return;
 	}
 
@@ -4594,6 +4610,7 @@ int UTIL_GetMoveProfileForSkulk(const BotMoveStyle MoveStyle)
 	switch (MoveStyle)
 	{
 	case MOVESTYLE_AMBUSH:
+	case MOVESTYLE_HIDE:
 		return SKULK_AMBUSH_NAV_PROFILE;
 	default:
 		return SKULK_REGULAR_NAV_PROFILE;
@@ -6286,7 +6303,7 @@ void BotMovementInputs(bot_t* pBot)
 	float moveDelta = UTIL_VecToAngles(pBot->desiredMovementDir).y;
 	float angleDelta = currentYaw - moveDelta;
 
-	float botSpeed = pBot->pEdict->v.maxspeed;
+	float botSpeed = (pBot->BotNavInfo.bShouldWalk) ? (pBot->pEdict->v.maxspeed * 0.4f) : pBot->pEdict->v.maxspeed;
 
 	if (angleDelta < -180.0f)
 	{

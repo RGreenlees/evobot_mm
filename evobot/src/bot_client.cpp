@@ -48,8 +48,6 @@
 extern bot_weapon_t weapon_defs[MAX_WEAPONS]; // array of weapon definitions
 extern bot_t bots[MAX_CLIENTS];
 extern edict_t* clients[MAX_CLIENTS];
-extern bool bGameIsActive;
-extern int GameStatus;
 
 hive_info_msg HiveInfo;
 alert_msg AlertInfo;
@@ -553,15 +551,20 @@ void BotClient_NS_GameStatus(void* p, int bot_index)
 	{
 		GameInfo.StatusCode = *(int*)p;
 
-		GameStatus = *(int*)p;
-
-		if (GameInfo.StatusCode == kGameStatusGameTime)
+		switch (GameInfo.StatusCode)
 		{
-			bGameIsActive = true;
-		}
-		else
-		{
-			bGameIsActive = false;
+			case kGameStatusGameTime:
+				GAME_SetGameStatus(GAME_STATUS_ACTIVE);
+				break;
+			case kGameStatusEnded:
+				GAME_SetGameStatus(GAME_STATUS_ENDED);
+				break;
+			case kGameStatusReset:
+			case kGameStatusResetNewMap:
+				GAME_SetGameStatus(GAME_STATUS_NOTSTARTED);
+				break;
+			default:
+				break;
 		}
 
 		GameInfo.state++;

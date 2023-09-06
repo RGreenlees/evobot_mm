@@ -43,7 +43,7 @@ void AlienThink(bot_t* pBot)
 
 	BotUpdateAndClearTasks(pBot);
 
-	if (pBot->PrimaryBotTask.TaskType == TASK_NONE || !pBot->PrimaryBotTask.bTaskIsUrgent)
+	if (CanAlienSwitchRole(pBot))
 	{
 		BotRole RequiredRole = AlienGetBestBotRole(pBot);
 
@@ -56,8 +56,10 @@ void AlienThink(bot_t* pBot)
 			pBot->CurrentTask = &pBot->PrimaryBotTask;
 		}
 
-		BotAlienSetPrimaryTask(pBot, &pBot->PrimaryBotTask);
+		
 	}
+
+	BotAlienSetPrimaryTask(pBot, &pBot->PrimaryBotTask);
 
 	// We don't want the bot trying to attack or defend as a gorge
 	if (IsPlayerGorge(pBot->pEdict) && pBot->SecondaryBotTask.TaskType != TASK_HEAL)
@@ -96,8 +98,6 @@ void AlienThink(bot_t* pBot)
 		BotProgressTask(pBot, pBot->CurrentTask);
 	}
 }
-
-
 
 void AlienCombatThink(bot_t* pBot)
 {
@@ -195,6 +195,8 @@ void AlienCombatModeThink(bot_t* pBot)
 
 void BotAlienSetPrimaryTask(bot_t* pBot, bot_task* Task)
 {
+	if (pBot->PrimaryBotTask.TaskType != TASK_NONE && pBot->PrimaryBotTask.bTaskIsUrgent) { return; }
+
 	// If we're in the middle of building something and close enough to finish it off, then do that first
 	if (IsPlayerGorge(pBot->pEdict))
 	{
@@ -455,8 +457,6 @@ void AlienHarasserSetCombatModePrimaryTask(bot_t* pBot, bot_task* Task)
 
 void AlienCapperSetPrimaryTask(bot_t* pBot, bot_task* Task)
 {
-	bool bCappingIsUrgent = UTIL_GetNumPlacedStructuresOfType(STRUCTURE_ALIEN_RESTOWER) < 3;
-
 	int RequiredRes = kResourceTowerCost;
 
 	if (!IsPlayerGorge(pBot->pEdict))
@@ -469,13 +469,11 @@ void AlienCapperSetPrimaryTask(bot_t* pBot, bot_task* Task)
 	{
 		const resource_node* RandomResNode = nullptr;
 
-		if (!IsPlayerGorge(pBot->pEdict) || PlayerHasWeapon(pBot->pEdict, WEAPON_GORGE_BILEBOMB))
+		RandomResNode = UTIL_AlienFindUnclaimedResNodeFurthestFromLocation(pBot, UTIL_GetCommChairLocation(), !IsPlayerSkulk(pBot->pEdict));
+
+		if (!RandomResNode && (!IsPlayerGorge(pBot->pEdict) || PlayerHasWeapon(pBot->pEdict, WEAPON_GORGE_BILEBOMB)))
 		{
 			RandomResNode = UTIL_FindEligibleResNodeFurthestFromLocation(UTIL_GetCommChairLocation(), ALIEN_TEAM, !IsPlayerSkulk(pBot->pEdict));
-		}
-		else
-		{
-			RandomResNode = UTIL_AlienFindUnclaimedResNodeFurthestFromLocation(pBot, UTIL_GetCommChairLocation(), !IsPlayerSkulk(pBot->pEdict));
 		}
 
 		if (RandomResNode)
@@ -490,12 +488,10 @@ void AlienCapperSetPrimaryTask(bot_t* pBot, bot_task* Task)
 	// Don't have enough to cap right now, take out marine towers
 	if (!IsPlayerGorge(pBot->pEdict) || PlayerHasWeapon(pBot->pEdict, WEAPON_GORGE_BILEBOMB))
 	{
-		edict_t* EnemyResTower = UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_RESTOWER, pBot->pEdict->v.origin, UTIL_MetresToGoldSrcUnits(200.0f), false, false);
+		edict_t* EnemyResTower = UTIL_GetFurthestStructureOfTypeFromLocation(STRUCTURE_MARINE_RESTOWER, UTIL_GetCommChairLocation(), !IsPlayerSkulk(pBot->pEdict), true);
 
 		if (!FNullEnt(EnemyResTower))
 		{
-			// Don't set a new attack or move task if we have one already
-			if (Task->TaskType == TASK_ATTACK && Task->TaskTarget == EnemyResTower) { return; }
 			TASK_SetAttackTask(pBot, Task, EnemyResTower, false);
 			return;
 		}
@@ -800,24 +796,47 @@ void AlienDestroyerSetPrimaryTask(bot_t* pBot, bot_task* Task)
 		if (pBot->resources >= kFadeEvolutionCost)
 		{
 			int NumOnos = GAME_GetNumPlayersOnTeamOfClass(pBot->pEdict->v.team, CLASS_ONOS);
-			int Evolution = IMPULSE_ALIEN_EVOLVE_FADE;
+			int Evolution = (CONFIG_IsFadeAllowed()) ? IMPULSE_ALIEN_EVOLVE_FADE : 0;
 
-			if (pBot->resources >= kOnosEvolutionCost && NumOnos < 2)
+			// Normally we only want 2 Onos at any one time, but if Fade isn't allowed and Onos is then we will skip that check and have more rhino boys
+			if (CONFIG_IsOnosAllowed())
 			{
-				Evolution = IMPULSE_ALIEN_EVOLVE_ONOS;
+				if (pBot->resources >= kOnosEvolutionCost && (!CONFIG_IsFadeAllowed() || NumOnos < 2))
+				{
+					Evolution = IMPULSE_ALIEN_EVOLVE_ONOS;
+				}
+				else
+				{
+					int NumAliens = GAME_GetNumPlayersOnTeam(ALIEN_TEAM);
+					int NumFades = GAME_GetNumPlayersOnTeamOfClass(ALIEN_TEAM, CLASS_FADE);
+
+					float FadeRatio = ((float)NumFades / (float)NumAliens);
+
+					// If a quarter of the team are already fades (that would be 2 on a standard team of 7), then save for Onos
+					if (FadeRatio > 0.25f)
+					{
+						Evolution = 0;
+					}
+				}
+
+				
 			}
 
-			const hive_definition* NearestHive = UTIL_GetNearestHiveOfStatus(pBot->pEdict->v.origin, HIVE_STATUS_BUILT);
+			// Skip this bit if we aren't allowed to go fade, and aren't allowed or can't go onos
+			if (Evolution > 0)
+			{
+				const hive_definition* NearestHive = UTIL_GetNearestHiveOfStatus(pBot->pEdict->v.origin, HIVE_STATUS_BUILT);
 
-			if (NearestHive)
-			{
-				TASK_SetEvolveTask(pBot, Task, NearestHive->edict, Evolution, true);
+				if (NearestHive)
+				{
+					TASK_SetEvolveTask(pBot, Task, NearestHive->edict, Evolution, true);
+				}
+				else
+				{
+					TASK_SetEvolveTask(pBot, Task, pBot->pEdict->v.origin, Evolution, true);
+				}
+				return;
 			}
-			else
-			{
-				TASK_SetEvolveTask(pBot, Task, pBot->pEdict->v.origin, Evolution, true);
-			}
-			return;
 		}
 	}
 
@@ -864,6 +883,26 @@ void AlienDestroyerSetPrimaryTask(bot_t* pBot, bot_task* Task)
 		TASK_SetAttackTask(pBot, Task, BlockingStructure, false);
 		return;
 	}
+
+	int NumTotalResNodes = UTIL_GetNumResNodes();
+	int NumMarineResTowers = UTIL_GetNumPlacedStructuresOfType(STRUCTURE_MARINE_RESTOWER);
+
+	int NumRemainingResNodes = NumTotalResNodes - NumMarineResTowers;
+
+	// How much of the map do we currently dominate?
+	float ResTowerRatio = ((float)NumMarineResTowers / (float)NumTotalResNodes);
+
+	if (ResTowerRatio >= 0.4f)
+	{
+		edict_t* EnemyResTower = UTIL_GetFurthestStructureOfTypeFromLocation(STRUCTURE_MARINE_RESTOWER, UTIL_GetCommChairLocation(), !IsPlayerSkulk(pBot->pEdict), true);
+
+		if (!FNullEnt(EnemyResTower))
+		{
+			TASK_SetAttackTask(pBot, Task, EnemyResTower, false);
+			return;
+		}
+	}
+
 
 	// Take out the observatory first to prevent beacon and phase gates
 	edict_t* Obs = UTIL_GetFirstCompletedStructureOfType(STRUCTURE_MARINE_OBSERVATORY);
@@ -1233,33 +1272,24 @@ void SkulkCombatThink(bot_t* pBot)
 
 	if (DoesAnyPlayerOnTeamHaveLOSToPlayer(MARINE_TEAM, pEdict))
 	{
-		int MoveProfile = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_HIDE);
+		int MoveProfile = UTIL_GetMoveProfileForBot(pBot, MOVESTYLE_AMBUSH);
 
-		Vector EscapeLocation = ZERO_VECTOR;//pBot->LastSafeLocation;
+		Vector EscapeLocation = ZERO_VECTOR;
 
-		if (!EscapeLocation)
+		const hive_definition* NearestHive = UTIL_GetNearestHiveAtLocation(pBot->pEdict->v.origin);
+
+		if (NearestHive)
 		{
-			const hive_definition* NearestHive = UTIL_GetNearestHiveAtLocation(pBot->pEdict->v.origin);
-
-			if (NearestHive)
-			{
-				EscapeLocation = NearestHive->FloorLocation;
-			}
+			EscapeLocation = NearestHive->FloorLocation;
 		}
 
-		MoveTo(pBot, EscapeLocation, MOVESTYLE_NORMAL);
-
-		return;
+		MoveTo(pBot, EscapeLocation, MOVESTYLE_AMBUSH);
 	}
 
-	if (TrackedEnemyRef->LastLOSPosition != ZERO_VECTOR)
-	{
-		BotLookAt(pBot, TrackedEnemyRef->LastSeenLocation);
+	Vector LookLocation = (TrackedEnemyRef->LastLOSPosition != ZERO_VECTOR && !TrackedEnemyRef->bHasLOS) ? TrackedEnemyRef->LastLOSPosition : TrackedEnemyRef->LastSeenLocation;
 
-		return;
-	}
+	BotLookAt(pBot, LookLocation);
 
-	MoveTo(pBot, TrackedEnemyRef->LastFloorPosition, MOVESTYLE_AMBUSH);
 	
 }
 
@@ -1300,6 +1330,12 @@ void FadeCombatThink(bot_t* pBot)
 
 			bool bInHealingRange = (DistFromHealingSourceSq <= sqrf(DesiredDistFromHealingSource));
 
+			if (!bInHealingRange)
+			{
+				MoveTo(pBot, UTIL_GetEntityGroundLocation(NearestHealingSource), MOVESTYLE_NORMAL, DesiredDistFromHealingSource);
+				return;
+			}
+
 			if (bOutOfEnemyLOS)
 			{
 				if (PlayerHasWeapon(pBot->pEdict, WEAPON_FADE_METABOLIZE))
@@ -1314,7 +1350,7 @@ void FadeCombatThink(bot_t* pBot)
 
 				if (bInHealingRange)
 				{
-					BotGuardLocation(pBot, NearestHealingSource->v.origin);
+					BotLookAt(pBot, TrackedEnemyRef->LastLOSPosition);
 				}
 				else
 				{
@@ -1324,11 +1360,12 @@ void FadeCombatThink(bot_t* pBot)
 				return;
 			}
 
-			if (!bInHealingRange)
+			if (!UTIL_PlayerHasLOSToLocation(TrackedEnemyRef->EnemyEdict, UTIL_GetEntityGroundLocation(NearestHealingSource) + Vector(0.0f, 0.0f, 16.0f), UTIL_MetresToGoldSrcUnits(30.0f)))
 			{
 				MoveTo(pBot, UTIL_GetEntityGroundLocation(NearestHealingSource), MOVESTYLE_NORMAL, DesiredDistFromHealingSource);
 				return;
 			}
+
 		}		
 	}
 
@@ -1571,11 +1608,23 @@ void LerkCombatThink(bot_t* pBot)
 				// If we are super low on health then just get the hell out of there
 				if (HealthPercent <= 0.2) { bCanSpore = false; }
 
+				if (!bInHealingRange)
+				{
+					MoveTo(pBot, UTIL_GetEntityGroundLocation(NearestHealingSource), MOVESTYLE_NORMAL, DesiredDistFromHealingSource);
+
+					if (bCanSpore)
+					{
+						BotShootLocation(pBot, WEAPON_LERK_SPORES, SporeLocation);
+					}
+
+					return;
+				}
+
 				if (bOutOfEnemyLOS)
 				{
 					if (bInHealingRange)
 					{
-						BotGuardLocation(pBot, NearestHealingSource->v.origin);
+						BotLookAt(pBot, TrackedEnemyRef->LastLOSPosition);
 
 						if (bCanSpore)
 						{
@@ -1594,20 +1643,13 @@ void LerkCombatThink(bot_t* pBot)
 					}
 
 					return;
-				}
+				}				
 
-				if (!bInHealingRange)
+				if (!UTIL_PlayerHasLOSToLocation(TrackedEnemyRef->EnemyEdict, UTIL_GetEntityGroundLocation(NearestHealingSource) + Vector(0.0f, 0.0f, 16.0f), UTIL_MetresToGoldSrcUnits(30.0f)))
 				{
 					MoveTo(pBot, UTIL_GetEntityGroundLocation(NearestHealingSource), MOVESTYLE_NORMAL, DesiredDistFromHealingSource);
-
-					if (bCanSpore)
-					{
-						BotShootLocation(pBot, WEAPON_LERK_SPORES, SporeLocation);
-					}
-
 					return;
 				}
-
 				
 			}
 		}
@@ -1616,7 +1658,6 @@ void LerkCombatThink(bot_t* pBot)
 	if (bLowOnHealth)
 	{
 		pBot->bRetreatForHealth = true;
-		return;
 	}
 
 	// How many allies does our target have providing cover? We don't want to charge in and get shot to pieces
@@ -1776,11 +1817,17 @@ void OnosCombatThink(bot_t* pBot)
 
 			bool bInHealingRange = (DistFromHealingSourceSq <= sqrf(DesiredDistFromHealingSource));
 
+			if (!bInHealingRange)
+			{
+				MoveTo(pBot, UTIL_GetEntityGroundLocation(NearestHealingSource), MOVESTYLE_NORMAL, DesiredDistFromHealingSource);
+				return;
+			}
+
 			if (bOutOfEnemyLOS)
 			{
 				if (bInHealingRange)
 				{
-					BotGuardLocation(pBot, NearestHealingSource->v.origin);
+					BotLookAt(pBot, TrackedEnemyRef->LastLOSPosition);
 				}
 				else
 				{
@@ -1790,7 +1837,7 @@ void OnosCombatThink(bot_t* pBot)
 				return;
 			}
 
-			if (!bInHealingRange)
+			if (!UTIL_PlayerHasLOSToLocation(TrackedEnemyRef->EnemyEdict, UTIL_GetEntityGroundLocation(NearestHealingSource) + Vector(0.0f, 0.0f, 16.0f), UTIL_MetresToGoldSrcUnits(30.0f)))
 			{
 				MoveTo(pBot, UTIL_GetEntityGroundLocation(NearestHealingSource), MOVESTYLE_NORMAL, DesiredDistFromHealingSource);
 				return;
@@ -1924,21 +1971,22 @@ void AlienCheckWantsAndNeeds(bot_t* pBot)
 
 	if (gpGlobals->time - pBot->LastCombatTime > 5.0f)
 	{
-		if (UTIL_ActiveHiveWithTechExists(HIVE_TECH_MOVEMENT) && !PlayerHasAlienUpgradeOfType(pEdict, HIVE_TECH_MOVEMENT) && UTIL_StructureExistsOfType(STRUCTURE_ALIEN_MOVEMENTCHAMBER))
+
+		if (!PlayerHasAlienUpgradeOfType(pEdict, HIVE_TECH_MOVEMENT) && UTIL_StructureExistsOfType(STRUCTURE_ALIEN_MOVEMENTCHAMBER, true))
 		{
 			pEdict->v.impulse = GetDesiredAlienUpgrade(pBot, HIVE_TECH_MOVEMENT);
 
 			return;
 		}
 
-		if (UTIL_ActiveHiveWithTechExists(HIVE_TECH_DEFENCE) && !PlayerHasAlienUpgradeOfType(pEdict, HIVE_TECH_DEFENCE) && UTIL_StructureExistsOfType(STRUCTURE_ALIEN_DEFENCECHAMBER))
+		if (!PlayerHasAlienUpgradeOfType(pEdict, HIVE_TECH_DEFENCE) && UTIL_StructureExistsOfType(STRUCTURE_ALIEN_DEFENCECHAMBER, true))
 		{
 			pEdict->v.impulse = GetDesiredAlienUpgrade(pBot, HIVE_TECH_DEFENCE);
 
 			return;
 		}
 
-		if (UTIL_ActiveHiveWithTechExists(HIVE_TECH_SENSORY) && !PlayerHasAlienUpgradeOfType(pEdict, HIVE_TECH_SENSORY) && UTIL_StructureExistsOfType(STRUCTURE_ALIEN_SENSORYCHAMBER))
+		if (!PlayerHasAlienUpgradeOfType(pEdict, HIVE_TECH_SENSORY) && UTIL_StructureExistsOfType(STRUCTURE_ALIEN_SENSORYCHAMBER, true))
 		{
 			pEdict->v.impulse = GetDesiredAlienUpgrade(pBot, HIVE_TECH_SENSORY);
 
@@ -2097,6 +2145,39 @@ int GetDesiredAlienUpgrade(const bot_t* pBot, const HiveTechStatus TechType)
 	return 0;
 }
 
+bool CanAlienSwitchRole(bot_t* pBot)
+{
+	switch (pBot->CurrentRole)
+	{
+		case BOT_ROLE_DESTROYER:
+		case BOT_ROLE_RES_CAPPER:
+		case BOT_ROLE_BUILDER:
+			return ((pBot->PrimaryBotTask.TaskType == TASK_NONE || pBot->PrimaryBotTask.TaskType == TASK_EVOLVE) || !pBot->PrimaryBotTask.bTaskIsUrgent);
+		case BOT_ROLE_HARASS:
+			return IsHarasserRoleStillValid(pBot);
+		default:
+			return true;
+	}
+
+	return true;
+}
+
+bool IsHarasserRoleStillValid(bot_t* pBot)
+{
+	if (IsPlayerLerk(pBot->pEdict) || IsPlayerGestating(pBot->pEdict)) { return true; }
+
+	int NumLerks = GAME_GetNumPlayersOnTeamOfClass(ALIEN_TEAM, CLASS_LERK);
+	int NumHarassers = GAME_GetBotsWithRoleType(BOT_ROLE_HARASS, ALIEN_TEAM, pBot->pEdict);
+
+	if ((NumLerks + NumHarassers) > 1) { return false; }
+
+	int NumLerkEvolvers = GAME_GetNumPlayersEvolvingToClass(CLASS_LERK, pBot->pEdict);
+
+	if (NumLerkEvolvers > 1) { return false; }
+
+	return true;
+}
+
 BotRole AlienGetBestBotRole(bot_t* pBot)
 {
 	// Don't switch roles if already fade/onos or those resources are potentially wasted
@@ -2115,39 +2196,20 @@ BotRole AlienGetBestBotRole(bot_t* pBot)
 
 	if (NumPlayersOnTeam == 0) { return BOT_ROLE_DESTROYER; } // Shouldn't ever happen but let's not risk a divide by zero later on...
 
-	// If we have enough resources, or nearly enough, and we don't have any fades already on the team then prioritise this
-	if (GetPlayerResources(pBot->pEdict) >= ((float)kFadeEvolutionCost * 0.8f))
-	{
-		if (GetPlayerResources(pBot->pEdict) > 60) { return BOT_ROLE_DESTROYER; }
-
-		int NumFadesAndOnos = GAME_GetNumPlayersOnTeamOfClass(ALIEN_TEAM, CLASS_FADE) + GAME_GetNumPlayersOnTeamOfClass(ALIEN_TEAM, CLASS_ONOS);
-		int NumDestroyers = GAME_GetBotsWithRoleType(BOT_ROLE_DESTROYER, ALIEN_TEAM, pBot->pEdict);
-		int Existing = NumPlayersOnTeam - NumDestroyers;
-
-		if (Existing > 0 && ((float)NumFadesAndOnos / (float)Existing < 0.33f))
-		{
-			return BOT_ROLE_DESTROYER;
-		}
-	}
-
-	// If we have enough resources, or nearly enough, and we don't have any lerks already on the team then prioritise this
-	if (GetPlayerResources(pBot->pEdict) >= ((float)kLerkEvolutionCost * 0.8f))
-	{
-		int NumLerks = GAME_GetNumPlayersOnTeamOfClass(ALIEN_TEAM, CLASS_LERK);
-		int NumHarassers = GAME_GetBotsWithRoleType(BOT_ROLE_HARASS, ALIEN_TEAM, pBot->pEdict);
-
-		if (NumLerks + NumHarassers < 1)
-		{
-			return BOT_ROLE_HARASS;
-		}
-	}
-
 	int NumTotalResNodes = UTIL_GetNumResNodes();
 
-	// Again, shouldn't ever have a map with no resource nodes, but avoids a potential divide by zero
-	if (NumTotalResNodes == 0)
+	if (NumTotalResNodes == 0) { return BOT_ROLE_DESTROYER; } // Again, shouldn't ever have a map with no resource nodes, but avoids a potential divide by zero
+
+	// Don't go builder if we have nothing to build...
+	if (IsAlienBuilderTaskNeeded(pBot))
 	{
-		return BOT_ROLE_DESTROYER;
+		int NumRequiredBuilders = CalcNumAlienBuildersRequired();
+		int NumBuilders = GAME_GetBotsWithRoleType(BOT_ROLE_BUILDER, ALIEN_TEAM, pBot->pEdict);
+
+		if (NumBuilders < NumRequiredBuilders)
+		{
+			return BOT_ROLE_BUILDER;
+		}
 	}
 
 	// Don't go capper if we have nothing to cap...
@@ -2157,6 +2219,24 @@ BotRole AlienGetBestBotRole(bot_t* pBot)
 
 		int NumRemainingResNodes = NumTotalResNodes - NumAlienResTowers;
 
+		// How much of the map do we currently dominate?
+		float ResTowerRatio = ((float)NumAlienResTowers / (float)NumTotalResNodes);
+
+		if (pBot->resources > 50)
+		{
+			if (ResTowerRatio >= 0.5f)
+			{
+				return BOT_ROLE_DESTROYER;
+			}
+
+			const resource_node* EmptyNode = UTIL_FindEmptyResNodeClosestToLocation(pBot->pEdict->v.origin);
+
+			if (!EmptyNode)
+			{
+				return BOT_ROLE_DESTROYER;
+			}
+		}
+
 		int NumCappers = GAME_GetBotsWithRoleType(BOT_ROLE_RES_CAPPER, ALIEN_TEAM, pBot->pEdict);
 
 		// Always have one capper on the team as long as there are nodes we can cap
@@ -2164,9 +2244,6 @@ BotRole AlienGetBestBotRole(bot_t* pBot)
 		{
 			return BOT_ROLE_RES_CAPPER;
 		}
-
-		// How much of the map do we currently dominate?
-		float ResTowerRatio = ((float)NumAlienResTowers / (float)NumTotalResNodes);
 
 		// If we own less than a third of the map, prioritise capping resource nodes
 		if (ResTowerRatio < 0.30f && NumCappers < 3)
@@ -2185,19 +2262,26 @@ BotRole AlienGetBestBotRole(bot_t* pBot)
 		}
 	}
 
-	// Don't go builder if we have nothing to build...
-	if (IsAlienBuilderTaskNeeded(pBot))
-	{
-		int NumRequiredBuilders = CalcNumAlienBuildersRequired();
-		int NumBuilders = GAME_GetBotsWithRoleType(BOT_ROLE_BUILDER, ALIEN_TEAM, pBot->pEdict);
+	bool bCanGoLerk = (CONFIG_IsLerkAllowed() && ((gpGlobals->time - GAME_GetLastLerkSeenTime()) >= CONFIG_GetLerkCooldown()));
 
-		if (NumBuilders < NumRequiredBuilders)
+	// If we have enough resources, or nearly enough, and we don't have any lerks already on the team then prioritise this
+	// Also, if we're close to fade then save for that
+	if (bCanGoLerk && GetPlayerResources(pBot->pEdict) >= ((float)kLerkEvolutionCost * 0.9f) && GetPlayerResources(pBot->pEdict) < ((float)kFadeEvolutionCost * 0.8f))
+	{
+		int NumLerks = GAME_GetNumPlayersOnTeamOfClass(ALIEN_TEAM, CLASS_LERK);
+		int NumHarassers = GAME_GetBotsWithRoleType(BOT_ROLE_HARASS, ALIEN_TEAM, pBot->pEdict);
+
+		if (NumLerks + NumHarassers < 1)
 		{
-			return BOT_ROLE_BUILDER;
+			int NumEvolvers = GAME_GetNumPlayersEvolvingToClass(CLASS_LERK, pBot->pEdict);
+
+			if (NumEvolvers < 1)
+			{
+				return BOT_ROLE_HARASS;
+			}
 		}
 	}
 
-	
 
 	return BOT_ROLE_DESTROYER;
 }

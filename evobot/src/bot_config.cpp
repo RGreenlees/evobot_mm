@@ -33,14 +33,19 @@ int CurrNameIndex = 0;
 bool bConfigOverride = false;
 
 float fCommanderWaitTime = 10.0f;
+float fLerkCooldown = 60.0f;
 BotFillMode eBotFillMode = BOTFILL_MANUAL;
 CommanderMode eCommanderMode = COMMANDERMODE_ALWAYS;
 int NSVersion = 33; // 32 for 3.2, 33 for 3.3 (including betas)
 char BotPrefix[32] = "";
 
+bool bLerkAllowed = true;
+bool bFadeAllowed = true;
+bool bOnosAllowed = true;
+
 float MaxStuckTime = 0.0f;
 
-HiveTechStatus ChamberSequence[3];
+HiveTechStatus ChamberSequence[3] = { HIVE_TECH_DEFENCE, HIVE_TECH_MOVEMENT, HIVE_TECH_SENSORY };
 
 std::unordered_map<std::string, TeamSizeDefinitions> TeamSizeMap;
 
@@ -256,6 +261,43 @@ void ParseConfigFile(bool bOverride)
                 continue;
             }
 
+            if (key.compare("LerkCooldown") == 0)
+            {
+                if (isNumber(value.c_str()))
+                {
+                    fLerkCooldown = (float)atoi(value.c_str());
+                    fLerkCooldown = fmaxf(0.0f, fLerkCooldown);
+                }
+                continue;
+            }
+
+            if (key.compare("AllowLerk") == 0)
+            {
+                if (isNumber(value.c_str()))
+                {
+                    bLerkAllowed = atoi(value.c_str()) > 0;
+                }
+                continue;
+            }
+
+            if (key.compare("AllowFade") == 0)
+            {
+                if (isNumber(value.c_str()))
+                {
+                    bFadeAllowed = atoi(value.c_str()) > 0;
+                }
+                continue;
+            }
+
+            if (key.compare("AllowOnos") == 0)
+            {
+                if (isNumber(value.c_str()))
+                {
+                    bOnosAllowed = atoi(value.c_str()) > 0;
+                }
+                continue;
+            }
+
             if (key.compare("MaxStuckTime") == 0)
             {
                 if (isNumber(value.c_str()))
@@ -406,7 +448,7 @@ void ParseConfigFile(bool bOverride)
                 HiveTechStatus HiveTwoTech = HIVE_TECH_NONE;
                 HiveTechStatus HiveThreeTech = HIVE_TECH_NONE;
 
-                std::vector<HiveTechStatus> AvailableTechs = { HIVE_TECH_MOVEMENT, HIVE_TECH_DEFENCE, HIVE_TECH_SENSORY };
+                std::vector<HiveTechStatus> AvailableTechs = { HIVE_TECH_DEFENCE, HIVE_TECH_MOVEMENT, HIVE_TECH_SENSORY };
 
                 auto firstTechDelimiter = value.find("/");
 
@@ -535,8 +577,6 @@ void ParseConfigFile(bool bOverride)
 
                 continue;
             }
-
-
         }
         LOG_CONSOLE(PLID, "Config loaded for NS Version %s. If this is incorrect, please update evobot.cfg with the correct version (32 or 33)\n", (CONFIG_GetNSVersion() == 33) ? "3.3" : "3.2");
     }
@@ -582,7 +622,7 @@ void CONFIG_RegenerateConfigFile()
 
     fprintf(NewConfigFile, "### General bot settings ###\n\n");
 
-    fprintf(NewConfigFile, "# NS Version. The following options are valid:\n");
+    fprintf(NewConfigFile, "# IMPORTANT! This is the version of NS you're running. The following options are valid:\n");
     fprintf(NewConfigFile, "# '32' - NS 3.2.X including vanilla 3.2\n");
     fprintf(NewConfigFile, "# '33' - NS 3.3 and all betas\n");
     fprintf(NewConfigFile, "nsversion=33\n\n");
@@ -619,24 +659,54 @@ void CONFIG_RegenerateConfigFile()
 
     fprintf(NewConfigFile, "# Bot skill settings. You can define as many settings as you like and reference them by name\n");
     fprintf(NewConfigFile, "# Format is BotSkillName = name, followed by one of the following:\n");
-    fprintf(NewConfigFile, "# ReactionTime = How quickly in seconds the bot will react to sighting enemies(Marine and Alien)\n");
-    fprintf(NewConfigFile, "# AimSkill = How accurately the bot can lock sights on you after seeing you(Marine and Alien)\n");
-    fprintf(NewConfigFile, "# MovementTracking = How accurately the bot can follow a moving target(Marine and Alien)\n");
-    fprintf(NewConfigFile, "# ViewSpeed = How fast the bot can swivel its view(Marine and Alien)\n");
+    fprintf(NewConfigFile, "# ReactionTime = How quickly in seconds the bot will react to sighting enemies\n");
+    fprintf(NewConfigFile, "# AimSkill = How accurately the bot can lock sights on you after seeing you (0.0 - 1.0)\n");
+    fprintf(NewConfigFile, "# MovementTracking = How accurately the bot can follow a moving target (0.0 - 1.0)\n");
+    fprintf(NewConfigFile, "# ViewSpeed = How fast the bot can swivel its view (0.1 - 2.0)\n");
     fprintf(NewConfigFile, "# Reference the difficulties by name using the 'botskill' command (see Help.txt)\n\n");
 
-    fprintf(NewConfigFile, "BotSkillName=MyCustomSkill\n");
-    fprintf(NewConfigFile, "MarineReactionTime=0.3\n");
-    fprintf(NewConfigFile, "MarineAimSkill=0.3\n");
-    fprintf(NewConfigFile, "MarineMovementTracking=0.3\n");
+    fprintf(NewConfigFile, "BotSkillName=Easy\n");
+    fprintf(NewConfigFile, "MarineReactionTime=0.5\n");
+    fprintf(NewConfigFile, "MarineAimSkill=0.1\n");
+    fprintf(NewConfigFile, "MarineMovementTracking=0.1\n");
+    fprintf(NewConfigFile, "MarineViewSpeed=0.5\n");
+    fprintf(NewConfigFile, "AlienReactionTime=0.5\n");
+    fprintf(NewConfigFile, "AlienAimSkill=0.2\n");
+    fprintf(NewConfigFile, "AlienMovementTracking=0.2\n");
+    fprintf(NewConfigFile, "AlienViewSpeed=0.75\n\n");
+
+    fprintf(NewConfigFile, "BotSkillName=Medium\n");
+    fprintf(NewConfigFile, "MarineReactionTime=0.2\n");
+    fprintf(NewConfigFile, "MarineAimSkill=0.2\n");
+    fprintf(NewConfigFile, "MarineMovementTracking=0.2\n");
     fprintf(NewConfigFile, "MarineViewSpeed=1.0\n");
-    fprintf(NewConfigFile, "AlienReactionTime=0.3\n");
+    fprintf(NewConfigFile, "AlienReactionTime=0.2\n");
     fprintf(NewConfigFile, "AlienAimSkill=0.5\n");
     fprintf(NewConfigFile, "AlienMovementTracking=0.5\n");
     fprintf(NewConfigFile, "AlienViewSpeed=1.3\n\n");
 
-    fprintf(NewConfigFile, "# Default bot skill level for all bots created.Must be a valid skill defined above\n");
-    fprintf(NewConfigFile, "DefaultSkillLevel = MyCustomSkill\n\n\n\n");
+    fprintf(NewConfigFile, "BotSkillName=Hard\n");
+    fprintf(NewConfigFile, "MarineReactionTime=0.2\n");
+    fprintf(NewConfigFile, "MarineAimSkill=0.6\n");
+    fprintf(NewConfigFile, "MarineMovementTracking=0.6\n");
+    fprintf(NewConfigFile, "MarineViewSpeed=1.5\n");
+    fprintf(NewConfigFile, "AlienReactionTime=0.2\n");
+    fprintf(NewConfigFile, "AlienAimSkill=0.8\n");
+    fprintf(NewConfigFile, "AlienMovementTracking=0.8\n");
+    fprintf(NewConfigFile, "AlienViewSpeed=1.5\n\n");
+
+    fprintf(NewConfigFile, "BotSkillName=Godlike\n");
+    fprintf(NewConfigFile, "MarineReactionTime=0.1\n");
+    fprintf(NewConfigFile, "MarineAimSkill=1.0\n");
+    fprintf(NewConfigFile, "MarineMovementTracking=1.0\n");
+    fprintf(NewConfigFile, "MarineViewSpeed=2.0\n");
+    fprintf(NewConfigFile, "AlienReactionTime=0.1\n");
+    fprintf(NewConfigFile, "AlienAimSkill=1.0\n");
+    fprintf(NewConfigFile, "AlienMovementTracking=1.0\n");
+    fprintf(NewConfigFile, "AlienViewSpeed=2.0\n\n");
+
+    fprintf(NewConfigFile, "# Default bot skill level for all bots created. Must be a valid skill defined above\n");
+    fprintf(NewConfigFile, "DefaultSkillLevel=Medium\n\n\n\n");
 
 
 
@@ -654,13 +724,24 @@ void CONFIG_RegenerateConfigFile()
 
 
     fprintf(NewConfigFile, "### Alien Settings ###\n\n");
-    fprintf(NewConfigFile, "# Preferred chamber sequence. Valid entries are 'defense', 'movement' and 'sensory'. Separate sequence with /\n");
+    fprintf(NewConfigFile, "# Preferred chamber sequence. Valid entries are 'defense', 'movement' and 'sensory'. Separate sequence with forward slash\n");
     fprintf(NewConfigFile, "# You can also use ? for random, so if you want movement always first but then defense and sensory at random, use\n");
     fprintf(NewConfigFile, "# ChamberSequence:movement/?/?\n");
     fprintf(NewConfigFile, "# # Or if you want sensory always last, but movement and defence random, use\n");
     fprintf(NewConfigFile, "# ChamberSequence=?/?/sensory\n");
-    fprintf(NewConfigFile, "ChamberSequence:defense/movement/sensory\n\n");
+    fprintf(NewConfigFile, "ChamberSequence=defense/movement/sensory\n\n");
 
+    fprintf(NewConfigFile, "# Lerk cooldown in seconds. How long should bots wait after a lerk has died to replace them?\n");
+    fprintf(NewConfigFile, "# Lerks are fragile, so this prevents bots taking it in turns to go lerk every time one dies and burning through all their res.\n");
+    fprintf(NewConfigFile, "LerkCooldown=60\n\n");
+
+    fprintf(NewConfigFile, "# Enabled life forms. If you don't want the bots to evolve to certain life forms then you can disable them here.\n");
+    fprintf(NewConfigFile, "# 0 = Disabled, 1 = Enabled\n");
+    fprintf(NewConfigFile, "AllowLerk=1\n");
+    fprintf(NewConfigFile, "AllowFade=1\n");
+    fprintf(NewConfigFile, "AllowOnos=1\n");
+
+    fprintf(NewConfigFile, "\n");
 
     fclose(NewConfigFile);
 
@@ -691,6 +772,11 @@ BotFillMode CONFIG_GetBotFillMode()
 float CONFIG_GetCommanderWaitTime()
 {
     return fCommanderWaitTime;
+}
+
+float CONFIG_GetLerkCooldown()
+{
+    return fLerkCooldown;
 }
 
 float CONFIG_GetMaxStuckTime()
@@ -894,4 +980,19 @@ void CONFIG_SetGlobalBotSkillLevel(const char* NewSkillLevel)
     }
 
     GlobalSkillLevel = NewSkillLevel;
+}
+
+bool CONFIG_IsLerkAllowed()
+{
+    return bLerkAllowed;
+}
+
+bool CONFIG_IsFadeAllowed()
+{
+    return bFadeAllowed;
+}
+
+bool CONFIG_IsOnosAllowed()
+{
+    return bOnosAllowed;
 }

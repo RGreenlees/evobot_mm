@@ -39,7 +39,6 @@ int NumMapLocations;
 float CommanderViewZHeight;
 
 extern edict_t* clients[MAX_CLIENTS];
-extern bool bGameIsActive;
 
 extern bot_t bots[MAX_CLIENTS];
 
@@ -79,7 +78,7 @@ void PopulateEmptyHiveList()
 	}
 }
 
-bool UTIL_StructureExistsOfType(const NSStructureType StructureType)
+bool UTIL_StructureExistsOfType(const NSStructureType StructureType, const bool bCompletedOnly)
 {
 	bool bIsMarineStructure = UTIL_IsMarineStructure(StructureType);
 
@@ -88,6 +87,7 @@ bool UTIL_StructureExistsOfType(const NSStructureType StructureType)
 		for (auto& it : MarineBuildableStructureMap)
 		{
 			if (!it.second.bOnNavmesh) { continue; }
+			if (bCompletedOnly && !it.second.bFullyConstructed) { continue; }
 			if (UTIL_StructureTypesMatch(StructureType, it.second.StructureType)) { return true; }
 
 		}
@@ -97,6 +97,7 @@ bool UTIL_StructureExistsOfType(const NSStructureType StructureType)
 		for (auto& it : AlienBuildableStructureMap)
 		{
 			if (!it.second.bOnNavmesh) { continue; }
+			if (bCompletedOnly && !it.second.bFullyConstructed) { continue; }
 			if (UTIL_StructureTypesMatch(StructureType, it.second.StructureType)) { return true; }
 		}
 	}
@@ -630,6 +631,22 @@ void UTIL_RefreshResourceNodes()
 	}
 }
 
+void UTIL_UpdateMapAIData()
+{
+	if (gpGlobals->time - last_structure_refresh_time >= structure_inventory_refresh_rate)
+	{
+		UTIL_RefreshBuildableStructures();
+		UTIL_RefreshResourceNodes();
+		last_structure_refresh_time = gpGlobals->time;
+	}
+
+	if (gpGlobals->time - last_item_refresh_time >= item_inventory_refresh_rate)
+	{
+		UTIL_RefreshMarineItems();
+		last_item_refresh_time = gpGlobals->time;
+	}
+}
+
 void UTIL_RefreshBuildableStructures()
 {
 	if (!NavmeshLoaded()) { return; }
@@ -787,7 +804,7 @@ void UTIL_RefreshBuildableStructures()
 	{
 		if (Hives[i].NextFloorLocationCheck > 0.0f && gpGlobals->time >= Hives[i].NextFloorLocationCheck)
 		{
-			Vector ClosestPoint = FindClosestNavigablePointToDestination(MARINE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), UTIL_GetFloorUnderEntity(Hives[i].edict), UTIL_MetresToGoldSrcUnits(20.0f));
+			Vector ClosestPoint = FindClosestNavigablePointToDestination(MARINE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), UTIL_GetFloorUnderEntity(Hives[i].edict), UTIL_MetresToGoldSrcUnits(10.0f));
 
 			if (!ClosestPoint)
 			{
@@ -810,7 +827,7 @@ void UTIL_OnStructureCreated(buildable_structure* NewStructure)
 
 	bool bIsMarineStructure = UTIL_IsMarineStructure(StructureType);
 
-	if (bGameIsActive)
+	if (GAME_GetGameStatus() == GAME_STATUS_ACTIVE)
 	{
 		if (bIsMarineStructure && StructureType != STRUCTURE_MARINE_DEPLOYEDMINE)
 		{
@@ -1953,6 +1970,31 @@ void UTIL_ClearMapAIData()
 	last_item_refresh_time = 0.0f;
 }
 
+const resource_node* UTIL_FindEmptyResNodeClosestToLocation(const Vector& Location)
+{
+	int Result = -1;
+	float MinDist = 0.0f;
+
+	for (int i = 0; i < NumTotalResNodes; i++)
+	{
+		if (ResourceNodes[i].bIsOccupied) { continue; }
+
+		float Dist = vDist2DSq(Location, ResourceNodes[i].origin);
+		if (Result < 0 || Dist < MinDist)
+		{
+			Result = i;
+			MinDist = Dist;
+		}
+	}
+
+	if (Result > -1)
+	{
+		return &ResourceNodes[Result];
+	}
+
+	return nullptr;
+}
+
 const resource_node* UTIL_FindEligibleResNodeClosestToLocation(const Vector& Location, const int Team, bool bIgnoreElectrified)
 {
 	int Result = -1;
@@ -2173,13 +2215,6 @@ const resource_node* UTIL_AlienFindUnclaimedResNodeFurthestFromLocation(const bo
 		edict_t* OtherGorge = UTIL_GetNearestPlayerOfClass(ResourceNodes[i].origin, CLASS_GORGE, UTIL_MetresToGoldSrcUnits(5.0f), pBot->pEdict);
 
 		if (OtherGorge && (GetPlayerResources(OtherGorge) >= kResourceTowerCost && vDist2DSq(OtherGorge->v.origin, ResourceNodes[i].origin) < vDist2DSq(pBot->pEdict->v.origin, ResourceNodes[i].origin)))
-		{
-			continue;
-		}
-
-		edict_t* Egg = UTIL_GetNearestPlayerOfClass(ResourceNodes[i].origin, CLASS_EGG, UTIL_MetresToGoldSrcUnits(5.0f), pBot->pEdict);
-
-		if (Egg && (GetPlayerResources(Egg) >= kResourceTowerCost && vDist2DSq(Egg->v.origin, ResourceNodes[i].origin) < vDist2DSq(pBot->pEdict->v.origin, ResourceNodes[i].origin)))
 		{
 			continue;
 		}
@@ -2423,7 +2458,7 @@ edict_t* UTIL_FindSafePlayerInArea(const int Team, const Vector SearchLocation, 
 	return nullptr;
 }
 
-edict_t* UTIL_GetFurthestStructureOfTypeFromLocation(const NSStructureType StructureType, const Vector& Location, bool bAllowElectrified)
+edict_t* UTIL_GetFurthestStructureOfTypeFromLocation(const NSStructureType StructureType, const Vector& Location, bool bAllowElectrified, bool bUsePhaseDistance)
 {
 	edict_t* Result = nullptr;
 	float MaxDist = 0.0f;
@@ -2438,7 +2473,7 @@ edict_t* UTIL_GetFurthestStructureOfTypeFromLocation(const NSStructureType Struc
 			if (!it.second.bOnNavmesh || !it.second.bIsReachableAlien) { continue; }
 			if (!UTIL_StructureTypesMatch(StructureType, it.second.StructureType) || (!bAllowElectrified && it.second.bIsElectrified)) { continue; }
 
-			float ThisDist = vDist2DSq(it.second.Location, Location);
+			float ThisDist = (bUsePhaseDistance) ? UTIL_GetPhaseDistanceBetweenPointsSq(it.second.Location, Location) : vDist2DSq(it.second.Location, Location);
 
 			if (FNullEnt(Result) || ThisDist > MaxDist)
 			{
@@ -2456,7 +2491,7 @@ edict_t* UTIL_GetFurthestStructureOfTypeFromLocation(const NSStructureType Struc
 			if (!it.second.bOnNavmesh || !it.second.bIsReachableAlien) { continue; }
 			if (!UTIL_StructureTypesMatch(StructureType, it.second.StructureType)) { continue; }
 
-			float ThisDist = vDist2DSq(it.second.Location, Location);
+			float ThisDist = (bUsePhaseDistance) ? UTIL_GetPhaseDistanceBetweenPointsSq(it.second.Location, Location) : vDist2DSq(it.second.Location, Location);
 
 			if (FNullEnt(Result) || ThisDist > MaxDist)
 			{
@@ -2812,7 +2847,7 @@ edict_t* UTIL_GetNearestPlayerOfClass(const Vector Location, const NSPlayerClass
 	{
 		if (FNullEnt(clients[i]) || clients[i] == PlayerToIgnore || IsPlayerDead(clients[i])) { continue; }
 
-		if (!IsPlayerInReadyRoom(clients[i]) && !IsPlayerBeingDigested(clients[i]) && GetPlayerClass(clients[i]) == SearchClass)
+		if (!IsPlayerInReadyRoom(clients[i]) && !IsPlayerBeingDigested(clients[i]) && (GetPlayerClass(clients[i]) == SearchClass || GAME_IsPlayerEvolvingToClass(SearchClass, clients[i])))
 		{
 			float ThisDist = vDist2DSq(Location, clients[i]->v.origin);
 
@@ -3671,6 +3706,10 @@ void UTIL_UpdateMarineItem(edict_t* Item, NSStructureType ItemType)
 			if (MarineDroppedItemMap[EntIndex].bOnNavMesh)
 			{
 				MarineDroppedItemMap[EntIndex].bIsReachableMarine = UTIL_PointIsReachable(MARINE_REGULAR_NAV_PROFILE, UTIL_GetCommChairLocation(), Item->v.origin, max_player_use_reach);
+			}
+			else
+			{
+				MarineDroppedItemMap[EntIndex].bIsReachableMarine = false;
 			}
 		}
 	}
@@ -4783,7 +4822,26 @@ NSStructureType UTIL_WeaponTypeToDeployableItem(const NSWeapon WeaponType)
 	return STRUCTURE_NONE;
 }
 
+NSWeapon UTIL_DeployableItemToWeaponType(const NSStructureType DeployableItem)
+{
+	switch (DeployableItem)
+	{
+	case DEPLOYABLE_ITEM_MARINE_SHOTGUN:
+		return WEAPON_MARINE_SHOTGUN;
+	case DEPLOYABLE_ITEM_MARINE_GRENADELAUNCHER:
+		return WEAPON_MARINE_GL;
+	case DEPLOYABLE_ITEM_MARINE_HMG:
+		return WEAPON_MARINE_HMG;
+	case DEPLOYABLE_ITEM_MARINE_WELDER:
+		return WEAPON_MARINE_WELDER;
+	case DEPLOYABLE_ITEM_MARINE_MINES:
+		return WEAPON_MARINE_MINES;
+	default:
+		return WEAPON_NONE;
+	}
 
+	return WEAPON_NONE;
+}
 
 AvHUpgradeMask UTIL_GetResearchMask(const NSResearch Research)
 {
