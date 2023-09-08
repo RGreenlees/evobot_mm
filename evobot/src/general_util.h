@@ -62,6 +62,7 @@ edict_t* UTIL_TraceEntity(const edict_t* pEdict, const Vector& start, const Vect
 
 Vector UTIL_GetTraceHitLocation(const Vector Start, const Vector End);
 
+Vector UTIL_GetGroundLocation(const Vector CheckLocation);
 Vector UTIL_GetEntityGroundLocation(const edict_t* pEntity);
 Vector UTIL_GetCentreOfEntity(const edict_t* Entity);
 Vector UTIL_GetFloorUnderEntity(const edict_t* Edict);

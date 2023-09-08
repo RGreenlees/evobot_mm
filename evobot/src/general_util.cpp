@@ -539,6 +539,21 @@ void UTIL_HostSay(edict_t* pEntity, int teamonly, char* message)
 	// echo to server console
 	SERVER_PRINT(text);
 }
+Vector UTIL_GetGroundLocation(const Vector CheckLocation)
+{
+	if (!CheckLocation) { return ZERO_VECTOR; }
+
+	TraceResult hit;
+
+	UTIL_TraceHull(CheckLocation, (CheckLocation - Vector(0.0f, 0.0f, 1000.0f)), ignore_monsters, head_hull, nullptr, &hit);
+
+	if (hit.flFraction < 1.0f)
+	{
+		return hit.vecEndPos;
+	}
+
+	return CheckLocation;
+}
 
 Vector UTIL_GetEntityGroundLocation(const edict_t* pEntity)
 {

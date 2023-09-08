@@ -1872,7 +1872,12 @@ dtStatus FindPathClosestToPoint(const int NavProfileIndex, const Vector FromLoca
 
 		if (hit.flFraction < 1.0f)
 		{
-			path[(nVert)].Location = hit.vecEndPos + Vector(0.0f, 0.0f, 20.0f);
+			path[(nVert)].Location = hit.vecEndPos;
+			
+			if (CurrArea != SAMPLE_POLYAREA_JUMP)
+			{
+				path[(nVert)].Location.z += 20.0f;
+			}
 		}
 
 		path[(nVert)].requiredZ = path[(nVert)].Location.z;
@@ -2171,14 +2176,26 @@ dtStatus FindPathClosestToPoint(bot_t* pBot, const BotMoveStyle MoveStyle, const
 		TraceStart.y = path[(nVert)].Location.y;
 		TraceStart.z = path[(nVert)].Location.z + 18.0f;
 
-		
-		UTIL_TraceHull(TraceStart, (TraceStart - Vector(0.0f, 0.0f, 100.0f)), ignore_monsters, head_hull, nullptr, &hit);
-
-		if (hit.flFraction < 1.0f && !hit.fStartSolid)
+		if (CurrArea != SAMPLE_POLYAREA_JUMP || path[(nVert)].FromLocation.z > path[(nVert)].Location.z)
 		{
-			bool isCrouchedArea = (CurrArea == SAMPLE_POLYAREA_CROUCH);
 
-			path[(nVert)].Location = hit.vecEndPos + Vector(0.0f, 0.0f, 2.0f);
+			UTIL_TraceHull(TraceStart, (TraceStart - Vector(0.0f, 0.0f, 100.0f)), ignore_monsters, head_hull, nullptr, &hit);
+
+			if (hit.flFraction < 1.0f && !hit.fStartSolid)
+			{
+				bool isCrouchedArea = (CurrArea == SAMPLE_POLYAREA_CROUCH);
+
+				path[(nVert)].Location = hit.vecEndPos + Vector(0.0f, 0.0f, 2.0f);
+			}
+		}
+		else
+		{
+			UTIL_TraceLine(TraceStart, (TraceStart - Vector(0.0f, 0.0f, 50.0f)), ignore_monsters, nullptr, &hit);
+
+			if (hit.flFraction < 1.0f && !hit.fStartSolid)
+			{
+				path[(nVert)].Location = hit.vecEndPos;
+			}
 		}
 
 		// End alignment to floor
@@ -2978,7 +2995,7 @@ void NewMove(bot_t* pBot)
 		return;
 	}
 
-	int CurrentNavArea = pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].area;
+	SamplePolyAreas CurrentNavArea = (SamplePolyAreas)pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].area;
 
 	unsigned char NextArea = SAMPLE_POLYAREA_GROUND;
 
@@ -3634,6 +3651,8 @@ bool IsBotOffPath(const bot_t* pBot)
 
 	if (pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].area == SAMPLE_POLYAREA_JUMP || pBot->BotNavInfo.CurrentPath[pBot->BotNavInfo.CurrentPathPoint].area == SAMPLE_POLYAREA_HIGHJUMP)
 	{
+		Vector ExactJumpTarget = UTIL_GetGroundLocation(MoveTo);
+
 		if (pBot->BotNavInfo.IsOnGround && (MoveTo.z - pBot->CurrentFloorPosition.z) > max_player_jump_height)
 		{
 			return true;
@@ -5481,6 +5500,8 @@ void BotFollowPath(bot_t* pBot)
 	nav_status* BotNavInfo = &pBot->BotNavInfo;
 	edict_t* pEdict = pBot->pEdict;
 
+	SamplePolyAreas CurrentMoveArea = (SamplePolyAreas)BotNavInfo->CurrentPath[BotNavInfo->CurrentPathPoint].area;
+
 	// If we've reached our current path point
 	if (HasBotReachedPathPoint(pBot))
 	{
@@ -5508,6 +5529,13 @@ void BotFollowPath(bot_t* pBot)
 	Vector TargetMoveLocation = BotNavInfo->CurrentPath[BotNavInfo->CurrentPathPoint].Location;
 
 	bool bIsUsingPhaseGate = (BotNavInfo->CurrentPath[BotNavInfo->CurrentPathPoint].area == SAMPLE_POLYAREA_PHASEGATE);
+
+	bool bIsJumping = (BotNavInfo->CurrentPath[BotNavInfo->CurrentPathPoint].area == SAMPLE_POLYAREA_JUMP);
+
+	if (bIsJumping)
+	{
+		bool thing = true;
+	}
 
 	if (!bIsUsingPhaseGate && IsBotStuck(pBot, TargetMoveLocation))
 	{
