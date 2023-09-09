@@ -471,7 +471,7 @@ void CommanderReceiveHealthRequest(bot_t* pBot, edict_t* Requestor)
 		return;
 	}
 
-	if (UTIL_GetItemCountOfTypeInArea(DEPLOYABLE_ITEM_MARINE_HEALTHPACK, Requestor->v.origin, UTIL_MetresToGoldSrcUnits(10.0f)) > 0)
+	if (UTIL_GetItemCountOfTypeInArea(DEPLOYABLE_ITEM_MARINE_HEALTHPACK, Requestor->v.origin, UTIL_MetresToGoldSrcUnits(6.0f)) > 2)
 	{
 		char buf[512];
 		sprintf(buf, "I've already dropped health there, %s", STRING(Requestor->v.netname));
