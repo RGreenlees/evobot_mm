@@ -534,7 +534,7 @@ void CommanderReceiveAmmoRequest(bot_t* pBot, edict_t* Requestor)
 		return;
 	}
 
-	if (UTIL_GetItemCountOfTypeInArea(DEPLOYABLE_ITEM_MARINE_AMMO, Requestor->v.origin, UTIL_MetresToGoldSrcUnits(10.0f)) > 0)
+	if (UTIL_GetItemCountOfTypeInArea(DEPLOYABLE_ITEM_MARINE_AMMO, Requestor->v.origin, UTIL_MetresToGoldSrcUnits(3.0f)) > 3)
 	{
 		char buf[512];
 		sprintf(buf, "I've already dropped ammo there, %s", STRING(Requestor->v.netname));
@@ -3221,12 +3221,12 @@ void COMM_SetNextSupportAction(bot_t* CommanderBot, commander_action* Action)
 		return;
 	}
 
-	// Don't drop stuff if we're critically low on resources
-	if (CommanderBot->resources < 20)
-	{
-		UTIL_ClearCommanderAction(Action);
-		return;
-	}
+	// // Don't drop stuff if we're critically low on resources - this perpetuates not having any resources, also ideally you are always low on resources
+	//if (CommanderBot->resources < 20)
+	//{
+	//	UTIL_ClearCommanderAction(Action);
+	//	return;
+	//}
 
 	int NumMarines = GAME_GetNumPlayersOnTeam(MARINE_TEAM) - 1;
 
