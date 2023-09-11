@@ -276,6 +276,8 @@ typedef struct _COMMANDER_ACTION
 	CommanderActionType ActionType = ACTION_NONE; // What action to perform (e.g. build, recycle, drop item etc)
 	CommanderActionStep ActionStep = ACTION_STEP_NONE; // Used for multi-stage processes such as selecting a building, issuing recycle command etc.
 	NSStructureType StructureToBuild = STRUCTURE_NONE; // What structure to build if build action
+	int NumInstances = 0;
+	int NumDesiredInstances = 0;
 	StructurePurpose ActionPurpose = STRUCTURE_PURPOSE_NONE;
 	Vector BuildLocation = ZERO_VECTOR; // Where to build the structure
 	Vector DesiredCommanderLocation = ZERO_VECTOR; // To perform this action, where does the commander's view need to be? For building, usually directly above location, but could be off to side if obstructed by geometry

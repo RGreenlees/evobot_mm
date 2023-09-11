@@ -483,6 +483,7 @@ void CommanderReceiveHealthRequest(bot_t* pBot, edict_t* Requestor)
 	pBot->SupportAction.StructureToBuild = DEPLOYABLE_ITEM_MARINE_HEALTHPACK;
 	pBot->SupportAction.BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, Requestor->v.origin, UTIL_MetresToGoldSrcUnits(2.0f));
 	pBot->SupportAction.bIsActionUrgent = true;
+	pBot->SupportAction.NumDesiredInstances = 2;
 }
 
 void CommanderReceiveCatalystRequest(bot_t* pBot, edict_t* Requestor)
@@ -546,6 +547,7 @@ void CommanderReceiveAmmoRequest(bot_t* pBot, edict_t* Requestor)
 	pBot->SupportAction.StructureToBuild = DEPLOYABLE_ITEM_MARINE_AMMO;
 	pBot->SupportAction.BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, Requestor->v.origin, UTIL_MetresToGoldSrcUnits(2.0f));
 	pBot->SupportAction.bIsActionUrgent = true;
+	pBot->SupportAction.NumDesiredInstances = 4;
 
 }
 
@@ -1152,7 +1154,7 @@ bool UTIL_IsCommanderActionValid(bot_t* CommanderBot, commander_action* Action)
 	case ACTION_UPGRADE:
 		return !FNullEnt(Action->ActionTarget) && UTIL_StructureCanBeUpgraded(Action->ActionTarget);
 	case ACTION_DEPLOY:
-		return FNullEnt(Action->StructureOrItem);
+		return Action->NumInstances < Action->NumDesiredInstances;
 	case ACTION_RESEARCH:
 	{
 		if (Action->ResearchId == RESEARCH_ELECTRICAL)
@@ -1168,78 +1170,6 @@ bool UTIL_IsCommanderActionValid(bot_t* CommanderBot, commander_action* Action)
 	}
 
 	return false;
-}
-
-bool UTIL_CommanderBuildActionIsValid(bot_t* CommanderBot, commander_action* Action)
-{
-	if (!Action || Action->StructureToBuild == STRUCTURE_NONE) { return false; }
-
-	if (Action->bHasAttemptedAction && (gpGlobals->time - Action->StructureBuildAttemptTime < build_attempt_retry_time)) { return true; }
-
-	if (Action->NumActionAttempts >= 3) { return false; }
-
-	if (!FNullEnt(Action->StructureOrItem))
-	{
-		if (Action->StructureOrItem->v.deadflag == DEAD_DEAD || UTIL_StructureIsFullyBuilt(Action->StructureOrItem))
-		{
-			return false;
-		}
-
-		buildable_structure* StructureRef = UTIL_GetBuildableStructureRefFromEdict(Action->StructureOrItem);
-
-		if (StructureRef)
-		{
-			if (!StructureRef->bIsReachableMarine) { return false; }
-		}
-	}
-
-	// Give up building a resource tower if we have a few already and there's nobody nearby
-	if (Action->StructureToBuild == STRUCTURE_MARINE_RESTOWER && FNullEnt(Action->StructureOrItem))
-	{
-		const resource_node* ResNodeIndex = UTIL_FindNearestResNodeToLocation(Action->BuildLocation);
-
-		if (ResNodeIndex)
-		{
-			if (ResNodeIndex->bIsOccupied && ResNodeIndex->bIsOwnedByMarines && UTIL_StructureIsFullyBuilt(ResNodeIndex->edict))
-			{
-				return false;
-			}
-		}
-
-		int NumExistingResTowers = UTIL_GetNumPlacedStructuresOfType(STRUCTURE_MARINE_RESTOWER);
-
-		if (NumExistingResTowers >= 3)
-		{
-			if (!UTIL_AnyMarinePlayerNearLocation(Action->BuildLocation, UTIL_MetresToGoldSrcUnits(10.0f)))
-			{
-				return false;
-			}
-		}
-	}
-
-	switch (Action->StructureToBuild)
-	{
-	case STRUCTURE_MARINE_ARMOURY:
-	case STRUCTURE_MARINE_ADVARMOURY:
-		return (UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ANYARMOURY, Action->BuildLocation, UTIL_MetresToGoldSrcUnits(10.0f), true, false) == nullptr);
-	case STRUCTURE_MARINE_TURRETFACTORY:
-	case STRUCTURE_MARINE_ADVTURRETFACTORY:
-		return (UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ANYTURRETFACTORY, Action->BuildLocation, UTIL_MetresToGoldSrcUnits(10.0f), true, false) == nullptr);
-	case STRUCTURE_MARINE_PHASEGATE:
-		return (UTIL_StructureExistsOfType(STRUCTURE_MARINE_OBSERVATORY, false) && UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_PHASEGATE, Action->BuildLocation, UTIL_MetresToGoldSrcUnits(10.0f), true, false) == nullptr);
-	case STRUCTURE_MARINE_OBSERVATORY:
-	case STRUCTURE_MARINE_ARMSLAB:
-	case STRUCTURE_MARINE_PROTOTYPELAB:
-		return !UTIL_StructureExistsOfType(Action->StructureToBuild, false);
-	case STRUCTURE_MARINE_TURRET:
-		return (UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ANYTURRETFACTORY, Action->BuildLocation, UTIL_MetresToGoldSrcUnits(5.0f), true, false) != nullptr);
-	case STRUCTURE_MARINE_SIEGETURRET:
-		return (UTIL_GetNearestStructureOfTypeInLocation(STRUCTURE_MARINE_ADVTURRETFACTORY, Action->BuildLocation, UTIL_MetresToGoldSrcUnits(5.0f), true, false) != nullptr);
-	default:
-		return true;
-	}
-
-	return true;
 }
 
 bool UTIL_HasIdleArmsLab()
@@ -1754,6 +1684,11 @@ void BotCommanderDeploy(bot_t* pBot, commander_action* Action)
 	}
 
 	if (Action->StructureToBuild == STRUCTURE_NONE) { return; }
+
+	if (Action->NumDesiredInstances == 0)
+	{
+		Action->NumDesiredInstances = 1;
+	}
 
 	int DeployCost = UTIL_GetCostOfStructureType(Action->StructureToBuild);
 
@@ -2328,6 +2263,7 @@ void COMM_SetTurretBuildAction(edict_t* TurretFactory, commander_action* Action)
 	Action->StructureToBuild = STRUCTURE_MARINE_TURRET;
 	Action->bIsActionUrgent = true;
 	Action->ActionPurpose = STRUCTURE_PURPOSE_FORTIFY;
+	Action->NumDesiredInstances = 1;
 
 }
 
@@ -2349,6 +2285,7 @@ void COMM_SetSiegeTurretBuildAction(edict_t* TurretFactory, commander_action* Ac
 	Action->StructureToBuild = STRUCTURE_MARINE_SIEGETURRET;
 	Action->bIsActionUrgent = bIsUrgent;
 	Action->ActionPurpose = STRUCTURE_PURPOSE_SIEGE;
+	Action->NumDesiredInstances = 1;
 
 }
 
@@ -2408,6 +2345,7 @@ void COMM_SetInfantryPortalBuildAction(edict_t* CommChair, commander_action* Act
 	Action->BuildLocation = BuildLocation;
 	Action->StructureToBuild = STRUCTURE_MARINE_INFANTRYPORTAL;
 	Action->bIsActionUrgent = true;
+	Action->NumDesiredInstances = 1;
 
 }
 
@@ -2636,6 +2574,7 @@ void COMM_SetNextSecureHiveAction(bot_t* CommanderBot, const hive_definition* Hi
 			Action->BuildLocation = FinalBuildLocation;
 			Action->bIsActionUrgent = true;
 			Action->ActionPurpose = STRUCTURE_PURPOSE_FORTIFY;
+			Action->NumDesiredInstances = 1;
 			return;
 		}
 	}
@@ -2732,7 +2671,7 @@ void COMM_SetNextSecureHiveAction(bot_t* CommanderBot, const hive_definition* Hi
 				Action->ActionTarget = HiveNode->edict;
 				Action->StructureToBuild = STRUCTURE_MARINE_RESTOWER;
 				Action->BuildLocation = HiveNode->origin;
-
+				Action->NumDesiredInstances = 1;
 				return;
 			}
 
@@ -2975,6 +2914,7 @@ void COMM_SetNextSiegeHiveAction(bot_t* CommanderBot, const hive_definition* Hiv
 					Action->StructureToBuild = DEPLOYABLE_ITEM_MARINE_SCAN;
 					Action->BuildLocation = FinalLoc;
 					Action->bIsActionUrgent = true;
+					Action->NumDesiredInstances = 1;
 					return;
 				}
 			}
@@ -3032,6 +2972,7 @@ void COMM_SetNextSiegeHiveAction(bot_t* CommanderBot, const hive_definition* Hiv
 					Action->BuildLocation = FinalBuildLocation;
 					Action->bIsActionUrgent = true;
 					Action->ActionPurpose = STRUCTURE_PURPOSE_SIEGE;
+					Action->NumDesiredInstances = 1;
 
 				}
 
@@ -3082,6 +3023,7 @@ void COMM_SetNextSiegeHiveAction(bot_t* CommanderBot, const hive_definition* Hiv
 				Action->BuildLocation = FinalBuildLocation;
 				Action->ActionPurpose = STRUCTURE_PURPOSE_SIEGE;
 				Action->bIsActionUrgent = true;
+				Action->NumDesiredInstances = 1;
 			}
 
 			return;
@@ -3133,6 +3075,7 @@ void COMM_SetNextSiegeHiveAction(bot_t* CommanderBot, const hive_definition* Hiv
 				Action->BuildLocation = FinalBuildLocation;
 				Action->ActionPurpose = STRUCTURE_PURPOSE_SIEGE;
 				Action->bIsActionUrgent = true;
+				Action->NumDesiredInstances = 1;
 			}
 
 			return;
@@ -3268,6 +3211,7 @@ void COMM_SetNextSupportAction(bot_t* CommanderBot, commander_action* Action)
 			Action->ActionType = ACTION_DEPLOY;
 			Action->StructureToBuild = DEPLOYABLE_ITEM_MARINE_HEAVYARMOUR;
 			Action->BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, PrototypeLab->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
+			Action->NumDesiredInstances = 1;
 			return;
 		}
 
@@ -3278,6 +3222,7 @@ void COMM_SetNextSupportAction(bot_t* CommanderBot, commander_action* Action)
 			Action->ActionType = ACTION_DEPLOY;
 			Action->StructureToBuild = SpecialWeaponToDrop;
 			Action->BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, AdvArmoury->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
+			Action->NumDesiredInstances = 1;
 			return;
 		}
 
@@ -3288,6 +3233,7 @@ void COMM_SetNextSupportAction(bot_t* CommanderBot, commander_action* Action)
 			Action->ActionType = ACTION_DEPLOY;
 			Action->StructureToBuild = DEPLOYABLE_ITEM_MARINE_WELDER;
 			Action->BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, AdvArmoury->v.origin, UTIL_MetresToGoldSrcUnits(5.0f));
+			Action->NumDesiredInstances = 1;
 			return;
 		}
 
@@ -3318,6 +3264,7 @@ void COMM_SetNextSupportAction(bot_t* CommanderBot, commander_action* Action)
 			Action->ActionType = ACTION_DEPLOY;
 			Action->StructureToBuild = DEPLOYABLE_ITEM_MARINE_MINES;
 			Action->BuildLocation = DeployLocation;
+			Action->NumDesiredInstances = 1;
 		}
 
 		return;
@@ -3349,6 +3296,7 @@ void COMM_SetNextSupportAction(bot_t* CommanderBot, commander_action* Action)
 			Action->ActionType = ACTION_DEPLOY;
 			Action->StructureToBuild = DEPLOYABLE_ITEM_MARINE_WELDER;
 			Action->BuildLocation = DeployLocation;
+			Action->NumDesiredInstances = 1;
 		}
 
 		return;
@@ -3380,6 +3328,7 @@ void COMM_SetNextSupportAction(bot_t* CommanderBot, commander_action* Action)
 			Action->ActionType = ACTION_DEPLOY;
 			Action->StructureToBuild = DEPLOYABLE_ITEM_MARINE_SHOTGUN;
 			Action->BuildLocation = DeployLocation;
+			Action->NumDesiredInstances = 1;
 		}
 
 		return;
@@ -3475,6 +3424,7 @@ void COMM_SetNextBuildAction(bot_t* CommanderBot, commander_action* Action)
 			Action->StructureToBuild = STRUCTURE_MARINE_ARMOURY;
 			Action->BuildLocation = BuildLocation;
 			Action->bIsActionUrgent = true;
+			Action->NumDesiredInstances = 1;
 		}	
 		return;
 	}
@@ -3521,6 +3471,7 @@ void COMM_SetNextBuildAction(bot_t* CommanderBot, commander_action* Action)
 				Action->StructureToBuild = STRUCTURE_MARINE_PHASEGATE;
 				Action->BuildLocation = BuildLocation;
 				Action->bIsActionUrgent = true;
+				Action->NumDesiredInstances = 1;
 			}
 
 			return;
@@ -3542,6 +3493,7 @@ void COMM_SetNextBuildAction(bot_t* CommanderBot, commander_action* Action)
 			Action->StructureToBuild = STRUCTURE_MARINE_RESTOWER;
 			Action->BuildLocation = CappableNode->origin;
 			Action->bIsActionUrgent = (NumMarineRTs < 4);
+			Action->NumDesiredInstances = 1;
 		}
 
 		return;
@@ -3574,6 +3526,7 @@ void COMM_SetNextBuildAction(bot_t* CommanderBot, commander_action* Action)
 			Action->StructureToBuild = STRUCTURE_MARINE_ARMSLAB;
 			Action->BuildLocation = BuildLocation;
 			Action->bIsActionUrgent = true;
+			Action->NumDesiredInstances = 1;
 		}
 
 		return;
@@ -3594,6 +3547,7 @@ void COMM_SetNextBuildAction(bot_t* CommanderBot, commander_action* Action)
 			Action->ActionType = ACTION_DEPLOY;
 			Action->StructureToBuild = STRUCTURE_MARINE_OBSERVATORY;
 			Action->BuildLocation = BuildLocation;
+			Action->NumDesiredInstances = 1;
 		}
 
 		return;
@@ -3666,7 +3620,7 @@ void COMM_SetNextBuildAction(bot_t* CommanderBot, commander_action* Action)
 				Action->ActionType = ACTION_DEPLOY;
 				Action->StructureToBuild = STRUCTURE_MARINE_PROTOTYPELAB;
 				Action->BuildLocation = BuildLocation;
-				
+				Action->NumDesiredInstances = 1;
 			}
 		}
 
@@ -3710,7 +3664,12 @@ void COMM_ConfirmObjectDeployed(bot_t* pBot, commander_action* Action, edict_t* 
 
 		pBot->next_commander_action_time = gpGlobals->time + commander_action_cooldown;
 
-		UTIL_ClearCommanderAction(Action);
+		Action->NumInstances++;
+
+		if (Action->NumDesiredInstances > 1)
+		{
+			Action->BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, Action->BuildLocation, UTIL_MetresToGoldSrcUnits(1.0f));
+		}
 	}
 }
 

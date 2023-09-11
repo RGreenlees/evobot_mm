@@ -76,7 +76,6 @@ bool COMM_IsWaitingOnBuildLink(bot_t* CommanderBot);
 
 bool UTIL_IsMarineOrderValid(bot_t* CommanderBot, int CommanderOrderIndex);
 bool UTIL_IsCommanderActionValid(bot_t* CommanderBot, commander_action* Action);
-bool UTIL_CommanderBuildActionIsValid(bot_t* CommanderBot, commander_action* Action);
 
 bool UTIL_ResearchInProgress(NSResearch Research);
 
