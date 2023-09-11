@@ -3164,12 +3164,15 @@ void COMM_SetNextSupportAction(bot_t* CommanderBot, commander_action* Action)
 		return;
 	}
 
-	// // Don't drop stuff if we're critically low on resources - this perpetuates not having any resources, also ideally you are always low on resources
-	//if (CommanderBot->resources < 20)
-	//{
-	//	UTIL_ClearCommanderAction(Action);
-	//	return;
-	//}
+
+	// TODO: Add stuff that bypasses the 20-res restriction. E.g. dropping items in support of attacking marines
+
+	// Don't drop stuff if we're critically low on resources - this perpetuates not having any resources, also ideally you are always low on resources
+	if (CommanderBot->resources < 20)
+	{
+		UTIL_ClearCommanderAction(Action);
+		return;
+	}
 
 	int NumMarines = GAME_GetNumPlayersOnTeam(MARINE_TEAM) - 1;
 
@@ -3662,7 +3665,9 @@ void COMM_ConfirmObjectDeployed(bot_t* pBot, commander_action* Action, edict_t* 
 			Ref->Purpose = Action->ActionPurpose;
 		}
 
-		pBot->next_commander_action_time = gpGlobals->time + commander_action_cooldown;
+		float CoolDown = (Action->NumDesiredInstances > 1) ? 0.33f : commander_action_cooldown;
+
+		pBot->next_commander_action_time = gpGlobals->time + CoolDown;
 
 		Action->NumInstances++;
 
