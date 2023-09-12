@@ -27,6 +27,14 @@
 #include <unordered_map>
 
 
+
+
+
+
+#include <meta_api.h>
+
+
+
 resource_node ResourceNodes[64];
 int NumTotalResNodes;
 
@@ -1765,6 +1773,8 @@ int UTIL_GetNearestOccupiedResourcePointIndex(const Vector& SearchPoint)
 
 void UTIL_PopulateResourceNodeLocations()
 {
+	LOG_CONSOLE(PLID, "popping");
+
 	memset(ResourceNodes, 0, sizeof(ResourceNodes));
 	NumTotalResNodes = 0;
 
@@ -1777,15 +1787,23 @@ void UTIL_PopulateResourceNodeLocations()
 	{
 		CommChairLocation = commChair->v.origin;
 	}
+	else
+	{
+		LOG_CONSOLE(PLID, "no commy");
+	}
 
 	edict_t* currNode = NULL;
 	while (((currNode = UTIL_FindEntityByClassname(currNode, "func_resource")) != NULL) && (!FNullEnt(currNode)))
 	{
 		// We won't populate any resource node locations which can't be reached by the AI. Prevents the bots trying to cap resource nodes they can't get to
+
 		bool bReachable = UTIL_PointIsReachable(MARINE_REGULAR_NAV_PROFILE, CommChairLocation, currNode->v.origin, max_player_use_reach);
+		LOG_CONSOLE(PLID, "found");
 
 		if (bReachable || !CommChairLocation)
 		{
+			LOG_CONSOLE(PLID, "reachable");
+
 			ResourceNodes[NumTotalResNodes].edict = currNode;
 			ResourceNodes[NumTotalResNodes].origin = currNode->v.origin;
 			ResourceNodes[NumTotalResNodes].TowerEdict = nullptr;
@@ -1793,7 +1811,7 @@ void UTIL_PopulateResourceNodeLocations()
 			ResourceNodes[NumTotalResNodes].bIsOwnedByMarines = false;
 			ResourceNodes[NumTotalResNodes].bIsMarineBaseNode = false;
 
-			UTIL_AddTemporaryObstacle(currNode->v.origin, 30.0f, 60.0f, DT_AREA_BLOCKED);
+			//UTIL_AddTemporaryObstacle(currNode->v.origin, 30.0f, 60.0f, DT_AREA_BLOCKED);
 
 			NumTotalResNodes++;
 		}

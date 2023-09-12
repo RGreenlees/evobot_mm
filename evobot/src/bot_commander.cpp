@@ -3168,11 +3168,11 @@ void COMM_SetNextSupportAction(bot_t* CommanderBot, commander_action* Action)
 	// TODO: Add stuff that bypasses the 20-res restriction. E.g. dropping items in support of attacking marines
 
 	// Don't drop stuff if we're critically low on resources - this perpetuates not having any resources, also ideally you are always low on resources
-	if (CommanderBot->resources < 20)
-	{
-		UTIL_ClearCommanderAction(Action);
-		return;
-	}
+	//if (CommanderBot->resources < 20)
+	//{
+	//	UTIL_ClearCommanderAction(Action);
+	//	return;
+	//}
 
 	int NumMarines = GAME_GetNumPlayersOnTeam(MARINE_TEAM) - 1;
 
