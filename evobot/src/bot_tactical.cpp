@@ -3370,6 +3370,7 @@ edict_t* UTIL_FindClosestMarineStructureUnbuiltWithoutBuilders(bot_t* pBot, cons
 	{
 		if (!it.second.bOnNavmesh) { continue; }
 		if (it.second.bFullyConstructed) { continue; }
+		if (UTIL_StructureIsRecycling(it.second.edict)) { continue; }
 		bool bReachable = (IsPlayerOnMarineTeam(pBot->pEdict)) ? it.second.bIsReachableMarine : it.second.bIsReachableAlien;
 
 		if (!bReachable) { continue; }

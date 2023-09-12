@@ -450,7 +450,7 @@ void CommanderReceiveWeaponRequest(bot_t* pBot, edict_t* Requestor, NSStructureT
 			sprintf(buf, "Get near an armoury, %s", STRING(Requestor->v.netname));
 		}
 		
-		
+		return;
 	}
 
 	pBot->SupportAction.ActionType = ACTION_DEPLOY;
