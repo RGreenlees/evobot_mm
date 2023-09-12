@@ -1796,7 +1796,8 @@ void UTIL_PopulateResourceNodeLocations()
 	while (((currNode = UTIL_FindEntityByClassname(currNode, "func_resource")) != NULL) && (!FNullEnt(currNode)))
 	{
 		// We won't populate any resource node locations which can't be reached by the AI. Prevents the bots trying to cap resource nodes they can't get to
-		bool bReachable = UTIL_PointIsReachable(MARINE_REGULAR_NAV_PROFILE, CommChairLocation, currNode->v.origin, 8.0f);
+
+		bool bReachable = UTIL_PointIsReachable(MARINE_REGULAR_NAV_PROFILE, CommChairLocation, currNode->v.origin, max_player_use_reach);
 		LOG_CONSOLE(PLID, "found");
 
 		if (bReachable || !CommChairLocation)
