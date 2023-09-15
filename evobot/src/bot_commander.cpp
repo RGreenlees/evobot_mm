@@ -447,8 +447,10 @@ void CommanderReceiveWeaponRequest(bot_t* pBot, edict_t* Requestor, NSStructureT
 		}
 		else
 		{
-			sprintf(buf, "Get near an armoury, %s", STRING(Requestor->v.netname));
+			sprintf(buf, "We don't have an armoury, %s", STRING(Requestor->v.netname));
 		}
+
+		BotSay(pBot, 2.0f, buf);
 		
 		return;
 	}
