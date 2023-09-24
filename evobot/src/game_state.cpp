@@ -541,7 +541,7 @@ void GAME_BotCreate(edict_t* pPlayer, int Team)
 
 void GAME_UpdateBotCounts()
 {
-	// Don't do any population checks while the game is in the ended state, as nobody can join a team so it can't assess the player counts properly
+	// Remove all the bots if the game has ended, as nobody can join a team so it can't assess the player counts properly
 	if (GameStatus == GAME_STATUS_ENDED)
 	{
 		GAME_RemoveAllBotsInReadyRoom();

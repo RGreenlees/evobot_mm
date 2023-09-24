@@ -6006,7 +6006,7 @@ Vector UTIL_GetNearestLadderNormal(edict_t* pEdict)
 	edict_t* closestLadderRef = entity;
 	float lowestDist = 999999.0f;
 
-	while (entity && !FNullEnt(entity))
+	while (!FNullEnt(entity))
 	{
 		Vector LadderMin = entity->v.absmin;
 		Vector LadderMax = entity->v.absmax;
