@@ -22,7 +22,7 @@ static const float max_player_use_reach = 55.0f;
 static const float min_player_use_interval = 0.5f;
 
 // Minimum time a bot can wait between attempts to use something in seconds (when not holding the use key down)
-static const float max_player_jump_height = 60.0f;
+static const float max_player_jump_height = 62.0f;
 
 /****************
 
