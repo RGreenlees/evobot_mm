@@ -539,6 +539,23 @@ void GAME_BotCreate(edict_t* pPlayer, int Team)
 
 }
 
+void GAME_RefreshClientList()
+{
+	for (int i = 1; i <= gpGlobals->maxClients; i++)
+	{
+		edict_t* ClientEdict = INDEXENT(i);
+
+		if (!FNullEnt(ClientEdict) && !ClientEdict->free)
+		{
+			clients[i] = INDEXENT(i);
+		}
+		else
+		{
+			clients[i] = nullptr;
+		}
+	}
+}
+
 void GAME_UpdateBotCounts()
 {
 	// Remove all the bots if the game has ended, as nobody can join a team so it can't assess the player counts properly

@@ -1156,7 +1156,7 @@ bool UTIL_IsCommanderActionValid(bot_t* CommanderBot, commander_action* Action)
 	case ACTION_UPGRADE:
 		return !FNullEnt(Action->ActionTarget) && UTIL_StructureCanBeUpgraded(Action->ActionTarget);
 	case ACTION_DEPLOY:
-		return Action->NumInstances < Action->NumDesiredInstances;
+		return (Action->NumInstances < Action->NumDesiredInstances);
 	case ACTION_RESEARCH:
 	{
 		if (Action->ResearchId == RESEARCH_ELECTRICAL)
@@ -1426,31 +1426,37 @@ void BotCommanderSelectStructure(bot_t* pBot, const edict_t* Structure, commande
 
 	if (Action->bHasAttemptedAction)
 	{
-		if (BuildRef)
+		if (BuildRef && Action->ActionStep == ACTION_STEP_END_SELECT)
 		{
 			BuildRef->LastSuccessfulCommanderLocation = ZERO_VECTOR;
 			BuildRef->LastSuccessfulCommanderAngle = ZERO_VECTOR;
 		}
-		Action->DesiredCommanderLocation = UTIL_RandomPointOnCircle(UTIL_GetCentreOfEntity(Structure), UTIL_MetresToGoldSrcUnits(5.0f));
+
+		Action->DesiredCommanderLocation = UTIL_RandomPointOnCircle(Structure->v.origin, UTIL_MetresToGoldSrcUnits(2.0f));
+		Action->ActionStep = ACTION_STEP_NONE;
+		Action->bHasAttemptedAction = false;
 	}
-	else
+
+	if (Action->DesiredCommanderLocation == ZERO_VECTOR || vDist2DSq(Action->DesiredCommanderLocation, Structure->v.origin) > sqrf(UTIL_MetresToGoldSrcUnits(3.0f)))
 	{
-		if (BuildRef->LastSuccessfulCommanderLocation != ZERO_VECTOR)
+		if (BuildRef->LastSuccessfulCommanderLocation != ZERO_VECTOR && vDist2DSq(BuildRef->LastSuccessfulCommanderLocation, Structure->v.origin) <= sqrf(UTIL_MetresToGoldSrcUnits(3.0f)))
 		{
 			Action->DesiredCommanderLocation = BuildRef->LastSuccessfulCommanderLocation;
 		}
 		else
 		{
-			if (Action->DesiredCommanderLocation == ZERO_VECTOR || vDist2DSq(Action->DesiredCommanderLocation, Structure->v.origin) > sqrf(UTIL_MetresToGoldSrcUnits(5.0f)))
+			Action->DesiredCommanderLocation = UTIL_FindClearCommanderOriginForBuild(pBot, Structure->v.origin, GetCommanderViewZHeight());
+
+			if (Action->DesiredCommanderLocation == ZERO_VECTOR)
 			{
-				Action->DesiredCommanderLocation = UTIL_FindClearCommanderOriginForBuild(pBot, UTIL_GetCentreOfEntity(Structure), GetCommanderViewZHeight());
+				Action->NumActionAttempts++;
+				return;
 			}
 		}
 	}
 
-	if (vDist2DSq(CommanderViewOrigin, Action->DesiredCommanderLocation) > sqrf(8.0f))
+	if (vDist2DSq(CommanderViewOrigin, Action->DesiredCommanderLocation) > sqrf(16.0f))
 	{
-		Action->bHasAttemptedAction = false;
 		pBot->UpMove = Action->DesiredCommanderLocation.x / kWorldPosNetworkConstant;
 		pBot->SideMove = Action->DesiredCommanderLocation.y / kWorldPosNetworkConstant;
 		pBot->ForwardMove = 0.0f;
@@ -1759,6 +1765,7 @@ void BotCommanderDeploy(bot_t* pBot, commander_action* Action)
 	Action->StructureBuildAttemptTime = gpGlobals->time;
 	Action->LastAttemptedCommanderAngle = Vector(pBot->UpMove, pBot->SideMove, pBot->ForwardMove);
 	Action->LastAttemptedCommanderLocation = CommanderViewOrigin;
+	pBot->next_commander_action_time = gpGlobals->time + 0.1f;
 
 	return;
 }
@@ -3387,7 +3394,7 @@ void COMM_SetNextRecycleAction(bot_t* CommanderBot, commander_action* Action)
 
 void COMM_SetNextBuildAction(bot_t* CommanderBot, commander_action* Action)
 {
-	if (Action->ActionType != ACTION_NONE && Action->bIsActionUrgent) { return; }
+	if (Action->ActionType != ACTION_NONE && (Action->bIsAwaitingBuildLink || Action->bIsActionUrgent)) { return; }
 
 	edict_t* CommChair = UTIL_GetCommChair();
 
@@ -3677,6 +3684,8 @@ void COMM_ConfirmObjectDeployed(bot_t* pBot, commander_action* Action, edict_t* 
 		{
 			Action->BuildLocation = UTIL_GetRandomPointOnNavmeshInRadius(MARINE_REGULAR_NAV_PROFILE, Action->BuildLocation, UTIL_MetresToGoldSrcUnits(1.0f));
 		}
+
+		Action->bIsAwaitingBuildLink = false;
 	}
 }
 

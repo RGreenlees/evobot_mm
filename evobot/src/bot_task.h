@@ -4,7 +4,6 @@
 #define BOT_TASK_H
 
 #include "bot_structs.h"
-#include "bot_tactical.h"
 
 void UTIL_ClearAllBotTasks(bot_t* pBot);
 void UTIL_ClearBotTask(bot_t* pBot, bot_task* Task);

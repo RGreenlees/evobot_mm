@@ -933,12 +933,11 @@ BOOL ClientConnect(edict_t* pEntity, const char* pszName, const char* pszAddress
 	if (gpGlobals->deathmatch)
 	{
 		// check if this client is the listen server client
-		if (strcmp(pszAddress, "loopback") == 0)
+		if (!GAME_IsDedicatedServer() && strcmp(pszAddress, "loopback") == 0)
 		{
 			// save the edict of the listen server client...
 			GAME_SetListenServerEdict(pEntity);
 		}
-
 	}
 
 	RETURN_META_VALUE(MRES_IGNORED, 0);
@@ -946,7 +945,7 @@ BOOL ClientConnect(edict_t* pEntity, const char* pszName, const char* pszAddress
 
 void ClientPutInServer(edict_t* pEntity)
 {
-	GAME_AddClient(pEntity);
+	//GAME_AddClient(pEntity);
 
 	RETURN_META(MRES_IGNORED);
 }
@@ -955,7 +954,7 @@ void ClientDisconnect(edict_t* pEntity)
 {
 	if (gpGlobals->deathmatch)
 	{
-		GAME_RemoveClient(pEntity);
+		//GAME_RemoveClient(pEntity);
 	}
 
 	RETURN_META(MRES_IGNORED);
@@ -1011,6 +1010,8 @@ void StartFrame(void)
 
 		if (NavmeshLoaded())
 		{
+			GAME_RefreshClientList();
+
 			if (GAME_GetGameStatus() == GAME_STATUS_ACTIVE)
 			{
 				UTIL_UpdateMapAIData();
@@ -1144,7 +1145,7 @@ static DLL_FUNCTIONS gFunctionTable =
 	ClientDisconnect,		// pfnClientDisconnect
 	NULL,					// pfnClientKill
 	ClientPutInServer,		// pfnClientPutInServer
-	ClientCommand,					// pfnClientCommand
+	ClientCommand,			// pfnClientCommand
 	NULL,					// pfnClientUserInfoChanged
 	NULL,					// pfnServerActivate
 	NULL,					// pfnServerDeactivate

@@ -177,7 +177,7 @@ bool BotHasTaskOfType(bot_t* pBot, BotTaskType TaskType);
 
 
 
-Vector UTIL_GetClosestPointOnEntityToLocation(const Vector UserLocation, edict_t* ButtonEdict);
+Vector UTIL_GetClosestPointOnEntityToLocation(const Vector UserLocation, edict_t* Entity);
 
 void BotStopCommanderMode(bot_t* pBot);
 
