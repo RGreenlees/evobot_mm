@@ -817,50 +817,6 @@ bool UTIL_IsReinforceStructureTaskStillValid(bot_t* pBot, bot_task* Task)
 	return false;
 }
 
-bool UTIL_IsReinforceHiveTaskStillValid(bot_t* pBot, bot_task* Task)
-{
-	if (FNullEnt(Task->TaskTarget)) { return false; }
-
-	if (!FNullEnt(Task->TaskSecondaryTarget) && !UTIL_StructureIsFullyBuilt(Task->TaskSecondaryTarget)) { return true; }
-
-	const hive_definition* Hive = UTIL_GetNearestHiveAtLocation(Task->TaskTarget->v.origin);
-
-	if (!Hive || Hive->Status == HIVE_STATUS_UNBUILT) { return false; }
-
-	bool bActiveHiveWithoutTechExists = UTIL_ActiveHiveWithoutTechExists();
-
-	if (bActiveHiveWithoutTechExists) { return true; }
-
-	// At least 2 defence chambers, if the hive exists for it
-	if (UTIL_ActiveHiveWithTechExists(HIVE_TECH_DEFENCE))
-	{
-		int NumTotalChambers = UTIL_GetNumPlacedStructuresOfType(STRUCTURE_ALIEN_DEFENCECHAMBER);
-		int NumDefenceChambers = UTIL_GetNumPlacedStructuresOfTypeInRadius(STRUCTURE_ALIEN_DEFENCECHAMBER, Task->TaskTarget->v.origin, UTIL_MetresToGoldSrcUnits(8.0f));
-
-		if (NumTotalChambers < 3 || NumDefenceChambers < 2) { return true; }
-	}
-
-	// At least 1 movement and sensory chamber, if the hive exists for them
-	if (UTIL_ActiveHiveWithTechExists(HIVE_TECH_MOVEMENT))
-	{
-		int NumTotalChambers = UTIL_GetNumPlacedStructuresOfType(STRUCTURE_ALIEN_MOVEMENTCHAMBER);
-		bool bHasMoveChamber = UTIL_StructureOfTypeExistsInLocation(STRUCTURE_ALIEN_MOVEMENTCHAMBER, Task->TaskTarget->v.origin, UTIL_MetresToGoldSrcUnits(8.0f));
-
-		if (!bHasMoveChamber || NumTotalChambers < 3) { return true; }
-	}
-
-	if (UTIL_ActiveHiveWithTechExists(HIVE_TECH_SENSORY))
-	{
-		int NumTotalChambers = UTIL_GetNumPlacedStructuresOfType(STRUCTURE_ALIEN_SENSORYCHAMBER);
-		bool bHasSensoryChamber = UTIL_StructureOfTypeExistsInLocation(STRUCTURE_ALIEN_SENSORYCHAMBER, Task->TaskTarget->v.origin, UTIL_MetresToGoldSrcUnits(8.0f));
-
-		if (!bHasSensoryChamber || NumTotalChambers < 3) { return true; }
-	}
-
-	// We have all available chambers set up
-	return false;
-}
-
 bool UTIL_IsEvolveTaskStillValid(bot_t* pBot, bot_task* Task)
 {
 	if (!Task || !Task->Evolution || !IsPlayerAlien(pBot->pEdict)) { return false; }

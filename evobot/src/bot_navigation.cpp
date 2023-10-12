@@ -6570,6 +6570,7 @@ Vector UTIL_GetButtonFloorLocation(const Vector UserLocation, edict_t* ButtonEdi
 
 void UTIL_LinkTriggerToDoor(const edict_t* DoorEdict, nav_door* DoorRef)
 {
+	DoorRef->NumTriggers = 0;
 
 	edict_t* currTrigger = NULL;
 	while (((currTrigger = UTIL_FindEntityByClassname(currTrigger, "trigger_multiple")) != NULL) && (!FNullEnt(currTrigger)))

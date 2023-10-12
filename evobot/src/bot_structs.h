@@ -17,9 +17,6 @@
 constexpr auto BOT_NAME_LEN = 32; // Max length of a bot's name
 constexpr auto MAX_PATH_SIZE = 512; // Maximum number of points allowed in a path (this should be enough for any sized map)
 
-constexpr auto MAX_ACTION_PRIORITIES = 12; // How many levels of priority the commander can assign actions to
-constexpr auto MAX_PRIORITY_ACTIONS = 20; // How many actions at each priority level the commander can have at one time
-
 constexpr auto FL_THIRDPARTYBOT = (1 << 27); // NS explicitly blocks clients with FL_FAKECLIENT flag using the comm chair. AI Commander uses this flag instead to circumvent block
 
 // Bot's role on the team. For marines, this only governs what they do when left to their own devices.

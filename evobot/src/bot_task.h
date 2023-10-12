@@ -44,7 +44,6 @@ bool UTIL_IsDefendTaskStillValid(bot_t* pBot, bot_task* Task);
 bool UTIL_IsEvolveTaskStillValid(bot_t* pBot, bot_task* Task);
 
 bool UTIL_IsReinforceStructureTaskStillValid(bot_t* pBot, bot_task* Task);
-bool UTIL_IsReinforceHiveTaskStillValid(bot_t* pBot, bot_task* Task);
 
 bool UTIL_IsAlienGetHealthTaskStillValid(bot_t* pBot, bot_task* Task);
 bool UTIL_IsAlienHealTaskStillValid(bot_t* pBot, bot_task* Task);
