@@ -138,79 +138,9 @@ int GAME_GetServerMSecVal()
 	return ServerMSecVal;
 }
 
-void GAME_AddClient(edict_t* NewClient)
-{
-	NumClients = 0;
-	bool bClientAdded = false;
-
-	for (int i = 0; i < MAX_CLIENTS; i++)
-	{
-		if (FNullEnt(clients[i]))
-		{
-			if (!bClientAdded)
-			{
-				clients[i] = NewClient;
-				bClientAdded = true;
-			}
-			
-		}
-		
-		if (!FNullEnt(clients[i]))
-		{
-			NumClients++;
-
-			if ((NewClient->v.flags & FL_FAKECLIENT) || (NewClient->v.flags & FL_THIRDPARTYBOT))
-			{
-				NumBots++;
-			}
-			else
-			{
-				NumHumans++;
-			}
-		}
-	}
-}
-
-void GAME_RemoveClient(edict_t* DisconnectedClient)
-{
-	NumClients = 0;
-
-	for (int i = 0; i < MAX_CLIENTS; i++)
-	{
-		if (clients[i] == DisconnectedClient)
-		{
-			clients[i] = nullptr;
-		}
-
-		if (!FNullEnt(clients[i]))
-		{
-			NumClients++;
-
-			if ((clients[i]->v.flags & FL_FAKECLIENT) || (clients[i]->v.flags & FL_THIRDPARTYBOT))
-			{
-				NumBots++;
-
-				if (clients[i]->v.team == MARINE_TEAM)
-				{
-					NumMarineBots++;
-				}
-				else if (clients[i]->v.team == ALIEN_TEAM)
-				{
-					NumAlienBots++;
-				}
-
-			}
-			else
-			{
-				NumHumans++;
-			}
-		}
-	}
-}
-
 int GAME_GetClientIndex(edict_t* Client)
 {
-	for (int i = 0; i < MAX_CLIENTS; i++)
+	for (int i = 0; i < gpGlobals->maxClients; i++)
 	{
 		if (clients[i] == Client)
 		{
@@ -261,7 +191,7 @@ void GAME_RemoveAllBots()
 {
 	char cmd[80];
 
-	for (int i = 0; i < 32; i++)
+	for (int i = 0; i < MAX_CLIENTS; i++)
 	{
 		if (bots[i].is_used && !FNullEnt(bots[i].pEdict))
 		{
@@ -295,7 +225,7 @@ int GAME_GetNumDeadPlayersOnTeam(const int Team)
 {
 	int Result = 0;
 
-	for (int i = 0; i < MAX_CLIENTS; i++)
+	for (int i = 0; i < gpGlobals->maxClients; i++)
 	{
 		if (!FNullEnt(clients[i]) && clients[i]->v.team == Team && IsPlayerDead(clients[i])) { Result++; }
 	}
@@ -307,7 +237,7 @@ int GAME_GetNumActivePlayersOnTeam(const int Team)
 {
 	int Result = 0;
 
-	for (int i = 0; i < MAX_CLIENTS; i++)
+	for (int i = 0; i < gpGlobals->maxClients; i++)
 	{
 		if (!FNullEnt(clients[i]) && clients[i]->v.team == Team && IsPlayerActiveInGame(clients[i])) { Result++; }
 	}
@@ -319,7 +249,7 @@ int GAME_GetNumPlayersOnTeam(const int Team)
 {
 	int Result = 0;
 
-	for (int i = 0; i < MAX_CLIENTS; i++)
+	for (int i = 0; i < gpGlobals->maxClients; i++)
 	{
 		if (!FNullEnt(clients[i]) && clients[i]->v.team == Team) { Result++; }
 	}
@@ -331,7 +261,7 @@ int GAME_GetNumHumansOnTeam(const int Team)
 {
 	int Result = 0;
 
-	for (int i = 0; i < MAX_CLIENTS; i++)
+	for (int i = 0; i < gpGlobals->maxClients; i++)
 	{
 		if (!FNullEnt(clients[i]) && IsPlayerHuman(clients[i]) && clients[i]->v.team == Team) { Result++; }
 	}
@@ -341,7 +271,7 @@ int GAME_GetNumHumansOnTeam(const int Team)
 
 bool GAME_IsAnyHumanOnTeam(const int Team)
 {
-	for (int i = 0; i < MAX_CLIENTS; i++)
+	for (int i = 0; i < gpGlobals->maxClients; i++)
 	{
 		if (!clients[i]) { continue; }
 
@@ -547,11 +477,11 @@ void GAME_RefreshClientList()
 
 		if (!FNullEnt(ClientEdict) && !ClientEdict->free)
 		{
-			clients[i] = INDEXENT(i);
+			clients[i - 1] = INDEXENT(i);
 		}
 		else
 		{
-			clients[i] = nullptr;
+			clients[i - 1] = nullptr;
 		}
 	}
 }

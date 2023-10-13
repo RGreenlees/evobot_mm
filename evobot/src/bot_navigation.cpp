@@ -290,6 +290,11 @@ struct MeshProcess : public dtTileCacheMeshProcess
 				polyAreas[i] = SAMPLE_POLYAREA_GROUND;
 				polyFlags[i] = SAMPLE_POLYFLAGS_WALK;
 			}
+			else if (polyAreas[i] == DT_TILECACHE_CROUCH_AREA)
+			{
+				polyAreas[i] = SAMPLE_POLYAREA_CROUCH;
+				polyFlags[i] = SAMPLE_POLYFLAGS_CROUCH;
+			}
 			else if (polyAreas[i] == DT_TILECACHE_CLIMBABLE_AREA)
 			{
 				polyAreas[i] = SAMPLE_POLYAREA_WALLCLIMB;
@@ -299,11 +304,6 @@ struct MeshProcess : public dtTileCacheMeshProcess
 			{
 				polyAreas[i] = SAMPLE_POLYAREA_LADDER;
 				polyFlags[i] = SAMPLE_POLYFLAGS_LADDER;
-			}
-			else if (polyAreas[i] == DT_TILECACHE_CROUCH_AREA)
-			{
-				polyAreas[i] = SAMPLE_POLYAREA_CROUCH;
-				polyFlags[i] = SAMPLE_POLYFLAGS_CROUCH;
 			}
 			else if (polyAreas[i] == DT_TILECACHE_BLOCKED_AREA)
 			{

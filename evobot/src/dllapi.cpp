@@ -999,10 +999,13 @@ void StartFrame(void)
 	{
 		static int bot_index;
 
+		GAME_RefreshClientList();
+
 		if (gpGlobals->time >= 5.0f)
 		{
 			if (gpGlobals->time - last_bot_count_check_time > 0.25f)
 			{
+				
 				GAME_UpdateBotCounts();
 				last_bot_count_check_time = gpGlobals->time;
 			}
@@ -1010,8 +1013,6 @@ void StartFrame(void)
 
 		if (NavmeshLoaded())
 		{
-			GAME_RefreshClientList();
-
 			if (GAME_GetGameStatus() == GAME_STATUS_ACTIVE)
 			{
 				UTIL_UpdateMapAIData();

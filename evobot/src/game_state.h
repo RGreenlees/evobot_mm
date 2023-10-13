@@ -40,8 +40,6 @@ void GAME_SetGameStatus(NSGameStatus NewStatus);
 NSGameStatus GAME_GetGameStatus();
 
 void GAME_RefreshClientList();
-void GAME_AddClient(edict_t* NewClient);
-void GAME_RemoveClient(edict_t* DisconnectedClient);
 
 int GAME_GetClientIndex(edict_t* Client);
 
