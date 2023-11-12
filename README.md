@@ -4,7 +4,7 @@ Evobot - A Bot for Natural Selection
 
 ## Overview
 
-Evobot is a bot designed to play the HL1 mod Natural Selection, either offline or to fill gaps in a team of humans.
+Evobot is a metamod plugin providing bots designed to play the HL1 mod Natural Selection, for either offline play or to help fill online servers. Please refer to the ReadMe.txt file within the Evobot releases for detailed instructions on installing and using it.
 
 * It uses the Recast and Detour libraries for navigation (https://github.com/recastnavigation/recastnavigation)
 * It can play both aliens and marines, including full support for the commander role
