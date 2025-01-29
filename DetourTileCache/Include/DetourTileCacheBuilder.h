@@ -26,12 +26,6 @@ static const int DT_TILECACHE_MAGIC = 'D'<<24 | 'T'<<16 | 'L'<<8 | 'R'; ///< 'DT
 static const int DT_TILECACHE_VERSION = 1;
 
 static const unsigned char DT_TILECACHE_NULL_AREA = 0;
-static const unsigned char DT_TILECACHE_CROUCH_AREA = 1;
-static const unsigned char DT_TILECACHE_BLOCKED_AREA = 3;
-static const unsigned char DT_TILECACHE_CLIMBABLE_AREA = 4;
-static const unsigned char DT_TILECACHE_LADDER_AREA = 5;
-static const unsigned char DT_TILECACHE_MSTRUCTURE_AREA = 12;
-static const unsigned char DT_TILECACHE_ASTRUCTURE_AREA = 13;
 static const unsigned char DT_TILECACHE_WALKABLE_AREA = 63;
 static const unsigned short DT_TILECACHE_NULL_IDX = 0xffff;
 
@@ -77,14 +71,14 @@ struct dtTileCachePolyMesh
 	int npolys;				///< Number of polygons.
 	unsigned short* verts;	///< Vertices of the mesh, 3 elements per vertex.
 	unsigned short* polys;	///< Polygons of the mesh, nvp*2 elements per polygon.
-	unsigned short* flags;	///< Per polygon flags.
+	unsigned int* flags;	///< Per polygon flags.
 	unsigned char* areas;	///< Area ID of polygons.
 };
 
 
 struct dtTileCacheAlloc
 {
-	virtual ~dtTileCacheAlloc() {}
+	virtual ~dtTileCacheAlloc();
 
 	virtual void reset() {}
 	
@@ -101,7 +95,7 @@ struct dtTileCacheAlloc
 
 struct dtTileCacheCompressor
 {
-	virtual ~dtTileCacheCompressor() { }
+	virtual ~dtTileCacheCompressor();
 
 	virtual int maxCompressedSize(const int bufferSize) = 0;
 	virtual dtStatus compress(const unsigned char* buffer, const int bufferSize,
@@ -152,8 +146,8 @@ dtStatus dtBuildTileCachePolyMesh(dtTileCacheAlloc* alloc,
 								  dtTileCacheContourSet& lcset,
 								  dtTileCachePolyMesh& mesh);
 
-/// Swaps the endianess of the compressed tile data's header (#dtTileCacheLayerHeader).
-/// Tile layer data does not need endian swapping as it consits only of bytes.
+/// Swaps the endianness of the compressed tile data's header (#dtTileCacheLayerHeader).
+/// Tile layer data does not need endian swapping as it consist only of bytes.
 ///  @param[in,out]	data		The tile data array.
 ///  @param[in]		dataSize	The size of the data array.
 bool dtTileCacheHeaderSwapEndian(unsigned char* data, const int dataSize);

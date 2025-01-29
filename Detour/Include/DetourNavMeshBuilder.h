@@ -20,6 +20,7 @@
 #define DETOURNAVMESHBUILDER_H
 
 #include "DetourAlloc.h"
+#include "DetourNavMesh.h"
 
 /// Represents the source data used to build an navigation mesh tile.
 /// @ingroup detour
@@ -34,7 +35,7 @@ struct dtNavMeshCreateParams
 	const unsigned short* verts;			///< The polygon mesh vertices. [(x, y, z) * #vertCount] [Unit: vx]
 	int vertCount;							///< The number vertices in the polygon mesh. [Limit: >= 3]
 	const unsigned short* polys;			///< The polygon data. [Size: #polyCount * 2 * #nvp]
-	const unsigned short* polyFlags;		///< The user defined flags assigned to each polygon. [Size: #polyCount]
+	const unsigned int* polyFlags;		///< The user defined flags assigned to each polygon. [Size: #polyCount]
 	const unsigned char* polyAreas;			///< The user defined area ids assigned to each polygon. [Size: #polyCount]
 	int polyCount;							///< Number of polygons in the mesh. [Limit: >= 1]
 	int nvp;								///< Number maximum number of vertices per polygon. [Limit: >= 3]
@@ -62,7 +63,7 @@ struct dtNavMeshCreateParams
 	/// Off-mesh connection radii. [Size: #offMeshConCount] [Unit: wu]
 	const float* offMeshConRad;
 	/// User defined flags assigned to the off-mesh connections. [Size: #offMeshConCount]
-	const unsigned short* offMeshConFlags;
+	const unsigned int* offMeshConFlags;
 	/// User defined area ids assigned to the off-mesh connections. [Size: #offMeshConCount]
 	const unsigned char* offMeshConAreas;
 	/// The permitted travel direction of the off-mesh connections. [Size: #offMeshConCount]
@@ -82,7 +83,7 @@ struct dtNavMeshCreateParams
 
 	unsigned int userId;	///< The user defined id of the tile.
 	int tileX;				///< The tile's x-grid location within the multi-tile destination mesh. (Along the x-axis.)
-	int tileY;				///< The tile's y-grid location within the multi-tile desitation mesh. (Along the z-axis.)
+	int tileY;				///< The tile's y-grid location within the multi-tile destination mesh. (Along the z-axis.)
 	int tileLayer;			///< The tile's layer within the layered destination mesh. [Limit: >= 0] (Along the y-axis.)
 	float bmin[3];			///< The minimum bounds of the tile. [(x, y, z)] [Unit: wu]
 	float bmax[3];			///< The maximum bounds of the tile. [(x, y, z)] [Unit: wu]
@@ -91,7 +92,6 @@ struct dtNavMeshCreateParams
 	/// @name General Configuration Attributes
 	/// @{
 
-	float crouchHeight;
 	float walkableHeight;	///< The agent height. [Unit: wu]
 	float walkableRadius;	///< The agent radius. [Unit: wu]
 	float walkableClimb;	///< The agent maximum traversable ledge. (Up/Down) [Unit: wu]
@@ -102,6 +102,10 @@ struct dtNavMeshCreateParams
 	/// @note The BVTree is not normally needed for layered navigation meshes.
 	bool buildBvTree;
 
+	dtOffMeshConnection* GlobalOffMeshConnections;
+	int NumOffMeshConnections;
+
+	/// @}
 };
 
 /// Builds navigation mesh tile data from the provided tile creation data.
@@ -112,12 +116,12 @@ struct dtNavMeshCreateParams
 /// @return True if the tile data was successfully created.
 bool dtCreateNavMeshData(dtNavMeshCreateParams* params, unsigned char** outData, int* outDataSize);
 
-/// Swaps the endianess of the tile data's header (#dtMeshHeader).
+/// Swaps the endianness of the tile data's header (#dtMeshHeader).
 ///  @param[in,out]	data		The tile data array.
 ///  @param[in]		dataSize	The size of the data array.
 bool dtNavMeshHeaderSwapEndian(unsigned char* data, const int dataSize);
 
-/// Swaps endianess of the tile data.
+/// Swaps endianness of the tile data.
 ///  @param[in,out]	data		The tile data array.
 ///  @param[in]		dataSize	The size of the data array.
 bool dtNavMeshDataSwapEndian(unsigned char* data, const int dataSize);

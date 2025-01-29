@@ -1,4 +1,4 @@
-# AMBuildScript for EvoBot, written by Anonymous Player
+# AMBuildScript for evobot Template, written by Anonymous Player
 # vim: set sts=4 ts=8 sw=4 tw=99 et ft=python:
 import os, sys
 
@@ -131,25 +131,20 @@ library.sources += [
     'Detour/Source/DetourNavMeshBuilder.cpp',
     'DetourTileCache/Source/DetourTileCache.cpp',
     'DetourTileCache/Source/DetourTileCacheBuilder.cpp',
-    'evobot/src/bot_alien.cpp',
-	'evobot/src/bot_bsp.cpp',
-	'evobot/src/bot_client.cpp',
-	'evobot/src/bot_commander.cpp',
-	'evobot/src/bot_config.cpp',
-    'evobot/src/bot_marine.cpp',
-    'evobot/src/bot_math.cpp',
-	'evobot/src/bot_navigation.cpp',
-    'evobot/src/bot_tactical.cpp',
-	'evobot/src/bot_task.cpp',
-	'evobot/src/bot_util.cpp',
-	'evobot/src/bot_weapons.cpp',
+	'evobot/src/AIConfig.cpp',
+	'evobot/src/AIClient.cpp',
+	'evobot/src/AIHelper.cpp',
+	'evobot/src/AIMath.cpp',
+    'evobot/src/AINavigation.cpp',
+    'evobot/src/AIPlayer.cpp',
+	'evobot/src/AIPlayerManager.cpp',
+    'evobot/src/AIPlayerUtil.cpp',
+	'evobot/src/AITactical.cpp',
+	'evobot/src/AIWeaponHelper.cpp',
 	'evobot/src/dllapi.cpp',
 	'evobot/src/engine_api.cpp',
-	'evobot/src/game_state.cpp',
-	'evobot/src/general_util.cpp',
 	'evobot/src/h_export.cpp',
 	'evobot/src/meta_api.cpp',
-	'evobot/src/player_util.cpp',
 	'evobot/src/sdk_util.cpp',
 ]
 builder.Add(library)

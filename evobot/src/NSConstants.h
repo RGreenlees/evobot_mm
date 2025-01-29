@@ -434,15 +434,6 @@ typedef enum
 	HIVE_TECH_MOVEMENT = 3
 } HiveTechStatus;
 
-
-// Used in bot_client to determine if ammo change notifications relate to the currently-held weapon
-typedef enum
-{
-	WEAPON_ON_TARGET = 0x01,
-	WEAPON_IS_CURRENT = 0x02,
-	WEAPON_IS_ENABLED = 0x04
-} CurWeaponStateFlags;
-
 // Alien traits
 typedef enum
 {
@@ -476,7 +467,6 @@ typedef enum
 
 	RESEARCH_ARMOURY_GRENADES = 37
 
-
 } NSResearch;
 
 // All structure types
@@ -484,10 +474,10 @@ typedef enum
 {
 	STRUCTURE_NONE = 0,
 
+	DEPLOYABLE_ITEM_MARINE_CATALYSTS = 27,
 	DEPLOYABLE_ITEM_MARINE_RESUPPLY = 31, // For combat mode
 	DEPLOYABLE_ITEM_MARINE_HEAVYARMOUR = 38,
 	DEPLOYABLE_ITEM_MARINE_JETPACK = 39,
-	DEPLOYABLE_ITEM_MARINE_CATALYSTS = 27,
 	DEPLOYABLE_ITEM_MARINE_SCAN = 53,
 	DEPLOYABLE_ITEM_MARINE_HEALTHPACK = 59,
 	DEPLOYABLE_ITEM_MARINE_AMMO = 60,
@@ -496,16 +486,13 @@ typedef enum
 	DEPLOYABLE_ITEM_MARINE_SHOTGUN = 64,
 	DEPLOYABLE_ITEM_MARINE_HMG = 65,
 	DEPLOYABLE_ITEM_MARINE_GRENADELAUNCHER = 66,
-
 	
 	STRUCTURE_MARINE_INFANTRYPORTAL = 40,
 	STRUCTURE_MARINE_RESTOWER = 41,
 	STRUCTURE_MARINE_TURRETFACTORY = 43,
-
-	STRUCTURE_MARINE_ARMOURY = 48,
-
 	STRUCTURE_MARINE_ARMSLAB = 45,
 	STRUCTURE_MARINE_PROTOTYPELAB = 46,
+	STRUCTURE_MARINE_ARMOURY = 48,
 	STRUCTURE_MARINE_OBSERVATORY = 51,
 	STRUCTURE_MARINE_PHASEGATE = 55,
 	STRUCTURE_MARINE_TURRET = 56,
@@ -544,7 +531,7 @@ typedef enum
 	CLASS_ONOS
 } NSPlayerClass;
 
-// These represent alerts the player can receive. These usually represent sounds and HUD pop-ups (e.g. "Soldier is under attack", "
+// These represent alerts the player can receive. These usually represent sounds and HUD pop-ups (e.g. "Soldier is under attack")
 typedef enum
 {
 	HUD_SOUND_INVALID = 0,
@@ -616,56 +603,6 @@ typedef enum
 	HUD_SOUND_MAX = 61
 } PlayerAlertType;
 
-
-// NS weapon types. Each number refers to the GoldSrc weapon index
-typedef enum
-{
-	WEAPON_NONE = 0,
-	WEAPON_LERK_SPIKE = 4, // I think this is an early NS weapon, replaced by primal scream
-
-	// Marine Weapons
-
-	WEAPON_MARINE_KNIFE = 13,
-	WEAPON_MARINE_PISTOL = 14,
-	WEAPON_MARINE_MG = 15,
-	WEAPON_MARINE_SHOTGUN = 16,
-	WEAPON_MARINE_HMG = 17,
-	WEAPON_MARINE_WELDER = 18,
-	WEAPON_MARINE_MINES = 19,
-	WEAPON_MARINE_GL = 20,
-	WEAPON_MARINE_GRENADE = 28,
-
-	// Alien Abilities
-
-	WEAPON_SKULK_BITE = 5,
-	WEAPON_SKULK_PARASITE = 10,
-	WEAPON_SKULK_LEAP = 21,
-	WEAPON_SKULK_XENOCIDE = 12,
-
-	WEAPON_GORGE_SPIT = 2,
-	WEAPON_GORGE_HEALINGSPRAY = 27,
-	WEAPON_GORGE_BILEBOMB = 25,
-	WEAPON_GORGE_WEB = 8,
-
-	WEAPON_LERK_BITE = 6,
-	WEAPON_LERK_SPORES = 3,
-	WEAPON_LERK_UMBRA = 23,
-	WEAPON_LERK_PRIMALSCREAM = 24,
-
-	WEAPON_FADE_SWIPE = 7,
-	WEAPON_FADE_BLINK = 11,
-	WEAPON_FADE_METABOLIZE = 9,
-	WEAPON_FADE_ACIDROCKET = 26,
-
-	WEAPON_ONOS_GORE = 1,
-	WEAPON_ONOS_DEVOUR = 30,
-	WEAPON_ONOS_STOMP = 29,
-	WEAPON_ONOS_CHARGE = 22,
-
-	WEAPON_MAX = 31
-}
-NSWeapon;
-
 // Hives can either be unbuilt ("ghost" hive), in progress or fully built (active)
 typedef enum
 {
@@ -674,8 +611,6 @@ typedef enum
 	HIVE_STATUS_BUILT = 2
 } HiveStatusType;
 
-
-
 #define PLAYMODE_UNDEFINED 0
 #define PLAYMODE_READYROOM 1
 #define PLAYMODE_PLAYING 2
@@ -683,6 +618,5 @@ typedef enum
 #define	PLAYMODE_REINFORCING 4			// Player is next in line to respawn and is in the process of coming back into the game
 #define PLAYMODE_OBSERVER 5
 #define PLAYMODE_REINFORCINGCOMPLETE 6	// Combat only: 'press fire to respawn'
-
 
 #endif

@@ -296,69 +296,37 @@ bool dtCreateNavMeshData(dtNavMeshCreateParams* params, unsigned char** outData,
 	int storedOffMeshConCount = 0;
 	int offMeshConLinkCount = 0;
 	
-	if (params->offMeshConCount > 0)
+	if (params->NumOffMeshConnections > 0)
 	{
-		offMeshConClass = (unsigned char*)dtAlloc(sizeof(unsigned char)*params->offMeshConCount*2, DT_ALLOC_TEMP);
+		offMeshConClass = (unsigned char*)dtAlloc(sizeof(unsigned char) * params->offMeshConCount * 2, DT_ALLOC_TEMP);
 		if (!offMeshConClass)
 			return false;
 
-		// Find tight heigh bounds, used for culling out off-mesh start locations.
-		float hmin = FLT_MAX;
-		float hmax = -FLT_MAX;
-		
-		if (params->detailVerts && params->detailVertsCount)
+		for (int i = 0; i < params->NumOffMeshConnections; i++)
 		{
-			for (int i = 0; i < params->detailVertsCount; ++i)
-			{
-				const float h = params->detailVerts[i*3+1];
-				hmin = dtMin(hmin,h);
-				hmax = dtMax(hmax,h);
-			}
-		}
-		else
-		{
-			for (int i = 0; i < params->vertCount; ++i)
-			{
-				const unsigned short* iv = &params->verts[i*3];
-				const float h = params->bmin[1] + iv[1] * params->ch;
-				hmin = dtMin(hmin,h);
-				hmax = dtMax(hmax,h);
-			}
-		}
-		hmin -= params->walkableClimb;
-		hmax += params->walkableClimb;
-		float bmin[3], bmax[3];
-		dtVcopy(bmin, params->bmin);
-		dtVcopy(bmax, params->bmax);
-		bmin[1] = hmin;
-		bmax[1] = hmax;
+			dtOffMeshConnection* con = &params->GlobalOffMeshConnections[i];
 
-		for (int i = 0; i < params->offMeshConCount; ++i)
-		{
-			const float* p0 = &params->offMeshConVerts[(i*2+0)*3];
-			const float* p1 = &params->offMeshConVerts[(i*2+1)*3];
-			offMeshConClass[i*2+0] = classifyOffMeshPoint(p0, bmin, bmax);
-			offMeshConClass[i*2+1] = classifyOffMeshPoint(p1, bmin, bmax);
+			if (!con || con->state == DT_OFFMESH_EMPTY || con->state == DT_OFFMESH_REMOVING) { continue; }
 
-			// Zero out off-mesh start positions which are not even potentially touching the mesh.
-			if (offMeshConClass[i*2+0] == 0xff)
+			bool bOriginates = (con->FromTileX == params->tileX && con->FromTileY == params->tileY && con->FromTileLayer == params->tileLayer);
+			bool bTargets = (con->ToTileX == params->tileX && con->ToTileY == params->tileY && con->ToTileLayer == params->tileLayer);
+
+			if (bOriginates)
 			{
-				if (p0[1] < bmin[1] || p0[1] > bmax[1])
-					offMeshConClass[i*2+0] = 0;
-			}
-
-			// Cound how many links should be allocated for off-mesh connections.
-			if (offMeshConClass[i*2+0] == 0xff)
+				con->state = DT_OFFMESH_DIRTY;
 				offMeshConLinkCount++;
-			if (offMeshConClass[i*2+1] == 0xff)
-				offMeshConLinkCount++;
-
-			if (offMeshConClass[i*2+0] == 0xff)
 				storedOffMeshConCount++;
+			}
+
+			if (bTargets)
+			{
+				con->state = DT_OFFMESH_DIRTY;
+				offMeshConLinkCount++;
+			}
 		}
 	}
 	
-	// Off-mesh connectionss are stored as polygons, adjust values.
+	// Off-mesh connections are stored as polygons, adjust values.
 	const int totPolyCount = params->polyCount + storedOffMeshConCount;
 	const int totVertCount = params->vertCount + storedOffMeshConCount*2;
 	
@@ -432,7 +400,7 @@ bool dtCreateNavMeshData(dtNavMeshCreateParams* params, unsigned char** outData,
 	const int detailVertsSize = dtAlign4(sizeof(float)*3*uniqueDetailVertCount);
 	const int detailTrisSize = dtAlign4(sizeof(unsigned char)*4*detailTriCount);
 	const int bvTreeSize = params->buildBvTree ? dtAlign4(sizeof(dtBVNode)*params->polyCount*2) : 0;
-	const int offMeshConsSize = dtAlign4(sizeof(dtOffMeshConnection)*storedOffMeshConCount);
+	const int offMeshConsSize = dtAlign4(sizeof(dtOffMeshConnection*)*storedOffMeshConCount);
 	
 	const int dataSize = headerSize + vertsSize + polysSize + linksSize +
 						 detailMeshesSize + detailVertsSize + detailTrisSize +
@@ -456,7 +424,7 @@ bool dtCreateNavMeshData(dtNavMeshCreateParams* params, unsigned char** outData,
 	float* navDVerts = dtGetThenAdvanceBufferPointer<float>(d, detailVertsSize);
 	unsigned char* navDTris = dtGetThenAdvanceBufferPointer<unsigned char>(d, detailTrisSize);
 	dtBVNode* navBvtree = dtGetThenAdvanceBufferPointer<dtBVNode>(d, bvTreeSize);
-	dtOffMeshConnection* offMeshCons = dtGetThenAdvanceBufferPointer<dtOffMeshConnection>(d, offMeshConsSize);
+	dtOffMeshConnection** offMeshCons = dtGetThenAdvanceBufferPointer<dtOffMeshConnection*>(d, offMeshConsSize);
 	
 	
 	// Store header
@@ -479,7 +447,7 @@ bool dtCreateNavMeshData(dtNavMeshCreateParams* params, unsigned char** outData,
 	header->walkableHeight = params->walkableHeight;
 	header->walkableRadius = params->walkableRadius;
 	header->walkableClimb = params->walkableClimb;
-	header->offMeshConCount = storedOffMeshConCount;
+	header->offMeshConCount = offMeshConLinkCount;
 	header->bvNodeCount = params->buildBvTree ? params->polyCount*2 : 0;
 	
 	const int offMeshVertsBase = params->vertCount;
@@ -497,13 +465,17 @@ bool dtCreateNavMeshData(dtNavMeshCreateParams* params, unsigned char** outData,
 	}
 	// Off-mesh link vertices.
 	int n = 0;
-	for (int i = 0; i < params->offMeshConCount; ++i)
+	for (int i = 0; i < params->NumOffMeshConnections; i++)
 	{
+		dtOffMeshConnection* con = &params->GlobalOffMeshConnections[i];
+
+		if (con->state == DT_OFFMESH_EMPTY || con->state == DT_OFFMESH_REMOVING) { continue; }
+
 		// Only store connections which start from this tile.
-		if (offMeshConClass[i*2+0] == 0xff)
+		if (con->FromTileX == params->tileX && con->FromTileY == params->tileY && con->FromTileLayer == params->tileLayer)
 		{
-			const float* linkv = &params->offMeshConVerts[i*2*3];
-			float* v = &navVerts[(offMeshVertsBase + n*2)*3];
+			const float* linkv = &con->pos[0];
+			float* v = &navVerts[(offMeshVertsBase + n * 2) * 3];
 			dtVcopy(&v[0], &linkv[0]);
 			dtVcopy(&v[3], &linkv[3]);
 			n++;
@@ -551,17 +523,21 @@ bool dtCreateNavMeshData(dtNavMeshCreateParams* params, unsigned char** outData,
 	}
 	// Off-mesh connection vertices.
 	n = 0;
-	for (int i = 0; i < params->offMeshConCount; ++i)
+	for (int i = 0; i < params->NumOffMeshConnections; i++)
 	{
+		dtOffMeshConnection* con = &params->GlobalOffMeshConnections[i];
+
+		if (con->state == DT_OFFMESH_EMPTY || con->state == DT_OFFMESH_REMOVING) { continue; }
+
 		// Only store connections which start from this tile.
-		if (offMeshConClass[i*2+0] == 0xff)
+		if (con->FromTileX == params->tileX && con->FromTileY == params->tileY && con->FromTileLayer == params->tileLayer)
 		{
-			dtPoly* p = &navPolys[offMeshPolyBase+n];
+			dtPoly* p = &navPolys[offMeshPolyBase + n];
 			p->vertCount = 2;
-			p->verts[0] = (unsigned short)(offMeshVertsBase + n*2+0);
-			p->verts[1] = (unsigned short)(offMeshVertsBase + n*2+1);
-			p->flags = params->offMeshConFlags[i];
-			p->setArea(params->offMeshConAreas[i]);
+			p->verts[0] = (unsigned short)(offMeshVertsBase + n * 2 + 0);
+			p->verts[1] = (unsigned short)(offMeshVertsBase + n * 2 + 1);
+			p->flags = con->flags;
+			p->setArea(con->area);
 			p->setType(DT_POLYTYPE_OFFMESH_CONNECTION);
 			n++;
 		}
@@ -627,27 +603,25 @@ bool dtCreateNavMeshData(dtNavMeshCreateParams* params, unsigned char** outData,
 		createBVTree(params, navBvtree, 2*params->polyCount);
 	}
 	
-	// Store Off-Mesh connections.
 	n = 0;
-	for (int i = 0; i < params->offMeshConCount; ++i)
+	for (int i = 0; i < params->NumOffMeshConnections; i++)
 	{
+		dtOffMeshConnection* con = &params->GlobalOffMeshConnections[i];
+
+		if (con->state == DT_OFFMESH_EMPTY || con->state == DT_OFFMESH_REMOVING) { continue; }
+
 		// Only store connections which start from this tile.
-		if (offMeshConClass[i*2+0] == 0xff)
+		if (con->FromTileX == params->tileX && con->FromTileY == params->tileY && con->FromTileLayer == params->tileLayer)
 		{
-			dtOffMeshConnection* con = &offMeshCons[n];
 			con->poly = (unsigned short)(offMeshPolyBase + n);
-			// Copy connection end-points.
-			const float* endPts = &params->offMeshConVerts[i*2*3];
-			dtVcopy(&con->pos[0], &endPts[0]);
-			dtVcopy(&con->pos[3], &endPts[3]);
-			con->rad = params->offMeshConRad[i];
-			con->flags = params->offMeshConDir[i] ? DT_OFFMESH_CON_BIDIR : 0;
-			con->side = offMeshConClass[i*2+1];
-			if (params->offMeshConUserID)
-				con->userId = params->offMeshConUserID[i];
+
+			offMeshCons[n] = con;
+
 			n++;
 		}
 	}
+
+	header->offMeshConCount = n;
 		
 	dtFree(offMeshConClass);
 	
@@ -705,10 +679,10 @@ bool dtNavMeshHeaderSwapEndian(unsigned char* data, const int /*dataSize*/)
 
 /// @par
 ///
-/// @warning This function assumes that the header is in the correct endianess already. 
-/// Call #dtNavMeshHeaderSwapEndian() first on the data if the data is expected to be in wrong endianess 
+/// @warning This function assumes that the header is in the correct endianness already. 
+/// Call #dtNavMeshHeaderSwapEndian() first on the data if the data is expected to be in wrong endianness 
 /// to start with. Call #dtNavMeshHeaderSwapEndian() after the data has been swapped if converting from 
-/// native to foreign endianess.
+/// native to foreign endianness.
 bool dtNavMeshDataSwapEndian(unsigned char* data, const int /*dataSize*/)
 {
 	// Make sure the data is in right format.

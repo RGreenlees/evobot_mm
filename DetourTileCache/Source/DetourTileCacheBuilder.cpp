@@ -23,6 +23,15 @@
 #include "DetourTileCacheBuilder.h"
 #include <string.h>
 
+dtTileCacheAlloc::~dtTileCacheAlloc()
+{
+	// Defined out of line to fix the weak v-tables warning
+}
+
+dtTileCacheCompressor::~dtTileCacheCompressor()
+{
+	// Defined out of line to fix the weak v-tables warning
+}
 
 template<class T> class dtFixedArray
 {
@@ -881,7 +890,7 @@ static bool buildMeshAdjacency(dtTileCacheAlloc* alloc,
 							   const dtTileCacheContourSet& lcset)
 {
 	// Based on code by Eric Lengyel from:
-	// http://www.terathon.com/code/edges.php
+	// https://web.archive.org/web/20080704083314/http://www.terathon.com/code/edges.php
 	
 	const int maxEdgeCount = npolys*MAX_VERTS_PER_POLY;
 	dtFixedArray<unsigned short> firstEdge(alloc, nverts + maxEdgeCount);
@@ -1549,7 +1558,7 @@ static dtStatus removeVertex(dtTileCachePolyMesh& mesh, const unsigned short rem
 	}
 	
 	// Remove vertex.
-	for (int i = (int)rem; i < mesh.nverts; ++i)
+	for (int i = (int)rem; i < mesh.nverts - 1; ++i)
 	{
 		mesh.verts[i*3+0] = mesh.verts[(i+1)*3+0];
 		mesh.verts[i*3+1] = mesh.verts[(i+1)*3+1];
@@ -1775,7 +1784,7 @@ dtStatus dtBuildTileCachePolyMesh(dtTileCacheAlloc* alloc,
 	if (!mesh.areas)
 		return DT_FAILURE | DT_OUT_OF_MEMORY;
 
-	mesh.flags = (unsigned short*)alloc->alloc(sizeof(unsigned short)*maxTris);
+	mesh.flags = (unsigned int*)alloc->alloc(sizeof(unsigned int)*maxTris);
 	if (!mesh.flags)
 		return DT_FAILURE | DT_OUT_OF_MEMORY;
 

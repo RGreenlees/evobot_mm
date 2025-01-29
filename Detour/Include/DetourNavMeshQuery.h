@@ -35,8 +35,8 @@
 class dtQueryFilter
 {
 	float m_areaCost[DT_MAX_AREAS];		///< Cost per area type. (Used by default implementation.)
-	unsigned short m_includeFlags;		///< Flags for polygons that can be visited. (Used by default implementation.)
-	unsigned short m_excludeFlags;		///< Flags for polygons that should not be visted. (Used by default implementation.)
+	unsigned int m_includeFlags;		///< Flags for polygons that can be visited. (Used by default implementation.)
+	unsigned int m_excludeFlags;		///< Flags for polygons that should not be visited. (Used by default implementation.)
 	
 public:
 	dtQueryFilter();
@@ -100,25 +100,20 @@ public:
 	/// Returns the include flags for the filter.
 	/// Any polygons that include one or more of these flags will be
 	/// included in the operation.
-	inline unsigned short getIncludeFlags() const { return m_includeFlags; }
+	inline unsigned int getIncludeFlags() const { return m_includeFlags; }
 
 	/// Sets the include flags for the filter.
 	/// @param[in]		flags	The new flags.
-	inline void setIncludeFlags(const unsigned short flags) { m_includeFlags = flags; }
-	inline void addIncludeFlags(const unsigned short flags) { m_includeFlags |= flags; }
-	inline void removeIncludeFlags(const unsigned short flags) { m_includeFlags &= ~flags; }
+	inline void setIncludeFlags(const unsigned int flags) { m_includeFlags = flags; }
 
 	/// Returns the exclude flags for the filter.
 	/// Any polygons that include one ore more of these flags will be
 	/// excluded from the operation.
-	inline unsigned short getExcludeFlags() const { return m_excludeFlags; }
-
+	inline unsigned int getExcludeFlags() const { return m_excludeFlags; }
 
 	/// Sets the exclude flags for the filter.
 	/// @param[in]		flags		The new flags.
-	inline void setExcludeFlags(const unsigned short flags) { m_excludeFlags = flags; }
-	inline void addExcludeFlags(const unsigned short flags) { m_excludeFlags |= flags; }
-	inline void removeExcludeFlags(const unsigned short flags) { m_excludeFlags &= ~flags; }
+	inline void setExcludeFlags(const unsigned int flags) { m_excludeFlags = flags; }	
 
 	///@}
 
@@ -157,7 +152,7 @@ struct dtRaycastHit
 class dtPolyQuery
 {
 public:
-	virtual ~dtPolyQuery() { }
+	virtual ~dtPolyQuery();
 
 	/// Called for each batch of unique polygons touched by the search area in dtNavMeshQuery::queryPolygons.
 	/// This can be called multiple times for a single query.
@@ -180,10 +175,10 @@ public:
 	dtStatus init(const dtNavMesh* nav, const int maxNodes);
 	
 	/// @name Standard Pathfinding Functions
-	// /@{
+	/// @{
 
 	/// Finds a path from the start polygon to the end polygon.
-	///  @param[in]		startRef	The refrence id of the start polygon.
+	///  @param[in]		startRef	The reference id of the start polygon.
 	///  @param[in]		endRef		The reference id of the end polygon.
 	///  @param[in]		startPos	A position within the start polygon. [(x, y, z)]
 	///  @param[in]		endPos		A position within the end polygon. [(x, y, z)]
@@ -222,8 +217,8 @@ public:
 	///	-# Call finalizeSlicedFindPath() to get the path.
 	///@{ 
 
-	/// Intializes a sliced path query.
-	///  @param[in]		startRef	The refrence id of the start polygon.
+	/// Initializes a sliced path query.
+	///  @param[in]		startRef	The reference id of the start polygon.
 	///  @param[in]		endRef		The reference id of the end polygon.
 	///  @param[in]		startPos	A position within the start polygon. [(x, y, z)]
 	///  @param[in]		endPos		A position within the end polygon. [(x, y, z)]
@@ -401,9 +396,9 @@ public:
 	///  @param[in]		startPos	A position within the start polygon representing 
 	///  							the start of the ray. [(x, y, z)]
 	///  @param[in]		endPos		The position to cast the ray toward. [(x, y, z)]
+	///  @param[in]		filter		The polygon filter to apply to the query.
 	///  @param[out]	t			The hit parameter. (FLT_MAX if no wall hit.)
 	///  @param[out]	hitNormal	The normal of the nearest wall hit. [(x, y, z)]
-	///  @param[in]		filter		The polygon filter to apply to the query.
 	///  @param[out]	path		The reference ids of the visited polygons. [opt]
 	///  @param[out]	pathCount	The number of visited polygons. [opt]
 	///  @param[in]		maxPath		The maximum number of polygons the @p path array can hold.
@@ -419,7 +414,7 @@ public:
 	///  							the start of the ray. [(x, y, z)]
 	///  @param[in]		endPos		The position to cast the ray toward. [(x, y, z)]
 	///  @param[in]		filter		The polygon filter to apply to the query.
-	///  @param[in]		flags		govern how the raycast behaves. See dtRaycastOptions
+	///  @param[in]		options		govern how the raycast behaves. See dtRaycastOptions
 	///  @param[out]	hit			Pointer to a raycast hit structure which will be filled by the results.
 	///  @param[in]		prevRef		parent of start ref. Used during for cost calculation [opt]
 	/// @returns The status flags for the query.
@@ -470,6 +465,7 @@ public:
 	/// The location is not exactly constrained by the circle, but it limits the visited polygons.
 	///  @param[in]		startRef		The reference id of the polygon where the search starts.
 	///  @param[in]		centerPos		The center of the search circle. [(x, y, z)]
+	///  @param[in]		maxRadius		The radius of the search circle. [Units: wu]
 	///  @param[in]		filter			The polygon filter to apply to the query.
 	///  @param[in]		frand			Function returning a random number [0..1).
 	///  @param[out]	randomRef		The reference id of the random location.
@@ -479,11 +475,10 @@ public:
 										 const dtQueryFilter* filter, float (*frand)(),
 										 dtPolyRef* randomRef, float* randomPt) const;
 
-
 	// Same as findRandomPointAroundCircle but ignores whether the point is reachable from startRef or not.
 	dtStatus findRandomPointAroundCircleIgnoreReachability(dtPolyRef startRef, const float* centerPos, const float maxRadius,
-										const dtQueryFilter* filter, float (*frand)(),
-										dtPolyRef* randomRef, float* randomPt) const;
+		const dtQueryFilter* filter, float (*frand)(),
+		dtPolyRef* randomRef, float* randomPt) const;
 	
 	/// Finds the closest point on the specified polygon.
 	///  @param[in]		ref			The reference id of the polygon.

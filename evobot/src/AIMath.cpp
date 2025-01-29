@@ -1,16 +1,17 @@
 //
-// EvoBot - Neoptolemus' Natural Selection bot, based on Botman's HPB bot template
+// evobot - Neoptolemus' Recast/Detour base GoldSrc bot, based on Botman's HPB bot template
 //
 // bot_math.cpp
 // 
 // Contains all useful math functions for bot stuff
 //
 
-#include "bot_math.h"
-#include <extdll.h>
+#include "AIMath.h"
+
 #include <dllapi.h>
 #include <h_export.h>
 #include <meta_api.h>
+
 #include <time.h>
 
 #include <string>
@@ -23,13 +24,6 @@ bool isNumber(const char* line)
 	char* p;
 	strtol(line, &p, 10);
 	return *p == 0;
-}
-
-Vector UTIL_VecToAngles(const Vector& vec)
-{
-	float rgflVecOut[3];
-	VEC_TO_ANGLES(vec, rgflVecOut);
-	return Vector(rgflVecOut);
 }
 
 bool isFloat(const char* line)
@@ -53,6 +47,107 @@ Vector UTIL_GetSurfaceNormal(const Vector v1, const Vector v2, const Vector v3)
 	UTIL_NormalizeVector(&normal);
 
 	return normal;
+}
+
+bool vPointOverlaps3D(const Vector Point, const Vector MinBB, const Vector MaxBB)
+{
+	return (Point.x >= MinBB.x && Point.x <= MaxBB.x
+		&& Point.y >= MinBB.y && Point.y <= MaxBB.y
+		&& Point.z >= MinBB.z && Point.z <= MaxBB.z);
+}
+
+bool vPointOverlaps2D(const Vector Point, const Vector MinBB, const Vector MaxBB)
+{
+	return (Point.x >= MinBB.x && Point.x <= MaxBB.x
+		&& Point.y >= MinBB.y && Point.y <= MaxBB.y);
+}
+
+bool vBBOverlaps2D(const Vector MinBBA, const Vector MaxBBA, const Vector MinBBB, const Vector MaxBBB)
+{
+	return ( (MinBBA.x < MaxBBB.x && MaxBBA.x > MinBBB.x)
+		&&	 (MinBBA.y < MaxBBB.y && MaxBBA.y > MinBBB.y));
+}
+
+// Given three collinear points p, q, r, the function checks if 
+// point q lies on line segment 'pr' 
+bool onSegment(Vector p, Vector q, Vector r)
+{
+	if (q.x <= fmaxf(p.x, r.x) && q.x >= fminf(p.x, r.x) &&
+		q.y <= fmaxf(p.y, r.y) && q.y >= fminf(p.y, r.y))
+		return true;
+
+	return false;
+}
+
+// To find orientation of ordered triplet (p, q, r). 
+// The function returns following values 
+// 0 --> p, q and r are collinear 
+// 1 --> Clockwise 
+// 2 --> Counterclockwise 
+int orientation(Vector p, Vector q, Vector r)
+{
+	// See https://www.geeksforgeeks.org/orientation-3-ordered-points/ 
+	// for details of below formula. 
+	int val = (q.y - p.y) * (r.x - q.x) -
+		(q.x - p.x) * (r.y - q.y);
+
+	if (val == 0) return 0;  // collinear 
+
+	return (val > 0) ? 1 : 2; // clock or counterclock wise 
+}
+
+bool vLinesIntersect2D(const Vector LineAStart, const Vector LineAEnd, const Vector LineBStart, const Vector LineBEnd)
+{
+	int o1 = orientation(LineAStart, LineAEnd, LineBStart);
+	int o2 = orientation(LineAStart, LineAEnd, LineBEnd);
+	int o3 = orientation(LineBStart, LineBEnd, LineAStart);
+	int o4 = orientation(LineBStart, LineBEnd, LineAEnd);
+
+	// General case 
+	if (o1 != o2 && o3 != o4)
+		return true;
+
+	// Special Cases 
+	// p1, q1 and p2 are collinear and p2 lies on segment p1q1 
+	if (o1 == 0 && onSegment(LineAStart, LineBStart, LineAEnd)) return true;
+
+	// p1, q1 and q2 are collinear and q2 lies on segment p1q1 
+	if (o2 == 0 && onSegment(LineAStart, LineBEnd, LineAEnd)) return true;
+
+	// p2, q2 and p1 are collinear and p1 lies on segment p2q2 
+	if (o3 == 0 && onSegment(LineBStart, LineAStart, LineBEnd)) return true;
+
+	// p2, q2 and q1 are collinear and q1 lies on segment p2q2 
+	if (o4 == 0 && onSegment(LineBStart, LineAEnd, LineBEnd)) return true;
+
+	return false; // Doesn't fall in any of the above cases 
+}
+
+Vector vClosestPointOnBB(const Vector Point, const Vector MinBB, const Vector MaxBB)
+{
+	return Vector(clampf(Point.x, MinBB.x, MaxBB.x), clampf(Point.y, MinBB.y, MaxBB.y), clampf(Point.z, MinBB.z, MaxBB.z));
+}
+
+Vector vClosestPointOnBB2D(const Vector Point, const Vector MinBB, const Vector MaxBB)
+{
+	return Vector(clampf(Point.x, MinBB.x, MaxBB.x), clampf(Point.y, MinBB.y, MaxBB.y), Point.z);
+}
+
+void vScaleBB(Vector& MinBB, Vector& MaxBB, const float Scale)
+{
+	Vector Centre = MinBB + ((MaxBB - MinBB) * 0.5f);
+
+	float SizeX = MaxBB.x - MinBB.x;
+	float SizeY = MaxBB.y - MinBB.y;
+	float SizeZ = MaxBB.z - MinBB.z;
+
+	MinBB.x = Centre.x - (SizeX * Scale);
+	MinBB.y = Centre.y - (SizeY * Scale);
+	MinBB.z = Centre.z - (SizeZ * Scale);
+
+	MaxBB.x = Centre.x + (SizeX * Scale);
+	MaxBB.y = Centre.y + (SizeY * Scale);
+	MaxBB.z = Centre.z + (SizeZ * Scale);
 }
 
 // Returns the 3D distance of point from a line defined between lineFrom and lineTo
@@ -189,7 +284,7 @@ Vector UTIL_GetVectorNormal(const Vector vec)
 // Returns a 2D (Z axis is 0) normalized copy of the supplied Vector. Original value is unmodified
 Vector UTIL_GetVectorNormal2D(const Vector vec)
 {
-	if (vec == ZERO_VECTOR) { return ZERO_VECTOR; }
+	if (vec.x == 0.0f && vec.y == 0.0f) { return ZERO_VECTOR; }
 
 	Vector result;
 	float len = sqrt((vec.x * vec.x) + (vec.y * vec.y));
@@ -265,10 +360,10 @@ float vSize2D(const Vector V)
 	return sqrtf((V.x * V.x) + (V.y * V.y));
 }
 
-// Returns true if the two vectors are the same (all components are within 0.01f of each other)
+// Returns true if the two vectors are the same (all components are within 0.0001f of each other)
 bool vEquals(const Vector v1, const Vector v2)
 {
-	return fabsf(v1.x - v2.x) <= 0.01f && fabsf(v1.y - v2.y) <= 0.01f && fabsf(v1.z - v2.z) <= 0.01f;
+	return fabsf(v1.x - v2.x) <= 0.0001f && fabsf(v1.y - v2.y) <= 0.0001f && fabsf(v1.z - v2.z) <= 0.0001f;
 }
 
 bool vEquals2D(const Vector v1, const Vector v2)
@@ -285,6 +380,11 @@ bool vEquals(const Vector v1, const Vector v2, const float epsilon)
 bool vEquals2D(const Vector v1, const Vector v2, const float epsilon)
 {
 	return fabsf(v1.x - v2.x) <= epsilon && fabsf(v1.y - v2.y) <= epsilon;
+}
+
+bool vIsZero(const Vector v1)
+{
+	return (fabsf(v1.x) < 0.0001f && fabsf(v1.y) < 0.0001f && fabsf(v1.z) < 0.0001f);
 }
 
 bool fNearlyEqual(const float f1, const float f2)
@@ -332,8 +432,8 @@ bool UTIL_CylinderInsidePlane(const frustum_plane_t* plane, const Vector centre,
 	Vector testNormal = plane->normal;
 	testNormal.z = 0;
 
-	Vector topPoint = centre + Vector(0, 0, height * 0.5f) + (testNormal * radius);
-	Vector bottomPoint = centre - Vector(0, 0, height * 0.5f) + (testNormal * radius);
+	Vector topPoint = centre + Vector(0.0f, 0.0f, height * 0.5f) + (testNormal * radius);
+	Vector bottomPoint = centre - Vector(0.0f, 0.0f, height * 0.5f) + (testNormal * radius);
 
 	return (UTIL_PointInsidePlane(plane, topPoint) || UTIL_PointInsidePlane(plane, bottomPoint));
 }
@@ -389,58 +489,8 @@ float clampi(int input, int inMin, int inMax)
 	return imaxi(imini(input, inMax), inMin);
 }
 
-Vector GetPitchForProjectile(Vector LaunchPoint, Vector TargetPoint, const float ProjectileSpeed, const float Gravity)
+Vector vGetLaunchAngleForProjectile(Vector LaunchPoint, Vector TargetPoint, const float ProjectileSpeed, const float Gravity)
 {
-	/*const Vector FlightDelta = TargetPoint - LaunchPoint;
-	const Vector DirXY = UTIL_GetVectorNormal2D(FlightDelta);
-	const float DeltaXY = vSize2D(FlightDelta);
-
-	const float DeltaZ = FlightDelta.z;
-
-	const float TossSpeedSq = sqrf(ProjectileSpeed);
-
-	const float GravityZ = Gravity;
-
-	// v^4 - g*(g*x^2 + 2*y*v^2)
-	const float InsideTheSqrt = sqrf(TossSpeedSq) - GravityZ * ((GravityZ * sqrf(DeltaXY)) + (2.f * DeltaZ * TossSpeedSq));
-	if (InsideTheSqrt < 0.f)
-	{
-		// sqrt will be imaginary, therefore no solutions
-		return ZERO_VECTOR;
-	}
-
-	// if we got here, there are 2 solutions: one high-angle and one low-angle.
-
-	const float SqrtPart = sqrt(InsideTheSqrt);
-
-	// this is the tangent of the firing angle for the first (+) solution
-	const float TanSolutionAngleA = (TossSpeedSq + SqrtPart) / (GravityZ * DeltaXY);
-	// this is the tangent of the firing angle for the second (-) solution
-	const float TanSolutionAngleB = (TossSpeedSq - SqrtPart) / (GravityZ * DeltaXY);
-
-	// mag in the XY dir = sqrt( TossSpeedSq / (TanSolutionAngle^2 + 1) );
-	const float MagXYSq_A = TossSpeedSq / (sqrf(TanSolutionAngleA) + 1.f);
-	const float MagXYSq_B = TossSpeedSq / (sqrf(TanSolutionAngleB) + 1.f);
-
-	bool bFoundAValidSolution = false;
-
-	bool bFavorHighArc = false;
-
-	// choose which arc
-	const float FavoredMagXYSq = bFavorHighArc ? fminf(MagXYSq_A, MagXYSq_B) : fmaxf(MagXYSq_A, MagXYSq_B);
-	const float ZSign = bFavorHighArc ?
-		(MagXYSq_A < MagXYSq_B) ? signf(TanSolutionAngleA) : signf(TanSolutionAngleB) :
-		(MagXYSq_A > MagXYSq_B) ? signf(TanSolutionAngleA) : signf(TanSolutionAngleB);
-
-	// finish calculations
-	const float MagXY = sqrtf(FavoredMagXYSq);
-	const float MagZ = sqrtf(TossSpeedSq - FavoredMagXYSq);		// pythagorean
-
-	// final answer!
-	Vector OutTossVelocity = (DirXY * MagXY) + (UP_VECTOR * MagZ * ZSign);
-
-	return OutTossVelocity;*/
-
 	double start_x = LaunchPoint.x;
 	double start_y = LaunchPoint.y;
 	double start_z = LaunchPoint.z;
@@ -469,25 +519,93 @@ Vector GetPitchForProjectile(Vector LaunchPoint, Vector TargetPoint, const float
 	double unit_vector_z = sin(launch_angle);
 
 	Vector LaunchVector = Vector(unit_vector_x, unit_vector_y, unit_vector_z);
-	return LaunchVector;
+	return UTIL_GetVectorNormal(LaunchVector);
 
 }
-
-
 
 void UTIL_AnglesToVector(const Vector angles, Vector* fwd, Vector* right, Vector* up)
 {
 	g_engfuncs.pfnAngleVectors(angles, (float*)fwd, (float*)right, (float*)up);
 }
 
-void ClampAngle(float& angle)
+float UTIL_WrapAngle(float angle)
 {
-	angle = (360.0 / 65536.0) * ((int)((angle + 180) * (65536.0 / 360.0)) & 65535) - 180;
+	// check for wraparound of angle
+	if (angle > 180)
+		angle -= 360;
+	else if (angle < -180)
+		angle += 360;
+
+	return (angle);
+}
+
+Vector UTIL_WrapAngles(Vector angles)
+{
+	// check for wraparound of angles
+	if (angles.x > 180)
+		angles.x -= 360;
+	else if (angles.x < -180)
+		angles.x += 360;
+	
+	if (angles.y > 180)
+		angles.y -= 360;
+	else if (angles.y < -180)
+		angles.y += 360;
+	
+	if (angles.z > 180)
+		angles.z -= 360;
+	else if (angles.z < -180)
+		angles.z += 360;
+
+	return (angles);
 }
 
 float signf(float input)
 {
 	return (input == 0.0f) ? 0.0f : ((input > 0.0f) ? 1.0f : -1.0f);
+}
+
+Vector UTIL_VecToAngles(const Vector& vec)
+{
+	float rgflVecOut[3];
+	VEC_TO_ANGLES(vec, rgflVecOut);
+	return Vector(rgflVecOut);
+}
+
+int UTIL_PointContents(const Vector& vec)
+{
+	int thePointContents = POINT_CONTENTS(vec);
+	return thePointContents;
+}
+
+float UTIL_WaterLevel(const Vector& position, float minz, float maxz)
+{
+	Vector midUp = position;
+	midUp.z = minz;
+
+	if (UTIL_PointContents(midUp) != CONTENTS_WATER)
+		return minz;
+
+	midUp.z = maxz;
+	if (UTIL_PointContents(midUp) == CONTENTS_WATER)
+		return maxz;
+
+	float diff = maxz - minz;
+	while (diff > 1.0)
+	{
+		midUp.z = minz + diff * 0.5f;
+		if (UTIL_PointContents(midUp) == CONTENTS_WATER)
+		{
+			minz = midUp.z;
+		}
+		else
+		{
+			maxz = midUp.z;
+		}
+		diff = maxz - minz;
+	}
+
+	return midUp.z;
 }
 
 Vector ViewInterpTo(const Vector CurrentViewAngles, const Vector& TargetDirection, const float DeltaTime, const float InterpSpeed)
@@ -745,30 +863,126 @@ float UTIL_CalculateSlopeAngleBetweenPoints(const Vector StartPoint, const Vecto
 	return atanf(Rise / Run);
 }
 
-Vector UTIL_ClampVectorToBox(const Vector& input, const Vector& clampSize)
+// Function to check if a finite line intersects with an AABB
+bool vlineIntersectsAABB(Vector lineStart, Vector lineEnd, Vector BoxMinPosition, Vector BoxMaxPosition)
 {
-	Vector sourceVector = input;
+	if (vPointOverlaps3D(lineStart, BoxMinPosition, BoxMaxPosition) || vPointOverlaps3D(lineEnd, BoxMinPosition, BoxMaxPosition)) { return true; }
 
-	if (sourceVector.x > clampSize.x)
-		sourceVector.x -= clampSize.x;
-	else if (sourceVector.x < -clampSize.x)
-		sourceVector.x += clampSize.x;
-	else
-		sourceVector.x = 0;
+	Vector RayDir = UTIL_GetVectorNormal(lineEnd - lineStart);
+	float LineLength = vDist3D(lineStart, lineEnd);
+	Vector dirfrac;
 
-	if (sourceVector.y > clampSize.y)
-		sourceVector.y -= clampSize.y;
-	else if (sourceVector.y < -clampSize.y)
-		sourceVector.y += clampSize.y;
-	else
-		sourceVector.y = 0;
+	float t = FLT_MAX;
 
-	if (sourceVector.z > clampSize.z)
-		sourceVector.z -= clampSize.z;
-	else if (sourceVector.z < -clampSize.z)
-		sourceVector.z += clampSize.z;
-	else
-		sourceVector.z = 0;
+	// r.dir is unit direction vector of ray
+	dirfrac.x = 1.0f / RayDir.x;
+	dirfrac.y = 1.0f / RayDir.y;
+	dirfrac.z = 1.0f / RayDir.z;
+	// lb is the corner of AABB with minimal coordinates - left bottom, rt is maximal corner
+	// r.org is origin of ray
+	float t1 = (BoxMinPosition.x - lineStart.x) * dirfrac.x;
+	float t2 = (BoxMaxPosition.x - lineStart.x) * dirfrac.x;
+	float t3 = (BoxMinPosition.y - lineStart.y) * dirfrac.y;
+	float t4 = (BoxMaxPosition.y - lineStart.y) * dirfrac.y;
+	float t5 = (BoxMinPosition.z - lineStart.z) * dirfrac.z;
+	float t6 = (BoxMaxPosition.z - lineStart.z) * dirfrac.z;
 
-	return sourceVector.Normalize();
+	float tmin = std::max(std::max(std::min(t1, t2), std::min(t3, t4)), std::min(t5, t6));
+	float tmax = std::min(std::min(std::max(t1, t2), std::max(t3, t4)), std::max(t5, t6));
+
+	// if tmax < 0, ray (line) is intersecting AABB, but the whole AABB is behind us
+	if (tmax < 0)
+	{
+		t = tmax;
+		return false;
+	}
+
+	// if tmin > tmax, ray doesn't intersect AABB
+	if (tmin > tmax)
+	{
+		t = tmax;
+		return false;
+	}
+
+	t = tmin;
+	return t <= LineLength;
+}
+
+bool vPointInsideAABB(const Vector Point, const Vector bbMin, const Vector bbMax)
+{
+	return Point.x > bbMin.x && Point.x < bbMax.x
+		&& Point.y > bbMin.y && Point.y < bbMax.y
+		&& Point.z > bbMin.z && Point.z < bbMax.z;
+}
+
+bool vPointInsideAABB2D(const Vector Point, const Vector bbMin, const Vector bbMax)
+{
+	return Point.x > bbMin.x && Point.x < bbMax.x
+		&& Point.y > bbMin.y && Point.y < bbMax.y;
+}
+
+Vector vClampPointToAABBEdge(const Vector Point, const Vector bbMin, const Vector bbMax)
+{
+	if (!vPointInsideAABB(Point, bbMin, bbMax))
+	{
+		return vClosestPointOnAABB(Point, bbMin, bbMax);
+	}
+
+	Vector bbCentre = bbMin + ((bbMax - bbMin) * 0.5f);
+
+	float xDist = fminf(fabsf(Point.x - bbMin.x), fabsf(Point.x - bbMax.x));
+	float yDist = fminf(fabsf(Point.y - bbMin.y), fabsf(Point.y - bbMax.y));
+	float zDist = fminf(fabsf(Point.z - bbMin.z), fabsf(Point.z - bbMax.z));
+
+	if (xDist < yDist && xDist < zDist) 
+	{
+		Vector Result = Point;
+		Result.x = (Point.x < bbCentre.x) ? bbMin.x : bbMax.x;
+
+		return Result;
+	}
+
+	if (yDist < xDist && yDist < zDist)
+	{
+		Vector Result = Point;
+		Result.y = (Point.y < bbCentre.y) ? bbMin.y : bbMax.y;
+
+		return Result;
+	}
+
+	Vector Result = Point;
+	Result.z = (Point.z < bbCentre.z) ? bbMin.z : bbMax.z;
+
+	return Result;
+}
+
+Vector vClampPointToAABBEdge2D(const Vector Point, const Vector bbMin, const Vector bbMax)
+{
+	if (!vPointInsideAABB2D(Point, bbMin, bbMax))
+	{
+		return vClosestPointOnBB2D(Point, bbMin, bbMax);
+	}
+
+	Vector bbCentre = bbMin + ((bbMax - bbMin) * 0.5f);
+
+	float xDist = fminf(fabsf(Point.x - bbMin.x), fabsf(Point.x - bbMax.x));
+	float yDist = fminf(fabsf(Point.y - bbMin.y), fabsf(Point.y - bbMax.y));
+
+	if (xDist < yDist)
+	{
+		Vector Result = Point;
+		Result.x = (Point.x < bbCentre.x) ? bbMin.x : bbMax.x;
+
+		return Result;
+	}
+
+	Vector Result = Point;
+	Result.y = (Point.y < bbCentre.y) ? bbMin.y : bbMax.y;
+
+	return Result;
+}
+
+Vector vClosestPointOnAABB(const Vector Point, const Vector bbMin, const Vector bbMax)
+{
+	return Vector(clampf(Point.x, bbMin.x, bbMax.x), clampf(Point.y, bbMin.y, bbMax.y), clampf(Point.z, bbMin.z, bbMax.z));
 }

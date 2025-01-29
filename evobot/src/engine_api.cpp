@@ -36,16 +36,13 @@
 
 #include <meta_api.h>
 
-#include "game_state.h"
-#include "bot_client.h"
-#include "bot_config.h"
-#include "bot_util.h"
+#include "AIPlayerManager.h"
+#include "AIConfig.h"
+#include "AIClient.h"
 
-extern bot_t bots[32];
 extern char g_argv[1024];
 extern bool isFakeClientCommand;
 extern int fake_arg_count;
-
 
 void(*botMsgFunction)(void*, int) = NULL;
 void(*botMsgEndFunction)(void*, int) = NULL;
@@ -53,8 +50,6 @@ int botMsgIndex;
 
 void pfnChangeLevel(char* s1, char* s2)
 {
-	GAME_RemoveAllBots();
-
 	RETURN_META(MRES_IGNORED);
 }
 
@@ -74,7 +69,7 @@ void pfnEmitSound(edict_t* entity, int channel, const char* sample, /*int*/float
 
 void pfnClientCommand(edict_t* pEdict, char* szFmt, ...)
 {
-	if ((pEdict->v.flags & FL_FAKECLIENT) || (pEdict->v.flags & FL_THIRDPARTYBOT))
+	if (pEdict->v.flags & FL_FAKECLIENT)
 		RETURN_META(MRES_SUPERCEDE);
 	RETURN_META(MRES_IGNORED);
 }
@@ -83,131 +78,68 @@ void pfnMessageBegin(int msg_dest, int msg_type, const float* pOrigin, edict_t* 
 {
 	if (gpGlobals->deathmatch)
 	{
-
 		int index = -1;
 
 		botMsgFunction = NULL;     // no msg function until known otherwise
 		botMsgEndFunction = NULL;  // no msg end function until known otherwise
 		botMsgIndex = -1;       // index of bot receiving message
 
-		// Will cause a crash if not parsing for the correct version of NS
-		if (msg_type == GET_USER_MSG_ID(PLID, "AlienInfo", NULL))
-		{
-			BotClient_NS_AlienInfo_Reset();
-
-			if (CONFIG_GetNSVersion() == 33)
-			{
-				botMsgFunction = BotClient_NS_AlienInfo_33;
-			}
-			else
-			{
-				botMsgFunction = BotClient_NS_AlienInfo_32;
-			}
-
-			RETURN_META(MRES_IGNORED);
-		}
-
-		if (msg_type == GET_USER_MSG_ID(PLID, "SetupMap", NULL))
-		{
-			BotClient_NS_SetupMap_Reset();
-			botMsgFunction = BotClient_NS_SetupMap;
-			RETURN_META(MRES_IGNORED);
-		}
-
-		if (msg_type == GET_USER_MSG_ID(PLID, "GameStatus", NULL))
-		{
-			BotClient_NS_GameStatus_Reset();
-			botMsgFunction = BotClient_NS_GameStatus;
-			RETURN_META(MRES_IGNORED);
-		}
-
 		if (msg_type == GET_USER_MSG_ID(PLID, "DeathMsg", NULL))
 		{
-			BotClient_NS_DeathMessage_Reset();
-			botMsgFunction = BotClient_NS_DeathMsg;
+			BotClient_Valve_DeathMessage_Reset();
+			botMsgFunction = BotClient_Valve_DeathMsg;
 			RETURN_META(MRES_IGNORED);
 		}
 
+		if (msg_type == GET_USER_MSG_ID(PLID, "WeaponList", NULL))
+		{
+			botMsgFunction = BotClient_Valve_WeaponList;
+			RETURN_META(MRES_IGNORED);
+		}
 
 		if (ed)
 		{
-			index = GetBotIndex(ed);
+			if (msg_type == GET_USER_MSG_ID(PLID, "WeapPickup", NULL))
+			{
+				botMsgIndex = ENTINDEX(ed);
+				botMsgFunction = BotClient_Valve_WeapPickup;
+				RETURN_META(MRES_IGNORED);
+			}
+
+			if (msg_type == GET_USER_MSG_ID(PLID, "AmmoX", NULL))
+			{
+				botMsgIndex = ENTINDEX(ed);
+				BotClient_Valve_AmmoX_Reset();
+				botMsgFunction = BotClient_Valve_AmmoX;
+				RETURN_META(MRES_IGNORED);
+			}
+
+			if (msg_type == GET_USER_MSG_ID(PLID, "CurWeapon", NULL))
+			{
+				botMsgIndex = ENTINDEX(ed);
+				BotClient_Valve_CurrentWeapon_Reset();
+				botMsgFunction = BotClient_Valve_CurrentWeapon;
+				RETURN_META(MRES_IGNORED);
+			}
+
+			index = AIMGR_GetBotIndex(ed);
 
 			// is this message for a bot?
 			if (index != -1)
 			{
 				botMsgIndex = index;       // index of bot receiving message
 
-				if (msg_type == GET_USER_MSG_ID(PLID, "SetOrder", NULL))
-				{
-					BotClient_NS_ReceiveOrder_Reset();
-					botMsgFunction = BotClient_NS_ReceiveOrder;
-				}
-
-				// Network messages have been modified slightly between 3.2 and 3.3
-				if (msg_type == GET_USER_MSG_ID(PLID, "PlayHUDNot", NULL))
-				{
-					BotClient_NS_Alert_Reset();
-
-					if (CONFIG_GetNSVersion() == 33)
-					{
-						botMsgFunction = BotClient_NS_Alert_33;
-					}
-					else
-					{
-						botMsgFunction = BotClient_NS_Alert_32;
-					}
-				}					
-
-				if (msg_type == GET_USER_MSG_ID(PLID, "SetSelect", NULL))
-				{
-					BotClient_NS_SetSelect_Reset();
-					botMsgFunction = BotClient_NS_SetSelect;
-				}
-					
-
-				if (msg_type == GET_USER_MSG_ID(PLID, "AmmoX", NULL))
-				{
-					BotClient_Valve_AmmoX_Reset();
-					botMsgFunction = BotClient_Valve_AmmoX;
-				}
-					
-
-				if (msg_type == GET_USER_MSG_ID(PLID, "WeaponList", NULL))
-					botMsgFunction = BotClient_Valve_WeaponList;
-
-				if (msg_type == GET_USER_MSG_ID(PLID, "CurWeapon", NULL))
-				{
-					BotClient_Valve_CurrentWeapon_Reset();
-					botMsgFunction = BotClient_Valve_CurrentWeapon;
-				}
-
 				if (msg_type == GET_USER_MSG_ID(PLID, "Damage", NULL))
 				{
-					BotClient_NS_Damage_Reset();
-					botMsgFunction = BotClient_NS_Damage;
+					BotClient_Valve_Damage_Reset();
+					botMsgFunction = BotClient_Valve_Damage;
 				}
-
 			}
-
-		}
-		else
-		{
-			// Steam makes the WeaponList message be sent differently
-
-			botMsgFunction = NULL;  // no msg function until known otherwise
-			botMsgIndex = -1;       // index of bot receiving message (none)
-
-
-			if (msg_type == GET_USER_MSG_ID(PLID, "WeaponList", NULL))
-				botMsgFunction = BotClient_Valve_WeaponList;
-			
 		}
 	}
 
 	RETURN_META(MRES_IGNORED);
 }
-
 
 void pfnMessageEnd(void)
 {
@@ -224,7 +156,6 @@ void pfnMessageEnd(void)
 	RETURN_META(MRES_IGNORED);
 }
 
-
 void pfnWriteByte(int iValue)
 {
 	if (gpGlobals->deathmatch)
@@ -236,7 +167,6 @@ void pfnWriteByte(int iValue)
 
 	RETURN_META(MRES_IGNORED);
 }
-
 
 void pfnWriteChar(int iValue)
 {
@@ -250,7 +180,6 @@ void pfnWriteChar(int iValue)
 	RETURN_META(MRES_IGNORED);
 }
 
-
 void pfnWriteShort(int iValue)
 {
 	if (gpGlobals->deathmatch)
@@ -262,7 +191,6 @@ void pfnWriteShort(int iValue)
 
 	RETURN_META(MRES_IGNORED);
 }
-
 
 void pfnWriteLong(int iValue)
 {
@@ -276,7 +204,6 @@ void pfnWriteLong(int iValue)
 	RETURN_META(MRES_IGNORED);
 }
 
-
 void pfnWriteAngle(float flValue)
 {
 	if (gpGlobals->deathmatch)
@@ -288,7 +215,6 @@ void pfnWriteAngle(float flValue)
 
 	RETURN_META(MRES_IGNORED);
 }
-
 
 void pfnWriteCoord(float flValue)
 {
@@ -302,7 +228,6 @@ void pfnWriteCoord(float flValue)
 	RETURN_META(MRES_IGNORED);
 }
 
-
 void pfnWriteString(const char* sz)
 {
 	if (gpGlobals->deathmatch)
@@ -314,7 +239,6 @@ void pfnWriteString(const char* sz)
 
 	RETURN_META(MRES_IGNORED);
 }
-
 
 void pfnWriteEntity(int iValue)
 {
@@ -328,14 +252,12 @@ void pfnWriteEntity(int iValue)
 	RETURN_META(MRES_IGNORED);
 }
 
-
 void pfnClientPrintf(edict_t* pEdict, PRINT_TYPE ptype, const char* szMsg)
 {
-	if ((pEdict->v.flags & FL_FAKECLIENT) || (pEdict->v.flags & FL_THIRDPARTYBOT))
+	if (pEdict->v.flags & FL_FAKECLIENT)
 		RETURN_META(MRES_SUPERCEDE);
 	RETURN_META(MRES_IGNORED);
 }
-
 
 const char* pfnCmd_Args(void)
 {
@@ -344,7 +266,6 @@ const char* pfnCmd_Args(void)
 
 	RETURN_META_VALUE(MRES_IGNORED, NULL);
 }
-
 
 const char* pfnCmd_Argv(int argc)
 {
@@ -363,7 +284,6 @@ const char* pfnCmd_Argv(int argc)
 	RETURN_META_VALUE(MRES_IGNORED, NULL);
 }
 
-
 int pfnCmd_Argc(void)
 {
 	if (isFakeClientCommand)
@@ -371,7 +291,6 @@ int pfnCmd_Argc(void)
 
 	RETURN_META_VALUE(MRES_IGNORED, 0);
 }
-
 
 void pfnSetClientMaxspeed(const edict_t* pEdict, float fNewMaxspeed)
 {
@@ -389,16 +308,14 @@ void pfnSetClientMaxspeed(const edict_t* pEdict, float fNewMaxspeed)
 	RETURN_META(MRES_IGNORED);
 }
 
-
 int pfnGetPlayerUserId(edict_t* e)
 {
 	RETURN_META_VALUE(MRES_IGNORED, 0);
 }
 
-
 const char* pfnGetPlayerAuthId(edict_t* e)
 {
-	if ((e->v.flags & FL_FAKECLIENT) || (e->v.flags & FL_THIRDPARTYBOT))
+	if (e->v.flags & FL_FAKECLIENT)
 		RETURN_META_VALUE(MRES_SUPERCEDE, "0");
 
 	RETURN_META_VALUE(MRES_IGNORED, NULL);

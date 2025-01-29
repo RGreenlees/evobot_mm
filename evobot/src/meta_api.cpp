@@ -43,8 +43,7 @@
 #include <meta_api.h>		// of course
 
 #include "sdk_util.h"		// UTIL_LogPrintf, etc
-#include "general_util.h"
-#include "game_state.h"
+#include "AIPlayerManager.h"
 
 // Must provide at least one of these..
 static META_FUNCTIONS gMetaFunctionTable = {
@@ -61,12 +60,12 @@ static META_FUNCTIONS gMetaFunctionTable = {
 // Description of plugin
 plugin_info_t Plugin_info = {
 	META_INTERFACE_VERSION,	// ifvers
-	"Evobot",	// name
-	"1.1.1",	// version
+	"evobotTemplate",	// name
+	"2.0.0",	// version
 	__DATE__,	// date
 	"Richard Greenlees",	// author
 	"https://github.com/RGreenlees/evobot_mm",	// url
-	"EVOBOT",	// logtag, all caps please
+	"evobot",	// logtag, all caps please
 	PT_STARTUP,	// (when) loadable
 	PT_ANYTIME,	// (when) unloadable
 };
@@ -114,7 +113,7 @@ C_DLLEXPORT int Meta_Attach(PLUG_LOADTIME /* now */,
 	gpGamedllFuncs=pGamedllFuncs;
 
 	// ask the engine to register the server commands this plugin uses
-	REG_SVR_COMMAND("evobot", EvoBot_ServerCommand);
+	REG_SVR_COMMAND("evobot", evobot_ServerCommand);
 
 	return(TRUE);
 }

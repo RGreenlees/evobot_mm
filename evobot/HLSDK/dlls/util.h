@@ -15,6 +15,9 @@
 //
 // Misc utility code
 //
+
+#include "enginecallback.h"
+
 #define	SVC_DIRECTOR		51
 
 inline void MESSAGE_BEGIN( int msg_dest, int msg_type, const float *pOrigin, entvars_t *ent );  // implementation later in this file
@@ -401,6 +404,19 @@ extern DLL_GLOBAL int                   g_Language;
 #define DRC_FLAG_PRIO_MASK              0x0F    //      priorities between 0 and 15 (15 most important)
 #define DRC_FLAG_DRAMATIC               (1<<5)
 
+// Doors
+#define SF_DOOR_ROTATE_Y			0
+#define	SF_DOOR_START_OPEN			1
+#define SF_DOOR_ROTATE_BACKWARDS	2
+#define SF_DOOR_PASSABLE			8
+#define SF_DOOR_ONEWAY				16
+#define	SF_DOOR_NO_AUTO_RETURN		32
+#define SF_DOOR_ROTATE_Z			64
+#define SF_DOOR_ROTATE_X			128
+#define SF_DOOR_USE_ONLY			256		// door must be opened by player's use button.
+#define SF_DOOR_NOMONSTERS			512		// Monster can't open
+#define SF_DOOR_SILENT				0x80000000
+
 // triggers
 #define SF_TRIGGER_ALLOWMONSTERS        1// monsters allowed to fire this trigger
 #define SF_TRIGGER_NOCLIENTS            2// players not allowed to fire this trigger
@@ -427,6 +443,10 @@ extern DLL_GLOBAL int                   g_Language;
 #define TELE_SILENT                     2
 
 #define SF_TRIG_PUSH_ONCE               1
+
+#define SF_PLAT_TRIGGER_ONLY    1
+
+#define SF_BUTTON_DONT_MOVE     1
 
 
 // Sound Utilities

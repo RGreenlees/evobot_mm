@@ -1,4 +1,4 @@
-Building Evobot with AMBuild
+Building evobot with AMBuild
 ===============
 
 # Requirements

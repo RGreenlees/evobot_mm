@@ -1,5 +1,5 @@
 ﻿cmake_minimum_required(VERSION 3.23)
-project(EvoBot LANGUAGES CXX)
+project(evobot LANGUAGES CXX)
 
 #Necessary for shared library on Windows
 if (MSVC)

@@ -1,5 +1,5 @@
 //
-// EvoBot - Neoptolemus' Natural Selection bot, based on Botman's HPB bot template
+// evobot - Neoptolemus' Recast/Detour base GoldSrc bot, based on Botman's HPB bot template
 //
 // bot_math.h
 // 
@@ -8,8 +8,8 @@
 
 #pragma once
 
-#ifndef BOT_MATH_H
-#define BOT_MATH_H
+#ifndef AI_MATH_H
+#define AI_MATH_H
 
 #include <extdll.h>
 
@@ -26,9 +26,9 @@ static const float GOLDSRC_GRAVITY = 400.0f; // Default speed of gravity in Gold
 // Defines a frustum plane
 typedef struct _FRUSTUM_PLANE_T
 {
-	Vector normal;
-	Vector point;
-	float d;
+	Vector normal = ZERO_VECTOR;
+	Vector point = ZERO_VECTOR;
+	float d = 0.0f;
 } frustum_plane_t;
 
 
@@ -46,8 +46,10 @@ float signf(float input);
 float clampf(float input, float inMin, float inMax);
 // Clamp int value between min and max
 float clampi(int input, int inMin, int inMax);
-// Clamp the angle to a valid GoldSrc angle (-180 to 180)
-void ClampAngle(float& angle);
+// For any given view angle, ensure that the angle is expressed as a value between -180 and 180
+float UTIL_WrapAngle(float angle);
+// For view angles, ensures that the angles do not exceed -180 or 180
+Vector UTIL_WrapAngles(Vector angles);
 // Spherical linear interpolation of float from start to end at interp speed
 float fInterpTo(float start, float end, float DeltaTime, float InterpSpeed);
 // Linear interpolation of float from start to end at interp speed
@@ -91,6 +93,7 @@ bool vEquals2D(const Vector v1, const Vector v2);
 // Are two vectors equal, using custom epsilon
 bool vEquals(const Vector v1, const Vector v2, const float epsilon);
 bool vEquals2D(const Vector v1, const Vector v2, const float epsilon);
+bool vIsZero(const Vector v1);
 
 bool fNearlyEqual(const float f1, const float f2);
 
@@ -111,6 +114,23 @@ Vector UTIL_GetVectorNormal2D(const Vector vec);
 Vector UTIL_GetCrossProduct(const Vector v1, const Vector v2);
 // Returns the surface normal of a poly defined at points v1, v2 and v3 (clockwise)
 Vector UTIL_GetSurfaceNormal(const Vector v1, const Vector v2, const Vector v3);
+
+bool vPointOverlaps3D(const Vector Point, const Vector MinBB, const Vector MaxBB);
+bool vPointOverlaps2D(const Vector Point, const Vector MinBB, const Vector MaxBB);
+bool vBBOverlaps2D(const Vector MinBBA, const Vector MaxBBA, const Vector MinBBB, const Vector MaxBBB);
+// For the two lines provided, returns true if they cross each other on the X and Y axis
+bool vLinesIntersect2D(const Vector LineAStart, const Vector LineAEnd, const Vector LineBStart, const Vector LineBEnd);
+
+Vector vClampPointToAABBEdge(const Vector Point, const Vector bbMin, const Vector bbMax);
+Vector vClampPointToAABBEdge2D(const Vector Point, const Vector bbMin, const Vector bbMax);
+bool vPointInsideAABB(const Vector Point, const Vector bbMin, const Vector bbMax);
+bool vPointInsideAABB2D(const Vector Point, const Vector bbMin, const Vector bbMax);
+Vector vClosestPointOnAABB(const Vector Point, const Vector bbMin, const Vector bbMax);
+
+Vector vClosestPointOnBB(const Vector Point, const Vector MinBB, const Vector MaxBB);
+Vector vClosestPointOnBB2D(const Vector Point, const Vector MinBB, const Vector MaxBB);
+
+void vScaleBB(Vector& MinBB, Vector& MaxBB, const float Scale);
 
 // WIP: Trying to get a working random unit vector in cone. Not currently used
 Vector UTIL_GetRandomUnitVectorInCone(const Vector ConeDirection, const float HalfAngleRadians);
@@ -159,15 +179,15 @@ Vector UTIL_GetForwardVector2D(const Vector angles);
 // Returns random point on a circle, assuming circle normal is (0, 0, 1)
 Vector UTIL_RandomPointOnCircle(const Vector origin, const float radius);
 
-// Returns the required pitch needed to hit the target point from launch point, taking projectile speed and gravity into account
-Vector GetPitchForProjectile(Vector LaunchPoint, Vector TargetPoint, const float ProjectileSpeed, const float Gravity);
+// Returns the required launch unit vector needed to hit the target point from launch point, taking projectile speed and gravity into account
+Vector vGetLaunchAngleForProjectile(Vector LaunchPoint, Vector TargetPoint, const float ProjectileSpeed, const float Gravity);
 
 // Confirms if the given point is on the inside of a frustum plane or not
 bool UTIL_PointInsidePlane(const frustum_plane_t* plane, const Vector point);
 
 /* Tests to see if the defined cylinder is intersecting with the supplied frustum plane.
 
-   Since players are always upright, it is reasonable to assume that it is impossible for both the
+   Since edict collision boxes are always upright and the view roll is always 0, it is reasonable to assume that it is impossible for both the
    top and bottom of the cylinder to be outside the plane if it is intersecting, therefore
    we only need to test the top and bottom cylinder at the closest point to the plane.*/
 bool UTIL_CylinderInsidePlane(const frustum_plane_t* plane, const Vector centre, float height, float radius);
@@ -190,5 +210,7 @@ Vector UTIL_GetRandomPointInBoundingBox(const Vector BoxMin, const Vector BoxMax
 unsigned int UTIL_CountSetBitsInInteger(unsigned int n);
 
 float UTIL_CalculateSlopeAngleBetweenPoints(const Vector StartPoint, const Vector EndPoint);
+
+bool vlineIntersectsAABB(Vector lineStart, Vector lineEnd, Vector BoxMinPosition, Vector BoxMaxPosition);
 
 #endif
