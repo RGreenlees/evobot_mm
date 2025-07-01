@@ -565,7 +565,7 @@ void ParseConfigFile(bool bOverride)
                     int random = rand() % AvailableTechs.size();
                     HiveThreeTech = AvailableTechs[random];
 
-                    AvailableTechs.erase(std::remove(AvailableTechs.begin(), AvailableTechs.end(), HiveTwoTech), AvailableTechs.end());
+                    AvailableTechs.erase(std::remove(AvailableTechs.begin(), AvailableTechs.end(), HiveThreeTech), AvailableTechs.end());
                 }
 
 
