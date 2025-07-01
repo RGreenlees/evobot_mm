@@ -920,7 +920,7 @@ void ClientCommand(edict_t* pEntity)
 
 void GameDLLInit(void)
 {
-
+	srand((unsigned int)time(NULL));
 	GAME_Reset();
 	GAME_ClearClientList();
 	
